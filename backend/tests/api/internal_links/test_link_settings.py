@@ -15,6 +15,8 @@ from tests.api.internal_links.support import set_website
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 
+ALERT_DEFAULTS = {"enabled": True, "max_position": 2, "threshold": 1, "channel": "app"}
+
 
 async def test_the_settings_default_to_weekly_without_javascript(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
@@ -29,6 +31,7 @@ async def test_the_settings_default_to_weekly_without_javascript(
         "schedule": "weekly",
         "render_javascript": False,
         "allowed_subdomains": [],
+        "alerts": ALERT_DEFAULTS,
     }
 
 
@@ -59,6 +62,7 @@ async def test_a_patch_of_the_internal_links_part_keeps_the_seo_part(
         "schedule": "monthly",
         "render_javascript": False,
         "allowed_subdomains": ["blog.example.com"],
+        "alerts": ALERT_DEFAULTS,
     }
     assert problem(bad) == (422, "validation_failed")
     again = await api.get(url, headers=editor.headers)
@@ -90,6 +94,7 @@ async def test_one_patch_can_change_both_parts(
             "schedule": "every_two_weeks",
             "render_javascript": True,
             "allowed_subdomains": [],
+            "alerts": ALERT_DEFAULTS,
         }
 
 

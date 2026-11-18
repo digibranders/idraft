@@ -1613,6 +1613,75 @@
         "title": "AioStateInfo",
         "type": "object"
       },
+      "AlertSettings": {
+        "properties": {
+          "channel": {
+            "default": "app",
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_position": {
+            "default": 2,
+            "description": "Tier positions 1 to this one are important.",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "default": 1,
+            "description": "Lost links that raise an alert.",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "title": "AlertSettings",
+        "type": "object"
+      },
+      "AlertSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_position": {
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "title": "AlertSettingsPatch",
+        "type": "object"
+      },
       "Alias": {
         "properties": {
           "alias": {
@@ -2145,6 +2214,138 @@
           "links"
         ],
         "title": "AnchorCount",
+        "type": "object"
+      },
+      "AnchorDetail": {
+        "properties": {
+          "distinct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "integer"
+          },
+          "generic_share": {
+            "title": "Generic Share",
+            "type": "number"
+          },
+          "matches_keyword": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Keyword"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnchorText"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "distinct",
+          "generic",
+          "generic_share",
+          "matches_keyword",
+          "top"
+        ],
+        "title": "AnchorDetail",
+        "type": "object"
+      },
+      "AnchorSummary": {
+        "properties": {
+          "distinct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "integer"
+          },
+          "generic_share": {
+            "title": "Generic Share",
+            "type": "number"
+          },
+          "matches_keyword": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Keyword"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "distinct",
+          "generic",
+          "generic_share",
+          "matches_keyword"
+        ],
+        "title": "AnchorSummary",
+        "type": "object"
+      },
+      "AnchorText": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "count",
+          "generic"
+        ],
+        "title": "AnchorText",
         "type": "object"
       },
       "Annotation": {
@@ -2929,6 +3130,353 @@
         "title": "CardItem",
         "type": "object"
       },
+      "ChangeAlert": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "delivery_state": {
+            "enum": [
+              "shown_in_app",
+              "channel_unavailable"
+            ],
+            "title": "Delivery State",
+            "type": "string"
+          },
+          "lost_links": {
+            "title": "Lost Links",
+            "type": "integer"
+          },
+          "max_position": {
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lost_links",
+          "max_position",
+          "threshold",
+          "channel",
+          "delivery_state"
+        ],
+        "title": "ChangeAlert",
+        "type": "object"
+      },
+      "ChangeLink": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "placement": {
+            "enum": [
+              "content",
+              "auto_generated",
+              "navigation",
+              "header",
+              "footer",
+              "sidebar",
+              "breadcrumb"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "lost_to_t1",
+              "lost_to_t2",
+              "lower",
+              "none"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "still_linked_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Another link that still joins the pair in this crawl (editorial scope).",
+            "title": "Still Linked By"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "anchor",
+          "placement",
+          "priority",
+          "still_linked_by"
+        ],
+        "title": "ChangeLink",
+        "type": "object"
+      },
+      "ChangeLinkMeta": {
+        "properties": {
+          "change": {
+            "enum": [
+              "lost",
+              "added"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "link_scope": {
+            "enum": [
+              "editorial",
+              "all"
+            ],
+            "title": "Link Scope",
+            "type": "string"
+          },
+          "only": {
+            "enum": [
+              "top",
+              "all"
+            ],
+            "title": "Only",
+            "type": "string"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "The stored changes were cut at 200,000 rows.",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id",
+          "change",
+          "link_scope",
+          "only",
+          "total",
+          "truncated"
+        ],
+        "title": "ChangeLinkMeta",
+        "type": "object"
+      },
+      "ChangeLinkPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeLink"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ChangeLinkMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "ChangeLinkPage",
+        "type": "object"
+      },
+      "ChangePage": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null is Untiered."
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "tier"
+        ],
+        "title": "ChangePage",
+        "type": "object"
+      },
+      "ChangesSummary": {
+        "properties": {
+          "alert": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeAlert"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "all_added": {
+            "title": "All Added",
+            "type": "integer"
+          },
+          "all_lost": {
+            "title": "All Lost",
+            "type": "integer"
+          },
+          "editorial_added": {
+            "title": "Editorial Added",
+            "type": "integer"
+          },
+          "editorial_lost": {
+            "title": "Editorial Lost",
+            "type": "integer"
+          },
+          "important_max_position": {
+            "title": "Important Max Position",
+            "type": "integer"
+          },
+          "lost_to_top": {
+            "description": "Editorial links lost to the important tiers.",
+            "title": "Lost To Top",
+            "type": "integer"
+          },
+          "pages_added": {
+            "title": "Pages Added",
+            "type": "integer"
+          },
+          "pages_lost": {
+            "title": "Pages Lost",
+            "type": "integer"
+          },
+          "previous_finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Finished At"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "description": "`pending` until the crawl's changes are worked out, `unavailable` when enrichment failed before that.",
+            "enum": [
+              "first_crawl",
+              "pending",
+              "ready",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id",
+          "previous_finished_at",
+          "state",
+          "editorial_lost",
+          "editorial_added",
+          "all_lost",
+          "all_added",
+          "lost_to_top",
+          "important_max_position",
+          "pages_added",
+          "pages_lost",
+          "alert"
+        ],
+        "title": "ChangesSummary",
+        "type": "object"
+      },
+      "ChangesSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChangesSummary"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ChangesSummaryResponse",
+        "type": "object"
+      },
       "CheckNow": {
         "additionalProperties": false,
         "description": "Keywords to check at once, each a search of its own through the standard queue.",
@@ -2961,6 +3509,34 @@
           "tracked_keyword_ids"
         ],
         "title": "CheckNow",
+        "type": "object"
+      },
+      "CitationCounts": {
+        "properties": {
+          "ai_mode": {
+            "title": "Ai Mode",
+            "type": "integer"
+          },
+          "chatgpt": {
+            "title": "Chatgpt",
+            "type": "integer"
+          },
+          "gemini": {
+            "title": "Gemini",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chatgpt",
+          "gemini",
+          "ai_mode",
+          "total"
+        ],
+        "title": "CitationCounts",
         "type": "object"
       },
       "CitationOut": {
@@ -4161,6 +4737,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "enrich_state": {
+            "description": "State of the second job: changes, anchors and mentions.",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Enrich State",
+            "type": "string"
+          },
           "error_code": {
             "anyOf": [
               {
@@ -4223,6 +4810,11 @@
             "title": "Is Latest",
             "type": "boolean"
           },
+          "links_available": {
+            "description": "False once the crawl's links were dropped (past the last four finished crawls): its pages stay, links, journeys and changes of links are gone.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
           "pages_crawled": {
             "title": "Pages Crawled",
             "type": "integer"
@@ -4231,6 +4823,19 @@
             "description": "Crawled and still queued, while it runs.",
             "title": "Pages Found",
             "type": "integer"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The crawl its changes are measured against.",
+            "title": "Previous Run Id"
           },
           "render_javascript": {
             "title": "Render Javascript",
@@ -4325,6 +4930,9 @@
           "error_message",
           "hints",
           "is_latest",
+          "links_available",
+          "previous_run_id",
+          "enrich_state",
           "created_at",
           "submitted_at",
           "finished_at",
@@ -4394,6 +5002,36 @@
           "has_more"
         ],
         "title": "CursorPageInfo",
+        "type": "object"
+      },
+      "DecisionResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DecisionResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DecisionResult": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "changed"
+        ],
+        "title": "DecisionResult",
         "type": "object"
       },
       "DeviceCounts": {
@@ -6588,6 +7226,75 @@
         "title": "GscBlock",
         "type": "object"
       },
+      "GscPage": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Google's clicks for the page, last 28 days.",
+            "title": "Clicks"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "state",
+          "clicks",
+          "impressions",
+          "window_start",
+          "window_end"
+        ],
+        "title": "GscPage",
+        "type": "object"
+      },
       "GscTrend": {
         "description": "The keyword's own device over the window in consecutive buckets, oldest first.",
         "properties": {
@@ -7836,6 +8543,10 @@
       },
       "InternalLinksSettings": {
         "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/AlertSettings",
+            "description": "The alert for links lost to the important tiers (spec 7.10)."
+          },
           "allowed_subdomains": {
             "description": "Hosts of the project's site, besides its own and its `www.` form, that crawls follow (up to 10).",
             "items": {
@@ -7868,6 +8579,9 @@
       "InternalLinksSettingsPatch": {
         "additionalProperties": false,
         "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/AlertSettingsPatch"
+          },
           "allowed_subdomains": {
             "items": {
               "maxLength": 253,
@@ -8967,6 +9681,98 @@
         "title": "KeywordPage",
         "type": "object"
       },
+      "KeywordRow": {
+        "properties": {
+          "change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Places moved since the last check; positive is up.",
+            "title": "Change"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "keyword",
+          "rank",
+          "change",
+          "volume"
+        ],
+        "title": "KeywordRow",
+        "type": "object"
+      },
+      "KeywordSummary": {
+        "properties": {
+          "average_rank": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Rank"
+          },
+          "best_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Volume"
+          },
+          "ranking": {
+            "title": "Ranking",
+            "type": "integer"
+          },
+          "tracked": {
+            "title": "Tracked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tracked",
+          "ranking",
+          "average_rank",
+          "best_volume"
+        ],
+        "title": "KeywordSummary",
+        "type": "object"
+      },
       "LayoutDocument": {
         "additionalProperties": false,
         "description": "The numbers and cards of one screen, in order: a full snapshot, at most 16 KB.",
@@ -9187,6 +9993,12 @@
       },
       "ListMeta": {
         "properties": {
+          "links_available": {
+            "default": true,
+            "description": "False when the crawl's links were dropped: link counts are the stored ones.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
           "run_id": {
             "format": "uuid",
             "title": "Run Id",
@@ -10246,6 +11058,134 @@
           "search_volume"
         ],
         "title": "MonthlySearches",
+        "type": "object"
+      },
+      "MovedPage": {
+        "properties": {
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
+          "depth_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Delta"
+          },
+          "depth_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lost",
+                  "found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth State"
+          },
+          "editorial_in": {
+            "title": "Editorial In",
+            "type": "integer"
+          },
+          "editorial_in_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editorial In Delta"
+          },
+          "equity_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Points"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "page",
+          "editorial_in",
+          "editorial_in_delta",
+          "equity_points",
+          "depth",
+          "depth_state",
+          "depth_delta"
+        ],
+        "title": "MovedPage",
+        "type": "object"
+      },
+      "MovedPageList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MovedPage"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MovedPageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "MovedPageList",
+        "type": "object"
+      },
+      "MovedPageMeta": {
+        "properties": {
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id"
+        ],
+        "title": "MovedPageMeta",
         "type": "object"
       },
       "Neighbor": {
@@ -11471,6 +12411,189 @@
         "title": "OperationLinks",
         "type": "object"
       },
+      "Opportunity": {
+        "properties": {
+          "anchor": {
+            "description": "The words to link: the phrase as written in the text.",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "context": {
+            "title": "Context",
+            "type": "string"
+          },
+          "key": {
+            "description": "\"{source_url_id}>{target_url_id}\".",
+            "title": "Key",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "keyword",
+              "anchor"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "source_equity_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Equity Share"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "key",
+          "source",
+          "target",
+          "phrase",
+          "context",
+          "anchor",
+          "source_equity_share",
+          "status",
+          "origin"
+        ],
+        "title": "Opportunity",
+        "type": "object"
+      },
+      "OpportunityCounts": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "dismissed": {
+            "title": "Dismissed",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open",
+          "accepted",
+          "dismissed"
+        ],
+        "title": "OpportunityCounts",
+        "type": "object"
+      },
+      "OpportunityDecisions": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpportunityPair"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "status"
+        ],
+        "title": "OpportunityDecisions",
+        "type": "object"
+      },
+      "OpportunityMeta": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OpportunityCounts"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "total",
+          "counts"
+        ],
+        "title": "OpportunityMeta",
+        "type": "object"
+      },
+      "OpportunityPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Opportunity"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/OpportunityMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "OpportunityPage",
+        "type": "object"
+      },
+      "OpportunityPair": {
+        "additionalProperties": false,
+        "properties": {
+          "source_url_id": {
+            "title": "Source Url Id",
+            "type": "string"
+          },
+          "target_url_id": {
+            "title": "Target Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_url_id",
+          "target_url_id"
+        ],
+        "title": "OpportunityPair",
+        "type": "object"
+      },
       "OutcomeCells": {
         "properties": {
           "cited_only": {
@@ -11693,8 +12816,76 @@
         "title": "OwnPage",
         "type": "object"
       },
+      "PageChange": {
+        "properties": {
+          "depth_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Delta"
+          },
+          "depth_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lost",
+                  "found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth State"
+          },
+          "editorial_in_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editorial In Delta"
+          },
+          "equity_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Points"
+          },
+          "is_new": {
+            "title": "Is New",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_new",
+          "editorial_in_delta",
+          "equity_points",
+          "depth_state",
+          "depth_delta"
+        ],
+        "title": "PageChange",
+        "type": "object"
+      },
       "PageDetail": {
         "properties": {
+          "extras": {
+            "$ref": "#/components/schemas/PageDetailExtras"
+          },
           "linking_by_placement": {
             "items": {
               "$ref": "#/components/schemas/PlacementCount"
@@ -11750,9 +12941,49 @@
           "linking_pages",
           "outlinks",
           "linking_pages_total",
-          "outlinks_total"
+          "outlinks_total",
+          "extras"
         ],
         "title": "PageDetail",
+        "type": "object"
+      },
+      "PageDetailExtras": {
+        "properties": {
+          "anchors": {
+            "$ref": "#/components/schemas/AnchorDetail"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "$ref": "#/components/schemas/CitationCounts"
+          },
+          "gsc": {
+            "$ref": "#/components/schemas/GscPage"
+          },
+          "keywords": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordRow"
+            },
+            "title": "Keywords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "change",
+          "keywords",
+          "citations",
+          "anchors",
+          "gsc"
+        ],
+        "title": "PageDetailExtras",
         "type": "object"
       },
       "PageDetailResponse": {
@@ -11765,6 +12996,62 @@
           "data"
         ],
         "title": "PageDetailResponse",
+        "type": "object"
+      },
+      "PageExtras": {
+        "properties": {
+          "anchors": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnchorSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CitationCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gsc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GscPage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keywords": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeywordSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "PageExtras",
         "type": "object"
       },
       "PageFilter": {
@@ -11780,11 +13067,12 @@
                     "editorial_orphan",
                     "deep_only_through_auto",
                     "placement_unknown",
-                    "has_broken_outlinks"
+                    "has_broken_outlinks",
+                    "generic_anchors"
                   ],
                   "type": "string"
                 },
-                "maxItems": 5,
+                "maxItems": 6,
                 "type": "array"
               },
               {
@@ -11885,7 +13173,9 @@
                   "under_linked_t1",
                   "orphans",
                   "editorial_orphans",
-                  "deep_only_through_auto"
+                  "deep_only_through_auto",
+                  "lost_links_top",
+                  "weak_outlinks"
                 ],
                 "type": "string"
               },
@@ -11949,6 +13239,17 @@
             ],
             "title": "Equity Share"
           },
+          "extras": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageExtras"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the list was asked for `include`."
+          },
           "flags": {
             "items": {
               "enum": [
@@ -11958,7 +13259,8 @@
                 "placement_unknown",
                 "broken",
                 "redirect",
-                "non_indexable"
+                "non_indexable",
+                "generic_anchors"
               ],
               "type": "string"
             },
@@ -16015,6 +17317,155 @@
         "title": "RoleUnits",
         "type": "object"
       },
+      "Route": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "clicks",
+          "steps"
+        ],
+        "title": "Route",
+        "type": "object"
+      },
+      "RouteStep": {
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The words of the link that reached this page.",
+            "title": "Anchor"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "placement": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "editorial",
+                  "auto_generated",
+                  "template"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "via_redirect": {
+            "title": "Via Redirect",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page",
+          "status_code",
+          "anchor",
+          "placement",
+          "scope",
+          "via_redirect"
+        ],
+        "title": "RouteStep",
+        "type": "object"
+      },
+      "Routes": {
+        "properties": {
+          "any": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over every followed link; null when not reachable."
+          },
+          "editorial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over editorial links (and redirects) only."
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "target",
+          "any",
+          "editorial"
+        ],
+        "title": "Routes",
+        "type": "object"
+      },
+      "RoutesResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Routes"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "RoutesResponse",
+        "type": "object"
+      },
       "RowActionInput": {
         "additionalProperties": false,
         "properties": {
@@ -19349,6 +20800,106 @@
         "title": "SparklinePoint",
         "type": "object"
       },
+      "SuggestionReason": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "kind": {
+            "enum": [
+              "clicks",
+              "rank"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "kind",
+          "clicks",
+          "rank",
+          "keyword",
+          "volume"
+        ],
+        "title": "SuggestionReason",
+        "type": "object"
+      },
+      "SuggestionSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "all": {
+            "anyOf": [
+              {
+                "const": true,
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "All"
+          },
+          "url_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Ids"
+          }
+        },
+        "title": "SuggestionSelection",
+        "type": "object"
+      },
       "SummaryDetailContext": {
         "description": "What is true of every cell of `EngineSummary.detail` in the response.",
         "properties": {
@@ -20530,6 +22081,110 @@
           "average_depth"
         ],
         "title": "TierStat",
+        "type": "object"
+      },
+      "TierSuggestionList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TierSuggestionRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TierSuggestionMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "TierSuggestionList",
+        "type": "object"
+      },
+      "TierSuggestionMeta": {
+        "properties": {
+          "gsc_state": {
+            "description": "`ok`: clicks were used with the ranks; otherwise only ranks were.",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "Gsc State",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "gsc_state"
+        ],
+        "title": "TierSuggestionMeta",
+        "type": "object"
+      },
+      "TierSuggestionRow": {
+        "properties": {
+          "from_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestionReason"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "to_tier": {
+            "$ref": "#/components/schemas/TierRef"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "from_tier",
+          "to_tier",
+          "reasons"
+        ],
+        "title": "TierSuggestionRow",
         "type": "object"
       },
       "TopicSummaryRow": {
@@ -23343,6 +24998,11 @@
             "title": "Links To Non Indexable",
             "type": "integer"
           },
+          "lost_links_top": {
+            "description": "Pages that lost an editorial link and are important.",
+            "title": "Lost Links Top",
+            "type": "integer"
+          },
           "orphans": {
             "title": "Orphans",
             "type": "integer"
@@ -23355,6 +25015,11 @@
           "under_linked_t1": {
             "title": "Under Linked T1",
             "type": "integer"
+          },
+          "weak_outlinks": {
+            "description": "T1 pages that mostly link to weak targets.",
+            "title": "Weak Outlinks",
+            "type": "integer"
           }
         },
         "required": [
@@ -23363,6 +25028,8 @@
           "orphans",
           "editorial_orphans",
           "deep_only_through_auto",
+          "lost_links_top",
+          "weak_outlinks",
           "broken_and_redirected",
           "links_to_non_indexable"
         ],
@@ -33381,6 +35048,320 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links": {
+      "get": {
+        "operationId": "changes_links_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_links_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "change",
+            "required": true,
+            "schema": {
+              "enum": [
+                "lost",
+                "added"
+              ],
+              "title": "Change",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "all"
+              ],
+              "title": "Link Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "only",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "top",
+                "all"
+              ],
+              "title": "Only",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeLinkPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Lost or added links against the previous crawl, important targets first",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/pages": {
+      "get": {
+        "operationId": "changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedPageList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages whose editorial links in, equity or depth moved most",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/summary": {
+      "get": {
+        "operationId": "changes_summary_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Counts of what the crawl changed, and the alert for links lost to important pages",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges": {
       "get": {
         "description": "Template links first, then auto-generated, then editorial, so template fixes come first; then by target path.",
@@ -33879,6 +35860,259 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities": {
+      "get": {
+        "operationId": "list_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "accepted",
+                    "dismissed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "A tier position, 1 to 8, or `none` for pages without a tier.",
+            "in": "query",
+            "name": "filter[target_tier]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^([1-8]|none)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A tier position, 1 to 8, or `none` for pages without a tier.",
+              "title": "Filter[Target Tier]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`planned`: the accepted rows, or every open row when none is accepted.",
+            "in": "query",
+            "name": "export",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "planned",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`planned`: the accepted rows, or every open row when none is accepted.",
+              "title": "Export"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv` or `export=planned`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages that mention a topic of another page without linking to it",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities/decisions": {
+      "put": {
+        "operationId": "decide_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_decisions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpportunityDecisions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Accept, dismiss or reopen opportunities of the latest crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages": {
       "get": {
         "operationId": "list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get",
@@ -34046,7 +36280,8 @@
                       "editorial_orphan",
                       "deep_only_through_auto",
                       "placement_unknown",
-                      "has_broken_outlinks"
+                      "has_broken_outlinks",
+                      "generic_anchors"
                     ],
                     "type": "string"
                   },
@@ -34056,7 +36291,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 5,
+              "maxLength": 6,
               "title": "Filter[Flags]"
             }
           },
@@ -34071,7 +36306,9 @@
                     "under_linked_t1",
                     "orphans",
                     "editorial_orphans",
-                    "deep_only_through_auto"
+                    "deep_only_through_auto",
+                    "lost_links_top",
+                    "weak_outlinks"
                   ],
                   "type": "string"
                 },
@@ -34118,10 +36355,41 @@
                 "equity_share",
                 "-equity_share",
                 "status_code",
-                "-status_code"
+                "-status_code",
+                "change",
+                "-change"
               ],
               "title": "Sort",
               "type": "string"
+            }
+          },
+          {
+            "description": "Parts to add to each row as `extras`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "changes",
+                      "keywords",
+                      "citations",
+                      "anchors",
+                      "gsc"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Parts to add to each row as `extras`.",
+              "maxLength": 5,
+              "title": "Include"
             }
           },
           {
@@ -34298,6 +36566,90 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths": {
+      "get": {
+        "description": "`any` follows every followed link, `editorial` only editorial links; a redirect is one step to its target. A route is null when the page is not reached in 12 clicks.",
+        "operationId": "paths_api_v1_workspaces__workspace_id__projects__project_id__internal_links_paths_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The shortest route from the home page to a page",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow": {
       "get": {
         "operationId": "tier_flow_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_flow_get",
@@ -34383,6 +36735,185 @@
           }
         },
         "summary": "Links from tier to tier, and each tier's share",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions": {
+      "get": {
+        "operationId": "list_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierSuggestionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages whose clicks or keyword ranks say they belong in a higher tier",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept": {
+      "post": {
+        "operationId": "accept_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Set the suggested tiers by hand",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/dismiss": {
+      "post": {
+        "operationId": "dismiss_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Hide suggestions for the project",
         "tags": [
           "internal-links"
         ]

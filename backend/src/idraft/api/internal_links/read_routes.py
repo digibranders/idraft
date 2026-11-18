@@ -57,7 +57,7 @@ Statuses = Annotated[list[StatusClass] | None, Commas, Query(alias="filter[statu
 TargetStatuses = Annotated[
     list[StatusClass] | None, Commas, Query(alias="filter[target_status]", max_length=4)
 ]
-Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=5)]
+Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=6)]
 Placements = Annotated[
     list[PlacementName] | None, Commas, Query(alias="filter[placement]", max_length=7)
 ]
@@ -115,6 +115,11 @@ async def list_pages(
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
+    include: Annotated[
+        list[Literal["changes", "keywords", "citations", "anchors", "gsc"]] | None,
+        Commas,
+        Query(max_length=5, description="Parts to add to each row as `extras`."),
+    ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:
     found = PageFilter(
@@ -141,6 +146,7 @@ async def list_pages(
         sort=sort,
         cursor=page.cursor,
         limit=page.limit,
+        include=include or (),
     )
     return PageRowPage(
         data=listed.rows,
@@ -149,7 +155,12 @@ async def list_pages(
             next_cursor=listed.next_cursor,
             has_more=listed.next_cursor is not None,
         ),
-        meta=ListMeta(run_id=listed.run_id, scope=scope, total=listed.total),
+        meta=ListMeta(
+            run_id=listed.run_id,
+            scope=scope,
+            total=listed.total,
+            links_available=not listed.links_dropped,
+        ),
     )
 
 
@@ -220,7 +231,12 @@ async def list_edges(
             next_cursor=listed.next_cursor,
             has_more=listed.next_cursor is not None,
         ),
-        meta=ListMeta(run_id=listed.run_id, scope=scope, total=listed.total),
+        meta=ListMeta(
+            run_id=listed.run_id,
+            scope=scope,
+            total=listed.total,
+            links_available=not listed.links_dropped,
+        ),
     )
 
 

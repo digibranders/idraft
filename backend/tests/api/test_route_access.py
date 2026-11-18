@@ -521,6 +521,41 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists"): (
         "data:read"
     ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/summary",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/pages",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities",
+    ): "data:read",
+    (
+        "PUT",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities/decisions",
+    ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions",
+    ): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept",
+    ): "projects:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/dismiss",
+    ): "projects:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths"): (
+        "data:read"
+    ),
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): "data:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls"): (
         "runs:trigger"

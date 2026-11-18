@@ -44,6 +44,18 @@ from sqlalchemy.orm import aliased
 
 from idraft.api.ai.engine_service import live_project
 from idraft.api.internal_links.csv_export import EXPORT_ROWS_MAX, csv_text
+from idraft.api.internal_links.extras import (
+    NO_CITATIONS,
+    anchor_summary,
+    anchors_of,
+    changes_of,
+    citations_of,
+    empty_anchors,
+    gsc_of,
+    keyword_rows,
+    keywords_of,
+    summarize_keywords,
+)
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
@@ -57,6 +69,8 @@ from idraft.api.schemas.internal_links import (
     NeighborFocus,
     NeighborMeta,
     PageDetail,
+    PageDetailExtras,
+    PageExtras,
     PageFilter,
     PageRow,
     PageTagRef,
@@ -70,11 +84,14 @@ from idraft.api.schemas.internal_links import (
     Worklists,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
+from idraft.crawl.anchors import mostly_generic
 from idraft.crawl.scopes import LinkScope
 from idraft.crawl.tiers import tier_code
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import (
     crawl_links,
+    crawl_page_changes,
     crawl_pages,
     crawl_runs,
     crawl_tier_flow,
@@ -168,6 +185,8 @@ def _flags(row: Row[Any]) -> list[str]:
         flags.append("redirect")
     if not row.is_indexable:
         flags.append("non_indexable")
+    if mostly_generic(row.editorial_anchors, row.generic_anchors):
+        flags.append("generic_anchors")
     return flags
 
 
@@ -185,6 +204,8 @@ def _sort_column(name: str, view: LinkScope) -> ColumnElement[Any]:
         return _OUTLINKS[view]
     if key == "equity_share":
         return func.coalesce(crawl_pages.c.equity_share, -1.0)
+    if key == "change":
+        return func.coalesce(crawl_page_changes.c.editorial_in_delta, 0)
     return func.coalesce(crawl_pages.c.status_code, 0)
 
 
@@ -410,6 +431,7 @@ class PageList:
     total: int
     next_cursor: str | None
     run_id: UUID
+    links_dropped: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,6 +446,7 @@ class EdgeList:
     total: int
     next_cursor: str | None
     run_id: UUID
+    links_dropped: bool
 
 
 _SOURCE_URL = aliased(urls)
@@ -845,6 +868,38 @@ async def neighbor_page(
     return NeighborPage(rows=neighbors, meta=meta)
 
 
+async def attach_extras(
+    db: AsyncSession, scope: PageScope, rows: list[PageRow], include: set[str]
+) -> None:
+    """Fills `row.extras` for the parts asked for, one grouped query per part."""
+    ids = [int(row.url_id) for row in rows]
+    if not ids:
+        return
+    changes = await changes_of(db, scope, ids) if "changes" in include else None
+    keywords = await keywords_of(db, scope, ids) if include & {"keywords", "anchors"} else {}
+    citations = await citations_of(db, scope, ids) if "citations" in include else {}
+    anchors = (
+        await anchors_of(db, scope, ids, keywords)
+        if "anchors" in include and not scope.links_dropped
+        else {}
+    )
+    gsc = await gsc_of(db, scope, ids) if "gsc" in include else {}
+    for row in rows:
+        url = int(row.url_id)
+        row.extras = PageExtras(
+            change=None if changes is None else changes.get(url),
+            keywords=summarize_keywords(keywords.get(url, [])) if "keywords" in include else None,
+            citations=citations.get(url, NO_CITATIONS) if "citations" in include else None,
+            # A crawl without its links keeps no anchor list: the column shows nothing.
+            anchors=(
+                anchor_summary(anchors.get(url) or empty_anchors(keywords.get(url, [])))
+                if "anchors" in include and not scope.links_dropped
+                else None
+            ),
+            gsc=gsc.get(url),
+        )
+
+
 class LinkReadService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -869,6 +924,7 @@ class LinkReadService:
         sort: str,
         cursor: str | None,
         limit: int,
+        include: Sequence[str] = (),
     ) -> PageList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
@@ -902,11 +958,15 @@ class LinkReadService:
                 if more
                 else None
             )
+            page_rows_out = await _page_rows(db, scope, view, tiers, rows)
+            if include:
+                await attach_extras(db, scope, page_rows_out, set(include))
             return PageList(
-                rows=await _page_rows(db, scope, view, tiers, rows),
+                rows=page_rows_out,
                 total=total,
                 next_cursor=next_cursor,
                 run_id=scope.run_id,
+                links_dropped=scope.links_dropped,
             )
 
     async def pages_csv(
@@ -966,6 +1026,7 @@ class LinkReadService:
     ) -> NeighborPage:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
             tiers = await load_tiers(db, access.workspace_id)
             return await neighbor_page(db, scope, tiers, url_id, direction, view, limit, offset)
 
@@ -1026,6 +1087,10 @@ class LinkReadService:
             ]
             linking = await neighbor_page(db, scope, tiers, url_id, "in", view, DETAIL_LIST, 0)
             outlinks = await neighbor_page(db, scope, tiers, url_id, "out", view, DETAIL_LIST, 0)
+            url = int(page.url_id)
+            kw = (await keywords_of(db, scope, [url])).get(url, [])
+            anchor_detail = (await anchors_of(db, scope, [url], {url: kw})).get(url)
+            changed = await changes_of(db, scope, [url])
             return PageDetail(
                 page=page,
                 linking_by_tier=page.linked_from_tiers,
@@ -1035,6 +1100,13 @@ class LinkReadService:
                 outlinks=outlinks.rows,
                 linking_pages_total=linking.meta.total,
                 outlinks_total=outlinks.meta.total,
+                extras=PageDetailExtras(
+                    change=None if changed is None else changed.get(url),
+                    keywords=keyword_rows(kw),
+                    citations=(await citations_of(db, scope, [url])).get(url, NO_CITATIONS),
+                    anchors=anchor_detail or empty_anchors(kw),
+                    gsc=(await gsc_of(db, scope, [url]))[url],
+                ),
             )
 
     async def tier_flow(
@@ -1045,9 +1117,60 @@ class LinkReadService:
             tiers = await load_tiers(db, access.workspace_id)
             stale: bool = (
                 await db.execute(
-                    select(crawl_runs.c.tier_flow_stale).where(crawl_runs.c.id == scope.run_id)
+                    select(crawl_runs.c.tier_flow_stale).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
                 )
             ).scalar_one()
+            latest = await latest_run(db, access.workspace_id, project_id)
+            links_stored: int = (
+                await db.execute(
+                    select(crawl_runs.c.links_stored).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
+                )
+            ).scalar_one()
+            if (
+                scope.run_id != latest
+                and not scope.links_dropped
+                and links_stored <= INLINE_FLOW_LINKS
+            ):
+                # An older crawl follows today's tiers: its stored rows are those of the day it
+                # was the latest (plan 04 D15).
+                live_cells, live_stats = await flow_rows(
+                    db,
+                    workspace_id=access.workspace_id,
+                    project_id=project_id,
+                    run_id=scope.run_id,
+                )
+                strip_by_tier = {row.tier_id: row for row in live_stats}
+                return TierFlow(
+                    run_id=scope.run_id,
+                    scope=view.value,
+                    stale=False,
+                    cells=[
+                        TierFlowCell(
+                            from_tier=tiers.ref(cell.from_tier_id),
+                            to_tier=tiers.ref(cell.to_tier_id),
+                            links=cell.links,
+                        )
+                        for cell in live_cells
+                        if cell.scope == view.value
+                    ],
+                    tiers=[
+                        TierStat(
+                            tier=ref,
+                            pages=0 if (live := strip_by_tier.get(tier_id)) is None else live.pages,
+                            equity_share=0.0 if live is None else live.equity_share,
+                            average_depth=None if live is None else live.average_depth,
+                        )
+                        for tier_id, ref in [*tiers.refs.items(), (None, None)]
+                    ],
+                )
+            # Stored rows of an older crawl are those of the day it was the latest (D15).
+            stale = stale or scope.run_id != latest
             cells = [
                 TierFlowCell(
                     from_tier=tiers.ref(row.from_tier_id),
@@ -1111,6 +1234,9 @@ class LinkReadService:
                 orphans=await pages("orphans"),
                 editorial_orphans=await pages("editorial_orphans"),
                 deep_only_through_auto=await pages("deep_only_through_auto"),
+                lost_links_top=await pages("lost_links_top"),
+                # The filter answers 410 for a crawl whose links are gone; the count is 0.
+                weak_outlinks=0 if scope.links_dropped else await pages("weak_outlinks"),
                 broken_and_redirected=await links("broken_and_redirected"),
                 links_to_non_indexable=await links("links_to_non_indexable"),
             )
@@ -1127,6 +1253,7 @@ class LinkReadService:
     ) -> EdgeList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
             tiers = await load_tiers(db, access.workspace_id)
             conditions = _edge_conditions(scope, query)
             total = (
@@ -1160,6 +1287,7 @@ class LinkReadService:
                 total=total,
                 next_cursor=next_cursor,
                 run_id=scope.run_id,
+                links_dropped=scope.links_dropped,
             )
 
     async def edges_csv(
@@ -1167,6 +1295,7 @@ class LinkReadService:
     ) -> str:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
             tiers = await load_tiers(db, access.workspace_id)
             rows = (
                 await db.execute(

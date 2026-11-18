@@ -42,6 +42,7 @@ from idraft.api.schemas.internal_links import (
 )
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors.crawl_store import apply_rules, latest_run, project_rules, tiers_changed
+from idraft.crawl.changes import alert_settings
 from idraft.crawl.hosts import site_hosts
 from idraft.crawl.tiers import MatchType, TierRule, check_rule_value, first_match, rule_matches
 from idraft.db import dictionaries
@@ -85,7 +86,9 @@ async def crawl_scope(
         raise NoCrawlError
     row = (
         await db.execute(
-            select(crawl_runs.c.equity_p25, crawl_runs.c.state).where(
+            select(
+                crawl_runs.c.equity_p25, crawl_runs.c.state, crawl_runs.c.links_dropped_at
+            ).where(
                 crawl_runs.c.workspace_id == access.workspace_id,
                 crawl_runs.c.project_id == project_id,
                 crawl_runs.c.id == run_id,
@@ -94,7 +97,22 @@ async def crawl_scope(
     ).one_or_none()
     if row is None or row.state not in ("ready", "stopped_at_ceiling"):
         raise NotFoundError
-    return PageScope(access.workspace_id, project_id, run_id, row.equity_p25)
+    settings: dict[str, Any] | None = (
+        await db.execute(
+            select(projects.c.settings).where(
+                projects.c.workspace_id == access.workspace_id, projects.c.id == project_id
+            )
+        )
+    ).scalar_one_or_none()
+    alerts = alert_settings((settings or {}).get("internal_links"))
+    return PageScope(
+        access.workspace_id,
+        project_id,
+        run_id,
+        row.equity_p25,
+        links_dropped=row.links_dropped_at is not None,
+        alert_max_position=alerts.max_position,
+    )
 
 
 async def select_pages(db: AsyncSession, scope: PageScope, selection: PageSelection) -> list[int]:

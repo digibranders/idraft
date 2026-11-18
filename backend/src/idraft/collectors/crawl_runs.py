@@ -34,6 +34,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.collectors import budget
+from idraft.collectors.crawl_enrich import CrawlEnrichTask
 from idraft.collectors.crawl_store import ACTIVE_STATES, DATA_STATES, recompute_tier_flow
 from idraft.crawl.ceiling import crawl_ceiling, retry_ceiling
 from idraft.crawl.hosts import is_site_host
@@ -100,6 +101,7 @@ class CrawlIngestTask(BaseModel):
 
 
 type SendIngest = Callable[[CrawlIngestTask], Awaitable[bool]]
+type SendEnrich = Callable[[CrawlEnrichTask], Awaitable[bool]]
 
 
 def _failed(step: str, subject_id: UUID, failure: Exception) -> None:
@@ -166,6 +168,7 @@ class CrawlTickReport:
     cancelled: int = 0
     ingest_sent: int = 0
     flows: int = 0
+    enrich_sent: int = 0
     dropped: int = 0
 
     @property
@@ -767,11 +770,23 @@ async def crawl_tick(
     send_ingest: SendIngest,
     *,
     now: datetime,
+    send_enrich: SendEnrich | None = None,
 ) -> CrawlTickReport:
     """One pass over every crawl. With no provider (no DataForSEO credentials) crawls are
-    queued and wait; nothing is posted."""
+    queued and wait; nothing is posted. `send_enrich` sends the second job of a finished crawl
+    (what changed, anchors, mentions); it needs no provider."""
     counts: dict[str, int] = dict.fromkeys(
-        ("posted", "failed", "progressed", "finished", "cancelled", "ingest_sent", "flows"), 0
+        (
+            "posted",
+            "failed",
+            "progressed",
+            "finished",
+            "cancelled",
+            "ingest_sent",
+            "flows",
+            "enrich_sent",
+        ),
+        0,
     )
     started = time.monotonic()
     counts["cancelled"] += await _expire_queued(sessions, now)
@@ -811,6 +826,15 @@ async def crawl_tick(
         with _isolated("ingest", run.id):
             if await send_ingest(CrawlIngestTask(workspace_id=run.workspace_id, run_id=run.id)):
                 counts["ingest_sent"] += 1
+    if send_enrich is not None:
+        for run in await _rows(
+            sessions,
+            crawl_runs.c.state.in_(DATA_STATES),
+            crawl_runs.c.enrich_state.in_(("pending", "running")),
+        ):
+            with _isolated("enrich", run.id):
+                if await send_enrich(CrawlEnrichTask(workspace_id=run.workspace_id, run_id=run.id)):
+                    counts["enrich_sent"] += 1
     for run in await _rows(
         sessions, crawl_runs.c.tier_flow_stale, crawl_runs.c.state.in_(DATA_STATES)
     ):

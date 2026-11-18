@@ -56,6 +56,7 @@ async def test_a_new_project_has_the_default_settings(
             "schedule": "weekly",
             "render_javascript": False,
             "allowed_subdomains": [],
+            "alerts": {"enabled": True, "max_position": 2, "threshold": 1, "channel": "app"},
         },
         "entity_config_version": 1,
     }
