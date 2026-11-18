@@ -4983,6 +4983,36 @@
         "title": "CursorPageInfo",
         "type": "object"
       },
+      "DecisionResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DecisionResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DecisionResult": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "changed"
+        ],
+        "title": "DecisionResult",
+        "type": "object"
+      },
       "DeviceCounts": {
         "properties": {
           "desktop": {
@@ -12358,6 +12388,189 @@
           "self"
         ],
         "title": "OperationLinks",
+        "type": "object"
+      },
+      "Opportunity": {
+        "properties": {
+          "anchor": {
+            "description": "The words to link: the phrase as written in the text.",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "context": {
+            "title": "Context",
+            "type": "string"
+          },
+          "key": {
+            "description": "\"{source_url_id}>{target_url_id}\".",
+            "title": "Key",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "keyword",
+              "anchor"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "source_equity_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Equity Share"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "key",
+          "source",
+          "target",
+          "phrase",
+          "context",
+          "anchor",
+          "source_equity_share",
+          "status",
+          "origin"
+        ],
+        "title": "Opportunity",
+        "type": "object"
+      },
+      "OpportunityCounts": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "dismissed": {
+            "title": "Dismissed",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open",
+          "accepted",
+          "dismissed"
+        ],
+        "title": "OpportunityCounts",
+        "type": "object"
+      },
+      "OpportunityDecisions": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpportunityPair"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "status"
+        ],
+        "title": "OpportunityDecisions",
+        "type": "object"
+      },
+      "OpportunityMeta": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OpportunityCounts"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "total",
+          "counts"
+        ],
+        "title": "OpportunityMeta",
+        "type": "object"
+      },
+      "OpportunityPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Opportunity"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/OpportunityMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "OpportunityPage",
+        "type": "object"
+      },
+      "OpportunityPair": {
+        "additionalProperties": false,
+        "properties": {
+          "source_url_id": {
+            "title": "Source Url Id",
+            "type": "string"
+          },
+          "target_url_id": {
+            "title": "Target Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_url_id",
+          "target_url_id"
+        ],
+        "title": "OpportunityPair",
         "type": "object"
       },
       "OutcomeCells": {
@@ -35268,6 +35481,259 @@
           }
         },
         "summary": "One journey step, links out or links in",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities": {
+      "get": {
+        "operationId": "list_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "accepted",
+                    "dismissed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "A tier position, 1 to 8, or `none` for pages without a tier.",
+            "in": "query",
+            "name": "filter[target_tier]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^([1-8]|none)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A tier position, 1 to 8, or `none` for pages without a tier.",
+              "title": "Filter[Target Tier]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`planned`: the accepted rows, or every open row when none is accepted.",
+            "in": "query",
+            "name": "export",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "planned",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`planned`: the accepted rows, or every open row when none is accepted.",
+              "title": "Export"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv` or `export=planned`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages that mention a topic of another page without linking to it",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities/decisions": {
+      "put": {
+        "operationId": "decide_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_decisions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpportunityDecisions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Accept, dismiss or reopen opportunities of the latest crawl",
         "tags": [
           "internal-links"
         ]

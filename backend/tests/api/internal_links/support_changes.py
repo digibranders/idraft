@@ -8,6 +8,7 @@ import uuid
 from tests.api.auth.support import Workspace, execute, fetchrow
 from tests.api.internal_links.support import SeedLink, seed_crawl, seed_tiers, set_counts
 from tests.conftest import PostgresServer
+from tests.db.support import connection, insert_prompt
 
 PAGES = [("/", 200), ("/pricing", 200), ("/blog", 200), ("/blog/a", 200), ("/blog/b", 200)]
 BEFORE = [
@@ -95,3 +96,61 @@ async def track_keyword(
         row["location_id"],
         volume,
     )
+
+
+async def insert_citation(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project: uuid.UUID,
+    url_id: int,
+    engine: str,
+    days_ago: int,
+) -> None:
+    """One answer of `engine`, `days_ago` days old, that cites the page as the project's own
+    domain. The statements are those of `seed_ai` in `tests/db/support.py`."""
+    observation_class = "serp_ai" if engine == "google_ai_mode" else "consumer_ui"
+    async with connection(pg) as db:
+        prompt_id, version_id = await insert_prompt(
+            db, workspace.id, project, f"Which tool is best {uuid.uuid4().hex}?"
+        )
+        raw_payload_id: int = await db.fetchval(
+            "INSERT INTO ops.raw_payloads (storage, object_key, sha256, bytes_raw, bytes_stored, "
+            "compression, content_type, provider_code, provider_endpoint, fetched_at, "
+            "retention_class) VALUES ('r2', $1, $2, 10, 10, 'zstd', 'application/json', "
+            "'dataforseo', 'ai_optimization/chat_gpt/llm_scraper/task_get/advanced', now(), "
+            "'ai_raw') RETURNING id",
+            f"ai_raw/{uuid.uuid4().hex}",
+            uuid.uuid4().bytes + uuid.uuid4().bytes,
+        )
+        observed_at = await db.fetchval("SELECT now() - make_interval(days => $1)", days_ago)
+        observation_id: int = await db.fetchval(
+            "INSERT INTO ai.observations (observed_at, observed_date, workspace_id, project_id, "
+            "engine_code, observation_class, prompt_id, prompt_version_id, query_text, "
+            "location_id, language_code, provider_code, provider_endpoint, status, answer_text, "
+            "answer_char_count, has_citations, citation_count, raw_payload_id, adapter_version, "
+            "normalizer_version, canonicalizer_version) VALUES ($1::timestamptz, "
+            "($1::timestamptz)::date, $2, $3, $4, $5, $6, $7, 'Which tool is best?', "
+            "(SELECT default_location_id FROM core.projects WHERE id = $3), 'en', 'dataforseo', "
+            "'ai_optimization/chat_gpt/llm_scraper', "
+            "'complete', 'Acme.', 5, true, 1, $8, 1, 1, 1) RETURNING id",
+            observed_at,
+            workspace.id,
+            project,
+            engine,
+            observation_class,
+            prompt_id,
+            version_id,
+            raw_payload_id,
+        )
+        await db.execute(
+            "INSERT INTO ai.citations (observation_id, observed_at, citation_index, "
+            "workspace_id, project_id, engine_code, url_id, domain_id, raw_url, citation_kind, "
+            "domain_role) SELECT $1, $2, 1, $3, $4, $5, u.id, u.domain_id, u.canonical_url, "
+            "'source_list', 'own' FROM core.urls u WHERE u.id = $6",
+            observation_id,
+            observed_at,
+            workspace.id,
+            project,
+            engine,
+            url_id,
+        )

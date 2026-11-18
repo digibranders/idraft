@@ -63,6 +63,8 @@ from idraft.api.internal_links.change_routes import router as change_routes_rout
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
 from idraft.api.internal_links.crawls import CrawlService
+from idraft.api.internal_links.opportunities import OpportunityService
+from idraft.api.internal_links.opportunity_routes import router as opportunity_routes_router
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.read_routes import router as read_routes_router
@@ -271,6 +273,7 @@ def create_app(
                 page_tiers=PageTierService(sessions=sessions),
                 link_reads=LinkReadService(sessions=sessions),
                 link_changes=ChangeService(sessions=sessions),
+                link_opportunities=OpportunityService(sessions=sessions),
                 crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
                 invitations=InvitationService(
                     sessions=sessions,
@@ -355,6 +358,7 @@ def create_app(
     app.include_router(page_tier_routes_router)
     app.include_router(read_routes_router)
     app.include_router(change_routes_router)
+    app.include_router(opportunity_routes_router)
     app.include_router(crawl_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)

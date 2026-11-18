@@ -22,6 +22,7 @@ from idraft.api.imports.service import ImportService
 from idraft.api.integrations.service import IntegrationService
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawls import CrawlService
+from idraft.api.internal_links.opportunities import OpportunityService
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.reads import LinkReadService
 from idraft.api.internal_links.tier_levels import TierLevelService
@@ -83,6 +84,7 @@ class Resources:
     page_tiers: PageTierService
     link_reads: LinkReadService
     link_changes: ChangeService
+    link_opportunities: OpportunityService
     crawls: CrawlService
 
 

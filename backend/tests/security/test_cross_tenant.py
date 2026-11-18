@@ -12,6 +12,7 @@ import json
 import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Any
 
 import asyncpg
@@ -26,6 +27,7 @@ from idraft.api.resources import Resources
 from idraft.api.stubs import is_not_built
 from idraft.collectors.crawl_store import recompute_tier_flow
 from idraft.db.engine import workspace_transaction
+from idraft.domain.gsc_pull import PullState
 from idraft.storage.raw import compress, digest
 from idraft.vault.envelope import EnvelopeCipher
 from idraft.vault.store import REFRESH_TOKEN
@@ -47,7 +49,9 @@ from tests.api.internal_links.support import (
     seed_tiers,
     set_counts,
     set_website,
+    url_id,
 )
+from tests.api.internal_links.support_changes import insert_citation, track_keyword
 from tests.api.keywords.support import LOCATION, ensure_locations
 from tests.api.test_route_access import PATH_PARAMETER
 from tests.api.workspaces.support import make_project
@@ -334,6 +338,12 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # refused for it (`CRAWL_UNDER_WAY`).
     ("POST", _W + "/projects/{project_id}/link-crawls"): {},
     ("POST", _W + "/projects/{project_id}/link-crawls/{run_id}/cancel"): {},
+    # Internal links tracker (plan 04): a pair that is no mention of the tenant's crawl, which
+    # changes nothing; `test_decisions_...` below uses the pair that is one.
+    ("PUT", _W + "/projects/{project_id}/internal-links/opportunities/decisions"): {
+        "items": [{"source_url_id": "{url_id}", "target_url_id": "{url_id}"}],
+        "status": "dismissed",
+    },
 }
 # Routes that a member limited to some projects is refused even inside their own project: they
 # change the workspace's credentials, which belong to no one project (docs/24 section 3.2).
@@ -1021,6 +1031,30 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         ],
     )
     await set_counts(pg, crawl_run)
+    # Opportunities (plan 04 Task 12): the pricing page mentions the home page's topic without
+    # linking to it, and the owner accepted that fix.
+    await execute(pg, "UPDATE seo.crawl_pages SET click_depth = 1 WHERE run_id = $1", crawl_run)
+    await execute(
+        pg,
+        "INSERT INTO seo.crawl_mentions (run_id, workspace_id, source_url_id, target_url_id, "
+        "phrase, context, origin) VALUES ($1, $2, $3, $4, $5, $6, 'keyword')",
+        crawl_run,
+        workspace.id,
+        crawl_ids[pricing],
+        crawl_ids[home],
+        f"{label} home phrase",
+        f"Teams read about the {label} home phrase first.",
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.link_opportunity_decisions (project_id, workspace_id, source_url_id, "
+        "target_url_id, status, decided_by) VALUES ($1, $2, $3, $4, 'accepted', $5)",
+        project_id,
+        workspace.id,
+        crawl_ids[pricing],
+        crawl_ids[home],
+        owner.id,
+    )
     await execute(
         pg,
         "INSERT INTO seo.crawl_link_changes (run_id, workspace_id, change, scope, source_url_id, "
@@ -1333,6 +1367,9 @@ _TENANT_ROWS = {
     "seo.crawl_links": "workspace_id",
     "seo.crawl_tier_flow": "workspace_id",
     "seo.crawl_tier_stats": "workspace_id",
+    # Internal links tracker (plan 04)
+    "seo.crawl_mentions": "workspace_id",
+    "core.link_opportunity_decisions": "workspace_id",
     # AI visibility packages, one line each (docs/ai-visibility/MASTER-PLAN.md section 3.6): add
     # your entries under your own line, nowhere else in this table.
     # WP-03 contract-pack
@@ -1569,6 +1606,10 @@ INTERNAL_LINK_READS = [
     # The seeded crawl holds one lost link, from the seeded home page to the seeded pricing page.
     ("/internal-links/changes/links", {"change": "lost", "link_scope": "all"}, True),
     ("/internal-links/changes/pages", {}, False),
+    # The extras of the Pages tab (plan 04 Task 11) and the seeded mention, from the seeded
+    # pricing page to the home page (the dedicated tests below give B's numbers to A's pages).
+    ("/internal-links/pages", {"include": "changes,keywords,citations,anchors,gsc"}, True),
+    ("/internal-links/opportunities", {}, True),
     # The crawls and the settings carry no page names; their own tests below name the tenant.
     ("/link-crawls", {}, False),
     ("/link-crawls/{crawl_run_id}", {}, False),
@@ -1623,6 +1664,125 @@ async def test_the_crawls_and_settings_of_a_project_show_only_its_own_workspace(
     assert "b-blog" not in settings.text
     assert b.ids()["crawl_run_id"] not in crawls.text
     assert b.ids()["finished_crawl_id"] not in crawls.text
+
+
+async def test_the_extras_of_a_page_hold_only_its_own_workspaces_numbers(
+    api: httpx.AsyncClient, migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    """Plan 04 Task 11. `core.urls` is shared, so B can hold a tracked keyword, an AI citation,
+    a link with its anchor and Search Console clicks on A's own pricing page. A reads the page
+    through the Pages tab (`include=`) and the page detail, and sees none of it: not in a count,
+    not in a name, not in a number."""
+    a, b = tenants
+    page = int(a.ids()["url_id"])
+    path = a.ids()["page_url"].removeprefix("https://example.com")
+    end = date.today() - timedelta(days=3)
+    await execute(
+        migrated,
+        "UPDATE core.projects SET default_location_id = $1, default_language_code = 'en' "
+        "WHERE id = ANY($2::uuid[])",
+        LOCATION,
+        [a.project_id, b.project_id],
+    )
+    await track_keyword(
+        migrated, a.workspace, a.project_id, "a own keyword", page, rank=3, change=1, volume=1500
+    )
+    await insert_citation(migrated, a.workspace, a.project_id, page, "chatgpt_web", 1)
+    await execute(
+        migrated,
+        "UPDATE fp.integrations SET status = 'active', backfill_state = $2::jsonb WHERE id = $1",
+        a.integration_id,
+        json.dumps(PullState(recent_done=True, window_end=end).write({})),
+    )
+    for tenant, clicks, impressions in ((a, 11, 22), (b, 777, 7777)):
+        await execute(
+            migrated,
+            "INSERT INTO fp.gsc_page_daily (integration_id, metric_date, url_id, workspace_id, "
+            "project_id, clicks, impressions) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            tenant.integration_id,
+            end,
+            page,
+            tenant.workspace.id,
+            tenant.project_id,
+            clicks,
+            impressions,
+        )
+    await track_keyword(
+        migrated, b.workspace, b.project_id, "b secret keyword", page, rank=1, change=5, volume=999
+    )
+    await insert_citation(migrated, b.workspace, b.project_id, page, "gemini_web", 1)
+    await seed_crawl(
+        migrated,
+        b.workspace,
+        b.project_id,
+        [(path, 200), ("/b-secret-source", 200)],
+        [SeedLink("/b-secret-source", path, "content", "b secret anchor")],
+    )
+
+    base = _fill(_W + "/projects/{project_id}/internal-links", a.ids())
+    listed = await api.get(
+        f"{base}/pages",
+        params={"include": "changes,keywords,citations,anchors,gsc", "limit": "200"},
+        headers=a.headers,
+    )
+    detail = await api.get(f"{base}/pages/{page}", headers=a.headers)
+
+    assert listed.status_code == 200, listed.text
+    assert detail.status_code == 200, detail.text
+    extras = {row["path"]: row for row in listed.json()["data"]}[path]["extras"]
+    assert extras["keywords"] == {
+        "tracked": 1,
+        "ranking": 1,
+        "average_rank": 3.0,
+        "best_volume": 1500,
+    }
+    assert extras["citations"] == {"chatgpt": 1, "gemini": 0, "ai_mode": 0, "total": 1}
+    assert (extras["gsc"]["state"], extras["gsc"]["clicks"], extras["gsc"]["impressions"]) == (
+        "ok",
+        11,
+        22,
+    )
+    assert (extras["anchors"]["total"], extras["anchors"]["distinct"]) == (1, 1)
+    whole = detail.json()["data"]["extras"]
+    assert [row["keyword"] for row in whole["keywords"]] == ["a own keyword"]
+    assert whole["citations"] == extras["citations"]
+    assert [row["text"] for row in whole["anchors"]["top"]] == ["a anchor"]
+    assert (whole["gsc"]["clicks"], whole["gsc"]["impressions"]) == (11, 22)
+    for response in (listed, detail):
+        assert "b secret" not in response.text
+        for secret in (secret for secret in b.secrets() if not secret.isdigit()):
+            assert not _leaks(response.json(), secret), f"shows {secret} of another workspace"
+
+
+async def test_decisions_on_another_workspaces_pair_change_nothing(
+    api: httpx.AsyncClient, migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
+) -> None:
+    """Plan 04 Task 12. The pair of B's seeded mention is not a mention of A's crawl, so A's
+    owner can neither dismiss nor reopen it, and B's accepted decision stays as it was."""
+    a, b = tenants
+    pair = {
+        "source_url_id": b.ids()["url_id"],
+        "target_url_id": str(await url_id(migrated, b.ids()["home_url"])),
+    }
+    base = _fill(_W + "/projects/{project_id}/internal-links/opportunities", a.ids())
+    before = await _checksum(migrated, a.workspace, b.workspace)
+
+    for status in ("dismissed", "open"):
+        response = await api.put(
+            f"{base}/decisions", json={"items": [pair], "status": status}, headers=a.headers
+        )
+        assert response.json()["data"] == {"matched": 0, "changed": 0}
+
+    after = await _checksum(migrated, a.workspace, b.workspace)
+    assert {table: digest for table, digest in after.items() if table != "ops.audit_logs"} == {
+        table: digest for table, digest in before.items() if table != "ops.audit_logs"
+    }
+    kept = await fetchrow(
+        migrated,
+        "SELECT status FROM core.link_opportunity_decisions WHERE project_id = $1",
+        b.project_id,
+    )
+    assert kept["status"] == "accepted"
 
 
 async def test_the_same_holds_once_the_session_is_cached_and_for_a_member_of_both(

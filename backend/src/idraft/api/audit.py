@@ -94,6 +94,7 @@ AuditAction = Literal[
     "page_tags.changed",
     "link_crawl.requested",
     "link_crawl.cancelled",
+    "link_opportunity.decided",
 ]
 
 
