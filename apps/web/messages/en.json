@@ -7857,6 +7857,8 @@
       "reasonFallback": "Based on its clicks and tracked ranks",
       "moved": "{count, plural, one {# page} other {# pages}} moved",
       "dismissed": "{count, plural, one {# suggestion} other {# suggestions}} dismissed",
+      "acceptNone": "No pages moved",
+      "dismissNone": "No suggestions dismissed",
       "failed": "The suggestion could not be saved",
       "failedReason": "Try again in a moment.",
       "gscOff": "Search Console is not connected, so only tracked keyword ranks are used.",

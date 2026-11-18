@@ -11,7 +11,6 @@ import { LinksDropped } from '../links-dropped';
 import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
-import { useImportantTiers } from './important-tiers';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
 import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf } from './page-filters';
 import { useSearchDraft } from './search-draft';
@@ -126,7 +125,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   // The chooser decides which parts of a row are read (`include`); changing it reads the current page again once
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
   const summary = useQuery(changesSummaryQuery(scope, chosenRun));
-  const comparison = comparisonOf(summary.data?.data.state, context.crawl.crawl?.enrich_state);
+  // Until the summary has answered nothing is known of the comparison, so it reads as updating, not as a verdict
+  const comparison = summary.isPending
+    ? 'updating'
+    : comparisonOf(summary.data?.data.state, context.crawl.crawl?.enrich_state);
   const linksAvailable = context.crawl.linksAvailable;
   const columns = useMemo(
     () => pageColumns(t, { tiers, scope: state.scope, openJourney: context.openJourney, comparison, linksAvailable }),
@@ -168,11 +170,14 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   useEffect(() => () => setOrder([]), [setOrder]);
 
   // The page's Export downloads the same filter as the server's CSV (decision W13)
+  // A list the crawl cannot give (a hand typed link worklist of a crawl without its links) has nothing to export
+  const gone = isLinksDropped(read.error);
   useEffect(() => {
+    if (gone) return undefined;
     const wanted = withRun(pageExportQuery(pageQueryOf(state, values, null, paging.size)), chosenRun);
     registerExport(() => downloadApiFile(pagesPath(scope), wanted, EXPORT_NAME));
     return () => registerExport(null);
-  }, [registerExport, scope, state, values, paging.size, chosenRun]);
+  }, [registerExport, scope, state, values, paging.size, chosenRun, gone]);
 
   const range = pageRange({ pageIndex: paging.pageIndex, rows: rows.length, limit: paging.size });
   const searched = state.q !== null;
@@ -195,9 +200,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               ? 'filtered-empty'
               : 'empty'
             : 'ready';
-  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
-  const importantTiers = useImportantTiers(scope);
-  // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
+  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist]; // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
   // here) and lists as many rows as the chip counts
   const openEdgeWorklist = (worklist: EdgeWorklist): void =>
     setSearch({ tab: 'links', lview: worklist, scope: 'all' }, { history: 'push' });
@@ -367,12 +370,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         filteredEmptyState={
           worklistEmpty !== null && Object.keys(values).length === 0 && !searched ? (
             <EmptyState
-              title={t(`worklistEmpty.${worklistEmpty}Title`, {
-                tiers: importantTiers ?? t('worklists.importantTiers'),
-              })}
-              reason={t(`worklistEmpty.${worklistEmpty}Reason`, {
-                tiers: importantTiers ?? t('worklists.importantTiers'),
-              })}
+              // The words name "the important tiers" and not the tiers themselves, so they never change when the
+              // alert setting arrives
+              title={t(`worklistEmpty.${worklistEmpty}Title`, { tiers: t('worklists.importantTiers') })}
+              reason={t(`worklistEmpty.${worklistEmpty}Reason`, { tiers: t('worklists.importantTiers') })}
               headingLevel={3}
               primaryAction={
                 <Button variant="secondary" size="sm" onClick={() => setSearch({ view: null })}>

@@ -50,12 +50,20 @@ export function WorklistChips({
   const t = useTranslations('internalLinks');
   const read = useQuery(worklistsQuery(scope, run));
   const counts: Worklists | undefined = read.data?.data;
-  const tiers = useImportantTiers(scope);
+  const { tiers, settled } = useImportantTiers(scope);
   const allPages = useRef<HTMLButtonElement>(null);
   // The last suggestion went, and with it the chip that held focus
   const focusAllPages = useCallback((): void => allPages.current?.focus(), []);
   const history: readonly (readonly [PageWorklist, string])[] = [
-    ['lost_links_top', tiers === null ? t('worklists.lostLinksTopFallback') : t('worklists.lostLinksTop', { tiers })],
+    // Held until the setting is read, so the chip's name does not change under the user
+    ...(settled
+      ? ([
+          [
+            'lost_links_top',
+            tiers === null ? t('worklists.lostLinksTopFallback') : t('worklists.lostLinksTop', { tiers }),
+          ],
+        ] as const)
+      : []),
     ...(linksAvailable ? ([['weak_outlinks', t('worklists.weakOutlinks')]] as const) : []),
   ];
   return (

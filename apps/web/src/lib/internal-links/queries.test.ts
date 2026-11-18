@@ -275,7 +275,8 @@ describe('the pages list extras (include)', () => {
       'anchors',
       'gsc',
     ]);
-    expect(moreIncludes(['equityChange', 'keywords', 'impressions'])).toEqual(['changes', 'keywords', 'gsc']);
+    // There is no equity column: an id that is not a column asks for nothing
+    expect(moreIncludes(['equityChange', 'keywords', 'impressions'])).toEqual(['keywords', 'gsc']);
     expect(moreIncludes(['page', 'tier'])).toEqual([]);
   });
 

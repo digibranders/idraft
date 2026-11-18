@@ -1,7 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HISTORY_RUN_IDS, setLinksScenario } from '@/mocks/internal-links-world';
+import { mswPath } from '@/mocks/respond';
 import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
@@ -14,6 +16,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const DROPPED = HISTORY_RUN_IDS[4] ?? '';
+const SETTINGS = mswPath('/api/v1/workspaces/:workspace_id/projects/:project_id/settings');
 
 beforeEach(() => stubWideScreen());
 afterEach(() => {
@@ -127,6 +130,53 @@ describe('the flag and the worklists of slice 2', () => {
     await waitFor(() => expect(reads().some((read) => read.get('filter[worklist]') === 'lost_links_top')).toBe(true));
   });
 
+  it('holds the lost links chip until the alert setting answers, so its name never changes under the user', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.get(SETTINGS, async () => {
+        await held;
+        return undefined;
+      }),
+    );
+    const names: string[] = [];
+    const watcher = new MutationObserver(() => {
+      for (const button of screen.queryAllByRole('button', { name: /^Lost links/ })) names.push(button.textContent);
+    });
+    watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await screen.findByRole('button', { name: /^T1 pages linking out to weak pages/ });
+    expect(screen.queryByRole('button', { name: /^Lost links/ })).toBeNull();
+    release();
+    await screen.findByRole('button', { name: /^Lost links to T1 and T2 \d*$/ });
+    watcher.disconnect();
+    expect(names.every((name) => name.startsWith('Lost links to T1 and T2'))).toBe(true);
+  });
+
+  it('shows the no earlier crawl tip on a first crawl, and never Updating once the summary has answered', async () => {
+    setLinksScenario({ firstCrawl: true });
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    const row = await rowOf('/pricing');
+    await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('n/a'));
+    const cell = within(await rowOf('/pricing'))
+      .getByText('n/a')
+      .closest('[role="gridcell"]');
+    expect(cell).toHaveAccessibleDescription(/No earlier crawl/);
+    expect(row).not.toHaveTextContent('Updating');
+  });
+
+  it('shows the dropped links message and a disabled Export for a typed weak outlinks view of a dropped crawl', async () => {
+    const { user: userEvent } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: `?view=weak_outlinks&run=${DROPPED}`,
+    });
+    expect(await screen.findByText(/This crawl’s links are no longer stored/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(await screen.findByRole('menuitem', { name: /Export this tab \(CSV\)/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+  });
+
   it('opens on the worklist named in the address', async () => {
     const reads = pageReads();
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?view=weak_outlinks' });
@@ -148,8 +198,11 @@ describe('accessibility of the new columns', () => {
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       searchParams: cols('change', 'keywords', 'rank', 'citations', 'anchors', 'matches', 'clicks', 'impressions'),
     });
-    await rowOf('/pricing');
-    expect(await axe(container)).toHaveNoViolations();
-    document.documentElement.classList.remove('dark');
+    try {
+      await rowOf('/pricing');
+      expect(await axe(container)).toHaveNoViolations();
+    } finally {
+      document.documentElement.classList.remove('dark');
+    }
   });
 });

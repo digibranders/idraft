@@ -145,7 +145,7 @@ export interface PageQuery {
 export function moreIncludes(visible: readonly string[]): PageInclude[] {
   const want = new Set<PageInclude>();
   for (const id of visible) {
-    if (id === 'change' || id === 'equityChange') want.add('changes');
+    if (id === 'change') want.add('changes');
     if (id === 'rank' || id === 'keywords') want.add('keywords');
     if (id === 'citations') want.add('citations');
     if (id === 'anchors' || id === 'matches') want.add('anchors');

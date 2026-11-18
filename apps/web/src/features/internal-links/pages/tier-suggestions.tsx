@@ -12,12 +12,17 @@ import { Button } from '@/components/ui/button';
 import { Popover } from '@/components/ui/popover';
 import { toast } from '@/components/ui/toast';
 import { Truncate } from '@/components/ui/truncate';
+import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger } from '@/lib/format';
+import { reasonOf } from '@/lib/internal-links/problem-reason';
 import { acceptSuggestionsMutation, dismissSuggestionsMutation } from '@/lib/internal-links/mutations';
 import { checkUrlId, internalLinksKeys, tierSuggestionsQuery } from '@/lib/internal-links/queries';
 import { gscNote, reasonText } from '@/lib/internal-links/suggestions-format';
 import type { LinksScope, SuggestionSelection, TierSuggestionRow } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
+
+/** The most url ids one accept or dismiss request takes (the OpenAPI `maxItems`). */
+const MAX_IDS = 500;
 
 /**
  * The "Suggested tiers" chip and its popover (decision D11, mock `openSuggestions`): pages that earn clicks or rank
@@ -47,32 +52,48 @@ export function TierSuggestions({
   const busy = accept.isPending || dismiss.isPending;
   const path = { workspace_id: scope.workspaceId, project_id: scope.projectId };
 
-  // After a row leaves, focus goes to the next action; with none left the chip goes too, so the caller decides
+  // After a change is saved and the list read again, focus goes to the next action; with none left the chip goes
+  // too, so the caller decides. The flag is spent when that read ends, whether or not a row left.
+  const fetching = read.isFetching;
   useEffect(() => {
-    if (!refocus.current) return;
+    if (!refocus.current || fetching) return;
     refocus.current = false;
     const next = body.current?.querySelector<HTMLElement>('button');
     if (next !== null && next !== undefined) next.focus();
     else if (count === 0) onEmptied();
-  }, [count, onEmptied]);
+  }, [fetching, count, onEmptied]);
 
-  const send = async (selection: SuggestionSelection, kind: 'accept' | 'dismiss'): Promise<void> => {
+  const send = async (selection: () => SuggestionSelection, kind: 'accept' | 'dismiss'): Promise<void> => {
     if (busy) return;
     try {
       const answer = await (kind === 'accept' ? accept : dismiss).mutateAsync({
         params: { path },
-        body: selection,
+        body: selection(),
       });
       const changed = answer.data.changed;
-      toast({ type: 'success', title: t(kind === 'accept' ? 'moved' : 'dismissed', { count: changed }) });
+      toast({
+        type: 'success',
+        title: t(changed === 0 ? `${kind}None` : kind === 'accept' ? 'moved' : 'dismissed', { count: changed }),
+      });
       refocus.current = true;
       for (const queryKey of internalLinksKeys(scope)) void queryClient.invalidateQueries({ queryKey });
-    } catch {
-      toast({ type: 'error', title: t('failed'), description: t('failedReason') });
+    } catch (failure) {
+      // A refusal (403, 409) says why in the API's own words; anything else gets the plain sentence
+      const refused = isApiProblem(failure) && (failure.status === 403 || failure.status === 409);
+      toast({
+        type: 'error',
+        title: t('failed'),
+        description: (refused ? reasonOf(failure) : '') || t('failedReason'),
+      });
     }
   };
   const one = (row: TierSuggestionRow, kind: 'accept' | 'dismiss'): Promise<void> =>
-    send({ url_ids: [checkUrlId(row.url_id)] }, kind);
+    send(() => ({ url_ids: [checkUrlId(row.url_id)] }), kind);
+  // Accept all moves the rows on show. `all: true` would let the server pick the list again, so a suggestion that
+  // appeared after this list was read would move unseen. The API takes at most 500 ids, so a longer list is the
+  // one case that uses `all`.
+  const everyShown = (): SuggestionSelection =>
+    rows.length > MAX_IDS ? { all: true } : { url_ids: rows.map((row) => checkUrlId(row.url_id)) };
 
   if (count === 0) return null;
   const note = read.data === undefined ? 'clicks_used' : gscNote(read.data.meta.gsc_state);
@@ -139,7 +160,7 @@ export function TierSuggestions({
       }
       footer={
         canWrite ? (
-          <Button variant="primary" size="sm" disabled={busy} onClick={() => void send({ all: true }, 'accept')}>
+          <Button variant="primary" size="sm" disabled={busy} onClick={() => void send(everyShown, 'accept')}>
             {t('acceptAll')}
           </Button>
         ) : undefined
