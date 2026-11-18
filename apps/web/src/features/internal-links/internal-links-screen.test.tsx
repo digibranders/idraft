@@ -127,7 +127,7 @@ describe('the Internal links page (spec 7.1 and 9)', () => {
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText(/^Crawled .+, 18 pages$/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Crawl now' })).toBeEnabled();
-    const strip = await screen.findByRole('group', { name: 'Crawl in scope' });
+    const strip = await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(strip).toHaveTextContent('No editorial links in');
     expect(strip).not.toHaveTextContent('Pages');
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
@@ -303,7 +303,7 @@ describe('the crawl states of the page (spec 9)', () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText(/^Crawled .+, 18 pages$/)).toBeInTheDocument();
     expect(screen.getByText('The last crawl failed.')).toBeInTheDocument();
-    expect(await screen.findByRole('group', { name: 'Crawl in scope' })).toHaveTextContent('T1 pages');
+    expect(await screen.findByRole('region', { name: 'Crawl in scope' })).toHaveTextContent('T1 pages');
     expect(screen.getByText('Panel of Pages')).toBeInTheDocument();
     expect(screen.queryByText('Add your website to map internal links')).toBeNull();
     expect(
@@ -679,7 +679,7 @@ describe('a crawl that ends while the page is open', () => {
     const requests = countRequests();
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText(/Crawling now/)).toBeInTheDocument();
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     const flowBefore = requests('/internal-links/tier-flow');
     answerWith([
       { ...running, state: 'ready', is_latest: true, pages_found: 52, finished_at: '2026-11-16T03:09:00Z' },
@@ -732,7 +732,7 @@ describe('a crawl that finished while the page was not open', () => {
     const stale = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     stale.queryClient.setQueryData(seenKey, 'an-older-run');
     const invalidated = vi.spyOn(stale.queryClient, 'invalidateQueries');
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     await waitFor(() =>
       expect(
         invalidated.mock.calls.some(([filters]) => JSON.stringify(filters?.queryKey).includes('internal-links')),
@@ -744,14 +744,14 @@ describe('a crawl that finished while the page was not open', () => {
     const same = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     same.queryClient.setQueryData(seenKey, MOCK_RUN_ID);
     const quiet = vi.spyOn(same.queryClient, 'invalidateQueries');
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(quiet).not.toHaveBeenCalled();
   });
 
   it('only notes the latest crawl on a first visit, and reads nothing again', async () => {
     const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     const invalidated = vi.spyOn(first.queryClient, 'invalidateQueries');
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(invalidated).not.toHaveBeenCalled();
     expect(
       first.queryClient.getQueryData(
@@ -765,14 +765,14 @@ describe('accessibility of the shell', () => {
   it.each(['light', 'dark'])('has no axe violations in the %s theme', async (theme) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(await axe(container)).toHaveNoViolations();
   });
 
   it('has no axe violations with the tab registry as it ships (the Pages tab)', async () => {
     registry.real = true;
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     await screen.findByRole('grid', { name: 'Pages' });
     expect(screen.getByRole('tab', { name: 'Pages' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();

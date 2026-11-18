@@ -23,6 +23,8 @@ export interface StatChipProps {
   href?: Route | string;
   /** Muted styling for missing or insufficient data; never zero. */
   unknown?: boolean | 'insufficient' | 'not-applicable' | 'pending';
+  /** `negative` colours the value for a figure that is bad news (lost links); the label says what it is. */
+  tone?: 'negative';
   className?: string;
 }
 
@@ -38,6 +40,7 @@ export function StatChip({
   tooltip,
   href,
   unknown = false,
+  tone,
   className,
 }: StatChipProps): ReactElement {
   const isUnknown = Boolean(unknown);
@@ -47,7 +50,7 @@ export function StatChip({
     <span
       className={cn(
         'num type-body-strong',
-        isUnknown ? 'text-foreground-tertiary' : 'text-foreground',
+        isUnknown ? 'text-foreground-tertiary' : tone === 'negative' ? 'text-negative-text' : 'text-foreground',
         unknown === 'insufficient' && 'bg-insufficient',
       )}
     >

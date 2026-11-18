@@ -75,10 +75,12 @@ export function ContextLine({
     tierRange: (first, last) => t('tierRange', { first, last }),
   });
   return (
+    // A region the keyboard can reach: it scrolls sideways, and when nothing inside takes focus it would be out of reach
     <div
-      role="group"
+      role="region"
       aria-label={t('label')}
-      className="scrollbar-none flex min-h-control-sm min-w-0 flex-1 items-center gap-4 overflow-x-auto whitespace-nowrap"
+      tabIndex={0}
+      className="scrollbar-none flex min-h-control-sm min-w-0 flex-1 items-center gap-4 overflow-x-auto rounded-sm whitespace-nowrap outline-none focus-visible:focus-ring-inset"
     >
       <StatChip
         label={t('tiered')}
@@ -95,6 +97,7 @@ export function ContextLine({
         <StatChip
           label={t('lost', { tiers: importantTiers })}
           value={formatInteger(stats.lost)}
+          tone="negative"
           {...(changesHref === null ? {} : { href: changesHref, tooltip: t('lostTip') })}
         />
       )}

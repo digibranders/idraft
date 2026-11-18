@@ -20,6 +20,8 @@ export interface CrawlPickerProps {
   needsLinks: boolean;
   /** `null` is the latest crawl. */
   onChoose: (run: string | null) => void;
+  /** "Back to latest": its own button goes away, so the caller says where focus goes. */
+  onBack: () => void;
 }
 
 /** The catalog's camelCase keys of the API's triggers. */
@@ -38,7 +40,7 @@ const hasData = (state: CrawlRun['state']): state is DataState => state === 'rea
  * is listed; one that is waiting, crawling, failed or cancelled has no data and says so instead of being choosable,
  * and one whose links were dropped is disabled for the tabs that read links, with the reason.
  */
-export function CrawlPicker({ runs, run, timeZone, needsLinks, onChoose }: CrawlPickerProps): ReactElement | null {
+export function CrawlPicker({ runs, run, timeZone, needsLinks, onChoose, onBack }: CrawlPickerProps): ReactElement | null {
   const t = useTranslations('internalLinks.picker');
   const chosen = chosenCrawl(runs, run);
   if (chosen === null) return null;
@@ -72,7 +74,7 @@ export function CrawlPicker({ runs, run, timeZone, needsLinks, onChoose }: Crawl
       {chosen.is_latest ? null : (
         <>
           <Badge tone="warning">{t('older')}</Badge>
-          <Button variant="secondary" size="sm" onClick={() => onChoose(null)}>
+          <Button variant="secondary" size="sm" onClick={onBack}>
             {t('backToLatest')}
           </Button>
         </>

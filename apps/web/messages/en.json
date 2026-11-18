@@ -7986,7 +7986,7 @@
     },
     "notFound": {
       "title": "That crawl was not found",
-      "reason": "This project has no crawl with that address, or the crawl has no data. The latest crawl is one step away."
+      "reason": "That crawl was not found, or it is too old to list, or it has no data yet. The latest crawl is one step away."
     },
     "states": {
       "noWebsiteTitle": "Add your website to map internal links",

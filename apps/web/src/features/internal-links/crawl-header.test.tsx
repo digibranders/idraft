@@ -1,11 +1,13 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { FileText } from 'lucide-react';
+import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EVENTUS, HISTORY_RUN_IDS, linksWorld, setLinksScenario } from '@/mocks/internal-links-world';
 import type { CrawlRun } from '@/lib/internal-links/types';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { mswPath } from '@/mocks/respond';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
@@ -159,7 +161,7 @@ describe('a crawl the address names that cannot be shown', () => {
 describe('the context line', () => {
   it('holds the key numbers, drops Pages and shows no equity', async () => {
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    const line = await screen.findByRole('group', { name: 'Crawl in scope' });
+    const line = await screen.findByRole('region', { name: 'Crawl in scope' });
     await within(line).findByText('T1 pages');
     for (const label of ['Tiered', 'T1 pages', 'T1 average depth', 'No editorial links in']) {
       expect(within(line).getByText(label)).toBeInTheDocument();
@@ -171,7 +173,7 @@ describe('the context line', () => {
 
   it('compares with the previous crawl when the changes are worked out', async () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    const line = await screen.findByRole('group', { name: 'Crawl in scope' });
+    const line = await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(await within(line).findByText(/^Since \d+ \w+: \d+ pages? added, \d+ pages? lost/)).toBeInTheDocument();
     expect(within(line).getByText(/^Lost editorial links to T1/)).toBeInTheDocument();
   });
@@ -183,7 +185,7 @@ describe('the context line', () => {
   ])('says so when the changes are %s', async (_state, scenario, text) => {
     setLinksScenario(scenario);
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    const line = await screen.findByRole('group', { name: 'Crawl in scope' });
+    const line = await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(await within(line).findByText(text)).toBeInTheDocument();
     expect(within(line).queryByText(/^Lost editorial links/)).toBeNull();
   });
@@ -201,7 +203,7 @@ describe('the tab badges', () => {
     const asked: string[] = [];
     server.events.on('request:start', ({ request }) => asked.push(new URL(request.url).pathname));
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     expect(screen.queryByRole('tab', { name: /Changes/ })).toBeNull();
     expect(asked.some((path) => path.endsWith('/internal-links/opportunities'))).toBe(false);
   });
@@ -210,7 +212,7 @@ describe('the tab badges', () => {
 describe('the actions', () => {
   it('stand in the order Crawl now, Export, More actions, with Export in its own button from md up', async () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     const names = screen
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label') ?? button.textContent)
@@ -228,9 +230,164 @@ describe('the actions', () => {
       removeEventListener: vi.fn(),
     }));
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await screen.findByRole('group', { name: 'Crawl in scope' });
+    await screen.findByRole('region', { name: 'Crawl in scope' });
     await user.click(screen.getByRole('button', { name: 'More actions' }));
     expect(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' })).toBeInTheDocument();
+  });
+});
+
+describe('the tab list on a narrow screen', () => {
+  it('scrolls inside itself, with tabs that do not shrink', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const list = await screen.findByRole('tablist');
+    expect(list).toHaveClass('max-w-full', 'overflow-x-auto');
+    for (const tab of within(list).getAllByRole('tab')) expect(tab).toHaveClass('shrink-0');
+  });
+
+  it('brings the chosen tab into view when the list overflows', async () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(1000);
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    const left = vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(400);
+    try {
+      const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=flow' });
+      const list = await screen.findByRole('tablist');
+      expect(list.scrollLeft).toBe(384);
+      list.scrollLeft = 0;
+      await user.click(screen.getByRole('tab', { name: 'Journey' }));
+      await waitFor(() => expect(list.scrollLeft).toBe(384));
+    } finally {
+      width.mockRestore();
+      client.mockRestore();
+      left.mockRestore();
+    }
+  });
+});
+
+describe('the context line as a scroll container', () => {
+  it('is a labelled region that the keyboard can reach', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const line = await screen.findByRole('region', { name: 'Crawl in scope' });
+    expect(line).toHaveAttribute('tabindex', '0');
+    expect(line).toHaveClass('focus-visible:focus-ring-inset');
+  });
+
+  it('shows the lost figure in the negative tone', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const line = await screen.findByRole('region', { name: 'Crawl in scope' });
+    await within(line).findByText(/^Lost editorial links to/);
+    expect(line.querySelector('.text-negative-text')).not.toBeNull();
+  });
+});
+
+describe('Export keeps its own class list', () => {
+  it('is hidden below md without a competing inline-flex', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const exportButton = await screen.findByRole('button', { name: 'Export' });
+    const classes = exportButton.className.split(/\s+/);
+    expect(classes).toContain('hidden');
+    expect(classes).toContain('md:inline-flex');
+    expect(classes).not.toContain('inline-flex');
+  });
+});
+
+describe('moving between crawls', () => {
+  it('pushes a history entry when a crawl is chosen and when going back to the latest', async () => {
+    const writes: { queryString: string; history: string | undefined }[] = [];
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      onUrlUpdate: ({ queryString, options }) => writes.push({ queryString, history: options.history }),
+    });
+    await user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
+    await user.click((await screen.findAllByRole('menuitemradio'))[1] ?? document.body);
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain(`run=${OLDER}`));
+    expect(writes.at(-1)?.history).toBe('push');
+    await user.click(await screen.findByRole('button', { name: 'Back to latest' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('run='));
+    expect(writes.at(-1)?.history).toBe('push');
+  });
+
+  it('moves focus to the page heading when Back to latest removes its own button', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${OLDER}` });
+    await user.click(await screen.findByRole('button', { name: 'Back to latest' }));
+    await waitFor(() => expect(screen.queryByText('Older crawl')).toBeNull());
+    expect(screen.getByRole('heading', { level: 1 })).toHaveFocus();
+  });
+
+  // The message of the Links tab itself is tested in crawl-in-view.test.tsx; here the tabs are text
+  it('keeps the chosen crawl in the picker on the Links tab when its links were dropped', async () => {
+    const dropped = HISTORY_RUN_IDS[4] ?? '';
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?tab=links&run=${dropped}` });
+    expect(await screen.findByText('Panel of Links')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: CRAWL_SHOWN })).toHaveTextContent(/15 pages$/);
+    expect(screen.getByText('Older crawl')).toBeInTheDocument();
+  });
+
+  it('lists the fifty crawls the screen reads in a menu that scrolls', async () => {
+    const template = linksWorld().crawls.get(EVENTUS.project_id)?.[0];
+    if (template === undefined) throw new Error('The mock world has no crawl');
+    const many = Array.from({ length: 60 }, (_, index): CrawlRun => ({
+      ...template,
+      run_id: `0192e4a0-2000-7000-8000-${String(index).padStart(12, '0')}`,
+      is_latest: index === 0,
+    }));
+    linksWorld().crawls.set(EVENTUS.project_id, many);
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
+    const items = await screen.findAllByRole('menuitemradio');
+    expect(items).toHaveLength(50);
+    expect(screen.getByRole('menu')).toHaveClass('overflow-y-auto');
+  });
+});
+
+describe('the not found state and focus', () => {
+  it('focuses its heading when it appears and the page heading after Back to latest', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${UNKNOWN}` });
+    const heading = await screen.findByRole('heading', { name: 'That crawl was not found' });
+    await waitFor(() => expect(heading).toHaveFocus());
+    await user.click(screen.getByRole('button', { name: 'Back to latest' }));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus());
+  });
+
+  it('builds no inspector for it, and does for the same address on a crawl that exists', async () => {
+    const shown = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: `?run=${OLDER}&inspect=page:108`,
+    });
+    expect(await screen.findByRole('complementary')).toBeInTheDocument();
+    shown.unmount();
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${UNKNOWN}&inspect=page:108` });
+    await screen.findByRole('heading', { name: 'That crawl was not found' });
+    expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  it('does not say the crawl never existed', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${UNKNOWN}` });
+    expect(await screen.findByText(/too old to list/)).toBeInTheDocument();
+  });
+});
+
+describe('a failing or slow badge read', () => {
+  const OPPORTUNITIES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities');
+
+  it('leaves the tab without a badge when the read fails', async () => {
+    server.use(http.get(OPPORTUNITIES, () => HttpResponse.json({}, { status: 500 })));
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await screen.findByRole('region', { name: 'Crawl in scope' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole('tab', { name: 'Opportunities' })).toBeInTheDocument();
+  });
+
+  it('shows the plain tab while the read is out and the badge when it lands', async () => {
+    server.use(
+      http.get(OPPORTUNITIES, async () => {
+        await delay(150);
+        return HttpResponse.json({
+          data: [],
+          meta: { run_id: OLDER, total: 0, counts: { open: 4, accepted: 0, dismissed: 0 } },
+        });
+      }),
+    );
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    expect(await screen.findByRole('tab', { name: 'Opportunities' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Opportunities, 4 open' })).toBeInTheDocument();
   });
 });
 
@@ -243,7 +400,7 @@ describe('the header is accessible', () => {
         searchParams: `?run=${OLDER}`,
       });
       await screen.findByText('Older crawl');
-      await screen.findByRole('group', { name: 'Crawl in scope' });
+      await screen.findByRole('region', { name: 'Crawl in scope' });
       expect(await axe(container)).toHaveNoViolations();
       await user.click(screen.getByRole('button', { name: CRAWL_SHOWN }));
       await screen.findAllByRole('menuitemradio');

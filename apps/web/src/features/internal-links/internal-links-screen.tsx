@@ -39,6 +39,8 @@ import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';
 
 const CHANGES_QUERY = 'tab=changes';
+const HEADING_ID = 'internal-links-heading';
+const TAB_LIST_CLASS = 'max-w-full overflow-x-auto scrollbar-none';
 
 export interface InternalLinksProject {
   id: string;
@@ -117,6 +119,13 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const badgeWords = useTranslations('internalLinks.header');
   // The address names a crawl that cannot be shown: a malformed id, or one with no data in the project's list
   const crawlNotFound = inView.unknown || state.invalid.run !== null;
+  // Choosing a crawl is a move like a tab change: it makes a history entry, so Back returns to the crawl before
+  const chooseCrawl = (next: string | null): void => setSearch({ run: next }, { history: 'push' });
+  // "Back to latest" removes the button that was pressed, so focus goes to the page heading, not to the page body
+  const backToLatest = (): void => {
+    chooseCrawl(null);
+    document.getElementById(HEADING_ID)?.focus();
+  };
 
   const base = projectPath(workspaceSlug, project.slug, '/seo/internal-links');
   const settingsHref = projectPath(workspaceSlug, project.slug, '/settings/links');
@@ -278,7 +287,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           />
           {tab === null ? null : (
             <TabsPanel value={tab.id} className="flex min-w-0 flex-col gap-3">
-              {crawlNotFound ? <CrawlNotFound onBack={() => setSearch({ run: null })} /> : tab.render(context)}
+              {crawlNotFound ? <CrawlNotFound onBack={backToLatest} /> : tab.render(context)}
             </TabsPanel>
           )}
         </>
@@ -289,7 +298,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const needsLinks = LINK_LEVEL_TABS.has(tab?.id ?? 'pages');
   // The page actions belong to a crawl that is read or under way; the other states carry their own action
   const toolbar = (tabList: ReactElement | undefined): ReactElement => (
-    <PageToolbar title={t('title')}>
+    <PageToolbar title={t('title')} headingId={HEADING_ID}>
       {view.kind === 'ready' || view.kind === 'first' ? (
         <CrawlHeader
           tabs={tabList}
@@ -302,7 +311,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
                   run={inView.run}
                   timeZone={project.timeZone}
                   needsLinks={needsLinks}
-                  onChoose={(next) => setSearch({ run: next })}
+                  onChoose={chooseCrawl}
+                  onBack={backToLatest}
                 />
                 <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
                 <ContextLine
@@ -332,7 +342,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     </PageToolbar>
   );
   let inspectorHost: ReactElement | null = null;
-  if (inspector.target?.type === 'page' && ready) {
+  // No inspector for a crawl that is not shown: its page belongs to no crawl on screen
+  if (inspector.target?.type === 'page' && ready && !crawlNotFound) {
     inspectorHost =
       inspected.urlId === null ? (
         <PageNotFoundInspector key={inspector.target.id} onClose={inspector.close} />
@@ -395,6 +406,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
                   }
                 : {}),
             }))}
+            // Six tabs with badges are wider than a phone: the list scrolls inside itself (spec 7.1)
+            listClassName={TAB_LIST_CLASS}
             renderList={toolbar}
             className="gap-3"
           >
