@@ -37,5 +37,11 @@ class BudgetExceededError(ProblemError):
     status, code, title = 422, "budget_exceeded", "A budget would be passed"
 
 
+class LinksDroppedError(ProblemError):
+    """The crawl's links were dropped to save space: only its pages are kept."""
+
+    status, code, title = 410, "links_dropped", "This crawl no longer holds its links"
+
+
 class NoCrawlError(ProblemError):
     status, code, title = 404, "no_crawl", "The site has no finished crawl yet"

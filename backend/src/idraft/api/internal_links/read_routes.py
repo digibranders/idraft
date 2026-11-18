@@ -149,7 +149,12 @@ async def list_pages(
             next_cursor=listed.next_cursor,
             has_more=listed.next_cursor is not None,
         ),
-        meta=ListMeta(run_id=listed.run_id, scope=scope, total=listed.total),
+        meta=ListMeta(
+            run_id=listed.run_id,
+            scope=scope,
+            total=listed.total,
+            links_available=not listed.links_dropped,
+        ),
     )
 
 
@@ -220,7 +225,12 @@ async def list_edges(
             next_cursor=listed.next_cursor,
             has_more=listed.next_cursor is not None,
         ),
-        meta=ListMeta(run_id=listed.run_id, scope=scope, total=listed.total),
+        meta=ListMeta(
+            run_id=listed.run_id,
+            scope=scope,
+            total=listed.total,
+            links_available=not listed.links_dropped,
+        ),
     )
 
 

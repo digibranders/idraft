@@ -77,6 +77,9 @@ class CrawlRecord:
     requested_by: UUID | None
     requester_name: str | None
     requester_email: str | None
+    links_available: bool
+    previous_run_id: UUID | None
+    enrich_state: Literal["pending", "running", "done", "failed"]
 
     @property
     def hints(self) -> list[Literal["render_javascript"]]:
@@ -121,6 +124,9 @@ def _record(row: Row[tuple[object, ...]]) -> CrawlRecord:
         requested_by=row.requested_by,
         requester_name=row.requester_name,
         requester_email=row.requester_email,
+        links_available=row.links_dropped_at is None,
+        previous_run_id=row.previous_run_id,
+        enrich_state=row.enrich_state,
     )
 
 

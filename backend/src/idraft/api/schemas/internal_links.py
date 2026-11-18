@@ -339,6 +339,10 @@ class ListMeta(BaseModel):
     run_id: UUID
     scope: LinkScopeName
     total: int
+    links_available: bool = Field(
+        default=True,
+        description="False when the crawl's links were dropped: link counts are the stored ones.",
+    )
 
 
 class PageRowPage(BaseModel):
@@ -511,6 +515,14 @@ class CrawlRun(BaseModel):
     error_message: str | None
     hints: list[Literal["render_javascript"]]
     is_latest: bool = Field(description="The crawl `run=latest` reads.")
+    links_available: bool = Field(
+        description="False once the crawl's links were dropped (past the last four finished "
+        "crawls): its pages stay, links, journeys and changes of links are gone."
+    )
+    previous_run_id: UUID | None = Field(description="The crawl its changes are measured against.")
+    enrich_state: Literal["pending", "running", "done", "failed"] = Field(
+        description="State of the second job: changes, anchors and mentions."
+    )
     created_at: datetime
     submitted_at: datetime | None
     finished_at: datetime | None

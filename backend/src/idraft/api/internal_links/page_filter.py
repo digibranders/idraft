@@ -13,6 +13,7 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, Join, and_, exists, false, or_, select
 
+from idraft.api.internal_links.problems import LinksDroppedError
 from idraft.api.schemas.internal_links import PageFilter
 from idraft.db.tables import crawl_pages, page_terms, page_tier_levels, project_pages, urls
 
@@ -37,6 +38,13 @@ class PageScope:
     run_id: UUID
     # The crawl's 25th percentile of equity share among its 200 pages (`crawl_runs.equity_p25`).
     equity_p25: float | None
+    links_dropped: bool = False
+    # Tier positions 1 to this one count as important for the "lost to top tiers" worklist.
+    alert_max_position: int = 2
+
+    def require_links(self) -> None:
+        if self.links_dropped:
+            raise LinksDroppedError
 
 
 def page_rows(scope: PageScope) -> Join:

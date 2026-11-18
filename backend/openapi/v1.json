@@ -4161,6 +4161,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "enrich_state": {
+            "description": "State of the second job: changes, anchors and mentions.",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Enrich State",
+            "type": "string"
+          },
           "error_code": {
             "anyOf": [
               {
@@ -4223,6 +4234,11 @@
             "title": "Is Latest",
             "type": "boolean"
           },
+          "links_available": {
+            "description": "False once the crawl's links were dropped (past the last four finished crawls): its pages stay, links, journeys and changes of links are gone.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
           "pages_crawled": {
             "title": "Pages Crawled",
             "type": "integer"
@@ -4231,6 +4247,19 @@
             "description": "Crawled and still queued, while it runs.",
             "title": "Pages Found",
             "type": "integer"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The crawl its changes are measured against.",
+            "title": "Previous Run Id"
           },
           "render_javascript": {
             "title": "Render Javascript",
@@ -4325,6 +4354,9 @@
           "error_message",
           "hints",
           "is_latest",
+          "links_available",
+          "previous_run_id",
+          "enrich_state",
           "created_at",
           "submitted_at",
           "finished_at",
@@ -9187,6 +9219,12 @@
       },
       "ListMeta": {
         "properties": {
+          "links_available": {
+            "default": true,
+            "description": "False when the crawl's links were dropped: link counts are the stored ones.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
           "run_id": {
             "format": "uuid",
             "title": "Run Id",

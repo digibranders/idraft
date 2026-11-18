@@ -7,6 +7,7 @@ Every statement names the workspace, because the worker bypasses row-level secur
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Final
 from uuid import UUID
 
@@ -164,8 +165,7 @@ async def apply_rules(db: AsyncSession, *, workspace_id: UUID, project_id: UUID)
     return len(added) + len(changed) + len(removed)
 
 
-_FLOW = text(
-    """
+_FLOW_BODY = """
     WITH pairs AS (
         SELECT DISTINCT l.source_url_id, l.target_url_id, l.scope
         FROM seo.crawl_links l
@@ -180,28 +180,73 @@ _FLOW = text(
         LEFT JOIN core.project_pages tp ON tp.workspace_id = CAST(:workspace_id AS uuid)
              AND tp.project_id = CAST(:project_id AS uuid) AND tp.url_id = p.target_url_id
     )
-    INSERT INTO seo.crawl_tier_flow (run_id, workspace_id, scope, from_tier_id, to_tier_id, links)
-    SELECT CAST(:run_id AS uuid), CAST(:workspace_id AS uuid), scope, from_tier, to_tier, count(*)
-    FROM tagged GROUP BY scope, from_tier, to_tier
+    SELECT scope, from_tier, to_tier, count(*) AS links FROM tagged
+    GROUP BY scope, from_tier, to_tier
     UNION ALL
-    SELECT CAST(:run_id AS uuid), CAST(:workspace_id AS uuid), 'all', from_tier, to_tier,
-           count(DISTINCT (source_url_id, target_url_id))
+    SELECT 'all', from_tier, to_tier, count(DISTINCT (source_url_id, target_url_id)) AS links
     FROM tagged GROUP BY from_tier, to_tier
-    """
+"""
+# Both inserts join module constants, never input: S608 does not apply.
+_FLOW = text(
+    "INSERT INTO seo.crawl_tier_flow (run_id, workspace_id, scope, from_tier_id, to_tier_id, "  # noqa: S608
+    "links) SELECT CAST(:run_id AS uuid), CAST(:workspace_id AS uuid), scope, from_tier, "
+    "to_tier, links FROM (" + _FLOW_BODY + ") flow"
 )
-_STATS = text(
-    """
-    INSERT INTO seo.crawl_tier_stats (run_id, workspace_id, tier_id, pages, equity_share,
-                                      average_depth)
-    SELECT CAST(:run_id AS uuid), CAST(:workspace_id AS uuid), pp.tier_id, count(*),
-           coalesce(sum(cp.equity_share), 0), avg(cp.click_depth)
+_FLOW_READ = text(_FLOW_BODY)
+_STATS_BODY = """
+    SELECT pp.tier_id, count(*) AS pages, coalesce(sum(cp.equity_share), 0) AS equity_share,
+           avg(cp.click_depth) AS average_depth
     FROM seo.crawl_pages cp
     LEFT JOIN core.project_pages pp ON pp.workspace_id = CAST(:workspace_id AS uuid)
          AND pp.project_id = cp.project_id AND pp.url_id = cp.url_id
     WHERE cp.run_id = CAST(:run_id AS uuid) AND cp.workspace_id = CAST(:workspace_id AS uuid)
     GROUP BY pp.tier_id
-    """
+"""
+_STATS = text(
+    "INSERT INTO seo.crawl_tier_stats (run_id, workspace_id, tier_id, pages, equity_share, "  # noqa: S608
+    "average_depth) SELECT CAST(:run_id AS uuid), CAST(:workspace_id AS uuid), tier_id, pages, "
+    "equity_share, average_depth FROM (" + _STATS_BODY + ") stats"
 )
+_STATS_READ = text(_STATS_BODY)
+
+
+@dataclass(frozen=True, slots=True)
+class FlowCell:
+    scope: str
+    from_tier_id: UUID | None
+    to_tier_id: UUID | None
+    links: int
+
+
+@dataclass(frozen=True, slots=True)
+class FlowStat:
+    tier_id: UUID | None
+    pages: int
+    equity_share: float
+    average_depth: float | None
+
+
+async def flow_rows(
+    db: AsyncSession, *, workspace_id: UUID, project_id: UUID, run_id: UUID
+) -> tuple[list[FlowCell], list[FlowStat]]:
+    """The flow matrix and the per-tier strip of one crawl from today's tiers, without storing
+    them (an older crawl's flow, plan 04 D15)."""
+    keys = {
+        "run_id": str(run_id),
+        "workspace_id": str(workspace_id),
+        "project_id": str(project_id),
+    }
+    cells = [
+        FlowCell(row.scope, row.from_tier, row.to_tier, row.links)
+        for row in await db.execute(_FLOW_READ, keys)
+    ]
+    stats = [
+        FlowStat(row.tier_id, row.pages, row.equity_share, row.average_depth)
+        for row in await db.execute(
+            _STATS_READ, {"run_id": keys["run_id"], "workspace_id": keys["workspace_id"]}
+        )
+    ]
+    return cells, stats
 
 
 async def recompute_tier_flow(db: AsyncSession, *, workspace_id: UUID, run_id: UUID) -> None:

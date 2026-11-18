@@ -70,6 +70,7 @@ from idraft.api.schemas.internal_links import (
     Worklists,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
 from idraft.crawl.scopes import LinkScope
 from idraft.crawl.tiers import tier_code
 from idraft.db.engine import workspace_transaction
@@ -410,6 +411,7 @@ class PageList:
     total: int
     next_cursor: str | None
     run_id: UUID
+    links_dropped: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,6 +426,7 @@ class EdgeList:
     total: int
     next_cursor: str | None
     run_id: UUID
+    links_dropped: bool
 
 
 _SOURCE_URL = aliased(urls)
@@ -907,6 +910,7 @@ class LinkReadService:
                 total=total,
                 next_cursor=next_cursor,
                 run_id=scope.run_id,
+                links_dropped=scope.links_dropped,
             )
 
     async def pages_csv(
@@ -966,6 +970,7 @@ class LinkReadService:
     ) -> NeighborPage:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
             tiers = await load_tiers(db, access.workspace_id)
             return await neighbor_page(db, scope, tiers, url_id, direction, view, limit, offset)
 
@@ -1048,6 +1053,51 @@ class LinkReadService:
                     select(crawl_runs.c.tier_flow_stale).where(crawl_runs.c.id == scope.run_id)
                 )
             ).scalar_one()
+            latest = await latest_run(db, access.workspace_id, project_id)
+            links_stored: int = (
+                await db.execute(
+                    select(crawl_runs.c.links_stored).where(crawl_runs.c.id == scope.run_id)
+                )
+            ).scalar_one()
+            if (
+                scope.run_id != latest
+                and not scope.links_dropped
+                and links_stored <= INLINE_FLOW_LINKS
+            ):
+                # An older crawl follows today's tiers: its stored rows are those of the day it
+                # was the latest (plan 04 D15).
+                live_cells, live_stats = await flow_rows(
+                    db,
+                    workspace_id=access.workspace_id,
+                    project_id=project_id,
+                    run_id=scope.run_id,
+                )
+                strip_by_tier = {row.tier_id: row for row in live_stats}
+                return TierFlow(
+                    run_id=scope.run_id,
+                    scope=view.value,
+                    stale=False,
+                    cells=[
+                        TierFlowCell(
+                            from_tier=tiers.ref(cell.from_tier_id),
+                            to_tier=tiers.ref(cell.to_tier_id),
+                            links=cell.links,
+                        )
+                        for cell in live_cells
+                        if cell.scope == view.value
+                    ],
+                    tiers=[
+                        TierStat(
+                            tier=ref,
+                            pages=0 if (live := strip_by_tier.get(tier_id)) is None else live.pages,
+                            equity_share=0.0 if live is None else live.equity_share,
+                            average_depth=None if live is None else live.average_depth,
+                        )
+                        for tier_id, ref in [*tiers.refs.items(), (None, None)]
+                    ],
+                )
+            # Stored rows of an older crawl are those of the day it was the latest (D15).
+            stale = stale or scope.run_id != latest
             cells = [
                 TierFlowCell(
                     from_tier=tiers.ref(row.from_tier_id),
@@ -1127,6 +1177,7 @@ class LinkReadService:
     ) -> EdgeList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
             tiers = await load_tiers(db, access.workspace_id)
             conditions = _edge_conditions(scope, query)
             total = (
@@ -1160,6 +1211,7 @@ class LinkReadService:
                 total=total,
                 next_cursor=next_cursor,
                 run_id=scope.run_id,
+                links_dropped=scope.links_dropped,
             )
 
     async def edges_csv(
@@ -1167,6 +1219,7 @@ class LinkReadService:
     ) -> str:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
             tiers = await load_tiers(db, access.workspace_id)
             rows = (
                 await db.execute(
