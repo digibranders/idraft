@@ -74,14 +74,16 @@ describe('the crawl in view', () => {
     for (const url of seen()) expect(url.searchParams.has('run')).toBe(false);
   });
 
-  it('reads the latest crawl for a malformed or unknown crawl id, and does not throw', async () => {
+  it('shows not found for a malformed or unknown crawl id, reads no tab and does not throw', async () => {
     for (const run of ['not-a-uuid', '0192e4a0-1000-7000-8000-0000000000ff']) {
       const seen = reads();
       const { unmount } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
         searchParams: `?run=${run}`,
       });
-      await screen.findByRole('grid', { name: 'Pages' });
-      expect(seen().length).toBeGreaterThan(0);
+      await screen.findByRole('heading', { name: 'That crawl was not found' });
+      // The header still reads the latest crawl; the Pages tab reads nothing
+      await waitFor(() => expect(seen().length).toBeGreaterThan(0));
+      expect(seen().some((url) => routeOf(url) === '/internal-links/pages')).toBe(false);
       for (const url of seen()) expect(url.searchParams.has('run')).toBe(false);
       unmount();
       server.events.removeAllListeners();

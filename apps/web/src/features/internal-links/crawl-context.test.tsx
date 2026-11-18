@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import { FileText } from 'lucide-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LinksTabContext } from './tabs';
@@ -22,6 +23,7 @@ vi.mock('./tabs', async (importOriginal) => {
       {
         id: 'pages',
         label: () => 'Pages',
+        icon: FileText,
         render: (context: LinksTabContext) => (
           <p data-testid="context">
             {JSON.stringify({
@@ -57,17 +59,14 @@ describe('what the screen hands every tab about the crawl in view', () => {
     });
   });
 
-  it('exposes `unknown` for a crawl id that names no crawl of the project, which Task 12 shows as not found', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-      searchParams: '?run=0192e4a0-1000-7000-8000-0000000000ff',
-    });
-    expect(await contextOf()).toMatchObject({ run: null, unknown: true, older: false, invalidRun: null });
-  });
-
-  it('exposes `invalid.run` for a malformed crawl id: read as the latest, so `unknown` is false and Task 12 reads `invalid.run`', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?run=not-a-uuid' });
-    expect(await contextOf()).toMatchObject({ run: null, unknown: false, invalidRun: 'not-a-uuid' });
-  });
+  it.each(['0192e4a0-1000-7000-8000-0000000000ff', 'not-a-uuid'])(
+    'shows not found instead of the tab for the crawl id %s',
+    async (run) => {
+      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${run}` });
+      expect(await screen.findByRole('heading', { name: 'That crawl was not found' })).toBeInTheDocument();
+      expect(screen.queryByTestId('context')).toBeNull();
+    },
+  );
 
   it('reads an uppercase crawl id as the same crawl as the lowercase one', async () => {
     const older = HISTORY_RUN_IDS[1] ?? '';

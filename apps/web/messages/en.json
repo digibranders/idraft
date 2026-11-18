@@ -7920,7 +7920,8 @@
       "breadcrumb": "Breadcrumb"
     },
     "header": {
-      "crawled": "Crawled {date}, {count, plural, one {# page} other {# pages}}",
+      "badgeAlerts": "{count, plural, one {# alert} other {# alerts}}",
+      "badgeOpen": "{count, number} open",
       "moreActions": "More actions",
       "crawlSettings": "Crawl settings",
       "editTiers": "Edit page tiers",
@@ -7943,15 +7944,49 @@
       "crawlsOff": "Crawls are not switched on yet. The idraft team will turn them on.",
       "crawlsStillOff": "Crawls are still switched off."
     },
-    "strip": {
-      "label": "Crawl summary",
-      "pages": "Pages",
+    "context": {
+      "label": "Crawl in scope",
       "tiered": "Tiered",
       "tieredValue": "{tiered} of {total}",
       "tieredTip": "Show the pages without a tier",
       "t1Pages": "T1 pages",
       "t1Depth": "T1 average depth",
-      "noEditorial": "No editorial links in"
+      "noEditorial": "No editorial links in",
+      "lost": "Lost editorial links to {tiers}",
+      "lostTip": "Show what changed since the last crawl",
+      "tierPair": "{first} and {second}",
+      "tierRange": "{first} to {last}",
+      "sinceFallback": "the previous crawl",
+      "changesReady": "Since {since}: {pagesAdded, plural, one {# page} other {# pages}} added, {pagesLost, plural, one {# page} other {# pages}} lost",
+      "changesReadyLinks": "Since {since}: {pagesAdded, plural, one {# page} other {# pages}} added, {pagesLost, plural, one {# page} other {# pages}} lost, {linksAdded, plural, one {# link} other {# links}} added, {linksLost, plural, one {# link} other {# links}} lost",
+      "changesPending": "Comparing with the previous crawl is being worked out.",
+      "changesFirst": "First crawl, so there is nothing to compare with yet.",
+      "changesUnavailable": "The comparison with the previous crawl is not available."
+    },
+    "picker": {
+      "label": "Crawl shown",
+      "crawled": "Crawled {date}, {count, plural, one {# page} other {# pages}}",
+      "detail": "{trigger}, {count, plural, one {# page} other {# pages}}",
+      "trigger": {
+        "websiteAdded": "Website added",
+        "schedule": "Schedule",
+        "manual": "Manual",
+        "ceilingRetry": "Higher limit"
+      },
+      "state": {
+        "queued": "Waiting",
+        "crawling": "Crawling",
+        "processing": "Processing",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "older": "Older crawl",
+      "backToLatest": "Back to latest",
+      "linksDropped": "Its links were dropped; Pages and Tier flow still work"
+    },
+    "notFound": {
+      "title": "That crawl was not found",
+      "reason": "This project has no crawl with that address, or the crawl has no data. The latest crawl is one step away."
     },
     "states": {
       "noWebsiteTitle": "Add your website to map internal links",

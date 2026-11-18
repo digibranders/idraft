@@ -4,17 +4,21 @@ import { Ban, ListFilter, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
+import { ContextLine } from './context-line';
 import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
+import { CrawlNotFound } from './crawl-not-found';
+import { CrawlPicker } from './crawl-picker';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
 import { RulesDialog } from './rules/rules-dialog';
-import { SummaryStrip } from './summary-strip';
-import { activeLinksTab, LINKS_TABS, type LinksTabContext } from './tabs';
-import { inspectedPage, useLinksState } from './url-state';
+import { TabBadge } from './tab-badge';
+import { activeLinksTab, LINK_LEVEL_TABS, LINKS_TABS, type LinksTabContext } from './tabs';
+import { useTabBadges } from './use-tab-badges';
+import { inspectedPage, useLinksState, type LinksTabId } from './url-state';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
@@ -33,6 +37,8 @@ import { failedText } from '@/lib/internal-links/crawl-failure';
 import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';
+
+const CHANGES_QUERY = 'tab=changes';
 
 export interface InternalLinksProject {
   id: string;
@@ -99,6 +105,18 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const crawl = useCrawlNow(scope, host);
   // The crawl every tab reads: the one `run` names, else the latest (an unknown id reads the latest, never wider)
   const inView = useMemo(() => crawlInView(crawls.data?.data ?? [], state.run), [crawls.data, state.run]);
+
+  const ready = view.kind === 'ready';
+  const registered = (id: LinksTabId): boolean => LINKS_TABS.some((entry) => entry.id === id);
+  const badges = useTabBadges(
+    scope,
+    inView.run,
+    { changes: ready && registered('changes'), opportunities: ready && registered('opportunities') },
+    inView.linksAvailable,
+  );
+  const badgeWords = useTranslations('internalLinks.header');
+  // The address names a crawl that cannot be shown: a malformed id, or one with no data in the project's list
+  const crawlNotFound = inView.unknown || state.invalid.run !== null;
 
   const base = projectPath(workspaceSlug, project.slug, '/seo/internal-links');
   const settingsHref = projectPath(workspaceSlug, project.slug, '/settings/links');
@@ -260,7 +278,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           />
           {tab === null ? null : (
             <TabsPanel value={tab.id} className="flex min-w-0 flex-col gap-3">
-              {tab.render(context)}
+              {crawlNotFound ? <CrawlNotFound onBack={() => setSearch({ run: null })} /> : tab.render(context)}
             </TabsPanel>
           )}
         </>
@@ -268,35 +286,50 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       break;
   }
 
-  const ready = view.kind === 'ready';
+  const needsLinks = LINK_LEVEL_TABS.has(tab?.id ?? 'pages');
   // The page actions belong to a crawl that is read or under way; the other states carry their own action
-  const actions =
-    view.kind === 'ready' || view.kind === 'first' ? (
-      <CrawlHeader
-        latest={view.kind === 'ready' ? view.latest : null}
-        active={view.kind === 'ready' ? view.active : view.run}
-        timeZone={project.timeZone}
-        canCrawl={canCrawl}
-        canEditTiers={canEditTiers}
-        crawlPending={crawl.pending}
-        crawlsOff={crawl.crawlsOff}
-        onCrawlNow={() => crawl.start()}
-        onExport={ready ? onExport : null}
-        exporting={exporting}
-        extraItems={ruleItems}
-        settingsHref={settingsHref}
-        tiersHref={tiersHref}
-      />
-    ) : null;
-  const toolbar = (tabs: ReactElement | undefined): ReactElement => (
-    <PageToolbar
-      title={t('title')}
-      tabs={tabs}
-      stats={
-        ready ? <SummaryStrip scope={scope} run={inView.run} untieredHref={withQuery(base, UNTIERED_QUERY)} /> : null
-      }
-      actions={actions}
-    />
+  const toolbar = (tabList: ReactElement | undefined): ReactElement => (
+    <PageToolbar title={t('title')}>
+      {view.kind === 'ready' || view.kind === 'first' ? (
+        <CrawlHeader
+          tabs={tabList}
+          activeTab={tab?.id}
+          context={
+            ready ? (
+              <>
+                <CrawlPicker
+                  runs={crawls.data?.data ?? []}
+                  run={inView.run}
+                  timeZone={project.timeZone}
+                  needsLinks={needsLinks}
+                  onChoose={(next) => setSearch({ run: next })}
+                />
+                <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
+                <ContextLine
+                  scope={scope}
+                  run={inView.run}
+                  timeZone={project.timeZone}
+                  untieredHref={withQuery(base, UNTIERED_QUERY)}
+                  changesHref={registered('changes') ? withQuery(base, CHANGES_QUERY) : null}
+                />
+              </>
+            ) : undefined
+          }
+          active={view.kind === 'ready' ? view.active : view.run}
+          timeZone={project.timeZone}
+          canCrawl={canCrawl}
+          canEditTiers={canEditTiers}
+          crawlPending={crawl.pending}
+          crawlsOff={crawl.crawlsOff}
+          onCrawlNow={() => crawl.start()}
+          onExport={ready ? onExport : null}
+          exporting={exporting}
+          extraItems={ruleItems}
+          settingsHref={settingsHref}
+          tiersHref={tiersHref}
+        />
+      ) : null}
+    </PageToolbar>
   );
   let inspectorHost: ReactElement | null = null;
   if (inspector.target?.type === 'page' && ready) {
@@ -335,7 +368,33 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
                 { history: 'push' },
               )
             }
-            items={LINKS_TABS.map((entry) => ({ value: entry.id, label: entry.label(t) }))}
+            items={LINKS_TABS.map((entry) => ({
+              value: entry.id,
+              label: entry.label(t),
+              icon: entry.icon,
+              ...(entry.id === 'changes' && badges.changes !== null
+                ? {
+                    badge: (
+                      <TabBadge
+                        count={badges.changes}
+                        text={badgeWords('badgeAlerts', { count: badges.changes })}
+                        tone="negative"
+                      />
+                    ),
+                  }
+                : {}),
+              ...(entry.id === 'opportunities' && badges.opportunities !== null
+                ? {
+                    badge: (
+                      <TabBadge
+                        count={badges.opportunities}
+                        text={badgeWords('badgeOpen', { count: badges.opportunities })}
+                        tone="neutral"
+                      />
+                    ),
+                  }
+                : {}),
+            }))}
             renderList={toolbar}
             className="gap-3"
           >

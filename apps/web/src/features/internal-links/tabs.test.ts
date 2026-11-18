@@ -1,9 +1,10 @@
+import { FileText } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 
 import { activeLinksTab, defineLinksTabs, type LinksTabEntry } from './tabs';
 import type { LinksTabId } from './url-state';
 
-const entry = (id: LinksTabId): LinksTabEntry => ({ id, label: () => id, render: () => null });
+const entry = (id: LinksTabId): LinksTabEntry => ({ id, label: () => id, icon: FileText, render: () => null });
 
 describe('the tabs of Internal links', () => {
   it('lists them in the page order, whatever order they were added in', () => {

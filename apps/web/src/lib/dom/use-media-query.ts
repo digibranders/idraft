@@ -10,13 +10,18 @@ import { useCallback, useSyncExternalStore } from 'react';
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(
     (notify: () => void): (() => void) => {
+      // A test window may not have it; the narrow form is then the answer
+      if (typeof window.matchMedia !== 'function') return () => undefined;
       const list = window.matchMedia(query);
       list.addEventListener('change', notify);
       return () => list.removeEventListener('change', notify);
     },
     [query],
   );
-  const snapshot = useCallback((): boolean => window.matchMedia(query).matches, [query]);
+  const snapshot = useCallback(
+    (): boolean => typeof window.matchMedia === 'function' && window.matchMedia(query).matches,
+    [query],
+  );
   return useSyncExternalStore(subscribe, snapshot, () => false);
 }
 
@@ -24,6 +29,8 @@ export function useMediaQuery(query: string): boolean {
 export const MEDIA = {
   /** 640 px: a phone in landscape and up. */
   sm: '(width >= 40rem)',
+  /** 768 px: a tablet in portrait and up. */
+  md: '(width >= 48rem)',
   /** 1024 px: the sidebar is on the page (rail or expanded), not a drawer. */
   lg: '(width >= 64rem)',
   /** 1024 to 1279 px: the rail, which expands over the content. */

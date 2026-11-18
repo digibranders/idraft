@@ -1,3 +1,4 @@
+import { FileText, Grid3x3, Link2, type LucideIcon, Workflow } from 'lucide-react';
 import type { Route } from 'next';
 import type { useTranslations } from 'next-intl';
 import { createElement, type ReactNode } from 'react';
@@ -51,6 +52,8 @@ export interface LinksTabContext {
 export interface LinksTabEntry {
   id: LinksTabId;
   label: (t: LinksTranslate) => string;
+  /** The glyph before the label from `xl` up (mock `TABS`). */
+  icon: LucideIcon;
   render: (context: LinksTabContext) => ReactNode;
 }
 
@@ -75,10 +78,38 @@ export function defineLinksTabs(entries: readonly LinksTabEntry[]): readonly Lin
 
 /** The tabs built so far: each tab's task adds its entry here (Pages in Task 7, Links 10, Journey 11, Tier flow 12). */
 export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
-  { id: 'pages', label: (t) => t('tabs.pages'), render: (context) => createElement(PagesTab, { context }) },
-  { id: 'links', label: (t) => t('tabs.links'), render: (context) => createElement(LinksTab, { context }) },
-  { id: 'journey', label: (t) => t('tabs.journey'), render: (context) => createElement(JourneyTab, { context }) },
-  { id: 'flow', label: (t) => t('tabs.flow'), render: (context) => createElement(FlowTab, { context }) },
+  {
+    id: 'pages',
+    label: (t) => t('tabs.pages'),
+    icon: FileText,
+    render: (context) => createElement(PagesTab, { context }),
+  },
+  {
+    id: 'links',
+    label: (t) => t('tabs.links'),
+    icon: Link2,
+    render: (context) => createElement(LinksTab, { context }),
+  },
+  {
+    id: 'journey',
+    label: (t) => t('tabs.journey'),
+    icon: Workflow,
+    render: (context) => createElement(JourneyTab, { context }),
+  },
+  {
+    id: 'flow',
+    label: (t) => t('tabs.flow'),
+    icon: Grid3x3,
+    render: (context) => createElement(FlowTab, { context }),
+  },
+]);
+
+/** The tabs whose links are read: a crawl whose links were dropped cannot be chosen for them (spec 7.10). */
+export const LINK_LEVEL_TABS: ReadonlySet<LinksTabId> = new Set<LinksTabId>([
+  'links',
+  'journey',
+  'changes',
+  'opportunities',
 ]);
 
 export const activeLinksTab = (tabs: readonly LinksTabEntry[], wanted: LinksTabId): LinksTabEntry | null =>
