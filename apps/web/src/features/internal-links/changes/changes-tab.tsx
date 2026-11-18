@@ -42,7 +42,13 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
   // The crawl list is the screen's own read, so it is one request
   const crawls = useQuery(crawlsQuery(scope, CRAWL_SCREEN_LIMIT));
   const [change, setChange] = useState<ChangeKind>('lost');
+  // The person's choice belongs to the crawl it was made in: another crawl derives its own default again
   const [chosenOnly, setChosenOnly] = useState<ChangeOnly | null>(null);
+  const [seenRun, setSeenRun] = useState(crawl.run);
+  if (seenRun !== crawl.run) {
+    setSeenRun(crawl.run);
+    setChosenOnly(null);
+  }
   const data: ChangesSummary | undefined = summary.data?.data;
   const ready = data?.state === 'ready' ? data : null;
   // The important tiers first when the crawl lost links to them, else everything (mock `render`)
@@ -97,10 +103,19 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
   const since = c('since', { date });
   const alert = ready?.alert ?? null;
   // A previous crawl whose links were dropped has no link changes to compare: zero would read as "no changes"
-  const previousDropped =
-    ready !== null &&
-    ready.editorial_lost + ready.editorial_added + ready.all_lost + ready.all_added === 0 &&
-    crawls.data?.data.find((run) => run.run_id === ready.previous_run_id)?.links_available === false;
+  // The crawl list says whether the previous crawl kept its links; until it answers, zeros are not shown as counts
+  const noLinkChanges =
+    ready !== null && ready.editorial_lost + ready.editorial_added + ready.all_lost + ready.all_added === 0;
+  const previous = crawls.data?.data.find((run) => run.run_id === ready?.previous_run_id);
+  const undecided = noLinkChanges && crawls.isPending;
+  const previousNote =
+    !noLinkChanges || undecided
+      ? null
+      : previous === undefined
+        ? 'previousUnknown'
+        : previous.links_available
+          ? null
+          : 'previousDropped';
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -117,10 +132,10 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
       )}
       {data.state === 'pending' ? (
         <Banner tone="neutral" placement="region" lead={c('pendingTitle')} message={c('pendingText')} />
-      ) : (
-        <ChangesStrip summary={data} since={since} tiers={tiers} />
+      ) : undecided ? null : (
+        <ChangesStrip summary={data} since={since} tiers={tiers} linkScope={state.changesScope} />
       )}
-      {previousDropped ? <Banner tone="neutral" placement="region" message={c('previousDropped')} /> : null}
+      {previousNote === null ? null : <Banner tone="neutral" placement="region" message={c(previousNote)} />}
       {crawl.linksAvailable ? (
         <ChangeLinksPanel
           context={context}

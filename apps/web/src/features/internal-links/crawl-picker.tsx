@@ -40,7 +40,14 @@ const hasData = (state: CrawlRun['state']): state is DataState => state === 'rea
  * is listed; one that is waiting, crawling, failed or cancelled has no data and says so instead of being choosable,
  * and one whose links were dropped is disabled for the tabs that read links, with the reason.
  */
-export function CrawlPicker({ runs, run, timeZone, needsLinks, onChoose, onBack }: CrawlPickerProps): ReactElement | null {
+export function CrawlPicker({
+  runs,
+  run,
+  timeZone,
+  needsLinks,
+  onChoose,
+  onBack,
+}: CrawlPickerProps): ReactElement | null {
   const t = useTranslations('internalLinks.picker');
   const chosen = chosenCrawl(runs, run);
   if (chosen === null) return null;

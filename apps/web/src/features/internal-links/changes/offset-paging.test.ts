@@ -9,6 +9,12 @@ describe('offset paging', () => {
     expect(nextOffset(100, 100, 200)).toBeNull();
   });
 
+  it('stops where the API stops taking an offset (100000), even when the list is longer', () => {
+    expect(nextOffset(99_900, 100, 200_000)).toBe(100_000);
+    expect(nextOffset(100_000, 100, 200_000)).toBeNull();
+    expect(nextOffset(99_950, 100, 200_000)).toBeNull();
+  });
+
   it('goes back to the page before, never below the first', () => {
     expect(previousOffset(0, 100)).toBeNull();
     expect(previousOffset(50, 100)).toBe(0);

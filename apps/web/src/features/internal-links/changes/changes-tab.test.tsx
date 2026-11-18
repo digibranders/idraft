@@ -73,6 +73,17 @@ const EMPTY_READY: ChangesSummary = {
   alert: null,
 };
 
+/** A worked out comparison with some lost links, against a crawl that kept its links. */
+const SOME_LOST: ChangesSummary = {
+  ...EMPTY_READY,
+  previous_run_id: HISTORY_RUN_IDS[1] ?? '',
+  editorial_lost: 3,
+  editorial_added: 1,
+  all_lost: 3,
+  all_added: 1,
+  lost_to_top: 2,
+};
+
 const ROW: ChangeLink = {
   source: { url_id: '11', url: 'https://eventussecurity.com/a', path: '/a', tier: null },
   target: { url_id: '12', url: 'https://eventussecurity.com/b', path: '/b', tier: null },
@@ -237,7 +248,7 @@ describe('the Changes tab (spec 7.10)', () => {
   it('says there is nothing to compare on a first crawl, with no Try again', async () => {
     setLinksScenario({ firstCrawl: true });
     open();
-    expect(await screen.findByText('This is the first crawl.')).toBeInTheDocument();
+    expect(await screen.findByText('This is the first crawl')).toBeInTheDocument();
     expect(screen.getByText('Changes appear after the next crawl.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
     expect(screen.queryByRole('table', { name: 'Lost links' })).not.toBeInTheDocument();
@@ -409,6 +420,124 @@ describe('the Changes tab (spec 7.10)', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
     expect(await screen.findAllByText('The export could not be made')).not.toHaveLength(0);
     expect(await screen.findAllByText('The file could not be built.')).not.toHaveLength(0);
+  });
+
+  it('chooses the important tiers default again for each crawl in view', async () => {
+    const asked = reads('/changes/links');
+    // The latest crawl lost links to the important tiers; the older one did not
+    server.use(
+      http.get(SUMMARY, ({ request }) => {
+        const older = new URL(request.url).searchParams.has('run');
+        return HttpResponse.json({ data: { ...SOME_LOST, lost_to_top: older ? 0 : 2 } });
+      }),
+    );
+    const { user } = open();
+    const toggle = async (): Promise<HTMLElement> => screen.findByRole('switch', { name: 'Only to T1 and T2 pages' });
+    await waitFor(async () => expect(await toggle()).toBeChecked());
+    await user.click(await toggle());
+    await waitFor(async () => expect(await toggle()).not.toBeChecked());
+    const pick = async (index: number): Promise<void> => {
+      await user.click(await screen.findByRole('button', { name: /^Crawled .+, \d+ pages?$/ }));
+      await user.click((await screen.findAllByRole('menuitemradio'))[index] ?? document.body);
+    };
+    await pick(1);
+    await screen.findByText('Older crawl');
+    await waitFor(async () => expect(await toggle()).not.toBeChecked());
+    expect(asked().at(-1)?.get('only')).toBe('all');
+    await pick(0);
+    // The latest crawl's table for the important tiers is cached, so the switch is the evidence
+    await waitFor(async () => expect(await toggle()).toBeChecked());
+  });
+
+  it('shows the all links counts with the all links scope, and says the tier figure is editorial', async () => {
+    server.use(http.get(SUMMARY, () => HttpResponse.json({ data: { ...SOME_LOST, all_lost: 7, all_added: 5 } })));
+    open('&cs=all');
+    const strip = await screen.findByRole('group', { name: 'Changes since the last crawl' });
+    expect(within(strip).getByText('Links lost').closest('div')).toHaveTextContent('7');
+    expect(within(strip).getByText('Links added').closest('div')).toHaveTextContent('5');
+    expect(screen.getByText(/counts editorial links only/)).toBeInTheDocument();
+  });
+
+  it('shows the editorial counts and no scope note with the editorial scope', async () => {
+    server.use(http.get(SUMMARY, () => HttpResponse.json({ data: { ...SOME_LOST, all_lost: 7 } })));
+    open();
+    const strip = await screen.findByRole('group', { name: 'Changes since the last crawl' });
+    expect(within(strip).getByText('Editorial links lost')).toBeInTheDocument();
+    expect(screen.queryByText(/counts editorial links only/)).not.toBeInTheDocument();
+  });
+
+  it('says the comparison may have no link data when the previous crawl is not in the list', async () => {
+    server.use(
+      http.get(SUMMARY, () =>
+        HttpResponse.json({ data: { ...EMPTY_READY, previous_run_id: '0192e4a0-1000-7000-8000-0000000000aa' } }),
+      ),
+    );
+    open();
+    expect(await screen.findByText(/may not have link data/)).toBeInTheDocument();
+    expect(screen.queryByText(/The links of the previous crawl are not stored/)).not.toBeInTheDocument();
+  });
+
+  it('says the list is the pages that moved most when it is full, and not when it is short', async () => {
+    const page = (id: string): MovedPageList['data'][number] => ({
+      page: { url_id: id, url: `https://eventussecurity.com/p${id}`, path: `/p${id}`, tier: null },
+      depth: 2,
+      depth_delta: 0,
+      depth_state: null,
+      editorial_in: 3,
+      editorial_in_delta: 1,
+      equity_points: null,
+    });
+    const moved = (count: number): MovedPageList => ({
+      data: Array.from({ length: count }, (_, index) => page(String(index + 1))),
+      meta: { run_id: MOCK_RUN_ID, previous_run_id: null },
+    });
+    server.use(http.get(PAGES, () => HttpResponse.json(moved(8))));
+    const first = open();
+    expect(await screen.findByText('Showing the 8 that moved most.')).toBeInTheDocument();
+    first.unmount();
+    server.use(http.get(PAGES, () => HttpResponse.json(moved(3))));
+    open();
+    await screen.findByRole('table', { name: 'Pages that moved most' });
+    await screen.findByText('/p3');
+    expect(screen.queryByText(/that moved most\./)).not.toBeInTheDocument();
+  });
+
+  it('keeps every row of identical lost links, with no duplicate key', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const same = { ...ROW, anchor: 'same' };
+    server.use(
+      http.get(LINKS, () =>
+        HttpResponse.json({
+          data: [same, same],
+          meta: {
+            run_id: MOCK_RUN_ID,
+            previous_run_id: null,
+            change: 'lost',
+            link_scope: 'editorial',
+            only: 'all',
+            total: 2,
+            truncated: false,
+          },
+        } satisfies ChangeLinkPage),
+      ),
+    );
+    open();
+    const table = await linksTable();
+    expect(await within(table).findAllByText('“same”')).toHaveLength(2);
+    expect(errors.mock.calls.flat().join(' ')).not.toContain('same key');
+    errors.mockRestore();
+  });
+
+  it('marks the table busy while a page is loading', async () => {
+    manyRows();
+    const { user } = open('&cs=all');
+    await screen.findByText('Showing 1 to 100 of 120');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await screen.findByText('Showing 101 to 120 of 120');
+    expect(screen.getByRole('table', { name: 'Lost links' }).closest('[aria-busy]')).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
   });
 
   it.each(['light', 'dark'])('has no axe violations in the %s theme', async (theme) => {

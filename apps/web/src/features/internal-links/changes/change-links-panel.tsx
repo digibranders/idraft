@@ -165,6 +165,15 @@ export function ChangeLinksPanel({
   const status = read.isError && read.data === undefined ? 'error' : read.isPending ? 'loading' : 'ready';
   const showAll = lost && only === 'top' && status === 'ready' && rows.length === 0;
   const hasNext = settled && nextOffset(paging.offset, paging.size, total) !== null;
+  // The API takes no offset past MAX_OFFSET: the last reachable page of a longer list says so
+  const capped = settled && rows.length > 0 && !hasNext && paging.offset + rows.length < total;
+  // Identical lost links are all kept; the index keeps their keys apart
+  const keys = new Map(
+    rows.map((row, index) => [
+      row,
+      [index, row.source.url_id, row.target.url_id, row.placement, row.anchor, row.still_linked_by ?? ''].join('|'),
+    ]),
+  );
 
   return (
     <ChangesPanel
@@ -222,29 +231,30 @@ export function ChangeLinksPanel({
         <LinksDropped />
       ) : (
         <>
-          <PlainTable<ChangeLink>
-            caption={title}
-            columns={columns}
-            rows={rows}
-            rowKey={(row) =>
-              [row.source.url_id, row.target.url_id, row.placement, row.anchor, row.still_linked_by ?? ''].join('|')
-            }
-            status={status}
-            skeletonRows={6}
-            emptyText={emptyText}
-            errorState={
-              <InlineError
-                title={lost ? c('lostLoadFailed') : c('addedLoadFailed')}
-                reason={
-                  isApiProblem(read.error) ? reasonOf(read.error) || c('loadFailedReason') : c('loadFailedReason')
-                }
-                errorId={null}
-                onRetry={() => void read.refetch()}
-                retrying={read.isFetching}
-                retryLabel={common('retry')}
-              />
-            }
-          />
+          {/* The rows of the last page stay while the next loads: dimmed and marked busy */}
+          <div aria-busy={read.isPlaceholderData} className={read.isPlaceholderData ? 'opacity-60' : undefined}>
+            <PlainTable<ChangeLink>
+              caption={title}
+              columns={columns}
+              rows={rows}
+              rowKey={(row) => keys.get(row) ?? ''}
+              status={status}
+              skeletonRows={6}
+              emptyText={emptyText}
+              errorState={
+                <InlineError
+                  title={lost ? c('lostLoadFailed') : c('addedLoadFailed')}
+                  reason={
+                    isApiProblem(read.error) ? reasonOf(read.error) || c('loadFailedReason') : c('loadFailedReason')
+                  }
+                  errorId={null}
+                  onRetry={() => void read.refetch()}
+                  retrying={read.isFetching}
+                  retryLabel={common('retry')}
+                />
+              }
+            />
+          </div>
           {showAll ? (
             <div>
               <Button variant="secondary" size="sm" onClick={() => onOnlyChange('all')}>
@@ -255,8 +265,10 @@ export function ChangeLinksPanel({
           {read.data?.meta.truncated === true ? (
             <p className="type-meta text-foreground-secondary">{c('truncated')}</p>
           ) : null}
+          {capped ? <p className="type-meta text-foreground-secondary">{c('pagingLimit')}</p> : null}
           {status === 'ready' && (total > PAGE_SIZES[0] || paging.offset > 0) ? (
-            <div className="rounded-lg border border-border bg-surface">
+            // The footer brings its own top border, so the frame leaves its top edge to it
+            <div className="rounded-lg border border-border bg-surface *:border-t-0">
               <TableFooter
                 countText={rangeText}
                 server={{

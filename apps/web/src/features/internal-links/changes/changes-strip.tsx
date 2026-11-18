@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 
 import { MetricStrip, type MetricStripGroup } from '@/components/app/metric/metric-strip';
 import { formatInteger } from '@/lib/format';
-import type { ChangesSummary } from '@/lib/internal-links/types';
+import type { ChangeScope, ChangesSummary } from '@/lib/internal-links/types';
 
 /**
  * The counts of what the crawl changed against the one before it (mock `strip`): editorial links lost and added,
@@ -15,8 +15,11 @@ export function ChangesStrip({
   summary,
   since,
   tiers,
+  linkScope,
 }: {
   summary: ChangesSummary;
+  /** The links the lost and added counts are of; the count lost to the important tiers is editorial either way. */
+  linkScope: ChangeScope;
   /** "since 7 Nov". */
   since: string;
   /** "T1 and T2". */
@@ -24,12 +27,23 @@ export function ChangesStrip({
 }): ReactElement {
   const t = useTranslations('internalLinks.changes.strip');
   const context = t('since', { since });
+  const all = linkScope === 'all';
   const groups: MetricStripGroup[] = [
     {
       id: 'changes',
       items: [
-        { id: 'lost', label: t('lost'), value: formatInteger(summary.editorial_lost), context },
-        { id: 'added', label: t('added'), value: formatInteger(summary.editorial_added), context },
+        {
+          id: 'lost',
+          label: all ? t('lostAll') : t('lost'),
+          value: formatInteger(all ? summary.all_lost : summary.editorial_lost),
+          context,
+        },
+        {
+          id: 'added',
+          label: all ? t('addedAll') : t('added'),
+          value: formatInteger(all ? summary.all_added : summary.editorial_added),
+          context,
+        },
         {
           id: 'lost-top',
           label: t('lostTop', { tiers }),
@@ -41,5 +55,10 @@ export function ChangesStrip({
       ],
     },
   ];
-  return <MetricStrip size="md" label={t('label')} status="ready" groups={groups} />;
+  return (
+    <div className="flex flex-col gap-1">
+      <MetricStrip size="md" label={t('label')} status="ready" groups={groups} />
+      {all ? <p className="type-meta text-foreground-secondary">{t('scopeNote', { tiers })}</p> : null}
+    </div>
+  );
 }

@@ -12,7 +12,7 @@ import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { EMPTY_VALUE, formatInteger } from '@/lib/format';
 import { formatDelta, type Tone } from '@/lib/internal-links/changes-format';
-import { movedPagesQuery } from '@/lib/internal-links/queries';
+import { MOVED_LIMIT, movedPagesQuery } from '@/lib/internal-links/queries';
 import type { MovedPage } from '@/lib/internal-links/types';
 import { cn } from '@/lib/utils';
 
@@ -98,6 +98,9 @@ export function MovedPagesPanel({
           />
         }
       />
+      {rows.length === MOVED_LIMIT ? (
+        <p className="type-meta text-foreground-secondary">{c('movedTop', { count: MOVED_LIMIT })}</p>
+      ) : null}
     </ChangesPanel>
   );
 }

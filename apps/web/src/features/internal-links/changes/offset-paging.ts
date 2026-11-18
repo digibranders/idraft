@@ -4,9 +4,12 @@ import { useCallback, useState } from 'react';
 
 import type { PageSize } from '@/components/app/data-table/types';
 
-/** The next page's first row, or `null` when this page reaches the end. */
+/** The largest `offset` the API takes: a longer list cannot be paged past it (a larger one is a 422). */
+export const MAX_OFFSET = 100_000;
+
+/** The next page's first row, or `null` when this page reaches the end of the list or of what the API can page. */
 export const nextOffset = (offset: number, limit: number, total: number): number | null =>
-  offset + limit < total ? offset + limit : null;
+  offset + limit < total && offset + limit <= MAX_OFFSET ? offset + limit : null;
 
 /** The previous page's first row, or `null` on the first page. */
 export const previousOffset = (offset: number, limit: number): number | null =>
