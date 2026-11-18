@@ -93,7 +93,7 @@ describe('the pages query (the backend OpenAPI)', () => {
     const [reads, rules, tiers] = internalLinksKeys(SCOPE);
     const startsWith = (key: readonly unknown[], prefix: readonly unknown[] | undefined): boolean =>
       prefix !== undefined && prefix.every((part, index) => key[index] === part);
-    expect(startsWith(pagesQuery(SCOPE, DEFAULT_PAGE_QUERY).queryKey, reads)).toBe(true);
+    expect(startsWith(pagesQuery(SCOPE, DEFAULT_PAGE_QUERY, null).queryKey, reads)).toBe(true);
     expect(startsWith(tierRulesQuery(SCOPE).queryKey, rules)).toBe(true);
     expect(startsWith(pageTiersQuery('w1').queryKey, tiers)).toBe(true);
   });
@@ -115,11 +115,11 @@ describe('the pages query (the backend OpenAPI)', () => {
   it('keys the tier flow under the reads that a tier change or a finished crawl makes stale', () => {
     const startsWith = (key: readonly unknown[], prefix: readonly unknown[] | undefined): boolean =>
       prefix !== undefined && prefix.every((part, index) => key[index] === part);
-    const key = tierFlowQuery(SCOPE, 'editorial').queryKey;
+    const key = tierFlowQuery(SCOPE, 'editorial', null).queryKey;
     expect(startsWith(key, internalLinksKeys(SCOPE)[0])).toBe(true);
     expect(crawlFinishedKeys(SCOPE).some((prefix) => startsWith(key, prefix))).toBe(true);
     // One key per scope: a scope never reads the answer of another
-    expect(tierFlowQuery(SCOPE, 'all').queryKey).not.toEqual(key);
+    expect(tierFlowQuery(SCOPE, 'all', null).queryKey).not.toEqual(key);
   });
 });
 
@@ -147,16 +147,16 @@ describe('url ids (the API takes digit strings of at most int64)', () => {
       'filter[source]': '12',
       'filter[target]': '9223372036854775807',
     });
-    expect(pageDetailQuery(SCOPE, '9007199254740993', 'editorial').queryKey).toContain('9007199254740993');
+    expect(pageDetailQuery(SCOPE, '9007199254740993', 'editorial', null).queryKey).toContain('9007199254740993');
     expect(
-      neighborsQuery(SCOPE, { urlId: '9007199254740993', direction: 'out', linkScope: 'editorial', offset: 0 })
+      neighborsQuery(SCOPE, { urlId: '9007199254740993', direction: 'out', linkScope: 'editorial', offset: 0 }, null)
         .queryKey,
     ).toContainEqual(expect.objectContaining({ url_id: '9007199254740993' }));
     expect(() => edgeParams({ ...DEFAULT_EDGE_QUERY, source: '9223372036854775808' })).toThrow(UrlIdError);
-    expect(() => pageDetailQuery(SCOPE, '0', 'editorial')).toThrow(UrlIdError);
-    expect(() => neighborsQuery(SCOPE, { urlId: 'x', direction: 'out', linkScope: 'editorial', offset: 0 })).toThrow(
-      UrlIdError,
-    );
+    expect(() => pageDetailQuery(SCOPE, '0', 'editorial', null)).toThrow(UrlIdError);
+    expect(() =>
+      neighborsQuery(SCOPE, { urlId: 'x', direction: 'out', linkScope: 'editorial', offset: 0 }, null),
+    ).toThrow(UrlIdError);
   });
 
   it('names the two CSV downloads with their ids filled in', () => {
@@ -248,7 +248,7 @@ describe('the run parameter (a chosen crawl, none for the latest)', () => {
   });
 
   it('is part of the key of every read that takes it, and absent from the key of the latest', () => {
-    const latest = pagesQuery(SCOPE, DEFAULT_PAGE_QUERY).queryKey;
+    const latest = pagesQuery(SCOPE, DEFAULT_PAGE_QUERY, null).queryKey;
     const older = pagesQuery(SCOPE, DEFAULT_PAGE_QUERY, 'r1').queryKey;
     expect(older).not.toEqual(latest);
     expect(JSON.stringify(older)).toContain('"run":"r1"');
@@ -262,7 +262,7 @@ describe('the run parameter (a chosen crawl, none for the latest)', () => {
     ).toContainEqual(expect.objectContaining({ run: 'r1' }));
     expect(tierFlowQuery(SCOPE, 'all', 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
     expect(worklistsQuery(SCOPE, 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
-    expect(worklistsQuery(SCOPE).queryKey).not.toEqual(worklistsQuery(SCOPE, 'r1').queryKey);
+    expect(worklistsQuery(SCOPE, null).queryKey).not.toEqual(worklistsQuery(SCOPE, 'r1').queryKey);
   });
 });
 

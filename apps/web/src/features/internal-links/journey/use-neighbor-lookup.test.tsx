@@ -30,7 +30,7 @@ function listOf(total: number): NeighborList {
   };
 }
 const keyOf = (offset: number): readonly unknown[] =>
-  neighborsQuery(SCOPE, { urlId: FOCUS, direction: 'out', linkScope: 'editorial', offset }).queryKey;
+  neighborsQuery(SCOPE, { urlId: FOCUS, direction: 'out', linkScope: 'editorial', offset }, null).queryKey;
 
 /** Shows what the lookup answers for a request, and the version the hook counts. */
 function Probe({

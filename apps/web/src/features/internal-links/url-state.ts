@@ -149,7 +149,8 @@ function readUrlId(value: string | null | undefined): { id: string | null; inval
 /** A crawl id the address names: the id when it is a UUID, else its text as `invalid` (never thrown on). */
 function readRunId(value: string | null | undefined): { id: string | null; invalid: string | null } {
   if (value === null || value === undefined || value === '') return { id: null, invalid: null };
-  return RUN_ID.test(value) ? { id: value, invalid: null } : { id: null, invalid: value };
+  // Lowercase, as the API writes ids: the crawl list is matched by equality and the cache key holds the id
+  return RUN_ID.test(value) ? { id: value.toLowerCase(), invalid: null } : { id: null, invalid: value };
 }
 
 /** The page the inspector names (`?inspect=page:<id>`), in the same terms: a url id, or the text of one not an id. */

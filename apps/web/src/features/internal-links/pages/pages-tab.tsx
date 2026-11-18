@@ -7,6 +7,8 @@ import { parseAsString, useQueryStates } from 'nuqs';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 
 import { BulkTagDialog } from './bulk-tag-dialog';
+import { LinksDropped } from '../links-dropped';
+import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
@@ -328,14 +330,19 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         bulkActions={canWrite ? bulkActions : undefined}
         status={status}
         errorState={
-          <InlineError
-            title={t('pages.loadFailed')}
-            reason={t('pages.loadFailedReason')}
-            errorId={null}
-            onRetry={() => void read.refetch()}
-            retrying={read.isFetching}
-            retryLabel={common('retry')}
-          />
+          // A list that needs the links (a worklist of links) of a crawl past the last four answers 410
+          isLinksDropped(read.error) ? (
+            <LinksDropped />
+          ) : (
+            <InlineError
+              title={t('pages.loadFailed')}
+              reason={t('pages.loadFailedReason')}
+              errorId={null}
+              onRetry={() => void read.refetch()}
+              retrying={read.isFetching}
+              retryLabel={common('retry')}
+            />
+          )
         }
         emptyState={<EmptyState title={t('pages.emptyTitle')} reason={t('pages.emptyReason')} headingLevel={3} />}
         filteredEmptyState={

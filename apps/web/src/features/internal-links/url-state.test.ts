@@ -49,6 +49,12 @@ describe('the chosen crawl and the keys of the Changes and Opportunities tabs', 
     expect(parseLinksSearch({ tab: 'opportunities', ot: 'none' }).oppTier).toBe('none');
   });
 
+  it('reads a crawl id in capitals as the same lowercase id, so it chooses the same crawl and cache key', () => {
+    const upper = parseLinksSearch({ run: RUN.toUpperCase() });
+    expect(upper.run).toBe(RUN);
+    expect(upper.invalid.run).toBeNull();
+  });
+
   it('falls back on values it does not know, and remembers a malformed crawl id without throwing', () => {
     const state = parseLinksSearch({ run: 'not-a-uuid', cs: 'x', os: 'x', ot: '9' });
     expect(state).toMatchObject({ run: null, changesScope: 'editorial', oppStatus: null, oppTier: null });

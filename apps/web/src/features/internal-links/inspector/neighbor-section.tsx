@@ -23,6 +23,8 @@ export interface NeighborSectionProps {
   linkScope: LinkScope;
   /** The crawl read: `null` for the latest. */
   run: string | null;
+  /** False for a crawl whose links are no longer stored: no neighbors are read. */
+  linksAvailable: boolean;
   /** The pages on this side in the scope in view, from the page read. */
   total: number;
   title: string;
@@ -89,12 +91,22 @@ function NeighborRows({
  * The linking pages or the outlinks of the open page (mock `pageList`): the neighbors read, `READ_LIMIT` (50, the
  * most the API gives for one read) at a time, with Show more while the page read says there are more, and View all in Links for the whole list.
  */
-export function NeighborSection({ total, title, onViewAll, ...read }: NeighborSectionProps): ReactElement {
+export function NeighborSection({
+  total,
+  title,
+  onViewAll,
+  linksAvailable,
+  ...read
+}: NeighborSectionProps): ReactElement {
   const t = useTranslations('internalLinks.inspector');
+  const dropped = useTranslations('internalLinks.linksDropped');
   const [loaded, setLoaded] = useState(1);
   return (
     <InspectorSection title={title} icon={Link2} status="ready">
-      {total === 0 ? (
+      {!linksAvailable ? (
+        // No read is made for a crawl whose links are gone
+        <p className="type-body text-foreground-tertiary">{dropped('reason')}</p>
+      ) : total === 0 ? (
         <p className="type-body text-foreground-tertiary">{t('noneInScope')}</p>
       ) : (
         <ul className="flex flex-col gap-1">
@@ -104,7 +116,7 @@ export function NeighborSection({ total, title, onViewAll, ...read }: NeighborSe
         </ul>
       )}
       <div className="flex flex-wrap items-center gap-3 pt-2">
-        {loaded * READ_LIMIT < total ? (
+        {linksAvailable && loaded * READ_LIMIT < total ? (
           <Button
             variant="link"
             size="sm"
@@ -114,7 +126,7 @@ export function NeighborSection({ total, title, onViewAll, ...read }: NeighborSe
             {t('showMore')}
           </Button>
         ) : null}
-        {total > 0 ? (
+        {linksAvailable && total > 0 ? (
           <Button variant="link" size="sm" onClick={onViewAll}>
             {t('viewAll')}
           </Button>

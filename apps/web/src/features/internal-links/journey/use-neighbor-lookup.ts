@@ -70,7 +70,7 @@ export function useNeighborVersion(scope: LinksScope, watched?: { current: Reado
  */
 export function useNeighborLookup(
   scope: LinksScope,
-  run: string | null = null,
+  run: string | null,
 ): {
   lookup: ListLookup<Neighbor>;
   useLoad: (requests: readonly ListRequest[]) => void;

@@ -201,11 +201,7 @@ export function pageFilterOf(query: PageQuery): PageFilter {
   };
 }
 
-export const pagesQuery = (
-  scope: LinksScope,
-  query: PageQuery,
-  run: string | null = null,
-): ApiQueryOptions<typeof PAGES> =>
+export const pagesQuery = (scope: LinksScope, query: PageQuery, run: string | null): ApiQueryOptions<typeof PAGES> =>
   apiQuery(PAGES, { params: { path: pathOf(scope), query: withRun(pageParams(query), run) } });
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
@@ -249,7 +245,7 @@ export const pageDetailQuery = (
   scope: LinksScope,
   urlId: string,
   linkScope: LinkScope,
-  run: string | null = null,
+  run: string | null,
 ): ApiQueryOptions<typeof PAGE> =>
   apiQuery(PAGE, {
     params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({ scope: linkScope }, run) },
@@ -306,11 +302,7 @@ export function edgeParams(query: EdgeQuery): EdgesParams {
   };
 }
 
-export const edgesQuery = (
-  scope: LinksScope,
-  query: EdgeQuery,
-  run: string | null = null,
-): ApiQueryOptions<typeof EDGES> =>
+export const edgesQuery = (scope: LinksScope, query: EdgeQuery, run: string | null): ApiQueryOptions<typeof EDGES> =>
   apiQuery(EDGES, { params: { path: pathOf(scope), query: withRun(edgeParams(query), run) } });
 
 /**
@@ -325,7 +317,7 @@ export const neighborsQuery = (
     linkScope,
     offset,
   }: { urlId: string; direction: Direction; linkScope: LinkScope; offset: number },
-  run: string | null = null,
+  run: string | null,
 ): ApiQueryOptions<typeof NEIGHBORS> =>
   apiQuery(NEIGHBORS, {
     params: {
@@ -346,11 +338,11 @@ export const neighborsQuery = (
 export const tierFlowQuery = (
   scope: LinksScope,
   linkScope: LinkScope,
-  run: string | null = null,
+  run: string | null,
 ): ApiQueryOptions<typeof FLOW> =>
   apiQuery(FLOW, { params: { path: pathOf(scope), query: withRun({ scope: linkScope }, run) } });
 
-export const worklistsQuery = (scope: LinksScope, run: string | null = null): ApiQueryOptions<typeof WORKLISTS> =>
+export const worklistsQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof WORKLISTS> =>
   apiQuery(WORKLISTS, { params: { path: pathOf(scope), query: withRun({}, run) } });
 
 /** Rows a page of the lost and added links table and the opportunities table asks for (offset paging, 200 at most). */

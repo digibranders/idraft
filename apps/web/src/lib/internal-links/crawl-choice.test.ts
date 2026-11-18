@@ -53,6 +53,18 @@ describe('the crawl in view', () => {
     expect(crawlInView(runs, null).unknown).toBe(false);
   });
 
+  it('reads a crawl without data (pending, crawling, processing, failed, cancelled) as unknown and falls back to the latest', () => {
+    for (const state of ['queued', 'crawling', 'processing', 'failed', 'cancelled'] as const) {
+      const listed = [run('c4', { is_latest: true }), run('c5', { state })];
+      expect(crawlInView(listed, 'c5')).toMatchObject({ crawl: { run_id: 'c4' }, run: null, unknown: true });
+    }
+  });
+
+  it('keeps a latest crawl whose links were dropped: no run to send, and its links are not available', () => {
+    const only = [run('c4', { is_latest: true, links_available: false })];
+    expect(crawlInView(only, null)).toMatchObject({ run: null, older: false, linksAvailable: false, unknown: false });
+  });
+
   it('reads nothing when no crawl has data', () => {
     expect(crawlInView([], null)).toMatchObject({ crawl: null, run: null, older: false, unknown: false });
   });

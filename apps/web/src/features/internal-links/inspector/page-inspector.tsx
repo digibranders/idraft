@@ -295,6 +295,7 @@ export function PageInspector({
               urlId={urlId}
               direction="in"
               run={context.crawl.run}
+              linksAvailable={context.crawl.linksAvailable}
               linkScope={state.scope}
               total={detail.linking_pages_total}
               title={t('linkingPages', { count: detail.linking_pages_total })}
@@ -306,6 +307,7 @@ export function PageInspector({
               urlId={urlId}
               direction="out"
               run={context.crawl.run}
+              linksAvailable={context.crawl.linksAvailable}
               linkScope={state.scope}
               total={detail.outlinks_total}
               title={t('outlinks', { count: detail.outlinks_total })}
