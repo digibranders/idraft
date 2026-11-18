@@ -63,7 +63,11 @@ describe('pageChangeState (a null change means the page was not enriched yet)', 
     expect(pageChangeState(change({ editorial_in_delta: -2 }))).toBe('moved');
     expect(pageChangeState(change({ depth_delta: 1 }))).toBe('moved');
     expect(pageChangeState(change({ depth_state: 'lost' }))).toBe('moved');
-    expect(pageChangeState(change({ equity_points: 0.4 }))).toBe('moved');
+  });
+
+  it('ignores the change of equity: only links and depth make a page moved', () => {
+    expect(pageChangeState(change({ equity_points: 0.4 }))).toBe('unchanged');
+    expect(pageChangeState(change({ equity_points: -1.2, editorial_in_delta: 1 }))).toBe('moved');
   });
 
   it('treats a null delta as nothing moved on that figure', () => {

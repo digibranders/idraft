@@ -96,6 +96,17 @@ describe('the changes routes of the mock API', () => {
     expect(added.meta.total).toBe(2);
   });
 
+  it('answers an empty page, not an error, for an offset beyond the total', async () => {
+    const browser = mockBrowser('viewer');
+    const beyond = LINKS.parse((await browser.call('GET', `${L}/changes/links?change=lost&offset=100`)).body);
+    expect(beyond.data).toEqual([]);
+    expect(beyond.meta.total).toBe(6);
+    const opportunities = await browser.call('GET', `${L}/opportunities?offset=100`);
+    expect(opportunities.status).toBe(200);
+    expect(opportunities.body.data).toEqual([]);
+    expect(opportunities.body.meta).toMatchObject({ total: 8 });
+  });
+
   it('refuses a missing or unknown change, scope, window or format with the field named', async () => {
     const browser = mockBrowser('viewer');
     expect(fieldCodes(await browser.call('GET', `${L}/changes/links`))).toEqual(['change:missing']);
@@ -245,6 +256,8 @@ describe('the pages routes with the crawl history', () => {
   it('answers 410 for every link level read of the latest crawl when its links were dropped', async () => {
     setLinksScenario({ latestLinksDropped: true });
     const browser = mockBrowser('viewer');
+    // The stored flow of the latest crawl is stale only when the stored flag says so (tiers changed), not by age
+    expect((await browser.call('GET', `${L}/tier-flow`)).body.data).toMatchObject({ run_id: LATEST, stale: false });
     expect((await browser.call('GET', `${L}/edges`)).code).toBe('links_dropped');
     expect((await browser.call('GET', `${L}/changes/links?change=lost`)).code).toBe('links_dropped');
     expect((await browser.call('GET', `${L}/opportunities`)).code).toBe('links_dropped');

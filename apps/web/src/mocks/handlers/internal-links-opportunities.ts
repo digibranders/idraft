@@ -16,7 +16,7 @@ import {
 } from '../internal-links-opportunities-world';
 import { runViewOf } from '../internal-links-world';
 import { invalid, mock, problem } from '../respond';
-import type { Problem, ValidationItem } from '@/lib/api/types';
+import type { ValidationItem } from '@/lib/api/types';
 import type { OpportunityPair, OpportunityStatus, SuggestionSelection } from '@/lib/internal-links/types';
 
 /**
@@ -78,7 +78,7 @@ function pairsOf(items: unknown): { pairs: OpportunityPair[]; errors: Validation
       ['target_url_id', target],
     ] as const) {
       if (typeof value !== 'string' || !isUrlId(value)) {
-        errors.push({ ...urlIdError('body', `items.${String(index)}.${name}`) });
+        errors.push(urlIdError('body', `items.${String(index)}.${name}`));
       }
     }
     if (typeof source === 'string' && typeof target === 'string')
@@ -101,7 +101,7 @@ function selectionOf(body: unknown): SuggestionSelection | ValidationItem[] {
       );
     } else {
       ids.forEach((id: unknown, index) => {
-        if (typeof id !== 'string' || !isUrlId(id)) errors.push({ ...urlIdError('body', `url_ids.${String(index)}`) });
+        if (typeof id !== 'string' || !isUrlId(id)) errors.push(urlIdError('body', `url_ids.${String(index)}`));
       });
     }
   }
@@ -114,8 +114,6 @@ function selectionOf(body: unknown): SuggestionSelection | ValidationItem[] {
     ? { all: true }
     : { url_ids: Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [] };
 }
-
-const refused = (request: Request, errors: ValidationItem[]): HttpResponse<Problem> => invalid(request, errors);
 
 export const internalLinkOpportunityHandlers: HttpHandler[] = [
   mock('get', `${P}/internal-links/opportunities`, ({ request, cookies, params }) => {
@@ -132,7 +130,7 @@ export const internalLinkOpportunityHandlers: HttpHandler[] = [
     const filters = listFilters(url);
     const paging = offsetPaging(url);
     if (isIssue(status) || isIssue(format) || isIssue(exportKind) || Array.isArray(filters) || Array.isArray(paging)) {
-      return refused(request, [
+      return invalid(request, [
         ...[status, format, exportKind].filter(isIssue),
         ...(Array.isArray(filters) ? filters : []),
         ...(Array.isArray(paging) ? paging : []),
@@ -154,7 +152,7 @@ export const internalLinkOpportunityHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const body: unknown = await request.json().catch(() => undefined);
-    if (!isRecord(body)) return refused(request, [notAnObject()]);
+    if (!isRecord(body)) return invalid(request, [notAnObject()]);
     const { pairs, errors: pairErrors } = pairsOf(body.items);
     const status = body.status;
     const errors = [
@@ -164,7 +162,7 @@ export const internalLinkOpportunityHandlers: HttpHandler[] = [
         : [bodyError('status', status === undefined ? 'missing' : 'enum', `Allowed: ${STATUSES.join(', ')}.`)]),
       ...pairErrors,
     ];
-    if (errors.length > 0 || !isOneOf(status, STATUSES)) return refused(request, errors);
+    if (errors.length > 0 || !isOneOf(status, STATUSES)) return invalid(request, errors);
     // Decisions are of the latest crawl's list
     const view = latestRun(request, caller.project.project_id);
     if (view instanceof Response) return view;
@@ -189,7 +187,7 @@ export const internalLinkOpportunityHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const selection = selectionOf(await request.json().catch(() => undefined));
-    if (Array.isArray(selection)) return refused(request, selection);
+    if (Array.isArray(selection)) return invalid(request, selection);
     const view = latestRun(request, caller.project.project_id);
     if (view instanceof Response) return view;
     return HttpResponse.json({ data: acceptSuggestions(selection) });
@@ -201,7 +199,7 @@ export const internalLinkOpportunityHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const selection = selectionOf(await request.json().catch(() => undefined));
-    if (Array.isArray(selection)) return refused(request, selection);
+    if (Array.isArray(selection)) return invalid(request, selection);
     const view = latestRun(request, caller.project.project_id);
     if (view instanceof Response) return view;
     return HttpResponse.json({ data: dismissSuggestions(selection) });
@@ -214,8 +212,8 @@ export const internalLinkOpportunityHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const urlId = caller.url.searchParams.get('url_id');
-    if (urlId === null) return refused(request, [queryError('url_id', 'missing', 'Field required')]);
-    if (!isUrlId(urlId)) return refused(request, [urlIdError('query', 'url_id')]);
+    if (urlId === null) return invalid(request, [queryError('url_id', 'missing', 'Field required')]);
+    if (!isUrlId(urlId)) return invalid(request, [urlIdError('query', 'url_id')]);
     const view = readRun(request, caller.url, caller.project.project_id);
     if (view instanceof Response) return view;
     const gone = requireLinks(request, view);

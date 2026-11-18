@@ -899,9 +899,14 @@ export const internalLinkHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const run = readRun(request, caller.url, caller.project.project_id);
     if (run instanceof Response) return run;
-    // The links of a crawl past the last four are gone: its stored flow comes back marked stale
+    // A crawl without its links keeps its stored flow, which is stale once the crawl is not the latest (the day it
+    // was the latest is past); the latest crawl's stored flag is false in the mock (nothing marks it stale)
     return HttpResponse.json({
-      data: { ...tierFlow(scopeOf(caller.url)), run_id: run.run.run_id, stale: !run.run.links_available },
+      data: {
+        ...tierFlow(scopeOf(caller.url)),
+        run_id: run.run.run_id,
+        stale: !run.run.links_available && !run.run.is_latest,
+      },
     });
   }),
 
@@ -913,8 +918,6 @@ export const internalLinkHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const run = readRun(request, caller.url, caller.project.project_id);
     if (run instanceof Response) return run;
-    return HttpResponse.json({
-      data: { ...worklists(), run_id: run.run.run_id, ...worklistCounts(caller.project.project_id, run) },
-    });
+    return HttpResponse.json({ data: worklistCounts(caller.project.project_id, run, worklists()) });
   }),
 ];

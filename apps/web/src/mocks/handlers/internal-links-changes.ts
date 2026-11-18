@@ -5,8 +5,7 @@ import { csv } from './internal-links';
 import { enumQuery, isIssue, readRun, requireLinks } from './internal-links-run';
 import { queryError, offsetPaging } from './rules';
 import { changeLinks, changeLinksCsv, changesSummary, movedPages } from '../internal-links-changes-world';
-import { mock } from '../respond';
-import { invalid } from '../respond';
+import { invalid, mock } from '../respond';
 import type { ChangeKind, ChangeOnly, ChangeScope } from '@/lib/internal-links/types';
 
 /**

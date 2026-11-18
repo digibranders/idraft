@@ -1,4 +1,4 @@
-import { gscClicksOf, gscState, keywordsOf } from './internal-links-changes-world';
+import { changePage, gscClicksOf, gscState, keywordsOf, position } from './internal-links-changes-world';
 import {
   assignedTier,
   crawledPage,
@@ -13,7 +13,6 @@ import {
 } from './internal-links-world';
 import { onMockReset } from './state';
 import type {
-  ChangePage,
   EdgeRow,
   Opportunity,
   OpportunityPage,
@@ -22,7 +21,6 @@ import type {
   Route,
   Routes,
   SuggestionSelection,
-  TierRef,
   TierSuggestionList,
   TierSuggestionRow,
 } from '@/lib/internal-links/types';
@@ -32,18 +30,6 @@ import type {
  * `internal-links-world.ts`. The suggestions run the backend's rule (`crawl/suggest.py`) on the clicks and keyword
  * ranks of `internal-links-changes-world.ts`; the routes are the backend's level by level search.
  */
-
-const pageOfPath = (path: string): FixturePage => {
-  const found = crawledPages().find((page) => page.path === path);
-  if (found === undefined) throw new Error(`The mock crawl has no page ${path}`);
-  return found;
-};
-
-function changePage(page: FixturePage): ChangePage {
-  return { url_id: page.id, url: `${HOST}${page.path}`, path: page.path, tier: assignedTier(page).tier };
-}
-
-const position = (tier: TierRef | null): number => (tier === null ? 99 : Number(tier.code.slice(1)));
 
 // ---------------------------------------------------------------------------------------------
 // Opportunities
@@ -123,8 +109,8 @@ onMockReset(() => {
 function allOpportunities(): Opportunity[] {
   if (linksScenario().noOpportunities) return [];
   return MENTIONS.map(([from, to, phrase, context, origin]): Opportunity => {
-    const source = changePage(pageOfPath(from));
-    const target = changePage(pageOfPath(to));
+    const source = changePage(from);
+    const target = changePage(to);
     const key = pairKey(source.url_id, target.url_id);
     return {
       key,
@@ -168,6 +154,7 @@ function filtered(query: Omit<OpportunityQuery, 'offset' | 'limit'>): Opportunit
   );
 }
 
+/** The mock holds one list of mentions: whichever crawl is in view, the rows are the latest crawl's and only `run_id` changes. */
 export function opportunities(view: RunView, query: OpportunityQuery): OpportunityPage {
   const all = allOpportunities();
   const rows = filtered(query);
@@ -299,13 +286,16 @@ const chosen = (selection: SuggestionSelection): TierSuggestionRow[] =>
   suggestionRows().filter((row) => selection.all === true || (selection.url_ids ?? []).includes(row.url_id));
 
 /** Each chosen page gets its suggested tier as a manual tier, as `PUT pages/tiers` sets it. */
-export function acceptSuggestions(selection: SuggestionSelection): { matched: number; changed: number } {
+export function acceptSuggestions(
+  selection: SuggestionSelection,
+  now = Date.now(),
+): { matched: number; changed: number } {
   const rows = chosen(selection);
   const { manual } = linksWorld();
   let changed = 0;
   for (const row of rows) {
     if (manual.get(row.url_id)?.tier_id === row.to_tier.tier_id) continue;
-    manual.set(row.url_id, { tier_id: row.to_tier.tier_id, set_at: new Date().toISOString() });
+    manual.set(row.url_id, { tier_id: row.to_tier.tier_id, set_at: new Date(now).toISOString() });
     changed += 1;
   }
   return { matched: rows.length, changed };
@@ -407,7 +397,7 @@ function routeOf(start: string, target: string, editorialOnly: boolean): Route |
     const page = crawledPage(id);
     if (page === undefined) return null;
     steps.unshift({
-      page: changePage(page),
+      page: changePage(page.path),
       status_code: page.status,
       anchor: hop?.anchor ?? null,
       placement: hop?.placement ?? null,
@@ -427,10 +417,10 @@ export function routesTo(urlId: string): Routes | null {
   const start = crawledPages().find((candidate) => candidate.path === '/');
   // A crawl with no start page has no route to any page
   if (start === undefined || linksScenario().noStartPage) {
-    return { target: changePage(page), any: null, editorial: null };
+    return { target: changePage(page.path), any: null, editorial: null };
   }
   return {
-    target: changePage(page),
+    target: changePage(page.path),
     any: routeOf(start.id, urlId, false),
     editorial: routeOf(start.id, urlId, true),
   };

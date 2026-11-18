@@ -105,24 +105,30 @@ function changeSetOf(view: RunView): ChangeSet {
   return view.rank === 1 ? BEFORE : NOTHING;
 }
 
+/**
+ * The backend also says `ready` or `first_crawl` once the enrichment phase has reached `anchors`, `mentions` or
+ * `done`, even while `enrich_state` is still `running` or `failed`. The mock has no phase and keys on `enrich_state`
+ * alone, so it never produces those combinations.
+ */
 function summaryState(run: CrawlRun): ChangesState {
   if (run.enrich_state === 'done') return run.previous_run_id === null ? 'first_crawl' : 'ready';
   return run.enrich_state === 'failed' ? 'unavailable' : 'pending';
 }
 
-const pageOfPath = (path: string): FixturePage => {
+export const pageOfPath = (path: string): FixturePage => {
   const found = crawledPages().find((page) => page.path === path);
   if (found === undefined) throw new Error(`The mock crawl has no page ${path}`);
   return found;
 };
 
-function changePage(path: string): ChangePage {
+/** The page card of a fixture page, with its tier of today. */
+export function changePage(path: string): ChangePage {
   const page = pageOfPath(path);
   return { url_id: page.id, url: `${HOST}${page.path}`, path: page.path, tier: assignedTier(page).tier };
 }
 
 /** The tier position of a page card, 99 for an untiered page, as the API orders and counts them. */
-const position = (tier: ChangePage['tier']): number => (tier === null ? 99 : Number(tier.code.slice(1)));
+export const position = (tier: ChangePage['tier']): number => (tier === null ? 99 : Number(tier.code.slice(1)));
 const priorityOf = (tier: ChangePage['tier']): ChangeLink['priority'] =>
   position(tier) === 1 ? 'lost_to_t1' : position(tier) === 2 ? 'lost_to_t2' : 'lower';
 
@@ -324,11 +330,20 @@ export function lostLinksTopIds(projectId: string, view: RunView): ReadonlySet<s
   );
 }
 
-/** The two worklist counts the page graph alone does not give. The weak outlinks need the links: none when dropped. */
-export function worklistCounts(projectId: string, view: RunView): Pick<Worklists, 'lost_links_top' | 'weak_outlinks'> {
+/**
+ * The worklist counts of a crawl: `base` (the page graph's counts) with the two the history gives. The counts that
+ * come from the crawl's links (broken and redirected, links to non-indexable pages, weak outlinks) are zero for a
+ * crawl whose links were dropped, as in the backend.
+ */
+export function worklistCounts(projectId: string, view: RunView, base: Worklists): Worklists {
+  const linked = view.run.links_available;
   return {
+    ...base,
+    run_id: view.run.run_id,
     lost_links_top: lostLinksTopIds(projectId, view).size,
-    weak_outlinks: view.run.links_available ? weakOutlinkIds().length : 0,
+    weak_outlinks: linked ? weakOutlinkIds().length : 0,
+    broken_and_redirected: linked ? base.broken_and_redirected : 0,
+    links_to_non_indexable: linked ? base.links_to_non_indexable : 0,
   };
 }
 

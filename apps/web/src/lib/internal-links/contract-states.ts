@@ -23,15 +23,13 @@ export type PageChangeState = 'unknown' | 'new' | 'moved' | 'unchanged';
 /**
  * A page's change against the previous crawl. `extras.change` is null (or the extras are absent) until the crawl's
  * enrichment is done, and an unchanged page has an all zero change only after that, so null means "not known yet",
- * not "unchanged". A null delta is not a move.
+ * not "unchanged". A null delta is not a move. The change of equity is never read: equity is not shown, so a page
+ * whose only change is in equity points reads as unchanged.
  */
 export function pageChangeState(change: PageChange | null | undefined): PageChangeState {
   if (change === null || change === undefined) return 'unknown';
   if (change.is_new) return 'new';
   const moved =
-    (change.depth_delta ?? 0) !== 0 ||
-    (change.editorial_in_delta ?? 0) !== 0 ||
-    (change.equity_points ?? 0) !== 0 ||
-    change.depth_state !== null;
+    (change.depth_delta ?? 0) !== 0 || (change.editorial_in_delta ?? 0) !== 0 || change.depth_state !== null;
   return moved ? 'moved' : 'unchanged';
 }

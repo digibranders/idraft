@@ -21,6 +21,7 @@ import {
   HISTORY_RUN_IDS,
   runViewOf,
   setLinksScenario,
+  worklists,
   type RunView,
 } from './internal-links-world';
 
@@ -274,11 +275,18 @@ describe('page extras', () => {
 
 describe('the worklists that need the history', () => {
   it('counts the pages that lost a link while in an important tier, and the weak linkers', () => {
-    expect(worklistCounts(P, viewAt(0))).toEqual({ lost_links_top: 5, weak_outlinks: 1 });
+    expect(worklistCounts(P, viewAt(0), worklists())).toMatchObject({ lost_links_top: 5, weak_outlinks: 1 });
     expect([...lostLinksTopIds(P, viewAt(0))].sort()).toEqual(['102', '103', '104', '108', '109']);
   });
 
-  it('counts none of the weak linkers on a crawl without links', () => {
-    expect(worklistCounts(P, viewAt(4)).weak_outlinks).toBe(0);
+  it('counts none of the counts that come from the links on a crawl without links', () => {
+    const latest = worklistCounts(P, viewAt(0), worklists());
+    expect(latest.broken_and_redirected).toBeGreaterThan(0);
+    expect(latest.links_to_non_indexable).toBeGreaterThan(0);
+    const dropped = worklistCounts(P, viewAt(4), worklists());
+    expect(dropped).toMatchObject({ weak_outlinks: 0, broken_and_redirected: 0, links_to_non_indexable: 0 });
+    // The counts of the pages stay
+    expect(dropped.orphans).toBe(latest.orphans);
+    expect(dropped.run_id).toBe(HISTORY_RUN_IDS[4]);
   });
 });
