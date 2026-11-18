@@ -141,8 +141,8 @@ describe('a crawl whose links are gone', () => {
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
   });
 
-  it('falls back to Pages for a tab id with no tab yet (?tab=opportunities)', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=opportunities' });
+  it('falls back to Pages for a tab id that names no tab (?tab=nowhere)', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=nowhere' });
     expect(await screen.findByRole('grid', { name: 'Pages' })).toBeInTheDocument();
   });
 });

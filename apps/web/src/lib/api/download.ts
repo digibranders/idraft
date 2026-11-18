@@ -12,6 +12,11 @@ export type DownloadQuery = Readonly<Record<string, string | number | boolean | 
  * `ApiProblem` the screen shows as it shows any other.
  */
 export async function downloadApiFile(path: `/api/v1/${string}`, query: DownloadQuery, name: string): Promise<void> {
+  downloadBlob(await fetchApiBlob(path, query), name);
+}
+
+/** Reads a file the API answers without saving it, for a screen that looks at it first (the planned fixes). */
+export async function fetchApiBlob(path: `/api/v1/${string}`, query: DownloadQuery): Promise<Blob> {
   const search = Object.entries(query)
     .map(
       ([key, value]) =>
@@ -28,5 +33,5 @@ export async function downloadApiFile(path: `/api/v1/${string}`, query: Download
     const body: unknown = await response.json().catch(() => null);
     throw problemFrom(response, body);
   }
-  downloadBlob(await response.blob(), name);
+  return response.blob();
 }
