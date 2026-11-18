@@ -336,7 +336,9 @@ class CitationCounts(BaseModel):
 
 class AnchorSummary(BaseModel):
     total: int
-    distinct: int
+    # Null, with `matches_keyword` and `top`, when the crawl's links are gone (410 on the link
+    # reads): only the stored counts of the enrichment remain.
+    distinct: int | None
     generic: int
     generic_share: float
     matches_keyword: bool | None
@@ -372,7 +374,7 @@ class AnchorText(BaseModel):
 
 
 class AnchorDetail(AnchorSummary):
-    top: list[AnchorText]
+    top: list[AnchorText] | None
 
 
 class PageDetailExtras(BaseModel):

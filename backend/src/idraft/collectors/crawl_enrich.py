@@ -36,7 +36,7 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.collectors.crawl_store import DATA_STATES, html_key
-from idraft.crawl.anchors import GENERIC_ANCHORS
+from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.crawl.changes import CHANGES_MAX, AlertSettings, alert_due, alert_settings
 from idraft.crawl.mentions import PhraseSet, find_mentions, index_phrases, visible_text
 from idraft.db.tables import (
@@ -55,8 +55,6 @@ ENRICH_JOB: Final = "crawl_enrich"
 ENRICH_PASS_TIME: Final = timedelta(minutes=6)
 ENRICH_FAILURES_MAX: Final = 5
 _LONG_STATEMENT_TIMEOUT: Final = text("SET LOCAL statement_timeout = '5min'")
-# Spaces and straight or curly quotes at the edge of an anchor (as `anchors.clean_anchor`).
-_EDGE_CHARS: Final = "\\s\"'" + "".join(chr(code) for code in (0x201C, 0x2018, 0x201D, 0x2019))
 _log = structlog.get_logger(__name__)
 
 
@@ -414,7 +412,7 @@ async def _anchors(
                 {
                     "run_id": str(run.id),
                     "workspace_id": str(run.workspace_id),
-                    "edge": f"^[{_EDGE_CHARS}]+|[{_EDGE_CHARS}]+$",
+                    "edge": EDGE_PATTERN,
                     "generic": sorted(GENERIC_ANCHORS),
                 },
             )

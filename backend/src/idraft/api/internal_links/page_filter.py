@@ -161,12 +161,16 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
             ),
         ]
     elif found.worklist == "weak_outlinks":
+        # The link rows are the crawl's links: they are gone for a dropped crawl.
+        scope.require_links()
         target = aliased(crawl_pages)
         target_tier = aliased(project_pages)
         weak_targets = (
             select(func.count(distinct(crawl_links.c.target_url_id)))
             .select_from(
-                crawl_links.join(
+                # Outer joins: a target the crawl never fetched, or has no row for, is weak, and
+                # still counts in `outlinks_editorial`, the denominator.
+                crawl_links.outerjoin(
                     target,
                     and_(
                         target.c.workspace_id == crawl_links.c.workspace_id,
@@ -191,7 +195,7 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
                 or_(
                     target_tier.c.tier_id.is_(None),
                     target_tier.c.tier_id == tier_of_position(scope, 4),
-                    target.c.status_code != 200,
+                    target.c.status_code.is_distinct_from(200),
                     target.c.is_indexable.is_(False),
                 ),
             )

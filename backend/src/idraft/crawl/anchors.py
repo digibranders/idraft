@@ -26,6 +26,9 @@ GENERIC_ANCHORS: Final = frozenset(
 GENERIC_SHARE_MIN: Final = 0.5
 GENERIC_MIN_LINKS: Final = 2
 _QUOTES: Final = "\"'“‘”’"  # noqa: RUF001  (straight and curly quotes on purpose)
+# The same edge as `clean_anchor`, for Postgres `regexp_replace(anchor, EDGE_PATTERN, '', 'g')`:
+# the stored counts and the page detail must group texts the way this module does.
+EDGE_PATTERN: Final = f"^[\\s{_QUOTES}]+|[\\s{_QUOTES}]+$"
 
 
 def clean_anchor(text: str) -> str:

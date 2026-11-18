@@ -3,16 +3,19 @@ and worklists (plan 04 Task 11, decisions D7 to D10)."""
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
+from datetime import date, timedelta
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.resources import Resources
 from idraft.collectors.crawl_enrich import CrawlEnrichTask, enrich_run
-from tests.api.auth.support import Workspace, execute, make_workspace
-from tests.api.entities.support import member
+from idraft.domain.gsc_pull import PullState
+from tests.api.auth.support import Workspace, execute, fetchrow, make_workspace
+from tests.api.entities.support import member, problem
 from tests.api.internal_links.support import SeedLink, seed_crawl, seed_tiers, set_counts
 from tests.api.internal_links.support_changes import (
     PAGES,
@@ -68,7 +71,14 @@ async def test_change_and_anchor_columns_follow_the_stored_changes_and_counts(
 
     rows = {row["path"]: row for row in response.json()["data"]}
     assert rows["/pricing"]["extras"]["change"]["editorial_in_delta"] == -2
-    assert rows["/blog"]["extras"]["change"] is None
+    # A page that did not change is a zero, not "no data": the run has an earlier crawl.
+    assert rows["/blog"]["extras"]["change"] == {
+        "is_new": False,
+        "editorial_in_delta": 0,
+        "equity_points": 0.0,
+        "depth_state": None,
+        "depth_delta": 0,
+    }
     anchors = rows["/blog/b"]["extras"]["anchors"]
     assert (anchors["total"], anchors["distinct"], anchors["generic"]) == (2, 2, 1)
     assert anchors["matches_keyword"] is None
@@ -285,3 +295,249 @@ async def test_pages_sort_by_the_change_in_editorial_links(
     )
 
     assert response.json()["data"][0]["path"] == "/pricing"
+
+
+async def _gsc_property(pg: PostgresServer, workspace: Workspace, project: uuid.UUID) -> uuid.UUID:
+    """An active property whose pull has a window, as a project connected before page numbers
+    existed or a pass that stopped on its budget leaves it: no page day is stored yet."""
+    secret = await fetchrow(
+        pg,
+        "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
+        "fingerprint) VALUES ($1, 'oauth_refresh_token', '\\x00', '\\x00', 1, 'abcd') RETURNING id",
+        workspace.id,
+    )
+    connection = await fetchrow(
+        pg,
+        "INSERT INTO fp.connections (workspace_id, product, auth_method, subject_id, "
+        "credential_ref, scopes, status) VALUES ($1, 'google', 'oauth', $2, $3, '{}', 'active') "
+        "RETURNING id",
+        workspace.id,
+        uuid.uuid4().hex,
+        secret["id"],
+    )
+    state = PullState(recent_done=True, window_end=date.today() - timedelta(days=3))
+    row = await fetchrow(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
+        "connection_id, scopes, status, backfill_state) "
+        "VALUES ($1, $2, 'gsc', 'sc-domain:example.com', $3, '{}', 'active', $4::jsonb) "
+        "RETURNING id",
+        workspace.id,
+        project,
+        connection["id"],
+        json.dumps(state.write({})),
+    )
+    integration: uuid.UUID = row["id"]
+    return integration
+
+
+async def test_search_console_is_pending_until_a_page_day_is_stored_then_missing_pages_are_zero(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project, _, ids, _ = await _setup(migrated, worker_db)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    integration = await _gsc_property(migrated, workspace, project)
+    base = project_url(workspace, project, "internal-links", "pages")
+
+    before = await api.get(base, params={"include": "gsc"}, headers=viewer.headers)
+    await execute(
+        migrated,
+        "INSERT INTO fp.gsc_page_daily (integration_id, metric_date, url_id, workspace_id, "
+        "project_id, clicks, impressions) VALUES ($1, $2, $3, $4, $5, 7, 70)",
+        integration,
+        date.today() - timedelta(days=3),
+        ids["/pricing"],
+        workspace.id,
+        project,
+    )
+    after = await api.get(base, params={"include": "gsc"}, headers=viewer.headers)
+    detail = await api.get(
+        project_url(workspace, project, "internal-links", "pages", ids["/blog"]),
+        headers=viewer.headers,
+    )
+
+    assert {row["extras"]["gsc"]["state"] for row in before.json()["data"]} == {"pending"}
+    assert {row["extras"]["gsc"]["clicks"] for row in before.json()["data"]} == {None}
+    rows = {row["path"]: row["extras"]["gsc"] for row in after.json()["data"]}
+    assert (rows["/pricing"]["state"], rows["/pricing"]["clicks"]) == ("ok", 7)
+    assert (rows["/blog"]["state"], rows["/blog"]["clicks"]) == ("ok", 0)
+    assert detail.json()["data"]["extras"]["gsc"]["clicks"] == 0
+
+
+async def test_a_change_is_null_while_the_crawl_is_not_compared_yet(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project, newer, _, _ = await _setup(migrated, worker_db)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET enrich_state = 'running' WHERE id = $1", newer
+    )
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "pages"),
+        params={"include": "changes"},
+        headers=viewer.headers,
+    )
+
+    rows = {row["path"]: row["extras"]["change"] for row in response.json()["data"]}
+    assert rows["/blog"] is None
+    assert rows["/pricing"] is not None
+
+
+async def test_the_anchor_numbers_are_the_stored_counts_and_group_the_way_the_job_does(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    sources = [f"/s{n}" for n in range(6)]
+    anchors = ["Click here", "click HERE ", '"Read more"', "Pricing", "pricing", "Pricing guide"]
+    pages = [("/", 200), ("/t", 200), *[(path, 200) for path in sources]]
+    links = [
+        SeedLink(path, "/t", "content", anchor)
+        for path, anchor in zip(sources, anchors, strict=True)
+    ]
+    links.append(SeedLink("/t", "/t", "content", "itself"))
+    run, ids = await seed_crawl(migrated, workspace, project, pages, links)
+    await track_keyword(
+        migrated, workspace, project, "pricing plans", ids["/t"], rank=5, change=0, volume=None
+    )
+    await enrich_run(
+        worker_db,
+        None,
+        CrawlEnrichTask(workspace_id=workspace.id, run_id=run),
+        deadline=time.monotonic() + 120,
+    )
+    viewer = await member(resources, migrated, workspace, "viewer")
+    stored = await fetchrow(
+        migrated,
+        "SELECT editorial_anchors, generic_anchors FROM seo.crawl_pages "
+        "WHERE run_id = $1 AND url_id = $2",
+        run,
+        ids["/t"],
+    )
+
+    listed = await api.get(
+        project_url(workspace, project, "internal-links", "pages"),
+        params={"include": "anchors", "q": "/t"},
+        headers=viewer.headers,
+    )
+    detail = await api.get(
+        project_url(workspace, project, "internal-links", "pages", ids["/t"]),
+        headers=viewer.headers,
+    )
+
+    summary = {row["path"]: row for row in listed.json()["data"]}["/t"]["extras"]["anchors"]
+    full = detail.json()["data"]["extras"]["anchors"]
+    assert (full["total"], full["generic"]) == (
+        stored["editorial_anchors"],
+        stored["generic_anchors"],
+    )
+    assert (full["total"], full["distinct"], full["generic"]) == (6, 4, 3)
+    assert full["generic_share"] == 0.5
+    assert full["matches_keyword"] is True
+    assert [(row["text"], row["count"], row["generic"]) for row in full["top"]] == [
+        ("Click here", 2, True),
+        ("Pricing", 2, False),
+        ("Pricing guide", 1, False),
+        ("Read more", 1, True),
+    ]
+    assert {key: value for key, value in full.items() if key != "top"} == summary
+
+
+async def test_a_crawl_without_its_links_has_no_anchor_list_and_only_the_stored_counts(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project, newer, ids, _ = await _setup(migrated, worker_db)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET links_dropped_at = now() WHERE id = $1", newer
+    )
+
+    listed = await api.get(
+        project_url(workspace, project, "internal-links", "pages"),
+        params={"include": "anchors"},
+        headers=viewer.headers,
+    )
+    detail = await api.get(
+        project_url(workspace, project, "internal-links", "pages", ids["/blog/b"]),
+        headers=viewer.headers,
+    )
+
+    assert {row["extras"]["anchors"] for row in listed.json()["data"]} == {None}
+    assert detail.json()["data"]["extras"]["anchors"] == {
+        "total": 2,
+        "distinct": None,
+        "generic": 1,
+        "generic_share": 0.5,
+        "matches_keyword": None,
+        "top": None,
+    }
+
+
+async def test_weak_outlinks_answers_gone_for_a_crawl_without_its_links(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project, newer, _, _ = await _setup(migrated, worker_db)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET links_dropped_at = now() WHERE id = $1", newer
+    )
+
+    filtered = await api.get(
+        project_url(workspace, project, "internal-links", "pages"),
+        params={"filter[worklist]": "weak_outlinks"},
+        headers=viewer.headers,
+    )
+    counts = await api.get(
+        project_url(workspace, project, "internal-links", "worklists"), headers=viewer.headers
+    )
+
+    assert problem(filtered) == (410, "links_dropped")
+    assert counts.json()["data"]["weak_outlinks"] == 0
+
+
+async def test_a_target_that_was_never_fetched_or_has_no_crawl_row_is_a_weak_target(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    tiers = await seed_tiers(migrated, workspace)
+    links = [SeedLink("/pricing", target, "content", "more") for target in ("/blog", "/blog/a")]
+    links.append(SeedLink("/pricing", "/blog/b", "content", "more"))
+    links.append(SeedLink("/", "/pricing", "content", "plans"))
+    run, ids = await seed_crawl(migrated, workspace, project, PAGES, links)
+    await set_counts(migrated, run)
+    placed = [("/pricing", tiers[0])] + [
+        (path, tiers[1]) for path in ("/blog", "/blog/a", "/blog/b")
+    ]
+    for path, tier in placed:
+        await execute(
+            migrated,
+            "INSERT INTO core.project_pages (project_id, url_id, workspace_id, tier_id, "
+            "tier_source) VALUES ($1, $2, $3, $4, 'manual')",
+            project,
+            ids[path],
+            workspace.id,
+            tier,
+        )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET status_code = NULL WHERE run_id = $1 AND url_id = $2",
+        run,
+        ids["/blog"],
+    )
+    await execute(
+        migrated,
+        "DELETE FROM seo.crawl_pages WHERE run_id = $1 AND url_id = $2",
+        run,
+        ids["/blog/a"],
+    )
+    viewer = await member(resources, migrated, workspace, "viewer")
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "pages"),
+        params={"filter[worklist]": "weak_outlinks"},
+        headers=viewer.headers,
+    )
+
+    assert [row["path"] for row in response.json()["data"]] == ["/pricing"]

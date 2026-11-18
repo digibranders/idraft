@@ -2219,8 +2219,15 @@
       "AnchorDetail": {
         "properties": {
           "distinct": {
-            "title": "Distinct",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct"
           },
           "generic": {
             "title": "Generic",
@@ -2242,11 +2249,18 @@
             "title": "Matches Keyword"
           },
           "top": {
-            "items": {
-              "$ref": "#/components/schemas/AnchorText"
-            },
-            "title": "Top",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnchorText"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
           },
           "total": {
             "title": "Total",
@@ -2267,8 +2281,15 @@
       "AnchorSummary": {
         "properties": {
           "distinct": {
-            "title": "Distinct",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct"
           },
           "generic": {
             "title": "Generic",

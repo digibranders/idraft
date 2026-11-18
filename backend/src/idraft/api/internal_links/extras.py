@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
-from sqlalchemy import ARRAY, BigInteger, and_, bindparam, select, text
+from sqlalchemy import ARRAY, BigInteger, Row, Text, and_, bindparam, exists, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.internal_links.page_filter import PageScope
@@ -26,11 +26,14 @@ from idraft.api.schemas.internal_links import (
     PageChange,
 )
 from idraft.collectors.gsc_pages import page_clicks
-from idraft.crawl.anchors import anchor_stats
-from idraft.db.tables import crawl_page_changes, crawl_runs
+from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
+from idraft.db.tables import crawl_page_changes, crawl_pages, crawl_runs, gsc_page_daily
 
 ENGINES: Final = {"chatgpt_web": "chatgpt", "gemini_web": "gemini", "google_ai_mode": "ai_mode"}
-ANCHORS_PER_PAGE_MAX: Final = 5_000
+# What a page that did not change shows once its crawl was compared with the one before.
+UNCHANGED: Final = PageChange(
+    is_new=False, editorial_in_delta=0, equity_points=0.0, depth_state=None, depth_delta=0
+)
 
 # D8: a tracked keyword belongs to its target page, or, with no target, to the page it ranks
 # with. Several tracked rows of one keyword (devices, locations) count once, the best ranking.
@@ -69,15 +72,49 @@ _CITATIONS = text(
     GROUP BY c.url_id, c.engine_code
     """
 ).bindparams(bindparam("ids", type_=ARRAY(BigInteger)))
+# D7: anchors group by the edge-trimmed text without letter case and count every link, the way
+# `crawl_enrich` stores `editorial_anchors` and `generic_anchors`, so the numbers are equal. The
+# totals and the keyword match are made in SQL, so memory holds only the top texts per page.
 _ANCHORS = text(
     """
-    SELECT target_url_id, lower(btrim(anchor)) AS key, min(anchor) AS shown, count(*) AS links
-    FROM seo.crawl_links
-    WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
-      AND scope = 'editorial' AND source_url_id <> target_url_id AND target_url_id = ANY(:ids)
-    GROUP BY target_url_id, lower(btrim(anchor))
+    WITH grouped AS (
+        SELECT target_url_id, lower(clean) AS key, min(clean COLLATE "C") AS shown,
+               count(*) AS links
+        FROM (SELECT target_url_id, regexp_replace(anchor, :edge, '', 'g') AS clean
+              FROM seo.crawl_links
+              WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
+                AND scope = 'editorial' AND source_url_id <> target_url_id
+                AND target_url_id = ANY(:ids)) edge_trimmed
+        GROUP BY target_url_id, lower(clean)
+    ), ranked AS (
+        SELECT target_url_id, key, shown, links,
+               row_number() OVER (PARTITION BY target_url_id
+                                  ORDER BY links DESC, key COLLATE "C") AS place,
+               sum(links) OVER (PARTITION BY target_url_id) AS total,
+               count(*) OVER (PARTITION BY target_url_id) AS distinct_texts,
+               coalesce(sum(links) FILTER (WHERE key = ANY(:generic))
+                        OVER (PARTITION BY target_url_id), 0) AS generic_links
+        FROM grouped
+    ), matched AS (
+        SELECT DISTINCT g.target_url_id
+        FROM grouped g
+        JOIN unnest(:keyword_pages, :keyword_words) AS k(page, word) ON k.page = g.target_url_id
+        WHERE g.key <> '' AND NOT g.key = ANY(:generic)
+          AND (strpos(g.key, k.word) > 0 OR strpos(k.word, g.key) > 0)
+    )
+    SELECT r.target_url_id, r.shown, r.links, r.key = ANY(:generic) AS is_generic,
+           r.total, r.distinct_texts, r.generic_links,
+           r.target_url_id IN (SELECT target_url_id FROM matched) AS matches_keyword
+    FROM ranked r
+    WHERE r.place <= :top
+    ORDER BY r.target_url_id, r.place
     """
-).bindparams(bindparam("ids", type_=ARRAY(BigInteger)))
+).bindparams(
+    bindparam("ids", type_=ARRAY(BigInteger)),
+    bindparam("generic", type_=ARRAY(Text)),
+    bindparam("keyword_pages", type_=ARRAY(BigInteger)),
+    bindparam("keyword_words", type_=ARRAY(Text)),
+)
 
 NO_CITATIONS: Final = CitationCounts(chatgpt=0, gemini=0, ai_mode=0, total=0)
 
@@ -93,12 +130,15 @@ class KeywordFact:
 async def changes_of(
     db: AsyncSession, scope: PageScope, ids: Collection[int]
 ) -> dict[int, PageChange] | None:
-    """None when the crawl has no previous one (the column shows nothing, not zeros)."""
+    """None when the crawl has no previous one (the column shows nothing, not zeros). Once the
+    comparison is done (`enrich_state` `done`), a page without a stored row did not change and
+    shows zeros; before that, such a page has no answer yet and is absent."""
     # One statement: the run's row, with the changes of `ids` outer-joined to it.
     rows = (
         await db.execute(
             select(
                 crawl_runs.c.previous_run_id,
+                crawl_runs.c.enrich_state,
                 crawl_page_changes.c.url_id,
                 crawl_page_changes.c.is_new,
                 crawl_page_changes.c.editorial_in_delta,
@@ -121,7 +161,7 @@ async def changes_of(
     ).all()
     if not rows or rows[0].previous_run_id is None:
         return None
-    return {
+    found = {
         row.url_id: PageChange(
             is_new=row.is_new,
             editorial_in_delta=row.editorial_in_delta,
@@ -132,6 +172,9 @@ async def changes_of(
         for row in rows
         if row.url_id is not None
     }
+    if rows[0].enrich_state == "done":
+        return {url: found.get(url, UNCHANGED) for url in ids}
+    return found
 
 
 async def keywords_of(
@@ -205,24 +248,66 @@ async def anchors_of(
     *,
     top: int = 5,
 ) -> dict[int, AnchorDetail]:
-    grouped: dict[int, list[str]] = {}
-    for row in await db.execute(
+    """A page with no editorial link in is absent (see `empty_anchors`). A crawl whose links are
+    gone keeps only the stored counts: the texts, their number and the keyword match are None."""
+    if scope.links_dropped:
+        return await _stored_anchors(db, scope, ids)
+    words = [(url, row.keyword.lower()) for url in ids for row in keywords.get(url, [])]
+    rows = await db.execute(
         _ANCHORS,
-        {"run_id": str(scope.run_id), "workspace_id": str(scope.workspace_id), "ids": list(ids)},
-    ):
-        bucket = grouped.setdefault(row.target_url_id, [])
-        room = ANCHORS_PER_PAGE_MAX - len(bucket)
-        bucket.extend([row.shown] * min(row.links, max(room, 0)))
+        {
+            "run_id": str(scope.run_id),
+            "workspace_id": str(scope.workspace_id),
+            "ids": list(ids),
+            "edge": EDGE_PATTERN,
+            "generic": sorted(GENERIC_ANCHORS),
+            "keyword_pages": [url for url, _ in words],
+            "keyword_words": [word for _, word in words],
+            "top": top,
+        },
+    )
+    by_page: dict[int, list[Row[Any]]] = {}
+    for row in rows:
+        by_page.setdefault(row.target_url_id, []).append(row)
     result: dict[int, AnchorDetail] = {}
-    for url, anchors in grouped.items():
-        stats = anchor_stats(anchors, [row.keyword for row in keywords.get(url, [])], limit=top)
+    for url, texts in by_page.items():
+        first = texts[0]
+        total, generic = int(first.total), int(first.generic_links)
         result[url] = AnchorDetail(
-            total=stats.total,
-            distinct=stats.distinct,
-            generic=stats.generic_count,
-            generic_share=stats.generic_share,
-            matches_keyword=stats.matches_keyword,
-            top=[AnchorText(text=g.text, count=g.count, generic=g.generic) for g in stats.top],
+            total=total,
+            distinct=first.distinct_texts,
+            generic=generic,
+            generic_share=generic / total,
+            matches_keyword=bool(first.matches_keyword) if keywords.get(url) else None,
+            top=[
+                AnchorText(text=row.shown, count=row.links, generic=row.is_generic) for row in texts
+            ],
+        )
+    return result
+
+
+async def _stored_anchors(
+    db: AsyncSession, scope: PageScope, ids: Sequence[int]
+) -> dict[int, AnchorDetail]:
+    result: dict[int, AnchorDetail] = {}
+    for row in await db.execute(
+        select(
+            crawl_pages.c.url_id, crawl_pages.c.editorial_anchors, crawl_pages.c.generic_anchors
+        ).where(
+            crawl_pages.c.workspace_id == scope.workspace_id,
+            crawl_pages.c.run_id == scope.run_id,
+            crawl_pages.c.url_id.in_(list(ids)),
+        )
+    ):
+        result[row.url_id] = AnchorDetail(
+            total=row.editorial_anchors,
+            distinct=None,
+            generic=row.generic_anchors,
+            generic_share=row.generic_anchors / row.editorial_anchors
+            if row.editorial_anchors
+            else 0.0,
+            matches_keyword=None,
+            top=None,
         )
     return result
 
@@ -250,11 +335,31 @@ def anchor_summary(detail: AnchorDetail) -> AnchorSummary:
 
 async def gsc_of(db: AsyncSession, scope: PageScope, ids: Sequence[int]) -> dict[int, GscPage]:
     """Google's page numbers. `ok` shows 0 for a page with no row in the window (a count);
-    `pending` and `not_connected` show none."""
+    `pending` and `not_connected` show none. The pull says `ok` as soon as it has a window, but
+    the page days are stored after that (and may stop on a budget, or never exist for a property
+    connected before this feature), so `ok` also needs one stored page day in the window."""
     state = await scope_of(db, scope.workspace_id, scope.project_id)
-    if state.state != "ok" or state.integration_id is None or state.window is None:
+    stored = False
+    if state.state == "ok" and state.integration_id is not None and state.window is not None:
+        stored = (
+            await db.execute(
+                select(
+                    exists().where(
+                        gsc_page_daily.c.workspace_id == scope.workspace_id,
+                        gsc_page_daily.c.project_id == scope.project_id,
+                        gsc_page_daily.c.integration_id == state.integration_id,
+                        gsc_page_daily.c.metric_date.between(*state.window),
+                    )
+                )
+            )
+        ).scalar_one()
+    if state.integration_id is None or state.window is None or not stored:
         empty = GscPage(
-            state=state.state, clicks=None, impressions=None, window_start=None, window_end=None
+            state="pending" if state.state == "ok" else state.state,
+            clicks=None,
+            impressions=None,
+            window_start=None,
+            window_end=None,
         )
         return dict.fromkeys(ids, empty)
     totals = await page_clicks(

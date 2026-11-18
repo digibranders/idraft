@@ -878,7 +878,11 @@ async def attach_extras(
     changes = await changes_of(db, scope, ids) if "changes" in include else None
     keywords = await keywords_of(db, scope, ids) if include & {"keywords", "anchors"} else {}
     citations = await citations_of(db, scope, ids) if "citations" in include else {}
-    anchors = await anchors_of(db, scope, ids, keywords) if "anchors" in include else {}
+    anchors = (
+        await anchors_of(db, scope, ids, keywords)
+        if "anchors" in include and not scope.links_dropped
+        else {}
+    )
     gsc = await gsc_of(db, scope, ids) if "gsc" in include else {}
     for row in rows:
         url = int(row.url_id)
@@ -886,9 +890,10 @@ async def attach_extras(
             change=None if changes is None else changes.get(url),
             keywords=summarize_keywords(keywords.get(url, [])) if "keywords" in include else None,
             citations=citations.get(url, NO_CITATIONS) if "citations" in include else None,
+            # A crawl without its links keeps no anchor list: the column shows nothing.
             anchors=(
                 anchor_summary(anchors.get(url) or empty_anchors(keywords.get(url, [])))
-                if "anchors" in include
+                if "anchors" in include and not scope.links_dropped
                 else None
             ),
             gsc=gsc.get(url),
@@ -1230,7 +1235,8 @@ class LinkReadService:
                 editorial_orphans=await pages("editorial_orphans"),
                 deep_only_through_auto=await pages("deep_only_through_auto"),
                 lost_links_top=await pages("lost_links_top"),
-                weak_outlinks=await pages("weak_outlinks"),
+                # The filter answers 410 for a crawl whose links are gone; the count is 0.
+                weak_outlinks=0 if scope.links_dropped else await pages("weak_outlinks"),
                 broken_and_redirected=await links("broken_and_redirected"),
                 links_to_non_indexable=await links("links_to_non_indexable"),
             )

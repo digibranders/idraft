@@ -187,6 +187,54 @@ async def test_a_viewer_cannot_decide_and_a_pair_outside_the_crawl_changes_nothi
     assert nothing.json()["data"] == {"matched": 0, "changed": 0}
 
 
+async def test_a_pair_off_the_list_cannot_be_decided_but_a_stored_decision_can_be_undone(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, run, ids = await _site(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    # Listed; linked in the text already; and a mention whose target is gone.
+    await _mention(migrated, run, workspace, ids["/blog"], ids["/pricing"], "pricing plans")
+    await _mention(migrated, run, workspace, ids["/blog/a"], ids["/blog/b"], "soc pricing")
+    await _mention(migrated, run, workspace, ids["/"], ids["/blog/a"], "blog a topics")
+    base = project_url(workspace, project, "internal-links", "opportunities")
+
+    def pair(source: str, target: str) -> dict[str, str]:
+        return {"source_url_id": str(ids[source]), "target_url_id": str(ids[target])}
+
+    items = [pair("/blog", "/pricing"), pair("/blog/a", "/blog/b"), pair("/", "/blog/a")]
+    await api.put(
+        f"{base}/decisions",
+        json={"items": [pair("/blog", "/pricing")], "status": "accepted"},
+        headers=editor.headers,
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET status_code = 404 WHERE run_id = $1 AND url_id = $2",
+        run,
+        ids["/blog/a"],
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET status_code = 404 WHERE run_id = $1 AND url_id = $2",
+        run,
+        ids["/pricing"],
+    )
+
+    dismissed = await api.put(
+        f"{base}/decisions",
+        json={"items": [*items[1:], items[0]], "status": "dismissed"},
+        headers=editor.headers,
+    )
+    undone = await api.put(
+        f"{base}/decisions", json={"items": items, "status": "open"}, headers=editor.headers
+    )
+
+    # Nothing qualifies any more (a dead target, a link in the text, a dead target again).
+    assert dismissed.json()["data"] == {"matched": 0, "changed": 0}
+    # The accepted pair has a decision row, so it can be reopened although it left the list.
+    assert undone.json()["data"] == {"matched": 1, "changed": 1}
+
+
 async def test_planned_fixes_export_accepted_rows_or_the_open_ones(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

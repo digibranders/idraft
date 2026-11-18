@@ -68,10 +68,21 @@ _ORDER = (
     "ORDER BY coalesce(tl.position, 99), scp.equity_share DESC NULLS LAST, su.path, tu.path, "
     "m.source_url_id, m.target_url_id"
 )
-_VALID_PAIRS = text(
+# Accept and dismiss take the pairs the list shows (D12: the same conditions, so a decision is
+# never stored for a pair a person could not see).
+_LISTED_PAIRS = text(
+    f"""
+    SELECT DISTINCT source_url_id, target_url_id FROM ({_BASE}
+      AND (m.source_url_id, m.target_url_id) IN (SELECT * FROM unnest(:sources, :targets))) listed
+    """  # noqa: S608
+).bindparams(
+    bindparam("sources", type_=ARRAY(BigInteger)), bindparam("targets", type_=ARRAY(BigInteger))
+)
+# Undo takes any pair that has a decision, also one that has left the list since.
+_DECIDED_PAIRS = text(
     """
-    SELECT source_url_id, target_url_id FROM seo.crawl_mentions
-    WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
+    SELECT source_url_id, target_url_id FROM core.link_opportunity_decisions
+    WHERE workspace_id = CAST(:workspace_id AS uuid) AND project_id = CAST(:project_id AS uuid)
       AND (source_url_id, target_url_id) IN (SELECT * FROM unnest(:sources, :targets))
     """
 ).bindparams(
@@ -270,8 +281,9 @@ class OpportunityService:
         body: OpportunityDecisions,
         info: RequestInfo,
     ) -> DecisionResult:
-        """Accept, dismiss or reopen pairs that are mentions of the latest crawl. A pair that
-        is not one is counted in neither number."""
+        """Accept or dismiss pairs the latest crawl's list shows, or reopen pairs that have a
+        decision. `matched` is the number of submitted pairs that qualified, `changed` the number
+        whose stored state changed; a pair that did not qualify is in neither."""
         async with workspace_transaction(
             self._sessions, access.workspace_id, user_id=access.user_id
         ) as db:
@@ -281,10 +293,11 @@ class OpportunityService:
             asked = sorted({(item.source_url_id, item.target_url_id) for item in body.items})
             valid = (
                 await db.execute(
-                    _VALID_PAIRS,
+                    _DECIDED_PAIRS if body.status == "open" else _LISTED_PAIRS,
                     {
                         "run_id": str(scope.run_id),
                         "workspace_id": str(access.workspace_id),
+                        "project_id": str(project_id),
                         "sources": [source for source, _ in asked],
                         "targets": [target for _, target in asked],
                     },
