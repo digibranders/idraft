@@ -21,8 +21,18 @@ const start = (projectId = EVENTUS.project_id, now = T0) => {
 };
 
 describe('the crawls of the mock world', () => {
-  it('has one finished crawl for the Eventus project and none for another', () => {
-    expect(crawlsOf(EVENTUS.project_id)).toMatchObject([{ state: 'ready', is_latest: true }]);
+  it('has five finished crawls for the Eventus project, the latest first, and none for another', () => {
+    const runs = crawlsOf(EVENTUS.project_id);
+    expect(runs.map((run) => [run.state, run.is_latest])).toEqual([
+      ['ready', true],
+      ['ready', false],
+      ['ready', false],
+      ['ready', false],
+      ['ready', false],
+    ]);
+    // Each crawl is compared with the next older one, and only the newest four still hold their links
+    expect(runs.map((run) => run.previous_run_id)).toEqual([...runs.slice(1).map((run) => run.run_id), null]);
+    expect(runs.map((run) => run.links_available)).toEqual([true, true, true, true, false]);
     expect(hasFinishedCrawl(EVENTUS.project_id)).toBe(true);
     expect(crawlsOf(FYNIX)).toEqual([]);
     expect(hasFinishedCrawl(FYNIX)).toBe(false);
@@ -60,7 +70,7 @@ describe('the crawls of the mock world', () => {
     expect(requestCrawl(EVENTUS.project_id, { hasWebsite: true, higherLimit: false })).toEqual(refused);
     expect(requestCrawl(EVENTUS.project_id, { hasWebsite: true, higherLimit: true })).toEqual(refused);
     expect(requestCrawl(FYNIX, { hasWebsite: false, higherLimit: false })).toEqual(refused);
-    expect(crawlsOf(EVENTUS.project_id)).toHaveLength(1);
+    expect(crawlsOf(EVENTUS.project_id)).toHaveLength(5);
     expect(crawlsOf(FYNIX)).toEqual([]);
     setCrawlsEnabled(true);
     expect(start()).toMatchObject({ state: 'queued' });
@@ -134,15 +144,23 @@ describe('the crawls of the mock world', () => {
 
 describe('the internal links settings of the mock world', () => {
   it('keeps the settings of a project and changes only what is given', () => {
+    const alerts = { enabled: true, max_position: 2, threshold: 1, channel: 'app' };
     expect(settingsOf(EVENTUS.project_id)).toEqual({
       schedule: 'weekly',
       render_javascript: false,
       allowed_subdomains: [],
+      alerts,
     });
     expect(changeSettings(EVENTUS.project_id, { schedule: 'monthly' })).toEqual({
       schedule: 'monthly',
       render_javascript: false,
       allowed_subdomains: [],
+      alerts,
+    });
+    // The alert rules merge member by member over the defaults
+    expect(changeSettings(EVENTUS.project_id, { alerts: { threshold: 3 } }).alerts).toEqual({
+      ...alerts,
+      threshold: 3,
     });
     expect(settingsOf(EVENTUS.project_id).schedule).toBe('monthly');
   });

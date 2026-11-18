@@ -10,6 +10,7 @@ import type {
   InternalLinksSettingsPatch,
   Neighbor,
   PageRow,
+  GscState,
   PageTier,
   TierFlow,
   TierRef,
@@ -31,13 +32,30 @@ import type {
 const eventus = MOCK_PROJECTS.find((project) => project.slug === 'eventus-security');
 if (eventus === undefined) throw new Error('The fixtures have no Eventus Security project');
 export const EVENTUS = eventus;
-const HOST = 'https://eventussecurity.com';
+export const HOST = 'https://eventussecurity.com';
 export const MOCK_RUN_ID = '0192e4a0-1000-7000-8000-000000000001';
+/**
+ * The crawl history of the Eventus project, newest first: five finished weekly crawls, each one's `previous_run_id`
+ * the next. The latest four still hold their links; the fifth, past the last four, has them dropped (the API
+ * drops the links of older crawls to save space, `links_available` false).
+ */
+export const HISTORY_RUN_IDS: readonly string[] = [
+  MOCK_RUN_ID,
+  '0192e4a0-1000-7000-8000-000000000002',
+  '0192e4a0-1000-7000-8000-000000000003',
+  '0192e4a0-1000-7000-8000-000000000004',
+  '0192e4a0-1000-7000-8000-000000000005',
+];
+/** How many of the newest finished crawls hold their links. */
+const LINKS_KEPT = 4;
 const FINISHED = '2026-11-14T03:12:00Z';
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/** Pages found by each crawl of the history, newest first: the latest crawl found one page more than the one before. */
+const HISTORY_PAGES: readonly number[] = [18, 17, 17, 16, 15];
 const OWNER = mockUser('owner');
 const OWNER_REF = { user_id: OWNER.user_id, name: OWNER.name, email: OWNER.email };
 
-interface FixturePage {
+export interface FixturePage {
   id: string;
   path: string;
   title: string;
@@ -112,13 +130,17 @@ const LINKS: readonly FixtureLink[] = [
   ['102', '106', 'content', 'Penetration testing'],
   ['103', '108', 'content', 'See plans'],
   ['103', '104', 'content', 'add MDR'],
-  ['103', '109', 'content', 'Talk to an expert'],
+  ['103', '109', 'content', 'read more'],
   ['104', '103', 'content', 'SOC as a service'],
   ['104', '107', 'content', 'Threat hunting'],
   ['104', '108', 'content', 'MDR pricing'],
   ['105', '109', 'content', 'Book a test'],
+  // The VAPT page sends most of its editorial links to weak pages (the weak outlinks worklist)
+  ['105', '110', 'content', 'Thank you page'],
+  ['105', '107', 'content', 'Threat hunting'],
+  ['105', '116', 'content', 'About us'],
   ['108', '103', 'content', 'SOC as a service'],
-  ['108', '109', 'content', 'Get a quote'],
+  ['108', '109', 'content', 'click here'],
   ['108', '118', 'content', 'Compare with an in-house SOC'],
   ['109', '110', 'content', 'Thank you'],
   ['111', '112', 'content', 'What is a SOC?'],
@@ -173,7 +195,50 @@ export interface StoredManual {
   set_at: string;
 }
 
+/**
+ * The switches a test (or a developer) flips to put the mock in a state of the contract: the latest crawl's
+ * enrichment, its previous crawl, whether its links were dropped, Search Console, and the empty cases. All
+ * start calm: a ready crawl with history, Search Console ok, and every list filled. A reset of the mocks calms
+ * them again.
+ */
+export interface LinksScenario {
+  /** The latest crawl's `enrich_state`: `running` or `pending` make the changes `pending`, `failed` `unavailable`. */
+  enrich: CrawlRun['enrich_state'];
+  /** The latest crawl has no previous crawl: its changes are `first_crawl` and the change columns show nothing. */
+  firstCrawl: boolean;
+  /** The latest crawl's links were dropped: link level reads answer `410 links_dropped`. */
+  latestLinksDropped: boolean;
+  /** Search Console: `ok` has clicks, `pending` has no clicks yet, `not_connected` is not linked. */
+  gsc: GscState;
+  /** The latest crawl lost and gained no links: the Changes lists are empty. */
+  noChanges: boolean;
+  /** No page mentions another page's topic without linking to it. */
+  noOpportunities: boolean;
+  /** No page's clicks or ranks say it belongs in a higher tier. */
+  noSuggestions: boolean;
+  /** The crawl has no start page, so no page has a route from it. */
+  noStartPage: boolean;
+}
+
+const CALM: LinksScenario = {
+  enrich: 'done',
+  firstCrawl: false,
+  latestLinksDropped: false,
+  gsc: 'ok',
+  noChanges: false,
+  noOpportunities: false,
+  noSuggestions: false,
+  noStartPage: false,
+};
+
+/** One crawl as a read sees it: the crawl and how many finished crawls are newer (0 is the latest). */
+export interface RunView {
+  run: CrawlRun;
+  rank: number;
+}
+
 interface World {
+  scenario: LinksScenario;
   tiers: StoredTier[];
   rules: StoredRule[];
   manual: Map<string, StoredManual>;
@@ -214,22 +279,26 @@ function seed(): World {
     ],
     manual: new Map(MANUAL_SEED.map(([id, position]) => [id, { tier_id: tierId(position), set_at: FINISHED }])),
     tags: new Map(),
-    crawls: new Map([[EVENTUS.project_id, [finishedRun()]]]),
+    crawls: new Map([[EVENTUS.project_id, HISTORY_RUN_IDS.map((_, index) => finishedRun(index))]]),
     cancels: new Map(),
     settings: new Map(),
     crawlsEnabled: true,
     nextId: 1,
+    scenario: { ...CALM },
   };
 }
 
-function finishedRun(): CrawlRun {
+/** The finished crawl `index` weeks back (0 is the latest); each one's previous crawl is the next in the history. */
+function finishedRun(index = 0): CrawlRun {
+  const finished = Date.parse(FINISHED) - index * WEEK_MS;
+  const pages = HISTORY_PAGES[index] ?? PAGES.length;
   return {
-    run_id: MOCK_RUN_ID,
+    run_id: HISTORY_RUN_IDS[index] ?? MOCK_RUN_ID,
     trigger: 'schedule',
     state: 'ready',
     ceiling: 2000,
-    pages_found: PAGES.length,
-    pages_crawled: PAGES.length,
+    pages_found: pages,
+    pages_crawled: pages,
     sitemap_pages: 14,
     render_javascript: false,
     estimated_cost_usd: '0.300000',
@@ -238,13 +307,13 @@ function finishedRun(): CrawlRun {
     error_code: null,
     error_message: null,
     hints: [],
-    is_latest: true,
-    created_at: '2026-11-14T03:00:00Z',
-    submitted_at: '2026-11-14T03:00:05Z',
-    finished_at: FINISHED,
+    is_latest: index === 0,
+    created_at: new Date(finished - 12 * 60 * 1000).toISOString(),
+    submitted_at: new Date(finished - 12 * 60 * 1000 + 5000).toISOString(),
+    finished_at: new Date(finished).toISOString(),
     requested_by: null,
-    links_available: true,
-    previous_run_id: null,
+    links_available: index < LINKS_KEPT,
+    previous_run_id: HISTORY_RUN_IDS[index + 1] ?? null,
     enrich_state: 'done',
   };
 }
@@ -255,6 +324,13 @@ onMockReset(() => {
 });
 
 export const linksWorld = (): World => world;
+
+/** The switches in force. */
+export const linksScenario = (): LinksScenario => world.scenario;
+/** Flips some switches; the others keep their value. */
+export function setLinksScenario(patch: Partial<LinksScenario>): void {
+  world.scenario = { ...world.scenario, ...patch };
+}
 export const freshId = (): string => {
   world.nextId += 1;
   return `0192e4a0-9000-7000-8000-${String(world.nextId).padStart(12, '0')}`;
@@ -597,10 +673,34 @@ export function worklists(): Worklists {
       const target = byId.get(link[1]);
       return target !== undefined && target.status === 200 && target.indexable === false;
     }).length,
-    // The changes and the weak links belong to the history task of the mock (plan 05 Task 9)
+    // The two counts that need the crawl history are filled by the handler (`internal-links-changes-world.ts`)
     lost_links_top: 0,
     weak_outlinks: 0,
   };
+}
+
+/** The tier position of the weakest tier a T1 page should not send its links to (the backend's fourth tier). */
+const WEAK_TIER = 'T4';
+/** Fewer editorial outlinks than this never make a page a weak linker (`WEAK_MIN_OUTLINKS` of the backend). */
+const WEAK_MIN_OUTLINKS = 3;
+
+/**
+ * The T1 pages with at least three editorial outlinks, more than half of them to weak targets: untiered or T4
+ * pages, or pages that are not live and indexable (the `weak_outlinks` worklist of the backend).
+ */
+export function weakOutlinkIds(): string[] {
+  return PAGES.filter((page) => page.status === 200 && assignedTier(page).tier?.code === 'T1')
+    .filter((page) => {
+      const targets = unique(linksOut(page.id, 'editorial').map((link) => link[1]));
+      const weak = targets.filter((id) => {
+        const target = byId.get(id);
+        if (target === undefined) return true;
+        const tier = assignedTier(target).tier;
+        return tier === null || tier.code === WEAK_TIER || target.status !== 200 || target.indexable === false;
+      });
+      return targets.length >= WEAK_MIN_OUTLINKS && weak.length * 2 > targets.length;
+    })
+    .map((page) => page.id);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -651,10 +751,41 @@ export function crawlsOf(projectId: string, now = Date.now()): CrawlRun[] {
       cost_usd: run.estimated_cost_usd,
       submitted_at: run.created_at,
       finished_at: new Date(Date.parse(run.created_at) + PROGRESS_MS).toISOString(),
+      enrich_state: 'done',
     };
   });
-  const latestDone = advanced.findIndex((run) => run.state === 'ready' || run.state === 'stopped_at_ceiling');
-  return advanced.map((run, index) => ({ ...run, is_latest: index === latestDone }));
+  const latestDone = advanced.findIndex(isFinished);
+  let rank = 0;
+  return advanced.map((run, index) => {
+    if (!isFinished(run)) return { ...run, is_latest: false };
+    const position = rank;
+    rank += 1;
+    if (index !== latestDone) {
+      // Past the newest four finished crawls the links are dropped
+      return { ...run, is_latest: false, links_available: position < LINKS_KEPT };
+    }
+    const { scenario } = world;
+    return {
+      ...run,
+      is_latest: true,
+      enrich_state: scenario.enrich,
+      links_available: !scenario.latestLinksDropped,
+      previous_run_id: scenario.firstCrawl ? null : run.previous_run_id,
+    };
+  });
+}
+
+const isFinished = (run: CrawlRun): boolean => run.state === 'ready' || run.state === 'stopped_at_ceiling';
+
+/**
+ * The crawl a read is about: `run` (a crawl id, as the address carries it), or the latest finished crawl when it
+ * is null. Null for a crawl the project does not have or one that has not finished (the API answers 404).
+ */
+export function runViewOf(projectId: string, run: string | null, now = Date.now()): RunView | null {
+  const finished = crawlsOf(projectId, now).filter(isFinished);
+  const rank = finished.findIndex((candidate) => (run === null ? candidate.is_latest : candidate.run_id === run));
+  const found = finished[rank];
+  return found === undefined ? null : { run: found, rank };
 }
 
 /** Switches site crawls on or off, as the worker setting does; a reset of the mocks switches them on again. */
@@ -716,6 +847,10 @@ export function requestCrawl(
     submitted_at: null,
     finished_at: null,
     requested_by: trigger === 'website_added' ? null : OWNER_REF,
+    links_available: true,
+    // It is compared with the latest crawl once it has finished and been enriched
+    previous_run_id: runs.find((candidate) => candidate.is_latest)?.run_id ?? null,
+    enrich_state: 'pending',
   };
   world.crawls.set(projectId, [run, ...(world.crawls.get(projectId) ?? [])]);
   return { ok: true, run };
@@ -753,10 +888,17 @@ const DEFAULT_SETTINGS: InternalLinksSettings = {
   schedule: 'weekly',
   render_javascript: false,
   allowed_subdomains: [],
+  alerts: DEFAULT_ALERTS,
 };
 
 export const settingsOf = (projectId: string): InternalLinksSettings =>
   world.settings.get(projectId) ?? { ...DEFAULT_SETTINGS };
+
+/** The alert rules of a project, every member set (the settings keep only what was changed). */
+export const alertSettingsOf = (projectId: string): AlertSettings => ({
+  ...DEFAULT_ALERTS,
+  ...settingsOf(projectId).alerts,
+});
 
 /** The settings after a patch of any of the three; the others keep their value. */
 export function changeSettings(projectId: string, patch: InternalLinksSettingsPatch): InternalLinksSettings {
