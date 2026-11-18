@@ -57,6 +57,7 @@ describe('pageQueryOf', () => {
       worklist: 'orphans',
       q: '/blog',
       sort: 'path',
+      include: [],
       cursor: 'c1',
       limit: 200,
     });
@@ -153,6 +154,10 @@ describe('pageExportQuery (decision W13)', () => {
       q: 'x',
       format: 'csv',
     });
+  });
+
+  it('leaves the extras out, the CSV has its own columns', () => {
+    expect(pageExportQuery({ ...DEFAULT_PAGE_QUERY, include: ['changes', 'gsc'] })).not.toHaveProperty('include');
   });
 
   it('never names equity', () => {

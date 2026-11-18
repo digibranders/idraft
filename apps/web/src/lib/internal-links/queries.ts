@@ -6,12 +6,20 @@ import { projectKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
 import { READ_LIMIT, type Direction } from './journey-layout';
 import type { LinkScope, Placement } from './scopes';
+import type { DownloadQuery } from '@/lib/api/download';
 import type {
+  ChangeKind,
+  ChangeLinkPage,
+  ChangeOnly,
+  ChangeScope,
   EdgeRowPage,
   EdgeWorklist,
   LinksScope,
+  OpportunityPage,
+  OpportunityStatus,
   PageFilter,
   PageFlagFilter,
+  PageInclude,
   PageRowPage,
   PageSort,
   PageWorklist,
@@ -33,6 +41,12 @@ const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
 const FLOW = `${P}/internal-links/tier-flow` as const;
 const WORKLISTS = `${P}/internal-links/worklists` as const;
+const CHANGES_SUMMARY = `${P}/internal-links/changes/summary` as const;
+const CHANGES_LINKS = `${P}/internal-links/changes/links` as const;
+const CHANGES_PAGES = `${P}/internal-links/changes/pages` as const;
+const OPPORTUNITIES = `${P}/internal-links/opportunities` as const;
+const SUGGESTIONS = `${P}/internal-links/tier-suggestions` as const;
+const ROUTES = `${P}/internal-links/paths` as const;
 const CRAWLS = `${P}/link-crawls` as const;
 const SETTINGS = `${P}/settings` as const;
 const RULES = `${P}/tier-rules` as const;
@@ -42,6 +56,32 @@ const TIERS = `${W}/page-tiers` as const;
 /** The query parameters the generated client takes for the two lists. */
 type PagesParams = NonNullable<paths[typeof PAGES]['get']['parameters']['query']>;
 type EdgesParams = NonNullable<paths[typeof EDGES]['get']['parameters']['query']>;
+type ChangeLinksParams = paths[typeof CHANGES_LINKS]['get']['parameters']['query'];
+type OpportunityParams = NonNullable<paths[typeof OPPORTUNITIES]['get']['parameters']['query']>;
+
+/**
+ * The `run` parameter of every read: a chosen crawl, or none for the latest (the address's `run`). Left out for
+ * the latest, so the latest crawl has one cache entry, and a crawl chosen has its own.
+ */
+export const withRun = <T extends object>(params: T, run: string | null): T & { run?: string } =>
+  run === null ? params : { ...params, run };
+
+/** A CSV download of a selection: the same query without its window (`offset`, `limit`), as `format=csv`. */
+const csvOf = (params: object): DownloadQuery => {
+  const wanted: Record<string, DownloadQuery[string]> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (key !== 'limit' && key !== 'offset' && value !== undefined && value !== null) wanted[key] = value;
+  }
+  return { ...wanted, format: 'csv' };
+};
+
+/** The lost and added links path with its ids filled in, for the CSV download (decision W13). */
+export const changeLinksPath = (scope: LinksScope): `/api/v1/${string}` =>
+  `/api/v1/workspaces/${scope.workspaceId}/projects/${scope.projectId}/internal-links/changes/links`;
+
+/** The opportunities path with its ids filled in, for the filtered CSV and the planned fixes download. */
+export const opportunitiesPath = (scope: LinksScope): `/api/v1/${string}` =>
+  `/api/v1/workspaces/${scope.workspaceId}/projects/${scope.projectId}/internal-links/opportunities`;
 
 /** The pages list path with its ids filled in, for the CSV download (decision W13). */
 export const pagesPath = (scope: LinksScope): `/api/v1/${string}` =>
@@ -95,8 +135,24 @@ export interface PageQuery {
   worklist: PageWorklist | null;
   q: string | null;
   sort: PageSort;
+  /** The parts to add to each row as `extras`, from `moreIncludes`. */
+  include: readonly PageInclude[];
   cursor: string | null;
   limit: number;
+}
+
+/** Which `include` parts the visible optional columns need (the column ids of `page-columns.tsx`). */
+export function moreIncludes(visible: readonly string[]): PageInclude[] {
+  const want = new Set<PageInclude>();
+  for (const id of visible) {
+    if (id === 'change' || id === 'equityChange') want.add('changes');
+    if (id === 'rank' || id === 'keywords') want.add('keywords');
+    if (id === 'citations') want.add('citations');
+    if (id === 'anchors' || id === 'matches') want.add('anchors');
+    if (id === 'clicks' || id === 'impressions') want.add('gsc');
+  }
+  const order: PageInclude[] = ['changes', 'keywords', 'citations', 'anchors', 'gsc'];
+  return order.filter((part) => want.has(part));
 }
 
 export const DEFAULT_PAGE_QUERY: PageQuery = {
@@ -109,6 +165,7 @@ export const DEFAULT_PAGE_QUERY: PageQuery = {
   worklist: null,
   q: null,
   sort: '-linking_pages',
+  include: [],
   cursor: null,
   limit: PAGE_LIMIT,
 };
@@ -126,6 +183,7 @@ export function pageParams(query: PageQuery): PagesParams {
     ...(query.flags.length === 0 ? {} : { 'filter[flags]': [...query.flags] }),
     ...(query.worklist === null ? {} : { 'filter[worklist]': query.worklist }),
     ...(query.q === null ? {} : { q: query.q }),
+    ...(query.include.length === 0 ? {} : { include: [...query.include] }),
     ...(query.cursor === null ? {} : { cursor: query.cursor }),
   };
 }
@@ -143,8 +201,12 @@ export function pageFilterOf(query: PageQuery): PageFilter {
   };
 }
 
-export const pagesQuery = (scope: LinksScope, query: PageQuery): ApiQueryOptions<typeof PAGES> =>
-  apiQuery(PAGES, { params: { path: pathOf(scope), query: pageParams(query) } });
+export const pagesQuery = (
+  scope: LinksScope,
+  query: PageQuery,
+  run: string | null = null,
+): ApiQueryOptions<typeof PAGES> =>
+  apiQuery(PAGES, { params: { path: pathOf(scope), query: withRun(pageParams(query), run) } });
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
@@ -183,8 +245,15 @@ function hasCursorShape(value: unknown): boolean {
  * One page, the inspector. Throws `UrlIdError` for an id that is no url id: a screen that reads the id from the
  * address validates it first (`checkUrlId`) and shows not found, instead of letting the builder throw.
  */
-export const pageDetailQuery = (scope: LinksScope, urlId: string, linkScope: LinkScope): ApiQueryOptions<typeof PAGE> =>
-  apiQuery(PAGE, { params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: { scope: linkScope } } });
+export const pageDetailQuery = (
+  scope: LinksScope,
+  urlId: string,
+  linkScope: LinkScope,
+  run: string | null = null,
+): ApiQueryOptions<typeof PAGE> =>
+  apiQuery(PAGE, {
+    params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({ scope: linkScope }, run) },
+  });
 
 export interface EdgeQuery {
   scope: LinkScope;
@@ -237,8 +306,12 @@ export function edgeParams(query: EdgeQuery): EdgesParams {
   };
 }
 
-export const edgesQuery = (scope: LinksScope, query: EdgeQuery): ApiQueryOptions<typeof EDGES> =>
-  apiQuery(EDGES, { params: { path: pathOf(scope), query: edgeParams(query) } });
+export const edgesQuery = (
+  scope: LinksScope,
+  query: EdgeQuery,
+  run: string | null = null,
+): ApiQueryOptions<typeof EDGES> =>
+  apiQuery(EDGES, { params: { path: pathOf(scope), query: withRun(edgeParams(query), run) } });
 
 /**
  * One page of `READ_LIMIT` neighbors (decision W7). Throws `UrlIdError` for an id that is no url id: a screen that
@@ -252,25 +325,143 @@ export const neighborsQuery = (
     linkScope,
     offset,
   }: { urlId: string; direction: Direction; linkScope: LinkScope; offset: number },
+  run: string | null = null,
 ): ApiQueryOptions<typeof NEIGHBORS> =>
   apiQuery(NEIGHBORS, {
     params: {
       path: pathOf(scope),
-      query: {
-        url_id: checkUrlId(urlId),
-        direction,
-        scope: linkScope,
-        limit: READ_LIMIT,
-        ...(offset === 0 ? {} : { offset }),
-      },
+      query: withRun(
+        {
+          url_id: checkUrlId(urlId),
+          direction,
+          scope: linkScope,
+          limit: READ_LIMIT,
+          ...(offset === 0 ? {} : { offset }),
+        },
+        run,
+      ),
     },
   });
 
-export const tierFlowQuery = (scope: LinksScope, linkScope: LinkScope): ApiQueryOptions<typeof FLOW> =>
-  apiQuery(FLOW, { params: { path: pathOf(scope), query: { scope: linkScope } } });
+export const tierFlowQuery = (
+  scope: LinksScope,
+  linkScope: LinkScope,
+  run: string | null = null,
+): ApiQueryOptions<typeof FLOW> =>
+  apiQuery(FLOW, { params: { path: pathOf(scope), query: withRun({ scope: linkScope }, run) } });
 
-export const worklistsQuery = (scope: LinksScope): ApiQueryOptions<typeof WORKLISTS> =>
-  apiQuery(WORKLISTS, { params: { path: pathOf(scope) } });
+export const worklistsQuery = (scope: LinksScope, run: string | null = null): ApiQueryOptions<typeof WORKLISTS> =>
+  apiQuery(WORKLISTS, { params: { path: pathOf(scope), query: withRun({}, run) } });
+
+/** Rows a page of the lost and added links table and the opportunities table asks for (offset paging, 200 at most). */
+export const CHANGE_LIMIT = 50;
+/** Moved pages the Changes tab lists (the API takes up to 50). */
+export const MOVED_LIMIT = 8;
+
+export interface ChangeLinksQuery {
+  change: ChangeKind;
+  linkScope: ChangeScope;
+  only: ChangeOnly;
+  offset: number;
+  limit: number;
+}
+
+/** The query values of the lost and added links, `run` added when a crawl is chosen. */
+export function changeLinksParams(query: ChangeLinksQuery, run: string | null): ChangeLinksParams {
+  return withRun(
+    {
+      change: query.change,
+      link_scope: query.linkScope,
+      only: query.only,
+      offset: query.offset,
+      limit: query.limit,
+    },
+    run,
+  );
+}
+
+/** The server's CSV of the same selection, every row (no window). */
+export const changeLinksExportQuery = (query: ChangeLinksQuery, run: string | null): DownloadQuery =>
+  csvOf(changeLinksParams(query, run));
+
+export interface OpportunitiesQuery {
+  status: OpportunityStatus | null;
+  /** A tier position `1` to `8`, or `none` for pages without a tier. */
+  tier: string | null;
+  q: string | null;
+  offset: number;
+  limit: number;
+}
+
+/** The query values of the opportunities list; anything unset is left out. */
+export function opportunitiesParams(query: OpportunitiesQuery, run: string | null): OpportunityParams {
+  return withRun(
+    {
+      offset: query.offset,
+      limit: query.limit,
+      ...(query.status === null ? {} : { status: query.status }),
+      ...(query.tier === null ? {} : { 'filter[target_tier]': query.tier }),
+      ...(query.q === null ? {} : { q: query.q }),
+    },
+    run,
+  );
+}
+
+/** The server's CSV of the filtered opportunities, every row. */
+export const opportunitiesExportQuery = (query: OpportunitiesQuery, run: string | null): DownloadQuery =>
+  csvOf(opportunitiesParams(query, run));
+
+/** The planned fixes CSV: the accepted rows, or every open row when none is accepted. */
+export const plannedExportQuery = (run: string | null): DownloadQuery => withRun({ export: 'planned' }, run);
+
+/**
+ * The two reads below answer JSON or CSV in the OpenAPI, so their typed answer is `unknown`, as the pages list's
+ * is. These check the envelope the screens read (`data`, `meta` with its run id and total), not each row.
+ */
+export function isChangeLinkPage(value: unknown): value is ChangeLinkPage {
+  return isRecord(value) && Array.isArray(value.data) && hasRunAndTotal(value.meta);
+}
+
+export function isOpportunityPage(value: unknown): value is OpportunityPage {
+  return isRecord(value) && Array.isArray(value.data) && hasRunAndTotal(value.meta) && isRecord(value.meta.counts);
+}
+
+function hasRunAndTotal(meta: unknown): meta is Record<string, unknown> {
+  return isRecord(meta) && typeof meta.run_id === 'string' && typeof meta.total === 'number';
+}
+
+export const changesSummaryQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof CHANGES_SUMMARY> =>
+  apiQuery(CHANGES_SUMMARY, { params: { path: pathOf(scope), query: withRun({}, run) } });
+
+export const changeLinksQuery = (
+  scope: LinksScope,
+  query: ChangeLinksQuery,
+  run: string | null,
+): ApiQueryOptions<typeof CHANGES_LINKS> =>
+  apiQuery(CHANGES_LINKS, { params: { path: pathOf(scope), query: changeLinksParams(query, run) } });
+
+/** The pages whose links in, equity or depth moved most, `limit` of them. */
+export const movedPagesQuery = (
+  scope: LinksScope,
+  run: string | null,
+  limit: number = MOVED_LIMIT,
+): ApiQueryOptions<typeof CHANGES_PAGES> =>
+  apiQuery(CHANGES_PAGES, { params: { path: pathOf(scope), query: withRun({ limit }, run) } });
+
+export const opportunitiesQuery = (
+  scope: LinksScope,
+  query: OpportunitiesQuery,
+  run: string | null,
+): ApiQueryOptions<typeof OPPORTUNITIES> =>
+  apiQuery(OPPORTUNITIES, { params: { path: pathOf(scope), query: opportunitiesParams(query, run) } });
+
+/** Pages the latest crawl suggests a tier for. It takes no `run`: suggestions are of the latest crawl. */
+export const tierSuggestionsQuery = (scope: LinksScope): ApiQueryOptions<typeof SUGGESTIONS> =>
+  apiQuery(SUGGESTIONS, { params: { path: pathOf(scope) } });
+
+/** The shortest routes from the home page to a page. Throws `UrlIdError` for an id that is no url id. */
+export const routesQuery = (scope: LinksScope, urlId: string, run: string | null): ApiQueryOptions<typeof ROUTES> =>
+  apiQuery(ROUTES, { params: { path: pathOf(scope), query: withRun({ url_id: checkUrlId(urlId) }, run) } });
 
 /** The latest crawls, newest first: `limit` of them (`CRAWL_LIMIT` for a list, `CRAWL_SCREEN_LIMIT` for the screen). */
 export const crawlsQuery = (scope: LinksScope, limit: number = CRAWL_LIMIT): ApiQueryOptions<typeof CRAWLS> =>

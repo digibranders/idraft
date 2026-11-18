@@ -721,6 +721,14 @@ export const internalLinkHandlers: HttpHandler[] = [
         outlinks: outlinks.slice(0, 25),
         linking_pages_total: linking.length,
         outlinks_total: outlinks.length,
+        // Nothing enriched yet: the backend's answer for a crawl whose enrichment has not run (plan 05 Task 9 fills it)
+        extras: {
+          anchors: { distinct: null, generic: 0, generic_share: 0, matches_keyword: null, top: null, total: 0 },
+          change: null,
+          citations: { ai_mode: 0, chatgpt: 0, gemini: 0, total: 0 },
+          gsc: { state: 'pending', clicks: null, impressions: null, window_start: null, window_end: null },
+          keywords: [],
+        },
       },
     });
   }),

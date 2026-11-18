@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  changeLinksExportQuery,
+  changeLinksParams,
+  changeLinksPath,
+  changeLinksQuery,
+  changesSummaryQuery,
+  isChangeLinkPage,
+  isOpportunityPage,
+  moreIncludes,
+  movedPagesQuery,
+  opportunitiesExportQuery,
+  opportunitiesParams,
+  opportunitiesPath,
+  opportunitiesQuery,
+  plannedExportQuery,
+  routesQuery,
+  tierSuggestionsQuery,
+  withRun,
+  worklistsQuery,
   crawlKeys,
   crawlsQuery,
   CRAWL_LIMIT,
@@ -8,6 +26,7 @@ import {
   DEFAULT_EDGE_QUERY,
   DEFAULT_PAGE_QUERY,
   edgeParams,
+  edgesQuery,
   internalLinksKeys,
   isEdgeRowPage,
   isPageRowPage,
@@ -216,5 +235,187 @@ describe('isPageRowPage (the pages answer is typed unknown: its 200 declares a C
 
   it('takes a next cursor that is text', () => {
     expect(isPageRowPage({ ...answer, page: { ...answer.page, next_cursor: 'abc', has_more: true } })).toBe(true);
+  });
+});
+
+const startsWith = (key: readonly unknown[], prefix: readonly unknown[] | undefined): boolean =>
+  prefix !== undefined && prefix.every((part, index) => key[index] === part);
+
+describe('the run parameter (a chosen crawl, none for the latest)', () => {
+  it('adds run only when a crawl is chosen', () => {
+    expect(withRun({ scope: 'editorial' }, null)).toEqual({ scope: 'editorial' });
+    expect(withRun({ scope: 'editorial' }, 'abc')).toEqual({ scope: 'editorial', run: 'abc' });
+  });
+
+  it('is part of the key of every read that takes it, and absent from the key of the latest', () => {
+    const latest = pagesQuery(SCOPE, DEFAULT_PAGE_QUERY).queryKey;
+    const older = pagesQuery(SCOPE, DEFAULT_PAGE_QUERY, 'r1').queryKey;
+    expect(older).not.toEqual(latest);
+    expect(JSON.stringify(older)).toContain('"run":"r1"');
+    expect(JSON.stringify(latest)).not.toContain('run');
+    expect(pageDetailQuery(SCOPE, '7', 'editorial', 'r1').queryKey).toContainEqual(
+      expect.objectContaining({ run: 'r1' }),
+    );
+    expect(edgesQuery(SCOPE, DEFAULT_EDGE_QUERY, 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
+    expect(
+      neighborsQuery(SCOPE, { urlId: '7', direction: 'in', linkScope: 'all', offset: 0 }, 'r1').queryKey,
+    ).toContainEqual(expect.objectContaining({ run: 'r1' }));
+    expect(tierFlowQuery(SCOPE, 'all', 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
+    expect(worklistsQuery(SCOPE, 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
+    expect(worklistsQuery(SCOPE).queryKey).not.toEqual(worklistsQuery(SCOPE, 'r1').queryKey);
+  });
+});
+
+describe('the pages list extras (include)', () => {
+  it('asks for the parts the visible columns need, in the API order', () => {
+    expect(moreIncludes(['change', 'rank', 'citations', 'anchors', 'matches', 'clicks'])).toEqual([
+      'changes',
+      'keywords',
+      'citations',
+      'anchors',
+      'gsc',
+    ]);
+    expect(moreIncludes(['equityChange', 'keywords', 'impressions'])).toEqual(['changes', 'keywords', 'gsc']);
+    expect(moreIncludes(['page', 'tier'])).toEqual([]);
+  });
+
+  it('sends include only when a part is asked for', () => {
+    expect(pageParams({ ...DEFAULT_PAGE_QUERY, include: ['changes', 'anchors'] }).include).toEqual([
+      'changes',
+      'anchors',
+    ]);
+    expect(pageParams(DEFAULT_PAGE_QUERY)).not.toHaveProperty('include');
+  });
+
+  it('keeps include out of the bulk filter', () => {
+    expect(pageFilterOf({ ...DEFAULT_PAGE_QUERY, include: ['changes'] })).toEqual({});
+  });
+});
+
+describe('changes reads', () => {
+  const base = { change: 'lost' as const, linkScope: 'all' as const, only: 'top' as const, offset: 0, limit: 50 };
+
+  it('builds the lost links parameters', () => {
+    expect(changeLinksParams(base, 'r1')).toEqual({
+      change: 'lost',
+      link_scope: 'all',
+      only: 'top',
+      offset: 0,
+      limit: 50,
+      run: 'r1',
+    });
+    expect(changeLinksParams({ ...base, change: 'added', only: 'all', offset: 50 }, null)).toEqual({
+      change: 'added',
+      link_scope: 'all',
+      only: 'all',
+      offset: 50,
+      limit: 50,
+    });
+  });
+
+  it('exports every row of the same selection as CSV, without a window', () => {
+    expect(changeLinksExportQuery(base, 'r1')).toEqual({
+      change: 'lost',
+      link_scope: 'all',
+      only: 'top',
+      run: 'r1',
+      format: 'csv',
+    });
+    expect(changeLinksExportQuery(base, null)).not.toHaveProperty('run');
+  });
+
+  it('names the CSV download with its ids filled in', () => {
+    expect(changeLinksPath(SCOPE)).toBe('/api/v1/workspaces/w1/projects/p1/internal-links/changes/links');
+  });
+
+  it('keys the reads under the links of the project, so a tier change and a finished crawl reach them', () => {
+    const keys = [
+      changesSummaryQuery(SCOPE, null).queryKey,
+      changeLinksQuery(SCOPE, base, null).queryKey,
+      movedPagesQuery(SCOPE, null, 8).queryKey,
+    ];
+    for (const key of keys) {
+      expect(startsWith(key, internalLinksKeys(SCOPE)[0])).toBe(true);
+      expect(crawlFinishedKeys(SCOPE).some((prefix) => startsWith(key, prefix))).toBe(true);
+    }
+    expect(changesSummaryQuery(SCOPE, 'r1').queryKey).not.toEqual(changesSummaryQuery(SCOPE, null).queryKey);
+    expect(changeLinksQuery(SCOPE, { ...base, change: 'added' }, null).queryKey).not.toEqual(keys[1]);
+    expect(movedPagesQuery(SCOPE, null, 20).queryKey).not.toEqual(keys[2]);
+  });
+
+  it('checks the lost links answer, typed unknown because its 200 declares a CSV body too', () => {
+    const answer = { data: [], meta: { run_id: 'r', total: 0, change: 'lost', truncated: false } };
+    expect(isChangeLinkPage(answer)).toBe(true);
+    expect(isChangeLinkPage('a,b\n')).toBe(false);
+    expect(isChangeLinkPage(null)).toBe(false);
+    expect(isChangeLinkPage({ meta: answer.meta })).toBe(false);
+    expect(isChangeLinkPage({ ...answer, data: 'x' })).toBe(false);
+    expect(isChangeLinkPage({ ...answer, meta: { total: 0 } })).toBe(false);
+    expect(isChangeLinkPage({ ...answer, meta: { ...answer.meta, total: 'many' } })).toBe(false);
+  });
+});
+
+describe('opportunities reads', () => {
+  it('builds the parameters and leaves unset filters out', () => {
+    expect(opportunitiesParams({ status: null, tier: null, q: null, offset: 0, limit: 50 }, null)).toEqual({
+      offset: 0,
+      limit: 50,
+    });
+    expect(opportunitiesParams({ status: 'open', tier: '1', q: 'soc', offset: 50, limit: 50 }, 'r1')).toEqual({
+      status: 'open',
+      'filter[target_tier]': '1',
+      q: 'soc',
+      offset: 50,
+      limit: 50,
+      run: 'r1',
+    });
+  });
+
+  it('exports the filtered rows, and the planned fixes with only the crawl', () => {
+    expect(opportunitiesExportQuery({ status: 'open', tier: 'none', q: null, offset: 50, limit: 50 }, null)).toEqual({
+      status: 'open',
+      'filter[target_tier]': 'none',
+      format: 'csv',
+    });
+    expect(plannedExportQuery(null)).toEqual({ export: 'planned' });
+    expect(plannedExportQuery('r1')).toEqual({ export: 'planned', run: 'r1' });
+  });
+
+  it('names the CSV download with its ids filled in', () => {
+    expect(opportunitiesPath(SCOPE)).toBe('/api/v1/workspaces/w1/projects/p1/internal-links/opportunities');
+  });
+
+  it('keys the reads under the links of the project, one key per filter', () => {
+    const query = { status: null, tier: null, q: null, offset: 0, limit: 50 };
+    const key = opportunitiesQuery(SCOPE, query, null).queryKey;
+    expect(startsWith(key, internalLinksKeys(SCOPE)[0])).toBe(true);
+    expect(opportunitiesQuery(SCOPE, { ...query, status: 'open' }, null).queryKey).not.toEqual(key);
+    expect(opportunitiesQuery(SCOPE, query, 'r1').queryKey).not.toEqual(key);
+  });
+
+  it('checks the answer, typed unknown because its 200 declares a CSV body too', () => {
+    const answer = {
+      data: [],
+      meta: { run_id: 'r', total: 0, counts: { open: 0, accepted: 0, dismissed: 0 } },
+    };
+    expect(isOpportunityPage(answer)).toBe(true);
+    expect(isOpportunityPage('a,b\n')).toBe(false);
+    expect(isOpportunityPage({ ...answer, data: null })).toBe(false);
+    expect(isOpportunityPage({ ...answer, meta: { run_id: 'r', total: 0 } })).toBe(false);
+    expect(isOpportunityPage({ ...answer, meta: { ...answer.meta, run_id: 1 } })).toBe(false);
+  });
+});
+
+describe('tier suggestions and paths', () => {
+  it('keys the suggestions under the links of the project, so a tier change refreshes them', () => {
+    expect(startsWith(tierSuggestionsQuery(SCOPE).queryKey, internalLinksKeys(SCOPE)[0])).toBe(true);
+  });
+
+  it('reads the routes to a page, checking the id first', () => {
+    expect(routesQuery(SCOPE, '9007199254740993', null).queryKey).toContainEqual(
+      expect.objectContaining({ url_id: '9007199254740993' }),
+    );
+    expect(routesQuery(SCOPE, '7', 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
+    expect(() => routesQuery(SCOPE, '0', null)).toThrow(UrlIdError);
   });
 });

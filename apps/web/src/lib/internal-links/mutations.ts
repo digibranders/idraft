@@ -17,6 +17,11 @@ export const startCrawlMutation = apiMutation('post', `${P}/link-crawls`);
 export const cancelCrawlMutation = apiMutation('post', `${P}/link-crawls/{run_id}/cancel`);
 /** Send `body: { internal_links: {...} }`: the settings route takes `seo` and `internal_links`, at least one. */
 export const updateSettingsMutation = apiMutation('patch', `${P}/settings`);
+/** Send `body: { status, items: [{ source_url_id, target_url_id }] }`; `open` reopens a decided row. */
+export const decideOpportunitiesMutation = apiMutation('put', `${P}/internal-links/opportunities/decisions`);
+/** Send `body: { url_ids }` or `body: { all: true }`: pages of the latest crawl move to their suggested tier. */
+export const acceptSuggestionsMutation = apiMutation('post', `${P}/internal-links/tier-suggestions/accept`);
+export const dismissSuggestionsMutation = apiMutation('post', `${P}/internal-links/tier-suggestions/dismiss`);
 export const createRuleMutation = apiMutation('post', `${P}/tier-rules`);
 export const updateRuleMutation = apiMutation('patch', `${P}/tier-rules/{rule_id}`);
 export const deleteRuleMutation = apiMutation('delete', `${P}/tier-rules/{rule_id}`);

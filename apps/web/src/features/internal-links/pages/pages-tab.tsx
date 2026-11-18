@@ -50,8 +50,10 @@ function readPage(data: unknown): PageRowPage {
   if (isPageRowPage(data)) return data;
   throw new Error('The pages answer is not a page of rows');
 }
+// The two worklists of slice 2 (`lost_links_top`, `weak_outlinks`) have no chip or empty copy yet: the address
+// allow-list (`url-state.ts`) does not let them in until the Pages additions (plan 05 Task 15) give them both
 const EMPTY_KEY: Readonly<
-  Record<PageWorklist, 'underLinkedT1' | 'orphans' | 'editorialOrphans' | 'deepOnlyThroughAuto'>
+  Partial<Record<PageWorklist, 'underLinkedT1' | 'orphans' | 'editorialOrphans' | 'deepOnlyThroughAuto'>>
 > = {
   under_linked_t1: 'underLinkedT1',
   orphans: 'orphans',
@@ -173,7 +175,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               ? 'filtered-empty'
               : 'empty'
             : 'ready';
-  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
+  const worklistEmpty = state.worklist === null ? null : (EMPTY_KEY[state.worklist] ?? null);
   // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
   // here) and lists as many rows as the chip counts
   const openEdgeWorklist = (worklist: EdgeWorklist): void =>

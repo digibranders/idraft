@@ -75,6 +75,9 @@ const run = (over: Partial<CrawlRun>): CrawlRun => ({
   submitted_at: '2026-11-14T03:00:05Z',
   finished_at: '2026-11-14T03:12:00Z',
   requested_by: null,
+  links_available: true,
+  previous_run_id: null,
+  enrich_state: 'done',
   ...over,
 });
 

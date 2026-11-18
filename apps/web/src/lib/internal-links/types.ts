@@ -29,6 +29,42 @@ export type InternalLinksSettings = Schemas['InternalLinksSettings'];
 export type InternalLinksSettingsPatch = Schemas['InternalLinksSettingsPatch'];
 export type CrawlSchedule = InternalLinksSettings['schedule'];
 
+export type ChangesSummary = Schemas['ChangesSummary'];
+export type ChangeAlert = Schemas['ChangeAlert'];
+/** `pending` until the crawl's changes are worked out, `unavailable` when enrichment failed first. */
+export type ChangesState = ChangesSummary['state'];
+export type ChangeLink = Schemas['ChangeLink'];
+export type ChangePage = Schemas['ChangePage'];
+export type ChangeLinkPage = Schemas['ChangeLinkPage'];
+export type MovedPage = Schemas['MovedPage'];
+export type MovedPageList = Schemas['MovedPageList'];
+export type PageChange = Schemas['PageChange'];
+export type PageExtras = Schemas['PageExtras'];
+export type PageDetailExtras = Schemas['PageDetailExtras'];
+/** `pending` means the clicks are not in yet (null), `not_connected` that Search Console is not linked. */
+export type GscState = Schemas['GscPage']['state'];
+export type Opportunity = Schemas['Opportunity'];
+export type OpportunityPage = Schemas['OpportunityPage'];
+export type OpportunityPair = Schemas['OpportunityPair'];
+export type OpportunityStatus = Opportunity['status'];
+export type TierSuggestionRow = Schemas['TierSuggestionRow'];
+export type TierSuggestionList = Schemas['TierSuggestionList'];
+export type SuggestionSelection = Schemas['SuggestionSelection'];
+/** `ok`: clicks were used with the ranks; otherwise only ranks were. */
+export type SuggestionGscState = Schemas['TierSuggestionMeta']['gsc_state'];
+/** `any` and `editorial` are null when the page is not reached in 12 clicks. */
+export type Routes = Schemas['Routes'];
+export type Route = Schemas['Route'];
+export type RouteStep = Schemas['RouteStep'];
+/** All members are required in the read; the patch (`InternalLinksSettingsPatch.alerts`) has them optional. */
+export type AlertSettings = Schemas['AlertSettings'];
+export type AlertSettingsPatch = Schemas['AlertSettingsPatch'];
+export type ChangeKind = 'lost' | 'added';
+export type ChangeScope = 'editorial' | 'all';
+export type ChangeOnly = 'top' | 'all';
+/** The parts of a page row the Pages tab can ask for (`include`). */
+export type PageInclude = 'changes' | 'keywords' | 'citations' | 'anchors' | 'gsc';
+
 /** The workspace and project every read is under. */
 export interface LinksScope {
   workspaceId: string;
@@ -37,8 +73,14 @@ export interface LinksScope {
 
 export type StatusClass = '2xx' | '3xx' | '4xx' | '5xx';
 export type PageFlagFilter =
-  'orphan' | 'editorial_orphan' | 'deep_only_through_auto' | 'placement_unknown' | 'has_broken_outlinks';
-export type PageWorklist = 'under_linked_t1' | 'orphans' | 'editorial_orphans' | 'deep_only_through_auto';
+  | 'orphan'
+  | 'editorial_orphan'
+  | 'deep_only_through_auto'
+  | 'placement_unknown'
+  | 'has_broken_outlinks'
+  | 'generic_anchors';
+export type PageWorklist =
+  'under_linked_t1' | 'orphans' | 'editorial_orphans' | 'deep_only_through_auto' | 'lost_links_top' | 'weak_outlinks';
 export type EdgeWorklist = 'broken_and_redirected' | 'links_to_non_indexable';
 /** The sorts the Pages tab offers; `equity_share` is never sent (decision W4). */
 export type PageSort =
@@ -51,4 +93,6 @@ export type PageSort =
   | 'linking_pages'
   | '-linking_pages'
   | 'outlinks'
-  | '-outlinks';
+  | '-outlinks'
+  | 'change'
+  | '-change';

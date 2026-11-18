@@ -105,6 +105,7 @@ export function pageQueryOf(state: LinksState, values: FilterValues, cursor: str
     worklist: state.worklist,
     q: state.q,
     sort: state.sort,
+    include: [],
     cursor,
     limit,
   };
@@ -126,7 +127,7 @@ export function capTags(values: FilterValues): FilterValues | null {
  */
 export function pageExportQuery(query: PageQuery): DownloadQuery {
   const wanted: Record<string, DownloadQuery[string]> = {};
-  for (const [key, value] of Object.entries(pageParams({ ...query, cursor: null }))) {
+  for (const [key, value] of Object.entries(pageParams({ ...query, include: [], cursor: null }))) {
     if (key !== 'limit' && value !== undefined && value !== null) wanted[key] = value;
   }
   return { ...wanted, format: 'csv' };

@@ -2,6 +2,7 @@ import { MOCK_PROJECTS, mockUser } from './fixtures';
 import { onMockReset } from './state';
 import { inScope, scopeOf, type EdgeScope, type LinkScope, type Placement } from '@/lib/internal-links/scopes';
 import type {
+  AlertSettings,
   CrawlRun,
   CrawlTrigger,
   EdgeRow,
@@ -242,6 +243,9 @@ function finishedRun(): CrawlRun {
     submitted_at: '2026-11-14T03:00:05Z',
     finished_at: FINISHED,
     requested_by: null,
+    links_available: true,
+    previous_run_id: null,
+    enrich_state: 'done',
   };
 }
 
@@ -593,6 +597,9 @@ export function worklists(): Worklists {
       const target = byId.get(link[1]);
       return target !== undefined && target.status === 200 && target.indexable === false;
     }).length,
+    // The changes and the weak links belong to the history task of the mock (plan 05 Task 9)
+    lost_links_top: 0,
+    weak_outlinks: 0,
   };
 }
 
@@ -739,6 +746,9 @@ export function cancelCrawl(projectId: string, runId: string, now = Date.now()):
 
 export const hasFinishedCrawl = (projectId: string): boolean => crawlsOf(projectId).some((run) => run.is_latest);
 
+/** The backend defaults of `internal_links.alerts` (`crawl/changes.py` `alert_settings`). */
+const DEFAULT_ALERTS: AlertSettings = { enabled: true, max_position: 2, threshold: 1, channel: 'app' };
+
 const DEFAULT_SETTINGS: InternalLinksSettings = {
   schedule: 'weekly',
   render_javascript: false,
@@ -750,7 +760,14 @@ export const settingsOf = (projectId: string): InternalLinksSettings =>
 
 /** The settings after a patch of any of the three; the others keep their value. */
 export function changeSettings(projectId: string, patch: InternalLinksSettingsPatch): InternalLinksSettings {
-  const next = { ...settingsOf(projectId), ...patch };
+  const { alerts, ...rest } = patch;
+  const current = settingsOf(projectId);
+  // The alert rules merge member by member over the backend defaults; the other three replace
+  const next: InternalLinksSettings = {
+    ...current,
+    ...rest,
+    ...(alerts === undefined ? {} : { alerts: { ...DEFAULT_ALERTS, ...current.alerts, ...alerts } }),
+  };
   world.settings.set(projectId, next);
   return next;
 }
