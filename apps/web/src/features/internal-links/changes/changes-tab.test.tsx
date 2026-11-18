@@ -436,9 +436,15 @@ describe('the Changes tab (spec 7.10)', () => {
     await waitFor(async () => expect(await toggle()).toBeChecked());
     await user.click(await toggle());
     await waitFor(async () => expect(await toggle()).not.toBeChecked());
+    // The modal menu keeps the page inert while it is open and while it closes: the next click waits for it to be gone
+    const menuGone = (): Promise<void> => waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     const pick = async (index: number): Promise<void> => {
+      await menuGone();
       await user.click(await screen.findByRole('button', { name: /^Crawled .+, \d+ pages?$/ }));
       await user.click((await screen.findAllByRole('menuitemradio'))[index] ?? document.body);
+      // A radio item leaves the menu open: close it, so the page is not inert for the next click
+      await user.keyboard('{Escape}');
+      await menuGone();
     };
     await pick(1);
     await screen.findByText('Older crawl');
@@ -538,6 +544,20 @@ describe('the Changes tab (spec 7.10)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Alert rules' })).toBeNull());
     expect(screen.getByRole('button', { name: 'Change alert rules' })).toHaveFocus();
+  });
+
+  it('moves focus to the page heading when saving the rules turns the alert, and its button, away', async () => {
+    const { user } = open();
+    await screen.findByText(/editorial links? to T1 and T2 pages (was|were) lost since/);
+    await user.click(screen.getByRole('button', { name: 'Change alert rules' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Alert rules' });
+    await user.click(
+      await within(dialog).findByRole('switch', { name: 'Alert me when links to important pages are lost' }),
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Alert rules' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Change alert rules' })).toBeNull());
+    await waitFor(() => expect(document.activeElement?.id).toBe('internal-links-heading'));
   });
 
   it('reads the summary again after the rules are saved', async () => {

@@ -435,7 +435,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           onOpenChange={(next) => setDialog(next ? 'alerts' : null)}
           scope={scope}
           tierCount={tiers.data?.data.length ?? null}
-          canEdit={canWrite}
+          fallbackFocus={() => document.getElementById(HEADING_ID)}
         />
       ) : null}
       {canWrite ? (

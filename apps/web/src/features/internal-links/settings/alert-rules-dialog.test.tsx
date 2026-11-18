@@ -23,12 +23,12 @@ afterEach(() => {
   document.documentElement.classList.remove('dark');
 });
 
-function Host({ canEdit = true }: { canEdit?: boolean }): ReactElement {
+function Host(): ReactElement {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button onClick={() => setOpen(true)}>Change alert rules</Button>
-      <AlertRulesDialog open={open} onOpenChange={setOpen} scope={SCOPE} tierCount={3} canEdit={canEdit} />
+      <AlertRulesDialog open={open} onOpenChange={setOpen} scope={SCOPE} tierCount={3} />
     </>
   );
 }
@@ -94,7 +94,7 @@ describe('AlertRulesDialog', () => {
     await user.clear(field);
     await user.type(field, '51');
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Enter a number from 1 to 50.')).toBeInTheDocument();
+    expect(await screen.findByText('Enter a whole number from 1 to 50.')).toBeInTheDocument();
     expect(seen).toHaveLength(0);
     expect(screen.getByRole('dialog', { name: 'Alert rules' })).toBeInTheDocument();
   });
@@ -150,15 +150,52 @@ describe('AlertRulesDialog', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
-  it('shows text and Close, with no Save, to a member who cannot change the project', async () => {
-    signIn('viewer');
-    const { user } = renderWithProviders(<Host canEdit={false} />);
-    await user.click(screen.getByRole('button', { name: 'Change alert rules' }));
-    await screen.findByRole('dialog', { name: 'Alert rules' });
-    expect(await screen.findByText('T1 and T2')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
-    expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Close' }).length).toBeGreaterThan(0);
+  it('submits with Enter in the threshold field', async () => {
+    signIn('editor');
+    const seen = patches();
+    const { user } = renderWithProviders(<Host />);
+    await openDialog(user);
+    const field = screen.getByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.type(field, '6{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Alert rules' })).toBeNull());
+    expect(seen).toEqual([{ internal_links: { alerts: { threshold: 6 } } }]);
+  });
+
+  it('treats an equivalent threshold as no change: Save stays off, nothing is sent', async () => {
+    signIn('editor');
+    const seen = patches();
+    const { user } = renderWithProviders(<Host />);
+    await openDialog(user);
+    const field = screen.getByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.type(field, '01');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.type(field, '{Enter}');
+    expect(seen).toHaveLength(0);
+  });
+
+  it('puts focus on the first field once the rules have loaded', async () => {
+    signIn('editor');
+    const { user } = renderWithProviders(<Host />);
+    await openDialog(user);
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Alert me when links to important pages are lost' })).toHaveFocus(),
+    );
+  });
+
+  it('focuses the threshold and adds a summary when Save is refused for it', async () => {
+    signIn('editor');
+    const { user } = renderWithProviders(<Host />);
+    await openDialog(user);
+    const field = screen.getByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.clear(field);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(
+      await screen.findByText('The alert rules were not saved. Fix the number of lost links first.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Enter a whole number from 1 to 50.')).toBeInTheDocument();
+    expect(field).toHaveFocus();
   });
 
   it.each(['light', 'dark'])('has no axe violations in %s', async (theme) => {

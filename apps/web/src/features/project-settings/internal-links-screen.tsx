@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId, useState, type ReactElement } from 'react';
+import { useId, useRef, useState, type ReactElement } from 'react';
 
 import { reasonOf } from '@/lib/internal-links/problem-reason';
 import {
@@ -13,7 +13,7 @@ import {
   checkThreshold,
   draftOf,
   type AlertDraft,
-} from '@/components/app/alert-rules/alert-settings';
+} from '@/components/app/link-alert-rules/alert-settings';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Banner } from '@/components/app/status/banner';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
@@ -124,6 +124,7 @@ export function InternalLinksSettingsScreen({
   const [edits, setEdits] = useState<Edits>({});
   const [subdomainError, setSubdomainError] = useState<string | null>(null);
   const [thresholdError, setThresholdError] = useState<'range' | null>(null);
+  const thresholdRef = useRef<HTMLInputElement>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const savedHosts = saved?.allowed_subdomains ?? [];
@@ -148,7 +149,12 @@ export function InternalLinksSettingsScreen({
       ? { allowed_subdomains: hostsOf(edits.subdomains) }
       : {}),
   };
-  const changes = Object.keys(patch).length + (patch.alerts === undefined && thresholdInvalid ? 1 : 0);
+  // Each changed alert member counts, as each of the other settings does, and so does a threshold left invalid
+  const changes =
+    Object.keys(patch).length -
+    (patch.alerts === undefined ? 0 : 1) +
+    Object.keys(alertChanges).length +
+    (thresholdInvalid ? 1 : 0);
   const guard = useLeaveGuard(changes > 0);
   const discard = (): void => {
     setEdits({});
@@ -169,6 +175,7 @@ export function InternalLinksSettingsScreen({
     }
     if (thresholdInvalid) {
       setThresholdError('range');
+      thresholdRef.current?.focus();
       return;
     }
     if (Object.keys(patch).length === 0) return;
@@ -323,6 +330,7 @@ export function InternalLinksSettingsScreen({
               canEdit={canWrite}
               busy={update.isPending}
               thresholdError={thresholdError}
+              thresholdRef={thresholdRef}
               onChange={(next) => {
                 if (next.threshold !== undefined) setThresholdError(null);
                 edit({ alerts: { ...edits.alerts, ...next } });

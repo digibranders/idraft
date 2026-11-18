@@ -159,8 +159,20 @@ describe('Project settings > Internal links', () => {
     await user.clear(field);
     await user.type(field, '0');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByText('Enter a number from 1 to 50.')).toBeInTheDocument();
+    expect(await screen.findByText('Enter a whole number from 1 to 50.')).toBeInTheDocument();
+    expect(field).toHaveFocus();
     expect(seen).toHaveLength(0);
+  });
+
+  it('counts each changed alert member, and a threshold that is not valid yet as one more', async () => {
+    const { user } = renderWithProviders(screenAs('editor'));
+    const field = await screen.findByRole('textbox', { name: 'Lost links that raise an alert' });
+    await user.click(screen.getByRole('switch', { name: 'Alert me when links to important pages are lost' }));
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
+    await user.clear(field);
+    expect(screen.getByText('2 unsaved changes')).toBeInTheDocument();
+    await user.type(field, '1');
+    expect(screen.getByText('1 unsaved change')).toBeInTheDocument();
   });
 
   it('shows the reason the server gives for the alert rules', async () => {

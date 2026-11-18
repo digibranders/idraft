@@ -361,6 +361,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | AIOverviewStatus | SEO | `app/seo/ai-overview-status.tsx` | V1 | 12 §6, 23 §7.1 |
 | SERPPreview | SEO | `app/seo/serp-preview.tsx` | V1 | 19 §12.3 |
 | TierBadge | SEO | `app/tier/tier-badge.tsx` | V1 | 02 §7.4 |
+| AlertFields (link alert rules) | SEO | `app/link-alert-rules/alert-settings.tsx` | V1 | link tracker spec 7.10 |
 | LinkCard | SEO | `app/link-canvas/link-card.tsx` | V1 | 20 §7.1 |
 | LinkCanvas | SEO | `app/link-canvas/link-canvas.tsx` | V1 | 15 §13, 20 §7.1 |
 | EngineBadge (observation class badge) | AI | `app/ai/engine-badge.tsx` | V1 | 14 §4 |
@@ -4134,6 +4135,31 @@ interface LinkCanvasProps<N extends JourneyNeighbor> {
 - **A11y:** the viewport is a named, focusable `group` whose name points to the tree list; keyboard model in 20 §7.1; the SVG is `aria-hidden` and nothing it shows is only there.
 - **Use:** the Journey tab of Internal links.
 - **Not for:** a whole-site graph (spec 3: "when asked"), any other diagram.
+
+### 14.18 AlertFields (link alert rules)
+`components/app/link-alert-rules/alert-settings.tsx` · V1 · internal link tracker spec 7.10 "Alert rules"
+
+Purpose: the body of the alert rules form of the internal link tracker: the switch, the important tiers, the number of lost links that raises an alert, and the channel. The host owns the draft and the save, so one form serves the project's Internal links settings (inside its save bar) and the dialog the Changes tab opens.
+
+```ts
+interface AlertFieldsProps {
+  draft: AlertDraft;                       // threshold stays text until it is checked
+  saved: AlertSettings;
+  tierCount: number | null;                // the select offers T1 up to min(8, tierCount) and the saved value
+  canEdit: boolean;                        // false reads the values as text
+  busy: boolean;
+  thresholdError: 'range' | null;
+  thresholdRef?: RefObject<HTMLInputElement | null>;  // the host focuses it when a save is refused for it
+  onChange: (next: Partial<AlertDraft>) => void;
+}
+```
+
+- **Pure helpers** (same file, tested): `checkThreshold` (whole number from 1 to 50), `alertPatch` (only the changed members), `alertDirty` (a patch, or a threshold not valid yet), `tierChoices`, `draftOf`.
+- **Variants:** none.
+- **States:** editable, read only (`ReadOnlyList`), busy (controls disabled), threshold error. Email and Slack are listed in the channel select disabled with their reason until the alerts service ships.
+- **A11y:** every control has a visible label; the error is a `FieldError`; nothing creates a live region.
+- **Use:** project settings > Internal links (Alerts section), the Alert rules dialog of the Changes tab.
+- **Not for:** the account-level notification settings.
 
 ## 15. AI components
 

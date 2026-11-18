@@ -2,7 +2,15 @@ import { screen, within } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { alertPatch, AlertFields, checkThreshold, draftOf, tierChoices, type AlertDraft } from './alert-settings';
+import {
+  alertDirty,
+  alertPatch,
+  AlertFields,
+  checkThreshold,
+  draftOf,
+  tierChoices,
+  type AlertDraft,
+} from './alert-settings';
 import type { AlertSettings } from '@/lib/internal-links/types';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
@@ -14,11 +22,25 @@ afterEach(() => {
 });
 
 describe('checkThreshold', () => {
-  it.each(['1', '50', ' 7 ', '12'])('accepts %j', (text) => {
+  it.each(['1', '50', ' 7 ', '12', '05', '0050'])('accepts %j', (text) => {
     expect(checkThreshold(text)).toBeNull();
   });
-  it.each(['0', '51', '', ' ', '2.5', '1e1', 'abc', '-3', '050x'])('refuses %j', (text) => {
+  it.each(['0', '51', '', ' ', '2.5', '1e1', 'abc', '-3', '050x', '99999999999999999999999'])('refuses %j', (text) => {
     expect(checkThreshold(text)).toBe('range');
+  });
+});
+
+describe('alertDirty', () => {
+  it('is false for an untouched draft and for an equivalent threshold text', () => {
+    expect(alertDirty(SAVED, draftOf(SAVED))).toBe(false);
+    expect(alertDirty(SAVED, { ...draftOf(SAVED), threshold: '01' })).toBe(false);
+    expect(alertDirty(SAVED, { ...draftOf(SAVED), threshold: ' 1 ' })).toBe(false);
+  });
+  it('is true for a changed member and for a threshold that is not valid yet', () => {
+    expect(alertDirty(SAVED, { ...draftOf(SAVED), enabled: false })).toBe(true);
+    expect(alertDirty(SAVED, { ...draftOf(SAVED), threshold: '2' })).toBe(true);
+    expect(alertDirty(SAVED, { ...draftOf(SAVED), threshold: '' })).toBe(true);
+    expect(alertDirty(SAVED, { ...draftOf(SAVED), threshold: '99' })).toBe(true);
   });
 });
 
@@ -108,7 +130,7 @@ describe('AlertFields', () => {
 
   it('shows the threshold message the host passes', () => {
     renderWithProviders(<Host error="range" />);
-    expect(screen.getByText('Enter a number from 1 to 50.')).toBeInTheDocument();
+    expect(screen.getByText('Enter a whole number from 1 to 50.')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Lost links that raise an alert' })).toBeInvalid();
   });
 

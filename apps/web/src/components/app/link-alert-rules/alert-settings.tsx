@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import type { ReactElement, RefObject } from 'react';
 
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -57,6 +57,10 @@ export function alertPatch(saved: AlertSettings, draft: AlertDraft): AlertSettin
   };
 }
 
+/** Whether there is anything to save or fix: a changed member, or a threshold typed that is not valid yet. */
+export const alertDirty = (saved: AlertSettings, draft: AlertDraft): boolean =>
+  Object.keys(alertPatch(saved, draft)).length > 0 || checkThreshold(draft.threshold) !== null;
+
 /** The tier positions the select offers: 1 up to the workspace's tiers (8 at most), and always the saved one. */
 export function tierChoices(tierCount: number | null, saved: number): number[] {
   const last = Math.min(MAX_TIERS, Math.max(tierCount ?? 0, saved, 1));
@@ -71,6 +75,8 @@ export interface AlertFieldsProps {
   canEdit: boolean;
   busy: boolean;
   thresholdError: 'range' | null;
+  /** The host focuses the threshold with it when a save is refused for it. */
+  thresholdRef?: RefObject<HTMLInputElement | null> | undefined;
   onChange: (next: Partial<AlertDraft>) => void;
 }
 
@@ -86,6 +92,7 @@ export function AlertFields({
   canEdit,
   busy,
   thresholdError,
+  thresholdRef,
   onChange,
 }: AlertFieldsProps): ReactElement {
   const t = useTranslations('internalLinks.alerts');
@@ -144,6 +151,7 @@ export function AlertFields({
       <Field width="short" invalid={thresholdError !== null}>
         <FieldLabel>{t('threshold')}</FieldLabel>
         <Input
+          ref={thresholdRef}
           value={draft.threshold}
           disabled={busy}
           inputMode="numeric"
