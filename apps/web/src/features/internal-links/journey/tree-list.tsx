@@ -33,6 +33,7 @@ const statusTone = (status: number): 'negative' | 'warning' => (status >= 400 ? 
  */
 export function TreeList({
   scope,
+  run,
   focus,
   linkScope,
   dir,
@@ -44,6 +45,8 @@ export function TreeList({
   linksHref,
 }: {
   scope: LinksScope;
+  /** The crawl the lists are read from: `null` for the latest. */
+  run: string | null;
   focus: PageRow;
   linkScope: LinkScope;
   dir: Direction;
@@ -59,7 +62,7 @@ export function TreeList({
   const t = useTranslations('internalLinks.journey');
   const words = useTranslations('internalLinks');
   const bothWays = useTranslations('linkCanvas')('bothWaysIcon');
-  const { lookup, useLoad, retry } = useNeighborLookup(scope);
+  const { lookup, useLoad, retry } = useNeighborLookup(scope, run);
   const tree = buildTree<Neighbor>({ focus: focus.url_id, dir, scope: linkScope, open }, lookup);
   useLoad(tree.requests);
   const placementLabel = (placement: Placement): string => words(`placement.${PLACEMENT_KEY[placement]}`);

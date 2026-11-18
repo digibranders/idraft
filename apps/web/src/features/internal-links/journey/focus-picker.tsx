@@ -29,10 +29,13 @@ const LOADING_DELAY_MS = 300;
  */
 export function FocusPicker({
   scope,
+  run,
   path,
   onPick,
 }: {
   scope: LinksScope;
+  /** The crawl the pages are searched in: `null` for the latest. */
+  run: string | null;
   path: string;
   onPick: (urlId: string) => void;
 }): ReactElement {
@@ -46,12 +49,16 @@ export function FocusPicker({
   }, [typed]);
   const wanted = searchText(settled);
   const read = useQuery({
-    ...pagesQuery(scope, {
-      ...DEFAULT_PAGE_QUERY,
-      sort: 'path',
-      q: wanted !== null && wanted.length >= MIN_CHARACTERS ? wanted : null,
-      limit: PICK_LIMIT,
-    }),
+    ...pagesQuery(
+      scope,
+      {
+        ...DEFAULT_PAGE_QUERY,
+        sort: 'path',
+        q: wanted !== null && wanted.length >= MIN_CHARACTERS ? wanted : null,
+        limit: PICK_LIMIT,
+      },
+      run,
+    ),
     enabled: opened,
     select: readPageRows,
   });

@@ -16,10 +16,19 @@ import type { LinksScope } from '@/lib/internal-links/types';
  * some are not), T1 pages and their average depth, and the pages no editorial link reaches. Hidden below `md`, as
  * in the mock. No equity figure (decision W4). It shows nothing until both reads have answered.
  */
-export function SummaryStrip({ scope, untieredHref }: { scope: LinksScope; untieredHref: Route }): ReactElement | null {
+export function SummaryStrip({
+  scope,
+  run,
+  untieredHref,
+}: {
+  scope: LinksScope;
+  /** The crawl the numbers are of: `null` for the latest. */
+  run: string | null;
+  untieredHref: Route;
+}): ReactElement | null {
   const t = useTranslations('internalLinks.strip');
-  const flow = useQuery(tierFlowQuery(scope, 'editorial'));
-  const lists = useQuery(worklistsQuery(scope));
+  const flow = useQuery(tierFlowQuery(scope, 'editorial', run));
+  const lists = useQuery(worklistsQuery(scope, run));
   const tiers = flow.data?.data.tiers;
   const worklists = lists.data?.data;
   if (tiers === undefined || worklists === undefined) return null;

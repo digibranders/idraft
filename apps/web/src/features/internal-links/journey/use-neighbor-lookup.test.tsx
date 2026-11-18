@@ -33,14 +33,22 @@ const keyOf = (offset: number): readonly unknown[] =>
   neighborsQuery(SCOPE, { urlId: FOCUS, direction: 'out', linkScope: 'editorial', offset }).queryKey;
 
 /** Shows what the lookup answers for a request, and the version the hook counts. */
-function Probe({ pages, seed }: { pages: number; seed: (client: QueryClient) => void }): ReactElement {
+function Probe({
+  pages,
+  seed,
+  run = null,
+}: {
+  pages: number;
+  seed: (client: QueryClient) => void;
+  run?: string | null;
+}): ReactElement {
   const client = useQueryClient();
   // Once, before the first read
   useState(() => {
     seed(client);
     return null;
   });
-  const { lookup } = useNeighborLookup(SCOPE);
+  const { lookup } = useNeighborLookup(SCOPE, run);
   const version = useNeighborVersion(SCOPE);
   const list = lookup(REQUEST(pages));
   return (
@@ -98,6 +106,24 @@ describe('useNeighborLookup', () => {
       />,
     );
     expect(screen.getAllByTestId('out').map((node) => JSON.parse(node.textContent ?? '{}').status)).toContain('error');
+  });
+
+  it('reads the lists of the chosen crawl, which have their own cache keys, and never the latest crawl lists', () => {
+    const RUN = '0192e4a0-1000-7000-8000-000000000003';
+    const runKey = neighborsQuery(
+      SCOPE,
+      { urlId: FOCUS, direction: 'out', linkScope: 'editorial', offset: 0 },
+      RUN,
+    ).queryKey;
+    const seed = (client: QueryClient): void => {
+      client.setQueryData(runKey, listOf(full));
+    };
+    renderWithProviders(<Probe pages={1} seed={seed} run={RUN} />);
+    expect(read()).toMatchObject({ status: 'ready', items: full });
+    renderWithProviders(<Probe pages={1} seed={seed} />);
+    expect(screen.getAllByTestId('out').map((node) => JSON.parse(node.textContent ?? '{}').status)).toContain(
+      'loading',
+    );
   });
 
   it('is ready and whole when every page is there', () => {

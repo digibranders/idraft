@@ -70,7 +70,7 @@ export function PageInspector({
   const words = useTranslations('internalLinks');
   const common = useTranslations('common');
   const { scope, state, tiers, timeZone } = context;
-  const read = useQuery(pageDetailQuery(scope, urlId, state.scope));
+  const read = useQuery(pageDetailQuery(scope, urlId, state.scope, context.crawl.run));
   const rules = useQuery(tierRulesQuery(scope));
   const vocabularies = useVocabularies(scope);
   const tags = useMemo(
@@ -294,6 +294,7 @@ export function PageInspector({
               scope={scope}
               urlId={urlId}
               direction="in"
+              run={context.crawl.run}
               linkScope={state.scope}
               total={detail.linking_pages_total}
               title={t('linkingPages', { count: detail.linking_pages_total })}
@@ -304,6 +305,7 @@ export function PageInspector({
               scope={scope}
               urlId={urlId}
               direction="out"
+              run={context.crawl.run}
               linkScope={state.scope}
               total={detail.outlinks_total}
               title={t('outlinks', { count: detail.outlinks_total })}

@@ -7892,7 +7892,13 @@
       "pages": "Pages",
       "links": "Links",
       "journey": "Journey",
-      "flow": "Tier flow"
+      "flow": "Tier flow",
+      "changes": "Changes",
+      "opportunities": "Opportunities"
+    },
+    "linksDropped": {
+      "title": "Links of this crawl are not stored",
+      "reason": "This crawl’s links are no longer stored. Pick a newer crawl."
     },
     "scope": {
       "label": "Links",

@@ -14,7 +14,7 @@ import {
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
-import type { EdgeWorklist, PageSort, PageWorklist } from '@/lib/internal-links/types';
+import type { ChangeScope, EdgeWorklist, OpportunityStatus, PageSort, PageWorklist } from '@/lib/internal-links/types';
 
 /**
  * What Internal links keeps in its address (the URL state table of plan 03): the tab, the link scope, the
@@ -22,10 +22,15 @@ import type { EdgeWorklist, PageSort, PageWorklist } from '@/lib/internal-links/
  * `parseLinksSearch` is pure; `useLinksState` only reads and writes the address.
  */
 
-export type LinksTabId = 'pages' | 'links' | 'journey' | 'flow';
+export type LinksTabId = 'pages' | 'links' | 'journey' | 'flow' | 'changes' | 'opportunities';
 
 export type LinksKey =
   | 'tab'
+  | 'run'
+  | 'cs'
+  | 'os'
+  | 'ot'
+  | 'oq'
   | 'scope'
   | 'view'
   | 'lview'
@@ -48,7 +53,10 @@ export type LinksKey =
   | 'itab';
 export type LinksSearch = Readonly<Partial<Record<LinksKey, string | null | undefined>>>;
 
-const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'flow'];
+const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'];
+const OPPORTUNITY_STATUSES: readonly OpportunityStatus[] = ['open', 'accepted', 'dismissed'];
+const OPPORTUNITY_TIERS: readonly string[] = ['1', '2', '3', '4', '5', '6', '7', '8', 'none'];
+const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WORKLISTS: readonly PageWorklist[] = [
   'under_linked_t1',
   'orphans',
@@ -92,7 +100,19 @@ export interface LinksState {
    * The text of an id the address names and the API would refuse (`src`, `tgt`, `focus`), else `null`. The tab
    * that reads the id shows not found for it (a page that does not exist), instead of reading it as no choice.
    */
-  invalid: { src: string | null; tgt: string | null; focus: string | null };
+  invalid: { src: string | null; tgt: string | null; focus: string | null; run: string | null };
+  /**
+   * The crawl the address chooses (`run`, a crawl id), or `null` for the latest. A malformed id is `null` here and
+   * its text is in `invalid.run`; an id that is well formed but names no crawl of the project is settled by the
+   * crawl list (`crawlInView`), not here.
+   */
+  run: string | null;
+  /** The Changes tab's lost links scope (`cs`). */
+  changesScope: ChangeScope;
+  /** The Opportunities tab's filters: status (`os`), target tier position or `none` (`ot`) and search (`oq`). */
+  oppStatus: OpportunityStatus | null;
+  oppTier: string | null;
+  oppQuery: string | null;
   journeyView: 'canvas' | 'tree';
   treeDir: Direction;
   /** The canvas layout (`jl`): By step unless the address says `tier`. */
@@ -126,6 +146,12 @@ function readUrlId(value: string | null | undefined): { id: string | null; inval
   }
 }
 
+/** A crawl id the address names: the id when it is a UUID, else its text as `invalid` (never thrown on). */
+function readRunId(value: string | null | undefined): { id: string | null; invalid: string | null } {
+  if (value === null || value === undefined || value === '') return { id: null, invalid: null };
+  return RUN_ID.test(value) ? { id: value, invalid: null } : { id: null, invalid: value };
+}
+
 /** The page the inspector names (`?inspect=page:<id>`), in the same terms: a url id, or the text of one not an id. */
 export function inspectedPage(target: InspectorTarget | null): { urlId: string | null; invalid: string | null } {
   if (target?.type !== 'page') return { urlId: null, invalid: null };
@@ -137,6 +163,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
   const src = readUrlId(search.src);
   const tgt = readUrlId(search.tgt);
   const focus = readUrlId(search.focus);
+  const run = readRunId(search.run);
   const tab = TABS.find((candidate) => candidate === search.tab) ?? 'pages';
   const edgeWorklist = EDGE_WORKLISTS.find((list) => list === search.lview) ?? null;
   // The link worklists count links of every scope, so a hand typed address that names none reads All links. Editorial
@@ -153,7 +180,12 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     source: src.id,
     target: tgt.id,
     focus: focus.id,
-    invalid: { src: src.invalid, tgt: tgt.invalid, focus: focus.invalid },
+    invalid: { src: src.invalid, tgt: tgt.invalid, focus: focus.invalid, run: run.invalid },
+    run: run.id,
+    changesScope: search.cs === 'all' ? 'all' : 'editorial',
+    oppStatus: OPPORTUNITY_STATUSES.find((status) => status === search.os) ?? null,
+    oppTier: OPPORTUNITY_TIERS.find((tier) => tier === search.ot) ?? null,
+    oppQuery: text(search.oq),
     journeyView: search.jv === 'tree' ? 'tree' : 'canvas',
     treeDir: search.dir === 'in' ? 'in' : 'out',
     layout: parseLayoutMode(search.jl),
@@ -167,6 +199,11 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
 
 const PARSERS = {
   tab: parseAsString,
+  run: parseAsString,
+  cs: parseAsString,
+  os: parseAsString,
+  ot: parseAsString,
+  oq: parseAsString,
   scope: parseAsString,
   view: parseAsString,
   lview: parseAsString,

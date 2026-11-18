@@ -30,7 +30,7 @@ import { downloadApiFile } from '@/lib/api/download';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatList } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
-import { isPageRowPage, pagesPath, pagesQuery } from '@/lib/internal-links/queries';
+import { isPageRowPage, pagesPath, pagesQuery, withRun } from '@/lib/internal-links/queries';
 import type { EdgeWorklist, PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
@@ -111,12 +111,13 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     });
   }, [values, setValues, t]);
   // A new query starts again at the first page
-  const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, state.q, values]);
+  const chosenRun = context.crawl.run;
+  const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, state.q, values, chosenRun]);
   const paging = useCursorPaging(filtersKey);
   const query = pageQueryOf(state, values, paging.cursor, paging.size);
   // The rows stay while new filters load: no skeleton flash (12-tables.md section 7)
   const read = useQuery({
-    ...pagesQuery(scope, query),
+    ...pagesQuery(scope, query, chosenRun),
     placeholderData: keepPreviousData,
     // An answer that is not a page of rows is a failed read, shown as one
     select: readPage,
@@ -149,10 +150,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
 
   // The page's Export downloads the same filter as the server's CSV (decision W13)
   useEffect(() => {
-    const wanted = pageExportQuery(pageQueryOf(state, values, null, paging.size));
+    const wanted = withRun(pageExportQuery(pageQueryOf(state, values, null, paging.size)), chosenRun);
     registerExport(() => downloadApiFile(pagesPath(scope), wanted, EXPORT_NAME));
     return () => registerExport(null);
-  }, [registerExport, scope, state, values, paging.size]);
+  }, [registerExport, scope, state, values, paging.size, chosenRun]);
 
   const range = pageRange({ pageIndex: paging.pageIndex, rows: rows.length, limit: paging.size });
   const searched = state.q !== null;
@@ -259,6 +260,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     <div className="flex flex-col gap-3">
       <WorklistChips
         scope={scope}
+        run={chosenRun}
         current={state.worklist}
         onPick={(worklist) => setSearch({ view: worklist })}
         onPickEdges={openEdgeWorklist}

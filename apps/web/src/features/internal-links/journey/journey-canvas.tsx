@@ -88,7 +88,7 @@ export function JourneyCanvas({
   const t = useTranslations('internalLinks.journey');
   const { scope, state, setSearch, tiers, inspect } = context;
   const canWrite = useCan('projects:write');
-  const { lookup, useLoad, retry, retryFailed } = useNeighborLookup(scope);
+  const { lookup, useLoad, retry, retryFailed } = useNeighborLookup(scope, context.crawl.run);
   // The lanes turned off, as text for the same reason as the opened sets: a write that leaves them alone changes nothing here
   const lanesText = formatLanes(state.hiddenLanes) ?? '';
   const hiddenLanes = useMemo(() => parseLanes(lanesText), [lanesText]);

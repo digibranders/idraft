@@ -28,6 +28,7 @@ import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { isApiProblem } from '@/lib/api/problem';
+import { crawlInView } from '@/lib/internal-links/crawl-choice';
 import { failedText } from '@/lib/internal-links/crawl-failure';
 import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
@@ -96,6 +97,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     crawls.data?.page.has_more ?? false,
   );
   const crawl = useCrawlNow(scope, host);
+  // The crawl every tab reads: the one `run` names, else the latest (an unknown id reads the latest, never wider)
+  const inView = useMemo(() => crawlInView(crawls.data?.data ?? [], state.run), [crawls.data, state.run]);
 
   const base = projectPath(workspaceSlug, project.slug, '/seo/internal-links');
   const settingsHref = projectPath(workspaceSlug, project.slug, '/settings/links');
@@ -180,6 +183,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     timeZone: project.timeZone,
     host,
     state,
+    crawl: inView,
     setSearch,
     tiers: tiers.data?.data ?? [],
     // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
@@ -288,7 +292,9 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     <PageToolbar
       title={t('title')}
       tabs={tabs}
-      stats={ready ? <SummaryStrip scope={scope} untieredHref={withQuery(base, UNTIERED_QUERY)} /> : null}
+      stats={
+        ready ? <SummaryStrip scope={scope} run={inView.run} untieredHref={withQuery(base, UNTIERED_QUERY)} /> : null
+      }
       actions={actions}
     />
   );

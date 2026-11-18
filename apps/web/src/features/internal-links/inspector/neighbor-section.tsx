@@ -10,6 +10,7 @@ import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Direction } from '@/lib/internal-links/journey-layout';
+import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { READ_LIMIT } from '@/lib/internal-links/journey-layout';
 import { neighborsQuery } from '@/lib/internal-links/queries';
 import type { LinkScope } from '@/lib/internal-links/scopes';
@@ -20,6 +21,8 @@ export interface NeighborSectionProps {
   urlId: string;
   direction: Direction;
   linkScope: LinkScope;
+  /** The crawl read: `null` for the latest. */
+  run: string | null;
   /** The pages on this side in the scope in view, from the page read. */
   total: number;
   title: string;
@@ -33,14 +36,20 @@ function NeighborRows({
   urlId,
   direction,
   linkScope,
+  run,
   offset,
   onOpen,
-}: Pick<NeighborSectionProps, 'scope' | 'urlId' | 'direction' | 'linkScope' | 'onOpen'> & {
+}: Pick<NeighborSectionProps, 'scope' | 'urlId' | 'direction' | 'linkScope' | 'run' | 'onOpen'> & {
   offset: number;
 }): ReactElement {
   const t = useTranslations('internalLinks.inspector');
+  const dropped = useTranslations('internalLinks.linksDropped');
   const common = useTranslations('common');
-  const read = useQuery(neighborsQuery(scope, { urlId, direction, linkScope, offset }));
+  const read = useQuery(neighborsQuery(scope, { urlId, direction, linkScope, offset }, run));
+  if (isLinksDropped(read.error)) {
+    // Nothing to try again: the crawl no longer holds its links
+    return <li className="type-meta text-foreground-secondary">{dropped('reason')}</li>;
+  }
   if (read.isError) {
     return (
       <li className="flex flex-wrap items-baseline gap-x-2">

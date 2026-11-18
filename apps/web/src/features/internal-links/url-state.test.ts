@@ -32,6 +32,31 @@ describe('the scope of a hand typed link worklist address', () => {
   });
 });
 
+describe('the chosen crawl and the keys of the Changes and Opportunities tabs', () => {
+  const RUN = '0192e4a0-1000-7000-8000-000000000001';
+
+  it('reads the chosen crawl, the two new tabs and their keys', () => {
+    const state = parseLinksSearch({ tab: 'changes', run: RUN, cs: 'all', os: 'open', ot: '1', oq: ' soc ' });
+    expect(state).toMatchObject({
+      tab: 'changes',
+      run: RUN,
+      changesScope: 'all',
+      oppStatus: 'open',
+      oppTier: '1',
+      oppQuery: 'soc',
+    });
+    expect(state.invalid.run).toBeNull();
+    expect(parseLinksSearch({ tab: 'opportunities', ot: 'none' }).oppTier).toBe('none');
+  });
+
+  it('falls back on values it does not know, and remembers a malformed crawl id without throwing', () => {
+    const state = parseLinksSearch({ run: 'not-a-uuid', cs: 'x', os: 'x', ot: '9' });
+    expect(state).toMatchObject({ run: null, changesScope: 'editorial', oppStatus: null, oppTier: null });
+    expect(state.invalid.run).toBe('not-a-uuid');
+    expect(parseLinksSearch({ run: '' }).invalid.run).toBeNull();
+  });
+});
+
 describe('the address of Internal links (URL state table)', () => {
   it('reads the defaults from an empty address', () => {
     expect(parseLinksSearch({})).toEqual({
@@ -45,7 +70,12 @@ describe('the address of Internal links (URL state table)', () => {
       source: null,
       target: null,
       focus: null,
-      invalid: { src: null, tgt: null, focus: null },
+      invalid: { src: null, tgt: null, focus: null, run: null },
+      run: null,
+      changesScope: 'editorial',
+      oppStatus: null,
+      oppTier: null,
+      oppQuery: null,
       journeyView: 'canvas',
       treeDir: 'out',
       layout: 'step',
@@ -88,7 +118,7 @@ describe('the address of Internal links (URL state table)', () => {
     expect([...state.groups]).toEqual(['g:o:f:template']);
     expect([...state.more]).toEqual([['m:o|f', 2]]);
     expect([...state.treeOpen]).toEqual(['t.103']);
-    expect(parseLinksSearch({ tab: 'changes', sort: '-equity_share', focus: '12x', view: 'lost' })).toMatchObject({
+    expect(parseLinksSearch({ tab: 'nope', sort: '-equity_share', focus: '12x', view: 'lost' })).toMatchObject({
       tab: 'pages',
       sort: '-linking_pages',
       focus: null,
@@ -112,9 +142,14 @@ describe('the address of Internal links (URL state table)', () => {
       target: null,
       invalid: { focus: '0', src: '007', tgt: '9223372036854775808' },
     });
-    expect(parseLinksSearch({ focus: '12', src: '3' }).invalid).toEqual({ focus: null, src: null, tgt: null });
+    expect(parseLinksSearch({ focus: '12', src: '3' }).invalid).toEqual({
+      focus: null,
+      src: null,
+      tgt: null,
+      run: null,
+    });
     // A key that is not in the address is not an invalid id: the page shows not found only for what was named
-    expect(parseLinksSearch({}).invalid).toEqual({ focus: null, src: null, tgt: null });
+    expect(parseLinksSearch({}).invalid).toEqual({ focus: null, src: null, tgt: null, run: null });
     expect(parseLinksSearch({ src: '  ' }).invalid.src).toBe('  ');
     expect(parseLinksSearch({ src: '9223372036854775807', tgt: '12' })).toMatchObject({
       source: '9223372036854775807',

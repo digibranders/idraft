@@ -11,14 +11,18 @@ const STALE_MS = 60_000;
 /** What changes a list in the cache: an answer, a failure, or data put there. A fetch starting changes nothing to read. */
 const CHANGES = new Set(['success', 'error', 'setState']);
 
-const pagesOf = (scope: LinksScope, request: ListRequest) =>
+const pagesOf = (scope: LinksScope, request: ListRequest, run: string | null) =>
   Array.from({ length: request.pages }, (_, index) =>
-    neighborsQuery(scope, {
-      urlId: request.urlId,
-      direction: request.direction,
-      linkScope: request.scope,
-      offset: index * READ_LIMIT,
-    }),
+    neighborsQuery(
+      scope,
+      {
+        urlId: request.urlId,
+        direction: request.direction,
+        linkScope: request.scope,
+        offset: index * READ_LIMIT,
+      },
+      run,
+    ),
   );
 
 /**
@@ -64,7 +68,10 @@ export function useNeighborVersion(scope: LinksScope, watched?: { current: Reado
  * pressing "+N more" never empties the column. `useLoad` subscribes to every page the layout asked for, so an answer
  * renders the journey again. The layout is pure: it is computed again from the cache whenever the lookup changes.
  */
-export function useNeighborLookup(scope: LinksScope): {
+export function useNeighborLookup(
+  scope: LinksScope,
+  run: string | null = null,
+): {
   lookup: ListLookup<Neighbor>;
   useLoad: (requests: readonly ListRequest[]) => void;
   retry: (request: ListRequest) => void;
@@ -78,7 +85,7 @@ export function useNeighborLookup(scope: LinksScope): {
   const lookup = useCallback<ListLookup<Neighbor>>(
     (request) => {
       void version;
-      const states = pagesOf(scope, request).map((options) =>
+      const states = pagesOf(scope, request, run).map((options) =>
         queryClient.getQueryState<NeighborList>(options.queryKey),
       );
       const [first] = states;
@@ -102,11 +109,11 @@ export function useNeighborLookup(scope: LinksScope): {
       };
       return list;
     },
-    [queryClient, scope, version],
+    [queryClient, scope, run, version],
   );
   // A hook that the host calls once per render with the requests of the layout it just built
   const useLoad = (requests: readonly ListRequest[]): void => {
-    const queries = requests.flatMap((request) => pagesOf(scope, request));
+    const queries = requests.flatMap((request) => pagesOf(scope, request, run));
     const keys = queries.map((options) => JSON.stringify(options.queryKey)).join('\n');
     // Before the queries below start (a layout effect runs first), so no answer is missed
     useLayoutEffect(() => {
@@ -117,19 +124,19 @@ export function useNeighborLookup(scope: LinksScope): {
   // Try again on a failed list: every page of it is read again
   const retry = useCallback(
     (request: ListRequest): void => {
-      for (const { queryKey } of pagesOf(scope, request)) void queryClient.refetchQueries({ queryKey });
+      for (const { queryKey } of pagesOf(scope, request, run)) void queryClient.refetchQueries({ queryKey });
     },
-    [queryClient, scope],
+    [queryClient, scope, run],
   );
   const retryFailed = useCallback(
     (requests: readonly ListRequest[]): void => {
       for (const request of requests) {
-        for (const { queryKey } of pagesOf(scope, request)) {
+        for (const { queryKey } of pagesOf(scope, request, run)) {
           if (queryClient.getQueryState(queryKey)?.status === 'error') void queryClient.refetchQueries({ queryKey });
         }
       }
     },
-    [queryClient, scope],
+    [queryClient, scope, run],
   );
   return { lookup, useLoad, retry, retryFailed };
 }

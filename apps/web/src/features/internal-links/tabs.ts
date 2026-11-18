@@ -7,6 +7,7 @@ import { JourneyTab } from './journey/journey-tab';
 import { LinksTab } from './links/links-tab';
 import { PagesTab } from './pages/pages-tab';
 import type { LinksState, LinksTabId, SetLinksSearch } from './url-state';
+import type { CrawlInView } from '@/lib/internal-links/crawl-choice';
 import type { LinksScope, PageTier } from '@/lib/internal-links/types';
 
 /** The translator of `internalLinks`, as `useTranslations('internalLinks')` gives it. */
@@ -20,6 +21,12 @@ export interface LinksTabContext {
   timeZone: string;
   host: string;
   state: LinksState;
+  /**
+   * The crawl every read of every tab is made against: `crawl.run` goes to each reader as its `run` (`null` for the
+   * latest crawl, so those reads are unchanged). A tab whose links were dropped (`linksAvailable` false) shows the
+   * `410 links_dropped` state of `LinksDropped`, not an error.
+   */
+  crawl: CrawlInView;
   setSearch: SetLinksSearch;
   tiers: readonly PageTier[];
   /**
@@ -47,7 +54,14 @@ export interface LinksTabEntry {
   render: (context: LinksTabContext) => ReactNode;
 }
 
-const ORDER: Readonly<Record<LinksTabId, number>> = { pages: 0, links: 1, journey: 2, flow: 3 };
+const ORDER: Readonly<Record<LinksTabId, number>> = {
+  pages: 0,
+  links: 1,
+  journey: 2,
+  flow: 3,
+  changes: 4,
+  opportunities: 5,
+};
 
 /** The tabs in the page's order; a repeated id is a mistake of the code that lists them. */
 export function defineLinksTabs(entries: readonly LinksTabEntry[]): readonly LinksTabEntry[] {

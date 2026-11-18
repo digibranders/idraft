@@ -44,7 +44,7 @@ export function FlowTab({ context }: { context: LinksTabContext }): ReactElement
   const common = useTranslations('common');
   const { scope, state, setSearch, registerExport } = context;
   // No placeholder data: the answer of one scope is never shown under the name of another
-  const read = useQuery(tierFlowQuery(scope, state.scope));
+  const read = useQuery(tierFlowQuery(scope, state.scope, context.crawl.run));
   const answer = read.data?.data;
   const flow = answer?.scope === state.scope ? answer : undefined;
   const scopeWord = scopeWords(SCOPE_KEY[state.scope]);

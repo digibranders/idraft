@@ -30,17 +30,20 @@ const EDGE_LISTS: readonly (readonly [EdgeWorklist, 'brokenAndRedirected' | 'lin
  */
 export function WorklistChips({
   scope,
+  run,
   current,
   onPick,
   onPickEdges,
 }: {
   scope: LinksScope;
+  /** The crawl the counts are of: `null` for the latest. */
+  run: string | null;
   current: PageWorklist | null;
   onPick: (worklist: PageWorklist | null) => void;
   onPickEdges: (worklist: EdgeWorklist) => void;
 }): ReactElement {
   const t = useTranslations('internalLinks');
-  const read = useQuery(worklistsQuery(scope));
+  const read = useQuery(worklistsQuery(scope, run));
   const counts: Worklists | undefined = read.data?.data;
   return (
     <div role="group" aria-label={t('pages.worklistsLabel')} className="flex flex-wrap items-center gap-2">

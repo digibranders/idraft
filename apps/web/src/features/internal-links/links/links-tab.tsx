@@ -11,6 +11,7 @@ import { pageRange, useCursorPaging } from '../pages/cursor-paging';
 import { capTags, MAX_TAGS } from '../pages/page-filters';
 import { useSearchDraft } from '../pages/search-draft';
 import { ScopeMenu } from '../scope-menu';
+import { LinksDropped } from '../links-dropped';
 import type { LinksTabContext } from '../tabs';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableProps } from '@/components/app/data-table/types';
@@ -25,7 +26,8 @@ import { downloadApiFile } from '@/lib/api/download';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
-import { edgesPath, edgesQuery, isEdgeRowPage } from '@/lib/internal-links/queries';
+import { isLinksDropped } from '@/lib/internal-links/contract-states';
+import { edgesPath, edgesQuery, isEdgeRowPage, withRun } from '@/lib/internal-links/queries';
 import type { EdgeRow, EdgeRowPage } from '@/lib/internal-links/types';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
@@ -65,6 +67,8 @@ export function LinksTab({ context }: { context: LinksTabContext }): ReactElemen
       />
     );
   }
+  // A crawl past the last four answers 410 to every links read: nothing is asked
+  if (!context.crawl.linksAvailable) return <LinksDropped />;
   return <LinksList context={context} />;
 }
 
@@ -98,11 +102,20 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
   }, [values, setValues, t]);
   const { draft, setDraft } = useSearchDraft(state.lq, (lq) => setSearch({ lq }), SEARCH_DELAY_MS);
   // A new query starts again at the first page
-  const filtersKey = JSON.stringify([state.scope, state.edgeWorklist, state.lq, state.source, state.target, values]);
+  const chosenRun = context.crawl.run;
+  const filtersKey = JSON.stringify([
+    state.scope,
+    state.edgeWorklist,
+    state.lq,
+    state.source,
+    state.target,
+    values,
+    chosenRun,
+  ]);
   const paging = useCursorPaging(filtersKey);
   const query = edgeQueryOf(state, values, paging.cursor, paging.size);
   const read = useQuery({
-    ...edgesQuery(scope, query),
+    ...edgesQuery(scope, query, chosenRun),
     placeholderData: keepPreviousData,
     // An answer that is not a page of links is a failed read, shown as one
     select: readEdges,
@@ -127,10 +140,10 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
 
   // The page's Export downloads the same filter as the server's CSV (decision W13)
   useEffect(() => {
-    const wanted = edgeExportQuery(edgeQueryOf(state, values, null, paging.size));
+    const wanted = withRun(edgeExportQuery(edgeQueryOf(state, values, null, paging.size)), chosenRun);
     registerExport(() => downloadApiFile(edgesPath(scope), wanted, EXPORT_NAME));
     return () => registerExport(null);
-  }, [registerExport, scope, state, values, paging.size]);
+  }, [registerExport, scope, state, values, paging.size, chosenRun]);
 
   const notes = [
     ...(state.edgeWorklist === null
@@ -224,14 +237,18 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
         onRowOpen={(row) => context.inspect.open(row.target.url_id)}
         status={status}
         errorState={
-          <InlineError
-            title={t('links.loadFailed')}
-            reason={t('links.loadFailedReason')}
-            errorId={null}
-            onRetry={() => void read.refetch()}
-            retrying={read.isFetching}
-            retryLabel={common('retry')}
-          />
+          isLinksDropped(read.error) ? (
+            <LinksDropped />
+          ) : (
+            <InlineError
+              title={t('links.loadFailed')}
+              reason={t('links.loadFailedReason')}
+              errorId={null}
+              onRetry={() => void read.refetch()}
+              retrying={read.isFetching}
+              retryLabel={common('retry')}
+            />
+          )
         }
         emptyState={<EmptyState title={t('links.emptyTitle')} reason={t('links.emptyReason')} headingLevel={3} />}
         filteredEmptyState={

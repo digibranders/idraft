@@ -7,6 +7,7 @@ import type { Route } from 'next';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { FocusPicker } from './focus-picker';
+import { LinksDropped } from '../links-dropped';
 import { JourneyCanvas } from './journey-canvas';
 import { readPageRows } from './page-reads';
 import { TreeList } from './tree-list';
@@ -48,13 +49,13 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
   // The home page is the first by path in any scope, so the link scope is not part of this read: a change of scope
   // must not send the tab back to loading (which would end the canvas's selection and moved cards)
   const home = useQuery({
-    ...pagesQuery(scope, { ...DEFAULT_PAGE_QUERY, sort: 'path', limit: 1 }),
+    ...pagesQuery(scope, { ...DEFAULT_PAGE_QUERY, sort: 'path', limit: 1 }, context.crawl.run),
     enabled: state.focus === null && !refused,
     select: readPageRows,
   });
   const focusId = state.focus ?? home.data?.data[0]?.url_id ?? null;
   const detail = useQuery({
-    ...pageDetailQuery(scope, focusId ?? NO_FOCUS, state.scope),
+    ...pageDetailQuery(scope, focusId ?? NO_FOCUS, state.scope, context.crawl.run),
     enabled: focusId !== null && !refused,
     // A change of link scope keeps the page on screen while it is read again; another page never shows as this one
     placeholderData: keepPreviousData,
@@ -102,7 +103,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
         ]}
         size="sm"
       />
-      <FocusPicker scope={scope} path={loaded?.path ?? t('focus')} onPick={refocus} />
+      <FocusPicker scope={scope} run={context.crawl.run} path={loaded?.path ?? t('focus')} onPick={refocus} />
       <ScopeMenu scope={state.scope} onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })} />
       {state.journeyView === 'canvas' ? (
         // The layout is how the canvas stands; the tree list has one layout
@@ -126,7 +127,10 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
 
   let body: ReactElement;
   let waiting = false;
-  if (refused) {
+  if (!context.crawl.linksAvailable) {
+    // No neighbor read is made for a crawl whose links are gone (the API would answer 410 to each)
+    body = <LinksDropped />;
+  } else if (refused) {
     body = (
       <EmptyState title={t('notFoundTitle')} reason={t('notFoundReason')} headingLevel={3} primaryAction={backToHome} />
     );
@@ -165,6 +169,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
     body = (
       <TreeList
         scope={scope}
+        run={context.crawl.run}
         focus={loaded}
         linkScope={state.scope}
         dir={state.treeDir}
