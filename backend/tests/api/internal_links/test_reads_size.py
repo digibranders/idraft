@@ -20,14 +20,16 @@ from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 
 # The statements of one request: the transaction's scope, the caller's membership, the crawl,
-# the tiers, and the reads of the page (the inspector, the largest, asks 18). A request that
-# asked one question for each row would pass this at 21 rows, and these pages hold 200.
-STATEMENTS_MAX = 20
+# the tiers, and the reads of the page (the inspector, the largest, asks 24: 18 and the six of
+# its extras, plan 04 Task 11). A request that asked one question for each row would pass this
+# at 26 rows, and these pages hold 200.
+STATEMENTS_MAX = 25
 # The API's statement timeout is 15 s; a list on a crawl with no statistics must answer far
 # inside it, with room for a busy machine.
 # Alone the requests take under a second; four test workers on a busy machine tripped a 3 s
-# bound. This one still catches the plans that took minutes without statistics.
-SLOW_SECONDS = 6.0
+# bound, and a machine under a load average of 70 took 6.9 s. This bound sits under the API's
+# statement timeout and still catches the plans that took minutes without statistics.
+SLOW_SECONDS = 12.0
 
 _URLS = """
 INSERT INTO core.urls (url_hash, canonical_url, domain_id, path, canonicalizer_version)
@@ -181,15 +183,21 @@ async def test_the_links_list_does_not_need_statistics_on_a_fresh_crawl(
         ({"limit": 200, "scope": "all", "filter[target_tier]": "none"}, "target", None),
     ]
     for params, side, wanted in cases:
-        with statements(resources) as seen:
-            started = time.perf_counter()
-            response = await api.get(url, params=params, headers=viewer.headers)
-            elapsed = time.perf_counter() - started
-        assert response.status_code == 200, (params, response.text)
+        # A slow plan is slow every time; a busy machine is slow now and then. The best of three
+        # tells them apart.
+        times: list[float] = []
+        for _ in range(3):
+            with statements(resources) as seen:
+                started = time.perf_counter()
+                response = await api.get(url, params=params, headers=viewer.headers)
+                times.append(time.perf_counter() - started)
+            assert response.status_code == 200, (params, response.text)
+            if times[-1] < SLOW_SECONDS:
+                break
         rows = response.json()["data"]
         assert len(rows) == 200, params
         assert len(seen) <= STATEMENTS_MAX, (params, len(seen))
-        assert elapsed < SLOW_SECONDS, (params, elapsed)
+        assert min(times) < SLOW_SECONDS, (params, times)
         if side is not None:
             codes = {(row[side]["tier"] or {}).get("code") for row in rows}
             assert codes == {wanted}, (params, codes)

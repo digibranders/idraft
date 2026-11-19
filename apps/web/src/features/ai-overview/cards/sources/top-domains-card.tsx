@@ -83,8 +83,6 @@ export default function TopDomainsCard({ item, options, live }: CardProps): Reac
       ? { ...state, empty: { title: words('emptyTitle'), reason: words('emptyReason') } }
       : state;
 
-  // A role filter on the card is the filter of the page it opens, so the list behind the inspector matches
-  const roleFilter = roles[0];
   const engineText = (figure: DomainFigures): string =>
     formatList(
       figure.engines.map((engine) =>
@@ -98,9 +96,7 @@ export default function TopDomainsCard({ item, options, live }: CardProps): Reac
   const rowOf = (figure: DomainFigures): ComparisonRow & { barRow: DomainBarRow } => {
     const name = visibleUrlText(displayDomain(figure.domain));
     const role = roleWords(ROLE_KEY[figure.role]);
-    const href =
-      citations({ tab: 'domains', domain: figure.domain, ...(roleFilter === undefined ? {} : { role: roleFilter }) }) ??
-      undefined;
+    const href = citations({ tab: 'pages', owner: figure.role }) ?? undefined;
     const base = { id: figure.id, label: name, own: figure.own, href, badge: <DomainRoleBadge role={figure.role} /> };
     const bar = (value: number | null, valueText: string, tip: string): DomainBarRow => ({
       id: figure.id,

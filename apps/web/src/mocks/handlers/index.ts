@@ -4,6 +4,9 @@ import { authHandlers } from './auth';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
 import { integrationHandlers } from './integrations';
+import { internalLinkHandlers } from './internal-links';
+import { internalLinkChangeHandlers } from './internal-links-changes';
+import { internalLinkOpportunityHandlers } from './internal-links-opportunities';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
@@ -34,6 +37,8 @@ import { compareHandlers } from './compare';
 import { citationHandlers } from './citations';
 // WP-22 citation-details
 import { citationDetailHandlers } from './citation-details';
+// WP-77 citations-v2
+import { citationBoardHandlers } from './citations-v2';
 // WP-24 fanout
 import { fanoutHandlers } from './fanout';
 // WP-26 evidence
@@ -137,6 +142,8 @@ export const handlers: readonly HttpHandler[] = [
   ...citationHandlers,
   // WP-22 citation-details
   ...citationDetailHandlers,
+  // WP-77 citations-v2
+  ...citationBoardHandlers,
   // WP-24 fanout
   ...fanoutHandlers,
   // WP-26 evidence
@@ -198,6 +205,10 @@ export const handlers: readonly HttpHandler[] = [
   ...commandPaletteHandlers,
   // WP-55 recommendations
   ...recommendationHandlers,
+  // Internal links (plan 03), changes, opportunities, suggestions and paths (plan 05)
+  ...internalLinkHandlers,
+  ...internalLinkChangeHandlers,
+  ...internalLinkOpportunityHandlers,
   ...pendingHandlers,
 ];
 

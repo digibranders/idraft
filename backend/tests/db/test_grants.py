@@ -71,6 +71,12 @@ RUN_WORKER_UPDATE = (
     "submitted_at",
     "crawled_at",
     "finished_at",
+    # Migration 0027: the second job, `crawl_enrich`.
+    "previous_run_id",
+    "enrich_state",
+    "enrich_phase",
+    "enrich_failures",
+    "enrich_offset",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",
@@ -94,6 +100,11 @@ PAGE_WORKER_UPDATE = (
     "is_orphan",
     "is_editorial_orphan",
     "deep_only_through_auto",
+    # Migration 0026: the canonical read from a page's own HTML at ingest.
+    "canonical_url_id",
+    # Migration 0027: editorial anchor counts that drive a flag.
+    "editorial_anchors",
+    "generic_anchors",
 )
 
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")
@@ -461,6 +472,19 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "seo.crawl_links": (READ, access("SELECT, INSERT, DELETE", UPDATE=("placement", "scope"))),
     "seo.crawl_tier_flow": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
     "seo.crawl_tier_stats": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
+    # Migration 0027: what changed between crawls, written by `crawl_enrich`, read by the API.
+    "seo.crawl_link_changes": (READ, access("SELECT, INSERT, DELETE")),
+    "seo.crawl_page_changes": (READ, access("SELECT, INSERT, DELETE")),
+    "seo.crawl_alerts": (READ, access("SELECT, INSERT, DELETE")),
+    "seo.crawl_mentions": (READ, access("SELECT, INSERT, DELETE")),
+    # The people's decisions: the API alone writes them.
+    "core.link_opportunity_decisions": (
+        access("SELECT, INSERT, DELETE", UPDATE=("status", "decided_by", "decided_at")),
+        NONE,
+    ),
+    "core.tier_suggestion_dismissals": (access("SELECT, INSERT, DELETE"), NONE),
+    # Page totals from Search Console, replaced by the worker a day at a time.
+    "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
 }
 
 _TABLES = """

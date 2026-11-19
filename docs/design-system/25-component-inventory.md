@@ -268,6 +268,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | AddFilterButton (FieldPicker) | Filters | `app/filters/add-filter-button.tsx` | V1 | 13 §2 |
 | FilterEditor | Filters | `app/filters/filter-editor.tsx` | V1 | 13 §3 |
 | FilterSheet | Filters | `app/filters/filter-sheet.tsx` | V1 | 19 §4.2 |
+| PressedGroup | Filters | `app/filters/pressed-group.tsx` | WP-77 | 13 §10, 25 §6.8 |
 | DataTable | Data: tables | `app/data-table/data-table.tsx` | V1 | 12 |
 | DataTableToolbar | Data: tables | `app/data-table/toolbar.tsx` | V1 | 12 §1 |
 | BulkActionBar | Data: tables | `app/data-table/bulk-action-bar.tsx` | V1 | 12 §14 |
@@ -278,6 +279,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | TableFooter | Data: tables | `app/data-table/table-footer.tsx` | V1 | 12 §1 |
 | NewResultsNotice | Data: tables | `app/data-table/new-results-notice.tsx` | V1 | 20 §10.4 |
 | DataTableList | Data: tables | `app/data-table/data-table-list.tsx` | V1 | 19 §6.7 |
+| BoardTable | Data: tables | `app/table/board-table.tsx` | WP-77 | 12 §20, 25 §7.10a |
 | SimpleTable | Data: tables | `app/data-table/simple-table.tsx` | V1 | 12 §15 |
 | KeyValueTable | Data: tables | `app/data-table/key-value-table.tsx` | V1 | 19 §12.3 |
 | Column helpers `col.*` | Data: tables | `app/data-table/columns.ts` | V1 | 12 §5 |
@@ -302,6 +304,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | MetricItem (MetricLabel) | Data: metrics | `app/metric/metric-item.tsx` | V1 | 23 §2.1 |
 | MetricCard | Data: metrics | `app/metric/metric-card.tsx` | V1 | 23 §2.5 |
 | Delta | Data: metrics | `app/metric/delta.tsx` | V1 | 14 §5 |
+| TrendIcon | Data: metrics | `app/metric/trend-icon.tsx` | WP-77 | 25 §9.4a |
 | ConfidenceIndicator | Data: metrics | `app/metric/confidence-indicator.tsx` | V1 | 23 §8.2 |
 | SampleCount | Data: metrics | `app/metric/sample-count.tsx` | V1 | 23 §8.3 |
 | MetricInfo | Data: metrics | `app/metric/metric-info.tsx` | V1 | 22 §10, 23 §8.1 |
@@ -360,6 +363,10 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | CompetitorRankCell | SEO | `app/cells/competitor-rank-cell.tsx` | V1 | 24 §9.3 |
 | AIOverviewStatus | SEO | `app/seo/ai-overview-status.tsx` | V1 | 12 §6, 23 §7.1 |
 | SERPPreview | SEO | `app/seo/serp-preview.tsx` | V1 | 19 §12.3 |
+| TierBadge | SEO | `app/tier/tier-badge.tsx` | V1 | 02 §7.4 |
+| AlertFields (link alert rules) | SEO | `app/link-alert-rules/alert-settings.tsx` | V1 | link tracker spec 7.10 |
+| LinkCard | SEO | `app/link-canvas/link-card.tsx` | V1 | 20 §7.1 |
+| LinkCanvas | SEO | `app/link-canvas/link-canvas.tsx` | V1 | 15 §13, 20 §7.1 |
 | EngineBadge (observation class badge) | AI | `app/ai/engine-badge.tsx` | V1 | 14 §4 |
 | MentionStatus | AI | `app/ai/mention-status.tsx` | V1 | 23 §5 |
 | CitationStatus | AI | `app/ai/citation-status.tsx` | V1 | 12 §6 |
@@ -762,6 +769,8 @@ interface BadgeProps {
 - **Use:** engine, intent, prompt type, panel, role, Estimate, Stale, New, Lost. Categorical metadata is always neutral. At most 2 per cell and 3 per row in Compact density.
 - **Not for:** interactive tags (`Tag`, `FilterChip`), lifecycle states with icons (`StatusBadge`), counts in navigation (sidebar count), pills (`rounded-full` is not allowed on text).
 
+> As built (WP-77): `badgeVariants` is exported, so a control can take a badge's look without the non-interactive element. The Prompts chip of Cited pages ("+30", "Details") is a `button` with `badgeVariants({ variant: 'outline', tone: 'neutral' })`, `num` and its own hover and focus ring.
+
 ### 3.18 Tag
 `ui/tag.tsx` · V1 · [14 §2](14-badges-status.md), [10 §6.4](10-forms.md)
 
@@ -876,6 +885,7 @@ interface PopoverProps {
 - **Use:** anything interactive under 400 px tall that belongs to a control.
 - **Not for:** record detail (`Inspector`), multi-step tasks (`Dialog`), commands (`Menu`), opening a dialog (close the popover first).
 
+> As built (WP-77): widths `narrow` (256 px) and `wide` (384 px), both capped by the available width, and paddings `menu` (4 px) and `none` (the sections pad themselves), for the Citations competitors and prompts pickers. Those two paddings also drop the 12 px gap between sections (the sections sit flush, as the preview's do); `list` and `text` keep it.
 ### 3.24 PreviewCard
 `ui/preview-card.tsx` · V1 · [16 §6.3](16-drawers-dialogs-popovers.md)
 
@@ -1209,10 +1219,10 @@ interface TabsPanelProps<TValue extends string> { value: TValue; children: Slot 
 Purpose: route tabs rendered as a `<nav>` of links with underline styling.
 
 ```ts
-interface TabNavProps { label: string; items: ReadonlyArray<{ href: string; label: string; count?: string; current: boolean }> }
+interface TabNavProps { label: string; items: ReadonlyArray<{ href: string; label: string; count?: string; current: boolean; badge?: { text: string; spoken: string } }>; variant?: 'underline' | 'segmented' }
 ```
 
-- **Variants:** none (identical to underline tabs).
+- **Variants:** `underline` (default). `segmented` (WP-77): two to four route tabs as a joined pair, 32 px (`h-control-sm`), at the start of a table's toolbar. The current tab is `primary-subtle` with a `primary-border` outline and `primary-text` in `type-body-strong`; the others are `surface` with a `border` outline. `badge` draws a neutral count after the label and its `spoken` text is what a screen reader hears in its place (", 61 gaps"). The segmented variant has no `unavailable` tab.
 - **States:** current (`aria-current="page"`), hover, focus.
 - **A11y:** navigation landmark named by `label`; links; Tab and Enter.
 - **Use:** Integrations sources, Discover tabs, SEO Keywords sub-routes.
@@ -1505,6 +1515,8 @@ interface SelectProps<TValue extends string> {
 - **A11y:** APG select-only combobox; Enter, Space, arrows open; type-ahead; Escape closes without change; trigger shows the chosen value. Consecutive options with the same `group` are listed under that name.
 - **Use:** workload, language, engine, page size, column mapping.
 - **Not for:** 2 to 4 options worth seeing (`SegmentedControl` or `RadioGroup`), more than 15 or server-loaded options (`Combobox`), commands (`Menu`); native `<select>` is not used.
+
+> As built (WP-77): `prefix` (text before the value, secondary), `SelectOption.display` (a node in place of the label, such as `EngineLogo`), `SelectOption.note` (a meta fact at the row's end) and `popupClassName` (the popup's width). The Citations page's Platform and Runs selects use them (preview `aiov-controls.js` `createSelect`).
 
 ### 4.8 Combobox
 `ui/combobox.tsx` · V1 · [10 §6.3](10-forms.md)
@@ -2512,6 +2524,23 @@ interface FilterSheetProps { open: boolean; onOpenChange: (open: boolean) => voi
 - **Variants:** none (44 px rows, nested views with back buttons). **States:** clean, staged, counting (`aria-busy`, previous number kept).
 - **A11y:** modal sheet; closing discards staged changes without confirmation. **Use:** mobile layout. **Not for:** desktop.
 
+### 6.8 PressedGroup
+`app/filters/pressed-group.tsx` · WP-77 · [13 §10](13-filters-search.md)
+
+Purpose: a filter of one table's rows by a few kinds, each with its count, one pressed (the Cited pages "Domain type"). It changes the rows, not the scope.
+
+```ts
+interface PressedGroupProps<TValue extends string> {
+  label: string;                    // names the group: "Domain type"
+  value: TValue;
+  items: ReadonlyArray<{ value: TValue; label: string; count?: string }>;   // count preformatted
+  onValueChange: (value: TValue) => void;
+}
+```
+
+- **Variants:** none (24 px buttons in one `rounded-md` border with 2 px padding; the pressed one is `primary-subtle` with `primary-text` and `type-body-strong`, the others `type-body` in `foreground-secondary`). **States:** pressed, unpressed, hover, focus (inset ring), narrow (scrolls sideways).
+- **A11y:** a `group` named by `label`; each button is a toggle (`aria-pressed`) named "<label> <count>". **Use:** in a table panel's toolbar, three to five kinds. **Not for:** screen scope (`FilterBar`), view switches (`TabNav`, `SegmentedControl`), more than five kinds (`Select`).
+
 ## 7. Data: tables
 
 [12-tables.md](12-tables.md) is the specification; [20-accessibility.md](20-accessibility.md) §6 is binding on its keyboard and ARIA behavior; [19-responsive-behavior.md](19-responsive-behavior.md) §6 owns column priorities.
@@ -2713,6 +2742,34 @@ interface DataTableListProps<TRow> {
 - **A11y:** `ul` with `aria-setsize` and `aria-posinset`; each row one link read as identity, value with label, context, delta. **Use:** below 768 px. **Not for:** desktop.
 
 > As built (WP-10): `apps/web/src/components/app/data-table/data-table-list.tsx`. `DataTableList` is generic over `TRow extends RowData`; rows are exactly 56 px (`LIST_ROW_HEIGHT`, the divider is drawn inside the box) and windowed with an aria-hidden spacer; a server-mode pager replaces windowing when the table pages on the server. `DataTableListSort` is the sort button and sheet, and announces each change ("Sorted by Rank, ascending"); `ListTableSwitch` and `useListMode` offer the List and Table switch when the device is not touch-primary. J and K step rows only from a grid, not from the list. A phone hard load shows the table for one frame before the list.
+
+### 7.10a BoardTable
+`app/table/board-table.tsx` · WP-77 · [12 §20](12-tables.md)
+
+Purpose: the table of an analysis board (Citations): fixed widths, a pinned first column whose content is the row's button, descending-first sorting, a callback at the end of the scroll. It draws no toolbar, count, density or column chooser.
+
+```ts
+interface BoardTableProps<TRow> {
+  caption: string;                  // names the table for assistive technology
+  columns: readonly BoardColumn<TRow>[];   // { id, header, headerLead?, tip?, width: number | null, sortKey?, cell, cellClassName?, cellTip? }
+  rows: readonly TRow[];
+  rowId: (row: TRow) => string;
+  rowLabel: (row: TRow) => string;  // "Open northwind.com/pricing"
+  identityTip?: (row: TRow) => { content: string; detail?: string } | undefined;
+  onOpen: (row: TRow, opener: HTMLElement) => void;
+  activeId: string | null;          // the row open in the inspector
+  sort: { key: string; dir: 'asc' | 'desc' };
+  onSortChange: (next: BoardSort) => void;
+  flexMin?: number;                 // 280
+  onEndReached?: () => void;        // 240 px before the end of the scroll
+  busy?: boolean;                   // aria-busy while new rows are read
+}
+```
+
+- **Variants:** none. **States:** rows, sorted header, open row (`data-active`), hover, busy. The error and the empty state (`EmptyState variant="table"`) are the screen's.
+- **`BoardTableSkeleton`** (same file, `{ columns: ReadonlyArray<{ id, header, width }>, rows?: number (8), flexMin?: number }`): the loading state, the real headers over eight rows of pulsing `Skeleton` bars at the table's own widths; the whole is `aria-hidden`, the panel around it says "Loading".
+- **A11y:** a plain `table` with a visually hidden caption; `aria-sort` on every sortable header; the first cell's button is named by `rowLabel` and is the keyboard way in; a click on the row opens it too, except on a `data-cell-action` element; header and cell tooltips are descriptions or labels of their cells (`Tooltip`).
+- **Use:** boards whose rows open the right inspector and are compared, not edited or selected. **Not for:** record lists with selection, bulk actions, saved views or paging by button (`DataTable`).
 
 ### 7.11 SimpleTable
 `app/data-table/simple-table.tsx` · V1 · [12 §15](12-tables.md), [20 §6.1](20-accessibility.md)
@@ -2970,6 +3027,8 @@ interface SparklineCellProps {
 - **Variants:** density (height). **States:** data, gaps, empty (1 px dashed `border` line).
 - **A11y:** `role="img"` with `summary`; canvas not focusable. **Use:** `col.sparkline`, metric strip on Overview. **Not for:** anything with axes (`ChartFrame`); red or green lines (never).
 
+> As built (WP-77): four optional props on the component in `sparkline-cell.tsx`. `width` (pixels, 64 by default; the Citations Trend column draws 96; `'fill'` takes the width of its parent, measured with a `ResizeObserver`, for a sparkline that spans a card) and `height` (pixels, overrides `density`; the page drawer's trend is 56). `entity` (`{ own, colorIndex }`) draws in the entity's colour as `EntitySwatch` does: `chart-1` for the own brand, `chart-N` for its color index, `chart-other` past six or without one; it overrides `tone`. `endDot` (default true) turns off the dot on the last point, which the Citations preview's sparklines do not have.
+
 ### 8.11 EngineCell
 `app/cells/engine-cell.tsx` · V1 · [12 §6](12-tables.md)
 
@@ -3079,6 +3138,8 @@ interface MetricStripProps {
 
 > As built (WP-33): an item with `href` is a link across its whole cell, and a linked metric shows its `tip` tooltip when the mouse is over it, as an unlinked one does (the link carries a label-purpose copy, so assistive technology still hears the description once, from the value cell).
 
+> As built (WP-77): `size="line"`, the strip of analysis boards (Citations): one 36 px line per slot, label left, figure right, 2 columns, 3 from a 576 px strip, 6 from a 1024 px strip (container queries on the strip), 1 px `border-subtle` gaps. The figure is the tab stop and carries `spoken` as its name; the label and the figure show `tip` with `detail` as its second line.
+
 ### 9.2 MetricItem (MetricLabel)
 `app/metric/metric-item.tsx` · V1 · [23 §2.1](23-application-patterns.md), [23 §2.4](23-application-patterns.md)
 
@@ -3128,6 +3189,19 @@ interface DeltaProps { input: MetricDeltaInput; size?: 'sm' | 'md'; tooltip?: { 
 
 - **Variants:** `size` 2 values. **States:** as `DeltaCell`.
 - **A11y:** `display.label` plus detectability in `sr-only`. **Use:** strips, inspector values, change feeds. **Not for:** rank changes (`RankDelta`); arrows on rates (never).
+
+### 9.4a TrendIcon
+`app/metric/trend-icon.tsx` · WP-77 · [14 §5](14-badges-status.md), [02 §6](02-color-system.md)
+
+Purpose: the change of a rate as an icon, for the line strip of an analysis board (Citations), where a signed figure would not fit beside the value.
+
+```ts
+interface TrendIconProps { input: MetricDeltaInput; spoken: string }   // spoken: "Up 2.5 pts, within normal variation"
+```
+
+- **Variants:** none. Up, down or a minus at 14 px; the tone comes from `formatMetricDelta` (green or red only when the change is detectable, otherwise `foreground-secondary`); a change under half a hundredth of a point is flat and draws the minus.
+- **A11y:** the words are in a visually hidden span; the figures go in the tooltip of what holds the icon (the line strip's `detail`).
+- **Use:** the `delta` of a `line` strip slot for a rate. **Not for:** counts (a neutral signed figure), rank changes (`RankDelta`), table cells (`DeltaCell`).
 
 ### 9.5 ConfidenceIndicator
 `app/metric/confidence-indicator.tsx` · V1 · [23 §8.2](23-application-patterns.md)
@@ -3498,7 +3572,7 @@ Purpose: says what is missing, why, and the one action that changes it.
 
 ```ts
 interface EmptyStateProps {
-  variant?: 'region' | 'inline';    // inline: inspector sections, strip slots, small panels
+  variant?: 'region' | 'inline' | 'table' | 'card';    // inline: inspector sections, strip slots, small panels; table (WP-77): the body of a BoardTable panel; card (WP-77): the body of a card that cannot be drawn
   icon?: LucideIcon;                // object glyph, 20 px; omitted inline
   title: string;                    // a fact: "No keywords tracked yet"
   reason: string;                   // exactly one sentence with real numbers, times or names
@@ -3509,7 +3583,7 @@ interface EmptyStateProps {
 }
 ```
 
-- **Variants:** `variant` 2 values. **States:** empty, filtered empty, no permission (names the permission and who can grant it), not found, feature not available yet, no observations yet (with compact `CollectionProgress` when a run is in progress).
+- **Variants:** `variant` 4 values (`table`, WP-77: no icon, centered, 48 px above and below, the reason in `type-meta` at reading width, one button; [17 §2.1](17-empty-loading-error-states.md); `card`, WP-77: the body of a card that cannot be drawn, no icon, centered, at least 96 px, the title in `type-body-strong` and the reason in `type-meta`). **States:** empty, filtered empty, no permission (names the permission and who can grant it), not found, feature not available yet, no observations yet (with compact `CollectionProgress` when a run is in progress).
 - **A11y:** heading level fits the region; action names the fix. **Use:** any region whose query succeeded with nothing to show (copy catalogue 17 §2.3). **Not for:** errors (`InlineError`), loading (skeletons), illustrations (never).
 
 ### 11.2 StatusBadge
@@ -4066,6 +4140,97 @@ interface SERPPreviewProps { position: number; title: string; url: DisplayUrl; s
 
 - **States:** container query: title and URL only in narrow containers. **A11y:** escaped text; external link through `ExternalLinkButton`. **Use:** Keyword Detail SERP snapshots, inspector SERP tab. **Not for:** lists of results to compare (table).
 
+### 14.15 TierBadge
+`components/app/tier/tier-badge.tsx` · V1 · [02 §7.4](02-color-system.md), internal link tracker spec 7.9
+
+Purpose: a page's tier: an outline badge with a 8 px square in the tier color and the code ("T1"), or the code and name ("T1 Money pages").
+
+```ts
+interface TierBadgeProps {
+  tier: { code: string; name: string } | null; // null is Untiered
+  withName?: boolean;                          // default false
+  className?: string;
+}
+```
+
+- **Variants:** none (the color comes from the tier's position, `tier-colors.ts`).
+- **States:** none; never wraps.
+- **A11y:** plain text; the code or label is the meaning, the square is `aria-hidden`; a code-only badge carries the tier name as visually hidden text (a screen reader reads "T1 Money pages") and as its title (a mouse hint only). The badge keeps `type-label` and `px-1.5` as the reference screens draw it, and never shrinks in a flex row.
+- **Use:** tier cells of the Pages and Links tables, cards, the tier flow headers; `withName` in filters, tooltips, the inspector and settings.
+- **Not for:** a choice of tier (a `Select` of labels), counts.
+
+### 14.16 LinkCard
+`components/app/link-canvas/link-card.tsx` · V1 · internal link tracker spec 7.5 and 7.9
+
+Purpose: one node of the link canvas: a page card, a stub for a page already on the canvas, or a group card for the links of another scope.
+
+```ts
+type LinkCardProps = LinkCardPageProps | LinkCardStubProps | LinkCardGroupProps; // `kind` tells them apart
+```
+
+- **Variants:** `kind` card, stub, group (structure, not style).
+- **States:** default, hover, focus (focus ring), opened (`primary-subtle`), the focus page (`primary-border` ring), highlighted (dashed primary outline: a back-link target or a found original), stub (dashed border), group (`surface-subtle`), error target (status badge in the negative tone, redirect in the warning tone). The card pads 12 px at the sides, the next spacing step above the 10 px of the reference screen.
+- **A11y:** a `button` named like a sentence ("/pricing, T1 Money pages, 12 linking pages, linked as “See plans”, content"); the tooltip is its description (status, depth, link details, both ways); `aria-expanded` only when it can open; the back-link marker is a toggle button (`aria-pressed`) named "Links back to 2 earlier pages"; tools ("Make /x the focus", "Details of /x") are `IconButton`s with tooltips.
+- **Use:** inside `LinkCanvas` only.
+- **Not for:** record lists (a table), cards on a dashboard.
+
+### 14.17 LinkCanvas
+`components/app/link-canvas/link-canvas.tsx` · V1 · internal link tracker spec 7.5, [15 §13](15-data-visualization.md), [20 §7.1](20-accessibility.md)
+
+Purpose: the journey of links from one page: the focus in the middle, links out to the right and links in to the left, one column a step, grown one card at a time.
+
+```ts
+interface LinkCanvasProps<N extends JourneyNeighbor> {
+  layout: JourneyLayout<N>;        // lib/internal-links/journey-layout.ts
+  focus: CanvasFocus;
+  focusNote?: ReactNode;
+  view: { x: number; y: number; scale: number };   // lib/internal-links/canvas-view.ts, scale 0.25 to 2
+  onViewChange: (view: View) => void;
+  pinned: ReadonlySet<string>;
+  onTogglePin, onToggleCard, onToggleGroup, onMore: (key: string) => void;
+  onRefocus, onDetails: (urlId: string) => void;
+  onRetry: (request: ListRequest) => void;
+  onFull: () => void;              // opening refused at 300 cards
+  ref?: Ref<{ fit: () => void; centerFocus: () => void }>;
+}
+```
+
+- **Viewport** (`canvas-viewport.tsx`): the canvas does not scroll. The columns and the lines sit in one world that moves by a single transform; the background is a dot grid that moves and scales with it. Columns stand 112 px apart. Pan: drag the empty background, wheel or two finger scroll, Space and drag, one finger on a touch screen, the arrow keys (Shift for a larger step) when the empty canvas has focus; a fast drag glides to a stop. Zoom: 25 to 200 percent with Ctrl or Cmd and the wheel or a pinch, toward the cursor; the keys + and - step by a quarter, 1 returns to 100 percent, 0 fits everything, Home centres on the focus page. Reduced motion (the system setting or `data-motion="reduced"`) removes the glide; nothing else animates.
+- **Cost:** the host hears of a gesture at most once a frame and once more when it ends; cards are memoised and take stable handlers, and the lines are measured from offset geometry, so a pan or a zoom draws no card again and measures nothing. A card is panned into view on focus only when the focus came from the keyboard.
+- **First view:** once per focus page, when no list is loading: the whole journey with a 56 px margin when that is readable (70 percent or more), otherwise the focus page at 85 percent. A card that takes focus is panned into view by the least move (24 px margin).
+- **View controls** (`view-controls.tsx`, a toolbar named Canvas view, bottom left): zoom out, the zoom in percent (press to return to 100 percent), zoom in, fit everything, centre on focus, show or hide the map.
+- **Minimap** (`minimap.tsx`, bottom right): off until the map button is pressed; hidden under 640 px; every card as a box and the part in view as an outline; press or drag to move the view.
+- **Variants:** none.
+- **States:** loading list (a skeleton row and `role="status"`), failed list (words and Try again), full canvas (refused through `onFull`), back links shown on hover, focus or pin.
+- **A11y:** the viewport is a named, focusable `group` whose name points to the tree list; keyboard model in 20 §7.1; the SVG is `aria-hidden` and nothing it shows is only there.
+- **Use:** the Journey tab of Internal links.
+- **Not for:** a whole-site graph (spec 3: "when asked"), any other diagram.
+
+### 14.18 AlertFields (link alert rules)
+`components/app/link-alert-rules/alert-settings.tsx` · V1 · internal link tracker spec 7.10 "Alert rules"
+
+Purpose: the body of the alert rules form of the internal link tracker: the switch, the important tiers, the number of lost links that raises an alert, and the channel. The host owns the draft and the save, so one form serves the project's Internal links settings (inside its save bar) and the dialog the Changes tab opens.
+
+```ts
+interface AlertFieldsProps {
+  draft: AlertDraft;                       // threshold stays text until it is checked
+  saved: AlertSettings;
+  tierCount: number | null;                // the select offers T1 up to min(8, tierCount) and the saved value
+  canEdit: boolean;                        // false reads the values as text
+  busy: boolean;
+  thresholdError: 'range' | null;
+  thresholdRef?: RefObject<HTMLInputElement | null>;  // the host focuses it when a save is refused for it
+  onChange: (next: Partial<AlertDraft>) => void;
+}
+```
+
+- **Pure helpers** (same file, tested): `checkThreshold` (whole number from 1 to 50), `alertPatch` (only the changed members), `alertDirty` (a patch, or a threshold not valid yet), `tierChoices`, `draftOf`.
+- **Variants:** none.
+- **States:** editable, read only (`ReadOnlyList`), busy (controls disabled), threshold error. Email and Slack are listed in the channel select disabled with their reason until the alerts service ships.
+- **A11y:** every control has a visible label; the error is a `FieldError`; nothing creates a live region.
+- **Use:** project settings > Internal links (Alerts section), the Alert rules dialog of the Changes tab.
+- **Not for:** the account-level notification settings.
+
 ## 15. AI components
 
 Mention and citation are separate facts everywhere: `MentionStatus` and `CitationStatus` (and `MentionRate` and `CitationRate`) are never merged into one component, value or color. Their joint distribution appears only as the four-outcome `OutcomeMixBar` (section 10.6). `EngineStatusGlyph` (section 15.24) draws one engine's latest status as one glyph, and its accessible name and tooltip always state both facts separately. Engine values are per engine; a cross-engine value is always labeled "Equal-weight average (n engines)". `ConfidenceIndicator` (section 9.5) and `SampleCount` (section 9.6) are shared with SEO and cost views and are not repeated here.
@@ -4088,6 +4253,8 @@ interface EngineBadgeProps {
 // app/ai/engine-logo.tsx: the vendor mark, 16 px, decorative because the engine name is always beside it
 interface EngineLogoProps { engine: EngineCode; hidden?: boolean }
 ```
+
+> As built (WP-77): `EngineLogo` takes `nameDisplay?: 'visible' | 'visually-hidden'` (default `visible`). With `visually-hidden` the mark is the only thing on screen and the name is an `sr-only` span, for a column of marks that would repeat the names (Citations Platforms and Lost on); the cell's tooltip names the engine. Without a mark the name stays visible. The wrapper is `relative` in that mode, so the absolutely placed `sr-only` name stays in its own cell and cannot widen a scroll container (a page scrollbar appeared in the page drawer's Prompts tab without it).
 
 - **Variants:** none (neutral subtle; class badge neutral outline). **States:** none.
 - **A11y:** text; class badge read after the engine name. **Use:** headers, cells, evidence headers, legends. **Not for:** chart colors (engines take categorical colors in fixed order only inside engine charts). `EngineLogo` rules (source, size, the monochrome OpenAI mark, the shared Google mark, where it may appear) are in [07 §5](07-icons.md).
@@ -4699,6 +4866,8 @@ interface InspectorProps {
 - **A11y:** `aside` labeled by the title (complementary landmark); non-modal when docked or overlaid (F6 reaches it); modal sheet below 768 px; focus to the title on open, back to the originating row on Escape; Escape closes one layer per press.
 - **Use:** every record opened from a table, chart point, notification or palette. **Not for:** creating objects, destructive confirmation, multi-record study (full page).
 
+> As built (WP-77): optional `hideMoreActions` (default false) leaves out the More actions button, and with it the width items (Default, Wide, Maximum, Reset width), for a drawer that has no actions of its own; the resize handle stays the way to change the width. The two Citations drawers pass it, as the preview's drawers have only Close.
+
 ### 18.2 InspectorHeader
 `app/inspector/inspector-header.tsx` · V1 · [16 §2.1](16-drawers-dialogs-popovers.md), [23 §4.1](23-application-patterns.md)
 
@@ -4753,6 +4922,8 @@ interface InspectorSectionProps {
 
 - **Rules:** own query and error boundary; lists capped at 10 rows then "View all N" (section 23, item 34); charts full width at 180 px (section 23, item 33); tables at most 4 columns, not sortable, never virtualized; not collapsible; nothing uses `type-metric`.
 - **A11y:** heading level 3. **Not for:** bordered panels inside the inspector.
+
+> As built (WP-77): `icon` is optional (the Citations drawers draw none), and three optional props were added: `meta` (a short fact after the title in `type-meta`, such as "31 prompts · cited in 76 answers"; with a meta the header is `min-h-12 py-3` and wraps the meta to a second line instead of cutting it, as the preview's `cardFrame` does), `flush` (the ready and empty bodies have no padding and the card clips its corners, for a table or a list whose rows draw their own 16 px edges and an empty state that pads itself; a skeleton and an error keep the 16 px edges) and `titleSize` (`default` is `type-subsection-title`, `section` is `type-section-title` 16/24 as every Citations drawer card title is in the preview; still an `h3`) and `stackAction` (default false; the card becomes a container and the `action` sits on a second row under the title until the card is 42 rem wide, `@2xl`, then at the right of the title row, as the preview's card tools do; the Citations gap drawer's "Who is cited" card uses it). Callers that pass none draw as before. The specimen is in the `/design-system` Inspector section.
 
 ### 18.5 InspectorFooter
 `app/inspector/inspector-footer.tsx` · V1 · [16 §2.5](16-drawers-dialogs-popovers.md)
@@ -5146,7 +5317,7 @@ Disagreements between documents found while compiling this inventory. The resolu
 | 133 | `DataTable`: `col.status`, `rowActions` and `grid-focus` | Section 7.1 and 8 had no column for a run's status, took a record's actions as a list, and had no way to return focus to the table after a dialog | `col.status(id, value, { unknown })` shows the glyph of `CollectionStatusIcon` (`app/status/collection-progress`) in the status color beside its word, and sorts by the word (Runs). `rowActions` is a list or a function of the row, so Cancel is offered only on the rows a member may cancel. `app/data-table/grid-focus.ts` has `gridTabStop()`, the cell the arrow keys start from, and `gridFocus`, a `finalFocus` ref that resolves to it: for a dialog opened from a row's menu or the bulk bar, whose opener is gone when it closes. A screen whose dialog only sometimes should land there builds its own ref over `gridTabStop` (the bulk actions do, once a change was made). `CollectionProgress` is shown in the page header, one per run or import write the page follows |
 | 134 | `StepperDialog.finalDisabled` | Section 3.35 let the last step's button always be pressed once Continue passed | `finalDisabled` disables the last button only (the import's Confirm while rows are over the plan's limit). A disabled button names no reason, so the step must say why in text of its own |
 | 135 | `MetricStrip.meter` and `ChartFrame.stacked` | 17.1 has a `CostSummary` preset that takes a `BudgetMeterProps`; 10 section 2 has no stacking | `MetricStripItem.meter` is a node under the value, in the context position, left out while the strip loads: Costs builds its strip from items with a meter instead of a `CostSummary`. `ChartFrame.stacked` stacks the bars of a category into one column (series in the legend's order, 2 px corners on the top segment only); lines ignore it. Costs uses it for spend by day by workload, with fixed colors per workload |
-| 136 | `KeyValues` and `EntitySwatch` | Not in the inventory | `KeyValues` (`app/inspector/key-values.tsx`) is the read view of an inspector card: a `dl` of `{ id, label, value }` rows, the label in the first two fifths and long values wrapped. It began in Rankings' inspector and moved here to serve the run inspector too. `EntitySwatch` (`app/entity/entity-swatch.tsx`, `colorIndex` and `own`) is the 8 px square of an entity's chart color: chart 1 for the own brand, its `color_index` for the others, a dashed `chart-other` square past the sixth. It is decoration (`aria-hidden`): the name beside it carries the meaning. Used by the entities list |
+| 136 | `KeyValues` and `EntitySwatch` | Not in the inventory | `KeyValues` (`app/inspector/key-values.tsx`) is the read view of an inspector card: a `dl` of `{ id, label, value }` rows, the label in the first two fifths and long values wrapped. It began in Rankings' inspector and moved here to serve the run inspector too. `EntitySwatch` (`app/entity/entity-swatch.tsx`, `colorIndex` and `own`) is the 8 px square of an entity's chart color: chart 1 for the own brand, its `color_index` for the others, a dashed `chart-other` square past the sixth. It is decoration (`aria-hidden`): the name beside it carries the meaning. Used by the entities list. As built (WP-77): `shape="dot"` draws a round 8 px mark; with no color index it is a solid `chart-other` dot, the third-party mark of the Citations page |
 | 137 | `GroupPicker`, `GroupSelect` and `MultiSelect.commitOnBlur` | Section 4.9 said `MultiSelect` with `creatable` keeps text left in the field as a value when the field loses focus, so an alias typed before Save is not lost; keyword groups need the opposite, since a stray search would make a group | `commitOnBlur` (default `true`, the alias behavior) turns that off: text left in the field is a search, and a value is added by choosing its row or pressing Enter. `GroupPicker` (several groups: `MultiSelect` with `creatable` and `commitOnBlur={false}`) and `GroupSelect` (one group or "No group": a `Combobox` whose list the component filters, offering "Create group" first for a path that names none) are in `features/rankings/groups/group-picker.tsx`, not `components/`, because they read the project's groups. A typed path such as `Blog/Guides` is a choice of kind `new`; the form creates its missing levels, parents first, when it is saved, and Cancel creates nothing. The filter bar keeps its own group editor, since a filter never creates a group |
 | 138 | `Menu` items: `detail` and `description` | Section 3.25 gave an item a label, an icon, a shortcut and a `disabledReason` | `detail` is a short fact at the item's end ("14 of 20 left today") that takes the place of a shortcut and gives way to a reason. The reason or detail on show is `aria-hidden` and read as the item's description, so it is not read twice. `description` is a longer sentence for assistive technology only, replacing the reason or detail as the description ("No manual runs left today. The limit resets at 00:00 UTC."). `Menu.header` is text above the items that is not an item |
 | 139 | Cost components | 17.1 to 17.4 name `CostSummary`, `BudgetMeter`, `BudgetStatusBadge` and `ProviderCostTable` in `app/metric`, `app/status` and `features/costs/components` | Built in `features/costs/` until a second screen (Settings > Budgets and usage) shares them. `BudgetMeter` takes `pct`, `softLimitPct`, `state` (`ok`, `soft_exceeded`, `hard_exceeded`), `size` (`summary` 160 px, `cell` 64 px) and `label`: a `role="meter"` 6 px bar on a 1 px outline track, neutral up to the soft limit and warning past it, all warning at the hard limit, with a tick at the soft limit; the value stops at the track's end and `aria-valuetext` says the real share. `BudgetStatusBadge` takes `state`: neutral and without an icon within budget, warning with `TriangleAlert` at the soft limit and `Receipt` at the hard limit. `CostTable` is a plain semantic table for a short fixed list (columns of `{ id, header, align, cell }`, a bold footer row, loading, error and empty states), used for By provider, By project, by workload, Unit costs and Budgets, so there is no `ProviderCostTable`. There is no `CostSummary` and no projected month end: the forecast route is not built (see 135) |

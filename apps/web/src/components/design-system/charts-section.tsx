@@ -747,6 +747,41 @@ export function ChartsSection(): ReactNode {
         note="15 section 9. The scale follows the kind: the row's own range for counts, at least 20 points for rates, a fixed 1 to 20 with 1 at the top for ranks. The third column is the tooltip, written out."
       >
         <SparklineSpecimen density={density} />
+        <div className="flex flex-wrap items-center gap-6 type-meta">
+          {[
+            { name: 'Your site', entity: { own: true, colorIndex: null } },
+            { name: 'Competitor', entity: { own: false, colorIndex: 2 } },
+            { name: 'Third-party', entity: { own: false, colorIndex: null } },
+          ].map(({ name, entity }) => (
+            <span key={name} className="flex items-center gap-2">
+              <SparklineCell
+                values={OWN_RATE}
+                label={`Citations per run, oldest first, ${name}`}
+                width={96}
+                height={20}
+                entity={entity}
+                endDot={false}
+              />
+              <span>{`${name}: 96 by 20 px, entity colour, no end dot (WP-77)`}</span>
+            </span>
+          ))}
+        </div>
+        {/* WP-77: the page drawer's trend, in a box as wide as a drawer card */}
+        <div className="flex flex-col gap-2">
+          <div className="w-100 max-w-full rounded-lg border border-border bg-surface p-4">
+            <SparklineCell
+              values={OWN_RATE}
+              label="Citations per run, oldest first: 28, 30, 31, 33, 34, 36, 38, 40"
+              width="fill"
+              height={56}
+              entity={{ own: true, colorIndex: null }}
+              endDot={false}
+            />
+          </div>
+          <span className="type-meta">
+            fill, 56 px high: takes the width of its box and draws again when the box changes (WP-77)
+          </span>
+        </div>
       </SpecimenGroup>
     </div>
   );

@@ -17,7 +17,12 @@ import { cn } from '@/lib/utils';
  * type cannot tell, so a consumer and its reviewer do.
  */
 export type ShareColor =
-  `chart-${1 | 2 | 3 | 4 | 5 | 6}` | 'chart-other' | `rank-band-${1 | 2 | 3 | 4 | 5}` | 'rank-band-none';
+  | `chart-${1 | 2 | 3 | 4 | 5 | 6}`
+  | 'chart-other'
+  | `rank-band-${1 | 2 | 3 | 4 | 5}`
+  | 'rank-band-none'
+  | `tier-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
+  | 'tier-none';
 
 /** The segments, in their fixed order (CH-03: Named and cited, Named only, Cited only, Neither). */
 export interface ShareSegment {
@@ -84,6 +89,15 @@ const FILL: Record<ShareColor, string> = {
   'rank-band-4': 'bg-rank-band-4',
   'rank-band-5': 'bg-rank-band-5',
   'rank-band-none': 'bg-rank-band-none',
+  'tier-1': 'bg-tier-1',
+  'tier-2': 'bg-tier-2',
+  'tier-3': 'bg-tier-3',
+  'tier-4': 'bg-tier-4',
+  'tier-5': 'bg-tier-5',
+  'tier-6': 'bg-tier-6',
+  'tier-7': 'bg-tier-7',
+  'tier-8': 'bg-tier-8',
+  'tier-none': 'bg-tier-none',
 };
 
 /*
@@ -107,6 +121,15 @@ export const LABEL_ON: Record<ShareColor, string | null> = {
   'rank-band-4': 'text-foreground',
   'rank-band-5': 'text-foreground',
   'rank-band-none': 'text-foreground',
+  'tier-1': 'text-foreground-inverse',
+  'tier-2': 'text-foreground-inverse',
+  'tier-3': 'text-foreground-inverse',
+  'tier-4': 'text-foreground-inverse',
+  'tier-5': 'text-foreground-inverse',
+  'tier-6': null,
+  'tier-7': null,
+  'tier-8': null,
+  'tier-none': null,
 };
 
 /** The six patterns, in a fixed order: a segment keeps its kind whichever outcomes a row has. */

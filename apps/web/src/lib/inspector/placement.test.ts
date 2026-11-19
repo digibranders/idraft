@@ -23,6 +23,15 @@ describe('inspect targets', () => {
     expect(defaultInspectorWidth('group')).toBe(400);
   });
 
+  it('opens the two Citations drawers at 440 px (WP-77)', () => {
+    expect(parseInspectTarget('cited-page:12')).toEqual({ type: 'cited-page', id: '12' });
+    expect(parseInspectTarget('gap-prompt:0192d1a8-c177-7000-8000-000000000001')).toMatchObject({
+      type: 'gap-prompt',
+    });
+    expect(defaultInspectorWidth('cited-page')).toBe(440);
+    expect(defaultInspectorWidth('gap-prompt')).toBe(440);
+  });
+
   it('opens nothing for an unknown type, an empty or spaced id, or no colon', () => {
     expect(parseInspectTarget('report:1')).toBeNull();
     expect(parseInspectTarget('keyword:')).toBeNull();

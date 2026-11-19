@@ -31,8 +31,10 @@ function Harness({
   atFirst = false,
   title = 'best crm for startups',
   list = <button type="button">A row of the list</button>,
+  hideMoreActions = false,
 }: {
   atFirst?: boolean;
+  hideMoreActions?: boolean;
   title?: string;
   /** What the list beside the inspector holds. */
   list?: ReactNode;
@@ -45,6 +47,7 @@ function Harness({
           backLabel="Back to Keywords"
           onClose={onClose}
           onStep={onStep}
+          hideMoreActions={hideMoreActions}
           header={{
             title,
             typeLabel: 'Keyword',
@@ -232,6 +235,12 @@ describe('Inspector', () => {
     expect(window.localStorage.getItem('inspector-width:keyword')).toBeNull();
   });
 
+  it('leaves the More menu out when asked, and keeps Close', () => {
+    renderWithProviders(<Harness hideMoreActions />);
+    expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
   it('offers the widths in its More menu', async () => {
     const { user } = renderWithProviders(<Harness />);
     await user.click(screen.getByRole('button', { name: 'More actions for best crm for startups' }));
@@ -241,6 +250,105 @@ describe('Inspector', () => {
     await waitFor(() => {
       expect(inspector()).toHaveStyle({ width: '440px' });
     });
+  });
+});
+
+describe('InspectorSection', () => {
+  it('draws a meta after the title and a flush body for a table (WP-77)', () => {
+    renderWithProviders(
+      <InspectorSection
+        title="Prompts that cite this page"
+        meta="31 prompts · cited in 76 answers"
+        status="ready"
+        flush
+      >
+        <table aria-label="t" />
+      </InspectorSection>,
+    );
+    expect(screen.getByText('31 prompts · cited in 76 answers')).toHaveClass('type-meta');
+    expect(screen.getByRole('table', { name: 't' }).parentElement?.className ?? '').not.toContain('px-4');
+  });
+
+  it('wraps a meta to a second line instead of cutting it, as the preview header does', () => {
+    renderWithProviders(
+      <InspectorSection title="Prompts that cite this page" meta="31 prompts · cited in 76 answers" status="ready" />,
+    );
+    const meta = screen.getByText('31 prompts · cited in 76 answers');
+    expect(meta).not.toHaveClass('truncate');
+    expect(meta).toHaveClass('wrap-anywhere');
+    const title = screen.getByRole('heading', { level: 3, name: 'Prompts that cite this page' });
+    expect(title).not.toHaveClass('truncate');
+    expect(title.parentElement).toHaveClass('flex-wrap');
+    expect(title.parentElement?.parentElement).toHaveClass('min-h-12', 'py-3');
+    expect(title.parentElement?.parentElement).not.toHaveClass('h-12');
+  });
+
+  it('can put its action on a second row until the card is 42 rem wide (a container query)', () => {
+    const { container, rerender } = renderWithProviders(
+      <InspectorSection
+        title="Who is cited"
+        meta="9 answers"
+        action={<button type="button">Open</button>}
+        status="ready"
+      />,
+    );
+    expect(container.querySelector('section')).not.toHaveClass('@container');
+    expect(screen.getByRole('button', { name: 'Open' }).parentElement).not.toHaveClass('basis-full');
+    rerender(
+      <InspectorSection
+        title="Who is cited"
+        meta="9 answers"
+        action={<button type="button">Open</button>}
+        stackAction
+        status="ready"
+      />,
+    );
+    expect(container.querySelector('section')).toHaveClass('@container');
+    expect(screen.getByRole('button', { name: 'Open' }).parentElement).toHaveClass('basis-full', '@2xl:basis-auto');
+    expect(screen.getByRole('heading', { level: 3 }).parentElement?.parentElement).toHaveClass(
+      'flex-wrap',
+      'min-h-12',
+      'py-3',
+    );
+  });
+
+  it('keeps a header without a meta one 48 px line that cuts a long title', () => {
+    renderWithProviders(<InspectorSection title="Demand" icon={FileText} status="ready" />);
+    const title = screen.getByRole('heading', { level: 3, name: 'Demand' });
+    expect(title).toHaveClass('truncate', 'type-subsection-title');
+    expect(title.parentElement?.parentElement).toHaveClass('h-12');
+  });
+
+  it('draws the title in section size when asked, and stays an h3', () => {
+    renderWithProviders(<InspectorSection title="Summary" titleSize="section" status="ready" />);
+    const title = screen.getByRole('heading', { level: 3, name: 'Summary' });
+    expect(title).toHaveClass('type-section-title');
+    expect(title).not.toHaveClass('type-subsection-title');
+  });
+
+  it('draws a flush empty state with no padding of its own, and pads a flush skeleton and error', () => {
+    const { rerender } = renderWithProviders(
+      <InspectorSection title="Cited alongside" status="empty" flush empty={<p>Cited alone</p>} />,
+    );
+    expect(screen.getByText('Cited alone').parentElement?.className ?? '').not.toContain('px-4');
+    rerender(<InspectorSection title="Cited alongside" status="error" flush error={<p>Failed</p>} />);
+    expect(screen.getByText('Failed').parentElement).toHaveClass('px-4', 'pb-4');
+    rerender(<InspectorSection title="Cited alongside" status="loading" flush />);
+    expect(document.querySelector('section > div:last-child')).toHaveClass('px-4', 'pb-4');
+  });
+
+  it('pads an empty state of a card that is not flush', () => {
+    renderWithProviders(<InspectorSection title="Settings" status="empty" empty={<p>Nothing yet</p>} />);
+    expect(screen.getByText('Nothing yet').parentElement).toHaveClass('px-4', 'pb-4');
+  });
+
+  it('still draws its icon and a padded body without them', () => {
+    renderWithProviders(
+      <InspectorSection title="Demand" icon={FileText} status="ready">
+        <p>8,100 searches a month</p>
+      </InspectorSection>,
+    );
+    expect(screen.getByText('8,100 searches a month').parentElement).toHaveClass('px-4');
   });
 });
 

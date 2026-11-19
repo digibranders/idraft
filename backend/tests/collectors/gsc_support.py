@@ -77,15 +77,29 @@ class FakeSearchConsole(FakeGoogle):
         # Answer any request after this many with a quota error.
         self.quota_after: int | None = None
         self.malformed = False
+        # (page, clicks, impressions) rows per property and day, for the `[date, page]` call.
+        self.page_days: dict[str, dict[date, list[tuple[str, int, int]]]] = {}
 
     def set_day(self, site: str, day: date, rows: list[Row]) -> None:
         self.days.setdefault(site, {})[day] = rows
+
+    def set_page_day(self, site: str, day: date, rows: list[tuple[str, int, int]]) -> None:
+        self.page_days.setdefault(site, {})[day] = rows
+
+    def page_requests(self, site: str | None = None) -> list[dict[str, Any]]:
+        return [
+            body
+            for requested, body in self.requests
+            if body["dimensions"] == ["date", "page"] and (site is None or requested == site)
+        ]
 
     def detail_requests(self, site: str | None = None) -> list[dict[str, Any]]:
         return [
             body
             for requested, body in self.requests
-            if len(body["dimensions"]) > 1 and (site is None or requested == site)
+            if len(body["dimensions"]) > 1
+            and body["dimensions"] != ["date", "page"]
+            and (site is None or requested == site)
         ]
 
     def detail_days(self, site: str | None = None) -> list[str]:
@@ -118,6 +132,21 @@ class FakeSearchConsole(FakeGoogle):
             for day, rows in sorted(self.days.get(site, {}).items())
             if start <= day <= end and (body["dataState"] == "all" or day <= self.final_through)
         ]
+        if body["dimensions"] == ["date", "page"]:
+            pages = [
+                {
+                    "keys": [day.isoformat(), url],
+                    "clicks": float(clicks),
+                    "impressions": float(impressions),
+                    "ctr": 0.1,
+                    "position": 3.0,
+                }
+                for day, items in sorted(self.page_days.get(site, {}).items())
+                if start <= day <= end and (body["dataState"] == "all" or day <= self.final_through)
+                for url, clicks, impressions in items
+            ]
+            pages = pages[body["startRow"] : body["startRow"] + body["rowLimit"]]
+            return httpx.Response(200, json={"rows": pages} if pages else {})
         if body["dimensions"] == ["date"]:
             rows: list[dict[str, Any]] = [
                 {

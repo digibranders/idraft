@@ -1613,6 +1613,75 @@
         "title": "AioStateInfo",
         "type": "object"
       },
+      "AlertSettings": {
+        "properties": {
+          "channel": {
+            "default": "app",
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_position": {
+            "default": 2,
+            "description": "Tier positions 1 to this one are important.",
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "default": 1,
+            "description": "Lost links that raise an alert.",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "title": "AlertSettings",
+        "type": "object"
+      },
+      "AlertSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "max_position": {
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "title": "AlertSettingsPatch",
+        "type": "object"
+      },
       "Alias": {
         "properties": {
           "alias": {
@@ -2147,6 +2216,138 @@
         "title": "AnchorCount",
         "type": "object"
       },
+      "AnchorDetail": {
+        "properties": {
+          "distinct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "integer"
+          },
+          "generic_share": {
+            "title": "Generic Share",
+            "type": "number"
+          },
+          "matches_keyword": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Keyword"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnchorText"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "distinct",
+          "generic",
+          "generic_share",
+          "matches_keyword",
+          "top"
+        ],
+        "title": "AnchorDetail",
+        "type": "object"
+      },
+      "AnchorSummary": {
+        "properties": {
+          "distinct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distinct"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "integer"
+          },
+          "generic_share": {
+            "title": "Generic Share",
+            "type": "number"
+          },
+          "matches_keyword": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Keyword"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "distinct",
+          "generic",
+          "generic_share",
+          "matches_keyword"
+        ],
+        "title": "AnchorSummary",
+        "type": "object"
+      },
+      "AnchorText": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "generic": {
+            "title": "Generic",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "count",
+          "generic"
+        ],
+        "title": "AnchorText",
+        "type": "object"
+      },
       "Annotation": {
         "description": "A boundary drawn on every time chart (overview-and-charts N9).",
         "properties": {
@@ -2357,6 +2558,72 @@
           "file"
         ],
         "title": "Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post",
+        "type": "object"
+      },
+      "BrandCell": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "cited": {
+            "title": "Cited",
+            "type": "integer"
+          },
+          "mentioned": {
+            "title": "Mentioned",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "cited",
+              "mentioned",
+              "not",
+              "none"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cited",
+          "mentioned",
+          "answers",
+          "state"
+        ],
+        "title": "BrandCell",
+        "type": "object"
+      },
+      "BrandOnPrompt": {
+        "properties": {
+          "cited_on": {
+            "description": "Engines with answers where the brand is cited.",
+            "title": "Cited On",
+            "type": "integer"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineBrandCell"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "platforms": {
+            "description": "Engines with answers.",
+            "title": "Platforms",
+            "type": "integer"
+          },
+          "total": {
+            "$ref": "#/components/schemas/BrandCell"
+          }
+        },
+        "required": [
+          "total",
+          "engines",
+          "cited_on",
+          "platforms"
+        ],
+        "title": "BrandOnPrompt",
         "type": "object"
       },
       "Budget": {
@@ -2929,6 +3196,353 @@
         "title": "CardItem",
         "type": "object"
       },
+      "ChangeAlert": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "app",
+              "email",
+              "slack"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "delivery_state": {
+            "enum": [
+              "shown_in_app",
+              "channel_unavailable"
+            ],
+            "title": "Delivery State",
+            "type": "string"
+          },
+          "lost_links": {
+            "title": "Lost Links",
+            "type": "integer"
+          },
+          "max_position": {
+            "title": "Max Position",
+            "type": "integer"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lost_links",
+          "max_position",
+          "threshold",
+          "channel",
+          "delivery_state"
+        ],
+        "title": "ChangeAlert",
+        "type": "object"
+      },
+      "ChangeLink": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "placement": {
+            "enum": [
+              "content",
+              "auto_generated",
+              "navigation",
+              "header",
+              "footer",
+              "sidebar",
+              "breadcrumb"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "lost_to_t1",
+              "lost_to_t2",
+              "lower",
+              "none"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "still_linked_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Another link that still joins the pair in this crawl (editorial scope).",
+            "title": "Still Linked By"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "anchor",
+          "placement",
+          "priority",
+          "still_linked_by"
+        ],
+        "title": "ChangeLink",
+        "type": "object"
+      },
+      "ChangeLinkMeta": {
+        "properties": {
+          "change": {
+            "enum": [
+              "lost",
+              "added"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "link_scope": {
+            "enum": [
+              "editorial",
+              "all"
+            ],
+            "title": "Link Scope",
+            "type": "string"
+          },
+          "only": {
+            "enum": [
+              "top",
+              "all"
+            ],
+            "title": "Only",
+            "type": "string"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "The stored changes were cut at 200,000 rows.",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id",
+          "change",
+          "link_scope",
+          "only",
+          "total",
+          "truncated"
+        ],
+        "title": "ChangeLinkMeta",
+        "type": "object"
+      },
+      "ChangeLinkPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeLink"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ChangeLinkMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "ChangeLinkPage",
+        "type": "object"
+      },
+      "ChangePage": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null is Untiered."
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "tier"
+        ],
+        "title": "ChangePage",
+        "type": "object"
+      },
+      "ChangesSummary": {
+        "properties": {
+          "alert": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeAlert"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "all_added": {
+            "title": "All Added",
+            "type": "integer"
+          },
+          "all_lost": {
+            "title": "All Lost",
+            "type": "integer"
+          },
+          "editorial_added": {
+            "title": "Editorial Added",
+            "type": "integer"
+          },
+          "editorial_lost": {
+            "title": "Editorial Lost",
+            "type": "integer"
+          },
+          "important_max_position": {
+            "title": "Important Max Position",
+            "type": "integer"
+          },
+          "lost_to_top": {
+            "description": "Editorial links lost to the important tiers.",
+            "title": "Lost To Top",
+            "type": "integer"
+          },
+          "pages_added": {
+            "title": "Pages Added",
+            "type": "integer"
+          },
+          "pages_lost": {
+            "title": "Pages Lost",
+            "type": "integer"
+          },
+          "previous_finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Finished At"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "description": "`pending` until the crawl's changes are worked out, `unavailable` when enrichment failed before that.",
+            "enum": [
+              "first_crawl",
+              "pending",
+              "ready",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id",
+          "previous_finished_at",
+          "state",
+          "editorial_lost",
+          "editorial_added",
+          "all_lost",
+          "all_added",
+          "lost_to_top",
+          "important_max_position",
+          "pages_added",
+          "pages_lost",
+          "alert"
+        ],
+        "title": "ChangesSummary",
+        "type": "object"
+      },
+      "ChangesSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChangesSummary"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ChangesSummaryResponse",
+        "type": "object"
+      },
       "CheckNow": {
         "additionalProperties": false,
         "description": "Keywords to check at once, each a search of its own through the standard queue.",
@@ -2961,6 +3575,210 @@
           "tracked_keyword_ids"
         ],
         "title": "CheckNow",
+        "type": "object"
+      },
+      "CitationCounts": {
+        "properties": {
+          "ai_mode": {
+            "title": "Ai Mode",
+            "type": "integer"
+          },
+          "chatgpt": {
+            "title": "Chatgpt",
+            "type": "integer"
+          },
+          "gemini": {
+            "title": "Gemini",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chatgpt",
+          "gemini",
+          "ai_mode",
+          "total"
+        ],
+        "title": "CitationCounts",
+        "type": "object"
+      },
+      "CitationGapDetail": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "closest_pages": {
+            "items": {
+              "$ref": "#/components/schemas/GapPage"
+            },
+            "maxItems": 3,
+            "title": "Closest Pages",
+            "type": "array"
+          },
+          "competitor_pages": {
+            "items": {
+              "$ref": "#/components/schemas/GapPage"
+            },
+            "title": "Competitor Pages",
+            "type": "array"
+          },
+          "own_pages": {
+            "items": {
+              "$ref": "#/components/schemas/GapPage"
+            },
+            "title": "Own Pages",
+            "type": "array"
+          },
+          "row": {
+            "$ref": "#/components/schemas/CitationGapRow"
+          },
+          "third_party_pages": {
+            "items": {
+              "$ref": "#/components/schemas/GapPage"
+            },
+            "maxItems": 5,
+            "title": "Third Party Pages",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/RunWindow"
+          }
+        },
+        "required": [
+          "row",
+          "answers",
+          "competitor_pages",
+          "own_pages",
+          "closest_pages",
+          "third_party_pages",
+          "window"
+        ],
+        "title": "CitationGapDetail",
+        "type": "object"
+      },
+      "CitationGapList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CitationGapRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/CitationGapsMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "CitationGapList",
+        "type": "object"
+      },
+      "CitationGapRow": {
+        "properties": {
+          "competitor_answers": {
+            "title": "Competitor Answers",
+            "type": "integer"
+          },
+          "competitors": {
+            "items": {
+              "$ref": "#/components/schemas/CompetitorOnPrompt"
+            },
+            "title": "Competitors",
+            "type": "array"
+          },
+          "gap": {
+            "description": "How many engines the prompt is lost on.",
+            "title": "Gap",
+            "type": "integer"
+          },
+          "lost_on": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Lost On",
+            "type": "array"
+          },
+          "lost_to": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Lost To",
+            "type": "array"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptTopic"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The prompt's first term in path order."
+          },
+          "you": {
+            "$ref": "#/components/schemas/BrandOnPrompt"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "topic",
+          "you",
+          "competitors",
+          "lost_on",
+          "lost_to",
+          "gap",
+          "competitor_answers"
+        ],
+        "title": "CitationGapRow",
+        "type": "object"
+      },
+      "CitationGapsMeta": {
+        "properties": {
+          "competitors": {
+            "items": {
+              "$ref": "#/components/schemas/GapCompetitor"
+            },
+            "title": "Competitors",
+            "type": "array"
+          },
+          "gaps": {
+            "title": "Gaps",
+            "type": "integer"
+          },
+          "prompts": {
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/RunWindow"
+          }
+        },
+        "required": [
+          "window",
+          "competitors",
+          "prompts",
+          "gaps"
+        ],
+        "title": "CitationGapsMeta",
         "type": "object"
       },
       "CitationOut": {
@@ -3104,6 +3922,73 @@
         "title": "CitationOut",
         "type": "object"
       },
+      "CitationOverview": {
+        "properties": {
+          "citations": {
+            "description": "Own citation units in the current window.",
+            "title": "Citations",
+            "type": "integer"
+          },
+          "domains": {
+            "title": "Domains",
+            "type": "integer"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCitationCounts"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "matched_citations": {
+            "description": "Own units now, on the prompt and engine pairs answered in both windows.",
+            "title": "Matched Citations",
+            "type": "integer"
+          },
+          "matched_pairs": {
+            "title": "Matched Pairs",
+            "type": "integer"
+          },
+          "matched_previous_citations": {
+            "title": "Matched Previous Citations",
+            "type": "integer"
+          },
+          "own_urls": {
+            "title": "Own Urls",
+            "type": "integer"
+          },
+          "previous_citations": {
+            "title": "Previous Citations",
+            "type": "integer"
+          },
+          "previous_domains": {
+            "title": "Previous Domains",
+            "type": "integer"
+          },
+          "previous_own_urls": {
+            "title": "Previous Own Urls",
+            "type": "integer"
+          },
+          "window": {
+            "$ref": "#/components/schemas/RunWindow"
+          }
+        },
+        "required": [
+          "window",
+          "engines",
+          "citations",
+          "previous_citations",
+          "matched_citations",
+          "matched_previous_citations",
+          "matched_pairs",
+          "own_urls",
+          "previous_own_urls",
+          "domains",
+          "previous_domains"
+        ],
+        "title": "CitationOverview",
+        "type": "object"
+      },
       "CitationPage": {
         "properties": {
           "data": {
@@ -3243,6 +4128,335 @@
           "occurrences"
         ],
         "title": "CitationRow",
+        "type": "object"
+      },
+      "CitedAlongside": {
+        "properties": {
+          "answers": {
+            "description": "Answers citing this page that also cite this domain.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "color_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Name"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "entity_id",
+          "entity_name",
+          "color_index",
+          "answers"
+        ],
+        "title": "CitedAlongside",
+        "type": "object"
+      },
+      "CitedPageDetail": {
+        "properties": {
+          "alongside": {
+            "items": {
+              "$ref": "#/components/schemas/CitedAlongside"
+            },
+            "maxItems": 8,
+            "title": "Alongside",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CitedPageRow"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/CitedPagePrompt"
+            },
+            "title": "Prompts",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/RunWindow"
+          }
+        },
+        "required": [
+          "page",
+          "prompts",
+          "alongside",
+          "window"
+        ],
+        "title": "CitedPageDetail",
+        "type": "object"
+      },
+      "CitedPagePage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CitedPageRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/CitedPagesMeta"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page",
+          "meta"
+        ],
+        "title": "CitedPagePage",
+        "type": "object"
+      },
+      "CitedPagePrompt": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "cited": {
+            "title": "Cited",
+            "type": "integer"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineAnswers"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "last_cited_at": {
+            "format": "date-time",
+            "title": "Last Cited At",
+            "type": "string"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "cited",
+          "answers",
+          "engines",
+          "last_cited_at"
+        ],
+        "title": "CitedPagePrompt",
+        "type": "object"
+      },
+      "CitedPageRow": {
+        "properties": {
+          "citations": {
+            "title": "Citations",
+            "type": "integer"
+          },
+          "color_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineUnits"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "entity_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Name"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "last_cited_at": {
+            "format": "date-time",
+            "title": "Last Cited At",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "previous_citations": {
+            "title": "Previous Citations",
+            "type": "integer"
+          },
+          "prompts": {
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "top_prompts": {
+            "description": "Most citations first.",
+            "items": {
+              "$ref": "#/components/schemas/PromptCount"
+            },
+            "maxItems": 10,
+            "title": "Top Prompts",
+            "type": "array"
+          },
+          "trend": {
+            "description": "Units per slot of `window.trend`, oldest first.",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Trend",
+            "type": "array"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "host",
+          "registrable_domain",
+          "path",
+          "title",
+          "domain_role",
+          "entity_id",
+          "entity_name",
+          "color_index",
+          "citations",
+          "previous_citations",
+          "prompts",
+          "top_prompts",
+          "engines",
+          "trend",
+          "last_cited_at"
+        ],
+        "title": "CitedPageRow",
+        "type": "object"
+      },
+      "CitedPagesMeta": {
+        "properties": {
+          "citations": {
+            "description": "Units of the rows the filter and `q` keep, every page.",
+            "title": "Citations",
+            "type": "integer"
+          },
+          "owners": {
+            "$ref": "#/components/schemas/OwnerCounts",
+            "description": "Pages per role, whatever the role filter and `q`."
+          },
+          "window": {
+            "$ref": "#/components/schemas/RunWindow"
+          }
+        },
+        "required": [
+          "window",
+          "owners",
+          "citations"
+        ],
+        "title": "CitedPagesMeta",
         "type": "object"
       },
       "CitedWith": {
@@ -3568,6 +4782,44 @@
           "kept_count"
         ],
         "title": "CompareSources",
+        "type": "object"
+      },
+      "CompetitorOnPrompt": {
+        "properties": {
+          "cited_on": {
+            "description": "Engines with answers where the brand is cited.",
+            "title": "Cited On",
+            "type": "integer"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineBrandCell"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "platforms": {
+            "description": "Engines with answers.",
+            "title": "Platforms",
+            "type": "integer"
+          },
+          "total": {
+            "$ref": "#/components/schemas/BrandCell"
+          }
+        },
+        "required": [
+          "total",
+          "engines",
+          "cited_on",
+          "platforms",
+          "entity_id"
+        ],
+        "title": "CompetitorOnPrompt",
         "type": "object"
       },
       "CompetitorOverride": {
@@ -4121,6 +5373,282 @@
         "title": "CountrySummary",
         "type": "object"
       },
+      "CrawlCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "higher_limit": {
+            "default": false,
+            "description": "Crawl again with a higher limit after a crawl stopped at its ceiling.",
+            "title": "Higher Limit",
+            "type": "boolean"
+          }
+        },
+        "title": "CrawlCreate",
+        "type": "object"
+      },
+      "CrawlRun": {
+        "properties": {
+          "ceiling": {
+            "description": "The safety stop: the crawl ends at this many pages.",
+            "title": "Ceiling",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "enrich_state": {
+            "description": "State of the second job: changes, anchors and mentions.",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Enrich State",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "estimated_cost_usd": {
+            "anyOf": [
+              {
+                "examples": [
+                  "0.012000"
+                ],
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Usd"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "hints": {
+            "items": {
+              "const": "render_javascript",
+              "type": "string"
+            },
+            "title": "Hints",
+            "type": "array"
+          },
+          "is_latest": {
+            "description": "The crawl `run=latest` reads.",
+            "title": "Is Latest",
+            "type": "boolean"
+          },
+          "links_available": {
+            "description": "False once the crawl's links were dropped (past the last four finished crawls): its pages stay, links, journeys and changes of links are gone.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
+          "pages_crawled": {
+            "title": "Pages Crawled",
+            "type": "integer"
+          },
+          "pages_found": {
+            "description": "Crawled and still queued, while it runs.",
+            "title": "Pages Found",
+            "type": "integer"
+          },
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The crawl its changes are measured against.",
+            "title": "Previous Run Id"
+          },
+          "render_javascript": {
+            "title": "Render Javascript",
+            "type": "boolean"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sitemap_pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sitemap Pages"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "crawling",
+              "processing",
+              "ready",
+              "stopped_at_ceiling",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "trigger": {
+            "enum": [
+              "website_added",
+              "schedule",
+              "manual",
+              "ceiling_retry"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "trigger",
+          "state",
+          "ceiling",
+          "pages_found",
+          "pages_crawled",
+          "sitemap_pages",
+          "render_javascript",
+          "estimated_cost_usd",
+          "cost_usd",
+          "stop_reason",
+          "error_code",
+          "error_message",
+          "hints",
+          "is_latest",
+          "links_available",
+          "previous_run_id",
+          "enrich_state",
+          "created_at",
+          "submitted_at",
+          "finished_at",
+          "requested_by"
+        ],
+        "title": "CrawlRun",
+        "type": "object"
+      },
+      "CrawlRunPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlRun"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "CrawlRunPage",
+        "type": "object"
+      },
+      "CrawlRunResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CrawlRun"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CrawlRunResponse",
+        "type": "object"
+      },
       "CursorPageInfo": {
         "description": "A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.",
         "properties": {
@@ -4150,6 +5678,36 @@
           "has_more"
         ],
         "title": "CursorPageInfo",
+        "type": "object"
+      },
+      "DecisionResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DecisionResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DecisionResult": {
+        "properties": {
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "changed"
+        ],
+        "title": "DecisionResult",
         "type": "object"
       },
       "DeviceCounts": {
@@ -4662,6 +6220,66 @@
         "title": "Engine",
         "type": "object"
       },
+      "EngineAnswers": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "cited": {
+            "title": "Cited",
+            "type": "integer"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          }
+        },
+        "required": [
+          "engine_code",
+          "cited",
+          "answers"
+        ],
+        "title": "EngineAnswers",
+        "type": "object"
+      },
+      "EngineBrandCell": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "cited": {
+            "title": "Cited",
+            "type": "integer"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "mentioned": {
+            "title": "Mentioned",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "cited",
+              "mentioned",
+              "not",
+              "none"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cited",
+          "mentioned",
+          "answers",
+          "state",
+          "engine_code"
+        ],
+        "title": "EngineBrandCell",
+        "type": "object"
+      },
       "EngineCells": {
         "description": "The cells of one engine over the comparison window, weighted as the current ones.",
         "properties": {
@@ -4685,6 +6303,59 @@
           "share_of_voice"
         ],
         "title": "EngineCells",
+        "type": "object"
+      },
+      "EngineCitationCounts": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "description": "Answers with at least one own citation unit.",
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "engine_code": {
+            "$ref": "#/components/schemas/EngineCode"
+          },
+          "previous_answers": {
+            "title": "Previous Answers",
+            "type": "integer"
+          },
+          "previous_answers_citing": {
+            "title": "Previous Answers Citing",
+            "type": "integer"
+          },
+          "previous_prompts": {
+            "title": "Previous Prompts",
+            "type": "integer"
+          },
+          "previous_prompts_citing": {
+            "title": "Previous Prompts Citing",
+            "type": "integer"
+          },
+          "prompts": {
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "prompts_citing": {
+            "title": "Prompts Citing",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine_code",
+          "answers",
+          "answers_citing",
+          "prompts",
+          "prompts_citing",
+          "previous_answers",
+          "previous_answers_citing",
+          "previous_prompts",
+          "previous_prompts_citing"
+        ],
+        "title": "EngineCitationCounts",
         "type": "object"
       },
       "EngineCoMentions": {
@@ -6213,6 +7884,93 @@
         "title": "ForecastRow",
         "type": "object"
       },
+      "GapCompetitor": {
+        "properties": {
+          "color_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Index"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name",
+          "color_index",
+          "domain"
+        ],
+        "title": "GapCompetitor",
+        "type": "object"
+      },
+      "GapPage": {
+        "properties": {
+          "citations": {
+            "title": "Citations",
+            "type": "integer"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/EngineCode"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "entity_id",
+          "citations",
+          "engines"
+        ],
+        "title": "GapPage",
+        "type": "object"
+      },
       "GeneratedFrom": {
         "additionalProperties": false,
         "properties": {
@@ -6342,6 +8100,75 @@
           "state"
         ],
         "title": "GscBlock",
+        "type": "object"
+      },
+      "GscPage": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Google's clicks for the page, last 28 days.",
+            "title": "Clicks"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "state",
+          "clicks",
+          "impressions",
+          "window_start",
+          "window_end"
+        ],
+        "title": "GscPage",
         "type": "object"
       },
       "GscTrend": {
@@ -7590,6 +9417,75 @@
         "title": "IntegrationSync",
         "type": "object"
       },
+      "InternalLinksSettings": {
+        "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/AlertSettings",
+            "description": "The alert for links lost to the important tiers (spec 7.10)."
+          },
+          "allowed_subdomains": {
+            "description": "Hosts of the project's site, besides its own and its `www.` form, that crawls follow (up to 10).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Subdomains",
+            "type": "array"
+          },
+          "render_javascript": {
+            "default": false,
+            "description": "Crawls render JavaScript; each page costs ten times as much.",
+            "title": "Render Javascript",
+            "type": "boolean"
+          },
+          "schedule": {
+            "default": "weekly",
+            "enum": [
+              "weekly",
+              "every_two_weeks",
+              "monthly",
+              "off"
+            ],
+            "title": "Schedule",
+            "type": "string"
+          }
+        },
+        "title": "InternalLinksSettings",
+        "type": "object"
+      },
+      "InternalLinksSettingsPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "$ref": "#/components/schemas/AlertSettingsPatch"
+          },
+          "allowed_subdomains": {
+            "items": {
+              "maxLength": 253,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Allowed Subdomains",
+            "type": "array"
+          },
+          "render_javascript": {
+            "title": "Render Javascript",
+            "type": "boolean"
+          },
+          "schedule": {
+            "enum": [
+              "weekly",
+              "every_two_weeks",
+              "monthly",
+              "off"
+            ],
+            "title": "Schedule",
+            "type": "string"
+          }
+        },
+        "title": "InternalLinksSettingsPatch",
+        "type": "object"
+      },
       "InvalidByStatus": {
         "description": "The stored answers that are not valid. A partial answer counts as valid (doc 07 section\n5.5), so it is not here.",
         "properties": {
@@ -8661,6 +10557,98 @@
         "title": "KeywordPage",
         "type": "object"
       },
+      "KeywordRow": {
+        "properties": {
+          "change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Places moved since the last check; positive is up.",
+            "title": "Change"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "keyword",
+          "rank",
+          "change",
+          "volume"
+        ],
+        "title": "KeywordRow",
+        "type": "object"
+      },
+      "KeywordSummary": {
+        "properties": {
+          "average_rank": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Rank"
+          },
+          "best_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Volume"
+          },
+          "ranking": {
+            "title": "Ranking",
+            "type": "integer"
+          },
+          "tracked": {
+            "title": "Tracked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tracked",
+          "ranking",
+          "average_rank",
+          "best_volume"
+        ],
+        "title": "KeywordSummary",
+        "type": "object"
+      },
       "LayoutDocument": {
         "additionalProperties": false,
         "description": "The numbers and cards of one screen, in order: a full snapshot, at most 16 KB.",
@@ -8881,6 +10869,12 @@
       },
       "ListMeta": {
         "properties": {
+          "links_available": {
+            "default": true,
+            "description": "False when the crawl's links were dropped: link counts are the stored ones.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
           "run_id": {
             "format": "uuid",
             "title": "Run Id",
@@ -9940,6 +11934,134 @@
           "search_volume"
         ],
         "title": "MonthlySearches",
+        "type": "object"
+      },
+      "MovedPage": {
+        "properties": {
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
+          "depth_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Delta"
+          },
+          "depth_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lost",
+                  "found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth State"
+          },
+          "editorial_in": {
+            "title": "Editorial In",
+            "type": "integer"
+          },
+          "editorial_in_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editorial In Delta"
+          },
+          "equity_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Points"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "page",
+          "editorial_in",
+          "editorial_in_delta",
+          "equity_points",
+          "depth",
+          "depth_state",
+          "depth_delta"
+        ],
+        "title": "MovedPage",
+        "type": "object"
+      },
+      "MovedPageList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MovedPage"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/MovedPageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "MovedPageList",
+        "type": "object"
+      },
+      "MovedPageMeta": {
+        "properties": {
+          "previous_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Run Id"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "previous_run_id"
+        ],
+        "title": "MovedPageMeta",
         "type": "object"
       },
       "Neighbor": {
@@ -11165,6 +13287,189 @@
         "title": "OperationLinks",
         "type": "object"
       },
+      "Opportunity": {
+        "properties": {
+          "anchor": {
+            "description": "The words to link: the phrase as written in the text.",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "context": {
+            "title": "Context",
+            "type": "string"
+          },
+          "key": {
+            "description": "\"{source_url_id}>{target_url_id}\".",
+            "title": "Key",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "keyword",
+              "anchor"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "phrase": {
+            "title": "Phrase",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "source_equity_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Equity Share"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "key",
+          "source",
+          "target",
+          "phrase",
+          "context",
+          "anchor",
+          "source_equity_share",
+          "status",
+          "origin"
+        ],
+        "title": "Opportunity",
+        "type": "object"
+      },
+      "OpportunityCounts": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "dismissed": {
+            "title": "Dismissed",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open",
+          "accepted",
+          "dismissed"
+        ],
+        "title": "OpportunityCounts",
+        "type": "object"
+      },
+      "OpportunityDecisions": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpportunityPair"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "accepted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "status"
+        ],
+        "title": "OpportunityDecisions",
+        "type": "object"
+      },
+      "OpportunityMeta": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OpportunityCounts"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "total",
+          "counts"
+        ],
+        "title": "OpportunityMeta",
+        "type": "object"
+      },
+      "OpportunityPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Opportunity"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/OpportunityMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "OpportunityPage",
+        "type": "object"
+      },
+      "OpportunityPair": {
+        "additionalProperties": false,
+        "properties": {
+          "source_url_id": {
+            "title": "Source Url Id",
+            "type": "string"
+          },
+          "target_url_id": {
+            "title": "Target Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_url_id",
+          "target_url_id"
+        ],
+        "title": "OpportunityPair",
+        "type": "object"
+      },
       "OutcomeCells": {
         "properties": {
           "cited_only": {
@@ -11387,8 +13692,104 @@
         "title": "OwnPage",
         "type": "object"
       },
+      "OwnerCounts": {
+        "properties": {
+          "all": {
+            "title": "All",
+            "type": "integer"
+          },
+          "competitor": {
+            "title": "Competitor",
+            "type": "integer"
+          },
+          "own": {
+            "title": "Own",
+            "type": "integer"
+          },
+          "third_party": {
+            "title": "Third Party",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "own",
+          "competitor",
+          "third_party",
+          "all"
+        ],
+        "title": "OwnerCounts",
+        "type": "object"
+      },
+      "PageChange": {
+        "properties": {
+          "depth_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth Delta"
+          },
+          "depth_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lost",
+                  "found"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth State"
+          },
+          "editorial_in_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editorial In Delta"
+          },
+          "equity_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity Points"
+          },
+          "is_new": {
+            "title": "Is New",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_new",
+          "editorial_in_delta",
+          "equity_points",
+          "depth_state",
+          "depth_delta"
+        ],
+        "title": "PageChange",
+        "type": "object"
+      },
       "PageDetail": {
         "properties": {
+          "extras": {
+            "$ref": "#/components/schemas/PageDetailExtras"
+          },
           "linking_by_placement": {
             "items": {
               "$ref": "#/components/schemas/PlacementCount"
@@ -11444,9 +13845,49 @@
           "linking_pages",
           "outlinks",
           "linking_pages_total",
-          "outlinks_total"
+          "outlinks_total",
+          "extras"
         ],
         "title": "PageDetail",
+        "type": "object"
+      },
+      "PageDetailExtras": {
+        "properties": {
+          "anchors": {
+            "$ref": "#/components/schemas/AnchorDetail"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "$ref": "#/components/schemas/CitationCounts"
+          },
+          "gsc": {
+            "$ref": "#/components/schemas/GscPage"
+          },
+          "keywords": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordRow"
+            },
+            "title": "Keywords",
+            "type": "array"
+          }
+        },
+        "required": [
+          "change",
+          "keywords",
+          "citations",
+          "anchors",
+          "gsc"
+        ],
+        "title": "PageDetailExtras",
         "type": "object"
       },
       "PageDetailResponse": {
@@ -11459,6 +13900,62 @@
           "data"
         ],
         "title": "PageDetailResponse",
+        "type": "object"
+      },
+      "PageExtras": {
+        "properties": {
+          "anchors": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnchorSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CitationCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gsc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GscPage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keywords": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeywordSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "PageExtras",
         "type": "object"
       },
       "PageFilter": {
@@ -11474,11 +13971,12 @@
                     "editorial_orphan",
                     "deep_only_through_auto",
                     "placement_unknown",
-                    "has_broken_outlinks"
+                    "has_broken_outlinks",
+                    "generic_anchors"
                   ],
                   "type": "string"
                 },
-                "maxItems": 5,
+                "maxItems": 6,
                 "type": "array"
               },
               {
@@ -11579,7 +14077,9 @@
                   "under_linked_t1",
                   "orphans",
                   "editorial_orphans",
-                  "deep_only_through_auto"
+                  "deep_only_through_auto",
+                  "lost_links_top",
+                  "weak_outlinks"
                 ],
                 "type": "string"
               },
@@ -11643,6 +14143,17 @@
             ],
             "title": "Equity Share"
           },
+          "extras": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageExtras"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the list was asked for `include`."
+          },
           "flags": {
             "items": {
               "enum": [
@@ -11652,7 +14163,8 @@
                 "placement_unknown",
                 "broken",
                 "redirect",
-                "non_indexable"
+                "non_indexable",
+                "generic_anchors"
               ],
               "type": "string"
             },
@@ -11927,9 +14439,7 @@
             "anyOf": [
               {
                 "items": {
-                  "exclusiveMinimum": 0.0,
-                  "maximum": 9.223372036854776e+18,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "maxItems": 5000,
                 "minItems": 1,
@@ -11980,9 +14490,7 @@
             "anyOf": [
               {
                 "items": {
-                  "exclusiveMinimum": 0.0,
-                  "maximum": 9.223372036854776e+18,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "maxItems": 5000,
                 "minItems": 1,
@@ -12177,9 +14685,7 @@
             "anyOf": [
               {
                 "items": {
-                  "exclusiveMinimum": 0.0,
-                  "maximum": 9.223372036854776e+18,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "maxItems": 5000,
                 "minItems": 1,
@@ -12751,6 +15257,12 @@
             "description": "A `location_id` of `GET /api/v1/locations`.",
             "title": "Default Location Id"
           },
+          "map_internal_links": {
+            "default": false,
+            "description": "With `primary_domain`, queue the first crawl of the site's internal links. The web form sends true (the checkbox is ticked by default).",
+            "title": "Map Internal Links",
+            "type": "boolean"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 1,
@@ -13225,6 +15737,9 @@
             "title": "Entity Config Version",
             "type": "integer"
           },
+          "internal_links": {
+            "$ref": "#/components/schemas/InternalLinksSettings"
+          },
           "seo": {
             "$ref": "#/components/schemas/SeoSettings"
           },
@@ -13243,15 +15758,15 @@
       },
       "ProjectSettingsPatch": {
         "additionalProperties": false,
-        "description": "A JSON merge patch (RFC 7396) of the settings: members left out keep their value.",
+        "description": "A JSON merge patch (RFC 7396) of the settings: members left out keep their value. A part\ncannot be null: `null` would mean \"delete\" in a merge patch, and no part can be deleted.",
         "properties": {
+          "internal_links": {
+            "$ref": "#/components/schemas/InternalLinksSettingsPatch"
+          },
           "seo": {
             "$ref": "#/components/schemas/SeoSettingsPatch"
           }
         },
-        "required": [
-          "seo"
-        ],
         "title": "ProjectSettingsPatch",
         "type": "object"
       },
@@ -13773,6 +16288,30 @@
           "updated"
         ],
         "title": "PromptBulkUpdateResult",
+        "type": "object"
+      },
+      "PromptCount": {
+        "properties": {
+          "citations": {
+            "title": "Citations",
+            "type": "integer"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "citations"
+        ],
+        "title": "PromptCount",
         "type": "object"
       },
       "PromptCreate": {
@@ -14673,6 +17212,25 @@
           "path"
         ],
         "title": "PromptTerm",
+        "type": "object"
+      },
+      "PromptTopic": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "term_id": {
+            "format": "uuid",
+            "title": "Term Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "term_id",
+          "name"
+        ],
+        "title": "PromptTopic",
         "type": "object"
       },
       "PromptVersion": {
@@ -15706,6 +18264,155 @@
         "title": "RoleUnits",
         "type": "object"
       },
+      "Route": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "clicks",
+          "steps"
+        ],
+        "title": "Route",
+        "type": "object"
+      },
+      "RouteStep": {
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The words of the link that reached this page.",
+            "title": "Anchor"
+          },
+          "page": {
+            "$ref": "#/components/schemas/ChangePage"
+          },
+          "placement": {
+            "anyOf": [
+              {
+                "enum": [
+                  "content",
+                  "auto_generated",
+                  "navigation",
+                  "header",
+                  "footer",
+                  "sidebar",
+                  "breadcrumb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "editorial",
+                  "auto_generated",
+                  "template"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "via_redirect": {
+            "title": "Via Redirect",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "page",
+          "status_code",
+          "anchor",
+          "placement",
+          "scope",
+          "via_redirect"
+        ],
+        "title": "RouteStep",
+        "type": "object"
+      },
+      "Routes": {
+        "properties": {
+          "any": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over every followed link; null when not reachable."
+          },
+          "editorial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Route"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over editorial links (and redirects) only."
+          },
+          "target": {
+            "$ref": "#/components/schemas/ChangePage"
+          }
+        },
+        "required": [
+          "target",
+          "any",
+          "editorial"
+        ],
+        "title": "Routes",
+        "type": "object"
+      },
+      "RoutesResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Routes"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "RoutesResponse",
+        "type": "object"
+      },
       "RowActionInput": {
         "additionalProperties": false,
         "properties": {
@@ -16400,6 +19107,125 @@
           "reason"
         ],
         "title": "RunSkip",
+        "type": "object"
+      },
+      "RunSlot": {
+        "description": "One run position over every prompt and engine: slot 1 is each pair's latest run.",
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "first_at": {
+            "description": "The earliest answer in this slot.",
+            "format": "date-time",
+            "title": "First At",
+            "type": "string"
+          },
+          "last_at": {
+            "description": "The latest answer in this slot.",
+            "format": "date-time",
+            "title": "Last At",
+            "type": "string"
+          },
+          "slot": {
+            "description": "1 is each prompt and engine's latest run with an answer.",
+            "minimum": 1.0,
+            "title": "Slot",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slot",
+          "first_at",
+          "last_at",
+          "answers"
+        ],
+        "title": "RunSlot",
+        "type": "object"
+      },
+      "RunWindow": {
+        "properties": {
+          "answers": {
+            "description": "Answers in the current window.",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "current": {
+            "description": "Slots 1 to `runs` that hold answers.",
+            "items": {
+              "$ref": "#/components/schemas/RunSlot"
+            },
+            "title": "Current",
+            "type": "array"
+          },
+          "latest_answer_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Answer At"
+          },
+          "latest_run_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many AI prompt runs the project has had up to the latest answer's run.",
+            "title": "Latest Run Number"
+          },
+          "previous": {
+            "description": "Slots `runs + 1` to `2 * runs` that hold answers.",
+            "items": {
+              "$ref": "#/components/schemas/RunSlot"
+            },
+            "title": "Previous",
+            "type": "array"
+          },
+          "prompts": {
+            "description": "Prompts with an answer in the current window.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "runs": {
+            "description": "1, 2 or 4: the slots of the current window.",
+            "title": "Runs",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "trend": {
+            "description": "Slots 1 to 8 that hold answers, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/RunSlot"
+            },
+            "title": "Trend",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs",
+          "timezone",
+          "current",
+          "previous",
+          "trend",
+          "answers",
+          "prompts",
+          "latest_answer_at",
+          "latest_run_number"
+        ],
+        "title": "RunWindow",
         "type": "object"
       },
       "Schedule": {
@@ -19040,6 +21866,106 @@
         "title": "SparklinePoint",
         "type": "object"
       },
+      "SuggestionReason": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword"
+          },
+          "kind": {
+            "enum": [
+              "clicks",
+              "rank"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "kind",
+          "clicks",
+          "rank",
+          "keyword",
+          "volume"
+        ],
+        "title": "SuggestionReason",
+        "type": "object"
+      },
+      "SuggestionSelection": {
+        "additionalProperties": false,
+        "properties": {
+          "all": {
+            "anyOf": [
+              {
+                "const": true,
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "All"
+          },
+          "url_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Ids"
+          }
+        },
+        "title": "SuggestionSelection",
+        "type": "object"
+      },
       "SummaryDetailContext": {
         "description": "What is true of every cell of `EngineSummary.detail` in the response.",
         "properties": {
@@ -20221,6 +23147,110 @@
           "average_depth"
         ],
         "title": "TierStat",
+        "type": "object"
+      },
+      "TierSuggestionList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TierSuggestionRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TierSuggestionMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "TierSuggestionList",
+        "type": "object"
+      },
+      "TierSuggestionMeta": {
+        "properties": {
+          "gsc_state": {
+            "description": "`ok`: clicks were used with the ranks; otherwise only ranks were.",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "Gsc State",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "gsc_state"
+        ],
+        "title": "TierSuggestionMeta",
+        "type": "object"
+      },
+      "TierSuggestionRow": {
+        "properties": {
+          "from_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestionReason"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "to_tier": {
+            "$ref": "#/components/schemas/TierRef"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "from_tier",
+          "to_tier",
+          "reasons"
+        ],
+        "title": "TierSuggestionRow",
         "type": "object"
       },
       "TopicSummaryRow": {
@@ -23034,6 +26064,11 @@
             "title": "Links To Non Indexable",
             "type": "integer"
           },
+          "lost_links_top": {
+            "description": "Pages that lost an editorial link and are important.",
+            "title": "Lost Links Top",
+            "type": "integer"
+          },
           "orphans": {
             "title": "Orphans",
             "type": "integer"
@@ -23046,6 +26081,11 @@
           "under_linked_t1": {
             "title": "Under Linked T1",
             "type": "integer"
+          },
+          "weak_outlinks": {
+            "description": "T1 pages that mostly link to weak targets.",
+            "title": "Weak Outlinks",
+            "type": "integer"
           }
         },
         "required": [
@@ -23054,6 +26094,8 @@
           "orphans",
           "editorial_orphans",
           "deep_only_through_auto",
+          "lost_links_top",
+          "weak_outlinks",
           "broken_and_redirected",
           "links_to_non_indexable"
         ],
@@ -27832,6 +30874,467 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps": {
+      "get": {
+        "description": "Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`. A prompt is lost on an engine where a selected competitor is cited and you are not.",
+        "operationId": "citation_gaps_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Up to five tracked competitors, the columns of the gap analysis.",
+            "in": "query",
+            "name": "filter[competitor_id_in]",
+            "required": true,
+            "schema": {
+              "description": "Up to five tracked competitors, the columns of the gap analysis.",
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "maxItems": 5,
+              "minItems": 1,
+              "title": "Filter[Competitor Id In]",
+              "type": "array"
+            }
+          },
+          {
+            "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+            "in": "query",
+            "name": "runs",
+            "required": false,
+            "schema": {
+              "default": 4,
+              "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+              "title": "Runs",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationGapList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Citation gap analysis: you and up to five competitors per prompt",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps/{prompt_id}": {
+      "get": {
+        "description": "Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.",
+        "operationId": "citation_gap_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps__prompt_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "prompt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Prompt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Up to five tracked competitors, the columns of the gap analysis.",
+            "in": "query",
+            "name": "filter[competitor_id_in]",
+            "required": true,
+            "schema": {
+              "description": "Up to five tracked competitors, the columns of the gap analysis.",
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "maxItems": 5,
+              "minItems": 1,
+              "title": "Filter[Competitor Id In]",
+              "type": "array"
+            }
+          },
+          {
+            "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+            "in": "query",
+            "name": "runs",
+            "required": false,
+            "schema": {
+              "default": 4,
+              "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+              "title": "Runs",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationGapDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One prompt of the gap analysis",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview": {
+      "get": {
+        "description": "Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.",
+        "operationId": "citation_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+            "in": "query",
+            "name": "runs",
+            "required": false,
+            "schema": {
+              "default": 4,
+              "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+              "title": "Runs",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The six citation measures of the Citations page",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
       "get": {
         "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per citation of a counted answer, in the answer's order (a URL listed twice is two rows and one unit). `filter[registrable_domain]` and `filter[url_id]` give the citations behind a domain or page row. Keyset pages `(observed_at DESC, observation_id DESC, citation_index)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise).",
@@ -28096,6 +31599,378 @@
           }
         },
         "summary": "The citations behind the source counts, newest answer first",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages": {
+      "get": {
+        "description": "Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`. Offset pages. `meta.owners` counts the pages of each role whatever the filter and `q`.",
+        "operationId": "cited_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[domain_role_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "own",
+                    "competitor",
+                    "third_party"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Domain Role In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "-citations",
+              "enum": [
+                "-citations",
+                "citations",
+                "-change",
+                "change",
+                "-prompts",
+                "prompts",
+                "-last_cited",
+                "last_cited",
+                "page",
+                "-page"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+            "in": "query",
+            "name": "runs",
+            "required": false,
+            "schema": {
+              "default": 4,
+              "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+              "title": "Runs",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitedPagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages cited in AI answers, with the prompts behind each",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages/{url_id}": {
+      "get": {
+        "description": "Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.",
+        "operationId": "cited_page_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages__url_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Url Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+            "in": "query",
+            "name": "runs",
+            "required": false,
+            "schema": {
+              "default": 4,
+              "description": "Each prompt and engine's last 1, 2 or 4 runs.",
+              "title": "Runs",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[engine_code_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/EngineCode"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "maxLength": 3,
+              "title": "Filter[Engine Code In]"
+            }
+          },
+          {
+            "description": "The prompts given the term or one under it.",
+            "in": "query",
+            "name": "filter[term]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The prompts given the term or one under it.",
+              "title": "Filter[Term]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_branded",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Branded",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+            "in": "query",
+            "name": "include_unresolved_redirects",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them.",
+              "title": "Include Unresolved Redirects",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+            "in": "query",
+            "name": "include_engine_internal",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for.",
+              "title": "Include Engine Internal",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitedPageDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One cited page: its prompts, platforms and the domains cited beside it",
         "tags": [
           "ai"
         ]
@@ -33072,6 +36947,320 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links": {
+      "get": {
+        "operationId": "changes_links_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_links_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "change",
+            "required": true,
+            "schema": {
+              "enum": [
+                "lost",
+                "added"
+              ],
+              "title": "Change",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_scope",
+            "required": false,
+            "schema": {
+              "default": "editorial",
+              "enum": [
+                "editorial",
+                "all"
+              ],
+              "title": "Link Scope",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "only",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "top",
+                "all"
+              ],
+              "title": "Only",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeLinkPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Lost or added links against the previous crawl, important targets first",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/pages": {
+      "get": {
+        "operationId": "changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedPageList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages whose editorial links in, equity or depth moved most",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/summary": {
+      "get": {
+        "operationId": "changes_summary_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Counts of what the crawl changed, and the alert for links lost to important pages",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges": {
       "get": {
         "description": "Template links first, then auto-generated, then editorial, so template fixes come first; then by target path.",
@@ -33277,9 +37466,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "maximum": 9223372036854775807,
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -33295,9 +37482,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "exclusiveMinimum": 0,
-                  "maximum": 9223372036854775807,
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -33467,10 +37652,8 @@
             "name": "url_id",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0,
-              "maximum": 9223372036854775807,
               "title": "Url Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -33571,6 +37754,259 @@
           }
         },
         "summary": "One journey step, links out or links in",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities": {
+      "get": {
+        "operationId": "list_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "accepted",
+                    "dismissed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "A tier position, 1 to 8, or `none` for pages without a tier.",
+            "in": "query",
+            "name": "filter[target_tier]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^([1-8]|none)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A tier position, 1 to 8, or `none` for pages without a tier.",
+              "title": "Filter[Target Tier]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`planned`: the accepted rows, or every open row when none is accepted.",
+            "in": "query",
+            "name": "export",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "planned",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`planned`: the accepted rows, or every open row when none is accepted.",
+              "title": "Export"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityPage"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv` or `export=planned`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages that mention a topic of another page without linking to it",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities/decisions": {
+      "put": {
+        "operationId": "decide_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_decisions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpportunityDecisions"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Accept, dismiss or reopen opportunities of the latest crawl",
         "tags": [
           "internal-links"
         ]
@@ -33743,7 +38179,8 @@
                       "editorial_orphan",
                       "deep_only_through_auto",
                       "placement_unknown",
-                      "has_broken_outlinks"
+                      "has_broken_outlinks",
+                      "generic_anchors"
                     ],
                     "type": "string"
                   },
@@ -33753,7 +38190,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 5,
+              "maxLength": 6,
               "title": "Filter[Flags]"
             }
           },
@@ -33768,7 +38205,9 @@
                     "under_linked_t1",
                     "orphans",
                     "editorial_orphans",
-                    "deep_only_through_auto"
+                    "deep_only_through_auto",
+                    "lost_links_top",
+                    "weak_outlinks"
                   ],
                   "type": "string"
                 },
@@ -33815,10 +38254,41 @@
                 "equity_share",
                 "-equity_share",
                 "status_code",
-                "-status_code"
+                "-status_code",
+                "change",
+                "-change"
               ],
               "title": "Sort",
               "type": "string"
+            }
+          },
+          {
+            "description": "Parts to add to each row as `extras`.",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "changes",
+                      "keywords",
+                      "citations",
+                      "anchors",
+                      "gsc"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Parts to add to each row as `extras`.",
+              "maxLength": 5,
+              "title": "Include"
             }
           },
           {
@@ -33915,10 +38385,8 @@
             "name": "url_id",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0,
-              "maximum": 9223372036854775807,
               "title": "Url Id",
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -33992,6 +38460,90 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths": {
+      "get": {
+        "description": "`any` follows every followed link, `editorial` only editorial links; a redirect is one step to its target. A route is null when the page is not reached in 12 clicks.",
+        "operationId": "paths_api_v1_workspaces__workspace_id__projects__project_id__internal_links_paths_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The shortest route from the home page to a page",
         "tags": [
           "internal-links"
         ]
@@ -34082,6 +38634,185 @@
           }
         },
         "summary": "Links from tier to tier, and each tier's share",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions": {
+      "get": {
+        "operationId": "list_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierSuggestionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pages whose clicks or keyword ranks say they belong in a higher tier",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept": {
+      "post": {
+        "operationId": "accept_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Set the suggested tiers by hand",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/dismiss": {
+      "post": {
+        "operationId": "dismiss_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionSelection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Hide suggestions for the project",
         "tags": [
           "internal-links"
         ]
@@ -35342,6 +40073,279 @@
         "summary": "Refresh keyword metrics now (a manual run)",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls": {
+      "get": {
+        "operationId": "list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's crawls, newest first",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "post": {
+        "description": "Queues a crawl of the project's website. `503 crawls_disabled` while site crawls are not switched on, and nothing is queued. One crawl per project runs at a time (`409 crawl_in_progress` with its `run_id`). `422 no_website` without a website; `422 budget_exceeded` (with `budget_id`) when the crawl would pass a budget, and nothing is queued. `higher_limit` crawls again after a crawl stopped at its ceiling, with twice the limit or what the sitemap asks for.",
+        "operationId": "start_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrawlCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Crawl now",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}": {
+      "get": {
+        "operationId": "get_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One crawl, with its progress",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}/cancel": {
+      "post": {
+        "description": "A queued crawl ends at once. A running one is stopped by the worker within a minute and comes back with its state unchanged. `409 invalid_state_transition` for any other state.",
+        "operationId": "cancel_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Cancel a queued or running crawl",
+        "tags": [
+          "internal-links"
         ]
       }
     },
@@ -38686,7 +43690,7 @@
         ]
       },
       "patch": {
-        "description": "A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.",
+        "description": "A JSON merge patch of `seo` and `internal_links`: parts and members left out keep their value. The `seo` defaults apply to tracked keywords created after the change. `internal_links.allowed_subdomains` must be the project's website or hosts under it.",
         "operationId": "update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch",
         "parameters": [
           {

@@ -506,7 +506,7 @@ describe('the key changes card', () => {
     expect(announce).toHaveBeenCalledWith('1 new change', { key: 'change-feed' });
   });
 
-  it('links each row through the drill seam, and a new source row to the New and lost list', async () => {
+  it('links each row through the drill seam, and a new source row to Cited pages', async () => {
     seam.drill = (kind, extra) =>
       `/digibranders/fynix/${kind}${extra?.engine === undefined ? '' : `?engine=${extra.engine}&metric=${extra.metric ?? ''}`}` as Route;
     serve();
@@ -521,10 +521,7 @@ describe('the key changes card', () => {
       '/digibranders/fynix/prompts?engine=chatgpt_web&metric=citation',
     );
     expect(rowText(RUN_ERRORS).querySelector('a')).toHaveAttribute('href', '/digibranders/fynix/runs');
-    expect(rowText(NEW_SOURCES).querySelector('a')).toHaveAttribute(
-      'href',
-      '/digibranders/fynix/citations?tab=new-lost&kind=new',
-    );
+    expect(rowText(NEW_SOURCES).querySelector('a')).toHaveAttribute('href', '/digibranders/fynix/citations');
   });
 
   it('shows a row whose page cannot show the scope as plain text, with no link', async () => {

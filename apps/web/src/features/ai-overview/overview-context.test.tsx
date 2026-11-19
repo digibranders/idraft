@@ -34,10 +34,17 @@ import type {
   SourcesReadOptions,
   SummaryOptions,
   SummaryReadOptions,
+  ExportBlock,
+  GetExportBlock,
+  OverviewFreshness,
 } from '.';
+import * as entry from '.';
 
 /** Type level only: it fails the typecheck when the entry stops exporting a type a card needs. */
 export type EntryTypes = [
+  ExportBlock,
+  GetExportBlock,
+  OverviewFreshness,
   OverviewEngines,
   OverviewFanoutMeta,
   OverviewPeriods,
@@ -101,6 +108,14 @@ function renderProbe(role: Role, world: 'fynix' | 'cleanstart', searchParams = '
     { searchParams },
   );
 }
+
+describe('the entry', () => {
+  it('exports what a card imports: the export registry and the freshness read', () => {
+    expect(entry.useExportBlock).toBeTypeOf('function');
+    expect(entry.ExportProvider).toBeTypeOf('function');
+    expect(entry.useOverviewFreshness).toBeTypeOf('function');
+  });
+});
 
 describe('useOverview', () => {
   it('throws a named error outside the provider', () => {

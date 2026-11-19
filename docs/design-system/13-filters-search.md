@@ -156,6 +156,8 @@ Example (`/<workspace>/<project>` prefix, then the project route from [11-naviga
 
 Table and page search use one component, `SearchInput` (`components/ui/search-input.tsx`), specified in [10-forms.md](10-forms.md) section 17, which owns its anatomy: 32 px (`sm`, `w-60`) in table toolbars and 36 px (`md`, `w-90`) on pages; 1 px `border` control outline (the visible label or placeholder and the leading icon identify it, [20-accessibility.md](20-accessibility.md) section 3.2, rule 6); leading `Search` icon, 14 px (`sm`) or 16 px (`md`), in `foreground-muted`; placeholder naming the object ("Search keywords"); trailing `Kbd` hint `/` while empty and not focused; clear button (`X`, `icon-xs`, 24 px target, name "Clear search") while not empty. Escape clears the text first, then blurs.
 
+As built (WP-77): the Citations board panel ([23 §2.10](23-application-patterns.md)) draws its table search as an `InputGroup` of a `bare` `Input` (32 px, `w-64`, `maxLength` 200, `aria-label` "Search in table", `aria-keyshortcuts="/"`), after the view tabs and a hairline. `/` focuses it through `useShortcut` (a single-key shortcut, so Settings > Preferences turns it off), and the value is written to `q` on each keystroke by history replace. Cited pages sends it to the server after 250 ms; Gap analysis filters in the browser.
+
 Matching rules: case-insensitive, diacritic-insensitive, matches anywhere in the string for table search; command palette ranks prefix matches above substring matches above fuzzy matches.
 
 ## 7. Keyboard shortcuts for filtering and search
@@ -181,3 +183,7 @@ All shortcuts are listed in the keyboard help dialog (`?`) and documented in [20
 ## 9. Saved views and filters
 
 Saved views ([12-tables.md](12-tables.md) section 11) store the full filter state. When a saved view is active, chips that differ from the view are marked with a 6 px `primary` dot at the chip's leading edge and the view menu shows "(edited)". This is the only place the accent marks filter state in the filter bar. The engine status legend (section 2) shows the table's cobalt glyphs as a key, not as state.
+
+## 10. Pressed group
+
+`PressedGroup` (WP-77): a few kinds of one table's rows, each with its count, one pressed (the Cited pages "Domain type": Your site, Competitors, Third-party, All). It changes the rows, not the scope, so it sits in the table's toolbar, not the filter bar. Three to five kinds; more become a `Select`. Changing it resets the table's sort. The counts are the rows of each kind whatever the search, so a kind never reads zero because of a search it did not cause.

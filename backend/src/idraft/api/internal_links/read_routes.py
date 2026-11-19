@@ -28,6 +28,7 @@ from idraft.api.schemas.internal_links import (
     PlacementName,
     StatusClass,
     TierFlowResponse,
+    UrlId,
     WorklistsResponse,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -56,13 +57,13 @@ Statuses = Annotated[list[StatusClass] | None, Commas, Query(alias="filter[statu
 TargetStatuses = Annotated[
     list[StatusClass] | None, Commas, Query(alias="filter[target_status]", max_length=4)
 ]
-Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=5)]
+Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=6)]
 Placements = Annotated[
     list[PlacementName] | None, Commas, Query(alias="filter[placement]", max_length=7)
 ]
 PathText = Annotated[str | None, Query(min_length=1, max_length=200)]
-UrlIdQuery = Annotated[int, Query(gt=0, le=9_223_372_036_854_775_807)]
-UrlIdPath = Annotated[int, Path(gt=0, le=9_223_372_036_854_775_807)]
+UrlIdQuery = Annotated[UrlId, Query()]
+UrlIdPath = Annotated[UrlId, Path()]
 _CSV: dict[int | str, dict[str, Any]] = {
     200: {"content": {"text/csv": {}}, "description": "With `format=csv`: the rows as CSV."}
 }
@@ -114,6 +115,11 @@ async def list_pages(
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
+    include: Annotated[
+        list[Literal["changes", "keywords", "citations", "anchors", "gsc"]] | None,
+        Commas,
+        Query(max_length=5, description="Parts to add to each row as `extras`."),
+    ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:
     found = PageFilter(
@@ -140,6 +146,7 @@ async def list_pages(
         sort=sort,
         cursor=page.cursor,
         limit=page.limit,
+        include=include or (),
     )
     return PageRowPage(
         data=listed.rows,
@@ -148,7 +155,12 @@ async def list_pages(
             next_cursor=listed.next_cursor,
             has_more=listed.next_cursor is not None,
         ),
-        meta=ListMeta(run_id=listed.run_id, scope=scope, total=listed.total),
+        meta=ListMeta(
+            run_id=listed.run_id,
+            scope=scope,
+            total=listed.total,
+            links_available=not listed.links_dropped,
+        ),
     )
 
 
@@ -187,12 +199,8 @@ async def list_edges(
     tags: Tags = None,
     placements: Placements = None,
     target_status: TargetStatuses = None,
-    source: Annotated[
-        int | None, Query(alias="filter[source]", gt=0, le=9_223_372_036_854_775_807)
-    ] = None,
-    target: Annotated[
-        int | None, Query(alias="filter[target]", gt=0, le=9_223_372_036_854_775_807)
-    ] = None,
+    source: Annotated[UrlId | None, Query(alias="filter[source]")] = None,
+    target: Annotated[UrlId | None, Query(alias="filter[target]")] = None,
     worklist: Annotated[EdgeWorklist | None, Query(alias="filter[worklist]")] = None,
     q_source: PathText = None,
     q_target: PathText = None,
@@ -223,7 +231,12 @@ async def list_edges(
             next_cursor=listed.next_cursor,
             has_more=listed.next_cursor is not None,
         ),
-        meta=ListMeta(run_id=listed.run_id, scope=scope, total=listed.total),
+        meta=ListMeta(
+            run_id=listed.run_id,
+            scope=scope,
+            total=listed.total,
+            links_available=not listed.links_dropped,
+        ),
     )
 
 

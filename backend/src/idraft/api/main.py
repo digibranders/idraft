@@ -14,6 +14,8 @@ from idraft import __version__
 from idraft.api.access_log import AccessLogMiddleware
 from idraft.api.ai.annotation_routes import router as ai_annotations_router
 from idraft.api.ai.candidate_routes import router as ai_candidates_router
+from idraft.api.ai.citation_board import CitationBoardService
+from idraft.api.ai.citation_board_routes import router as ai_citation_board_router
 from idraft.api.ai.competitor_routes import router as ai_competitors_router
 from idraft.api.ai.derivation_routes import router as ai_derivations_router
 from idraft.api.ai.engine_routes import router as engine_routes_router
@@ -59,10 +61,20 @@ from idraft.api.integrations.routes import oauth_router
 from idraft.api.integrations.routes import project_router as integrations_router
 from idraft.api.integrations.service import GoogleOAuthConfig, IntegrationService
 from idraft.api.integrations.state import OAuthStateStore
+from idraft.api.internal_links.change_routes import router as change_routes_router
+from idraft.api.internal_links.changes import ChangeService
+from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
+from idraft.api.internal_links.crawls import CrawlService
+from idraft.api.internal_links.opportunities import OpportunityService
+from idraft.api.internal_links.opportunity_routes import router as opportunity_routes_router
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
 from idraft.api.internal_links.page_tiers import PageTierService
+from idraft.api.internal_links.path_routes import router as path_routes_router
 from idraft.api.internal_links.read_routes import router as read_routes_router
 from idraft.api.internal_links.reads import LinkReadService
+from idraft.api.internal_links.route_finder import RouteFinder
+from idraft.api.internal_links.suggestion_routes import router as suggestion_routes_router
+from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_level_routes import router as tier_level_routes_router
 from idraft.api.internal_links.tier_levels import TierLevelService
 from idraft.api.keywords.group_routes import router as keyword_groups_router
@@ -211,6 +223,7 @@ def create_app(
             sources = import_store
             if sources is None and settings.raw_storage_configured:
                 sources = await stack.enter_async_context(_open_import_store(settings))
+            page_tiers = PageTierService(sessions=sessions)
             app.state.resources = Resources(
                 settings=settings,
                 engine=engine,
@@ -235,7 +248,7 @@ def create_app(
                     sessions=sessions, throttle=throttle, registration=settings.registration
                 ),
                 members=MemberService(sessions=sessions),
-                projects=ProjectService(sessions=sessions),
+                projects=ProjectService(sessions=sessions, crawls_enabled=settings.crawls_enabled),
                 entities=EntityService(sessions=sessions),
                 project_entities=ProjectEntityService(sessions=sessions),
                 taxonomy=TaxonomyService(sessions=sessions),
@@ -263,9 +276,15 @@ def create_app(
                 ai_observations=ObservationService(sessions=sessions, raw_store=sources),
                 ai_summary=SummaryService(sessions=sessions),
                 ai_sources=SourceService(sessions=sessions),
+                ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
-                page_tiers=PageTierService(sessions=sessions),
+                page_tiers=page_tiers,
                 link_reads=LinkReadService(sessions=sessions),
+                link_changes=ChangeService(sessions=sessions),
+                link_opportunities=OpportunityService(sessions=sessions),
+                tier_suggestions=SuggestionService(sessions=sessions, page_tiers=page_tiers),
+                route_finder=RouteFinder(sessions=sessions),
+                crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -334,6 +353,7 @@ def create_app(
     app.include_router(ai_observations_router)
     app.include_router(ai_summary_router)
     app.include_router(ai_sources_router)
+    app.include_router(ai_citation_board_router)
     app.include_router(keyword_groups_router)
     app.include_router(term_assignments_router)
     app.include_router(run_routes_router)
@@ -348,6 +368,11 @@ def create_app(
     app.include_router(tier_level_routes_router)
     app.include_router(page_tier_routes_router)
     app.include_router(read_routes_router)
+    app.include_router(change_routes_router)
+    app.include_router(opportunity_routes_router)
+    app.include_router(suggestion_routes_router)
+    app.include_router(path_routes_router)
+    app.include_router(crawl_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
     app.include_router(registries_router)

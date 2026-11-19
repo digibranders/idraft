@@ -1,100 +1,96 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { expect, type Locator, type Page } from '@playwright/test';
 
+import { formatInteger, formatPercent, formatRelativeChange } from '../../src/lib/format';
+import { CITATIONS_FIXTURE_SHAPE, type CitationsFixture } from '../../src/mocks/citations-v2-shape';
 import { signIn } from '../support';
 
 /**
- * What the Citations e2e of WP-21 shares (apps/web/e2e/flows/ai-citations.spec.ts): the page and its people, the
- * way into the page and into the Citations tab of the prompt inspector, and the locators of what both draw. The
- * helpers live here because `e2e/support.ts` is frozen.
+ * What the Citations e2e of WP-77 shares (apps/web/e2e/flows/ai-citations.spec.ts): the page and its people, the
+ * locators of what the screen draws, and the fixture's `expected` block. The mock answers are the design preview's
+ * data (src/mocks/fixtures/citations-v2.json), so the numbers on screen are the fixture's. `E2E_CITATIONS_REAL=1` runs
+ * the same walk against the dev API, where the numbers are not the fixture's and only the structure is checked.
  */
 
 /** An editor: reads AI data and exports it. */
 export const EDITOR = 'priya@digibranders.test';
 /** The key the theme is stored under in the browser, so a test can start in either theme. */
 export const THEME_KEY = 'idraft.theme';
-/** The Citations page of the Fynix mock project, whose mock answers carry the sources the tests read. */
+/** The Citations page of the Fynix mock project (ChatGPT and Gemini on, Google AI Mode off). */
 export const FYNIX_CITATIONS = '/digibranders/fynix/ai/citations';
-export const FYNIX_PROMPTS = '/digibranders/fynix/ai/prompts';
-/** The first fixture prompt (`src/mocks/prompt-fixtures.ts`): it has own pages cited in some answers, not in all. */
-export const FIRST_PROMPT = 'Which SEO agency is best for a SaaS startup in Germany?';
-const FIRST_PROMPT_ID = '0192d1a8-e000-7a10-8e00-000000000001';
+export const REAL = process.env.E2E_CITATIONS_REAL === '1';
 
-/** The inspector of the first prompt: beside the table on a wide window, a sheet over it on a narrow one. */
-export const inspectorOf = (page: Page): Locator =>
-  page.getByRole('complementary', { name: FIRST_PROMPT }).or(page.getByRole('dialog', { name: FIRST_PROMPT }));
+// Read from disk: `package.json` is an ES module, which takes no bare JSON import
+export const FIXTURE: CitationsFixture = CITATIONS_FIXTURE_SHAPE.parse(
+  JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../src/mocks/fixtures/citations-v2.json', import.meta.url)), 'utf8'),
+  ),
+);
+/** The strip, page and gap numbers of one platform choice. */
+export type Expected = CitationsFixture['expected']['enabled'];
 
-/** The Domains table (a tree: a domain opens onto its pages) and the Pages table of the page. */
-export const domainsTable = (page: Page): Locator => page.getByRole('treegrid', { name: 'Cited domains' });
-export const pagesTable = (page: Page): Locator => page.getByRole('grid', { name: 'Cited pages' });
+export const stripOf = (page: Page): Locator => page.getByRole('group', { name: 'Citation measures' });
+/** A strip figure: the tab stop named "<label>: <value>. <what it means>". */
+export const figureOf = (page: Page, label: string): Locator => stripOf(page).getByLabel(new RegExp(`^${label}: `));
+export const scopeOf = (page: Page): Locator => page.getByRole('group', { name: 'Scope' });
+export const ownersOf = (page: Page): Locator => page.getByRole('group', { name: 'Domain type' });
+export const viewsOf = (page: Page): Locator => page.getByRole('navigation', { name: 'Citations views' });
+export const searchOf = (page: Page): Locator => page.getByRole('searchbox', { name: 'Search in table' });
+export const pagesTable = (page: Page): Locator => page.getByRole('table', { name: 'Cited pages' });
+export const gapsTable = (page: Page): Locator => page.getByRole('table', { name: 'Gap analysis' });
+/** The docked or laid over drawer (768 px and up); below that it is a sheet, a dialog. */
+export const drawerOf = (page: Page): Locator => page.getByRole('complementary');
+/** The drawer's "3 of 148" in its header; the first of the matches, since its tables hold "k of n" counts too. */
+export const positionOf = (drawer: Locator): Locator => drawer.getByText(/^\d+ of \d+$/).first();
 
-/** The six figures of the strip above the tables. */
-export const stripOf = (page: Page): Locator => page.getByRole('group', { name: 'Citation summary' });
+const exact = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/**
- * The units every share of the page, or of the inspector tab, is of: from the line that says so ("Shares are of 569
- * citation units in 333 answers.", with ", counted over all engines" after it on the tab).
- */
-export async function scopeUnits(root: Page | Locator): Promise<number> {
-  const note = root
-    .locator('span[id*="-tip-"], p')
-    .filter({ hasText: /^Shares are of [\d,]+ citation units? in [\d,]+ answers?[.,]/ });
-  const text = (await note.first().textContent()) ?? '';
-  const units = /^Shares are of ([\d,]+) /.exec(text)?.[1];
-  if (units === undefined) throw new Error(`The scope line has no units: "${text}"`);
-  return Number(units.replaceAll(',', ''));
+/** The figure shows `value`: waits for it, since the strip keeps the old value while a new scope loads. */
+export async function expectFigure(page: Page, label: string, value: string): Promise<void> {
+  await expect(figureOf(page, label)).toHaveAttribute(
+    'aria-label',
+    new RegExp(`^${exact(label)}: ${exact(value)}\\. `),
+  );
 }
 
-/** Waits until the page has drawn its tab: the heading, then the first cited domain or page. */
-async function awaitTab(page: Page, params: Readonly<Record<string, string>>): Promise<void> {
-  await expect(page.getByRole('heading', { level: 1, name: 'Citations' })).toBeVisible();
-  const table = params['tab'] === 'pages' ? pagesTable(page) : domainsTable(page);
-  const rowheader = table.getByRole('rowheader').first();
-  const mobileItem = page
-    .getByRole('list', { name: /Cited (domains|pages)/ })
-    .locator('li')
-    .first();
-  await expect(rowheader.or(mobileItem)).toBeVisible();
+/** The six figures the strip must show for `expected` (brief 5.2). Not checked against the dev API. */
+export async function expectStrip(page: Page, expected: Expected): Promise<void> {
+  if (REAL) return;
+  const { strip } = expected;
+  await expectFigure(page, 'Total citations', formatInteger(strip.citations));
+  await expectFigure(page, 'Citation rate', formatPercent(strip.frequency, { decimals: 1 }));
+  await expectFigure(page, 'Prompt coverage', formatPercent(strip.coverage, { decimals: 1 }));
+  await expectFigure(page, 'Unique cited URLs', formatInteger(strip.urls));
+  await expectFigure(page, 'Unique cited domains', formatInteger(strip.domains));
+  await expectFigure(
+    page,
+    'Citation growth',
+    formatRelativeChange((strip.citations - strip.previousCitations) / strip.previousCitations),
+  );
 }
 
-/** Opens the Citations page at `width`, as the editor, on the tab and filters `params` name (Domains with none). */
-export async function openCitations(
-  page: Page,
-  width: number,
-  params: Readonly<Record<string, string>> = {},
-): Promise<void> {
+/** Opens the Citations page at `width` as the editor, with `query`, and waits for the strip to have its figures. */
+export async function openCitations(page: Page, width: number, query = '', path = FYNIX_CITATIONS): Promise<void> {
   await page.setViewportSize({ width, height: 900 });
   await signIn(page, EDITOR);
-  await visitCitations(page, params);
+  await page.goto(query === '' ? path : `${path}?${query}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Citations' })).toBeAttached();
+  await expect(figureOf(page, 'Total citations')).toBeVisible();
 }
 
-/** Goes to the Citations page again in the signed-in session. */
-export async function visitCitations(page: Page, params: Readonly<Record<string, string>> = {}): Promise<void> {
-  const query = new URLSearchParams(params).toString();
-  await page.goto(query === '' ? FYNIX_CITATIONS : `${FYNIX_CITATIONS}?${query}`);
-  await awaitTab(page, params);
+/** The page does not scroll sideways: the tables scroll inside their panel (19 section 3). */
+export async function expectNoHorizontalScroll(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
 }
 
-/** The address of the first prompt's inspector on its Citations tab. */
-const INSPECTOR_ADDRESS = `${FYNIX_PROMPTS}?${new URLSearchParams({
-  tab: 'prompts',
-  inspect: `prompt:${FIRST_PROMPT_ID}`,
-  itab: 'citations',
-}).toString()}`;
+/** The byte order mark that tells Excel a CSV is UTF-8 (`src/lib/csv/csv-write.ts`). */
+const BOM = String.fromCharCode(0xfeff);
 
-/** Goes to the Citations tab of the first prompt's inspector in the signed-in session; returns the inspector. */
-export async function visitInspectorCitations(page: Page): Promise<Locator> {
-  await page.goto(INSPECTOR_ADDRESS);
-  const inspector = inspectorOf(page);
-  await expect(inspector.getByRole('tab', { name: 'Citations' })).toHaveAttribute('aria-selected', 'true');
-  // The banner is the last of the three reads the tab waits for before it says anything
-  await expect(inspector.getByText(/^Cited in \d+ of \d+ answers?; last answer /)).toBeVisible();
-  await expect(inspector.getByRole('table', { name: 'Most cited domains for this prompt' })).toBeVisible();
-  return inspector;
-}
-
-/** Opens the Citations tab of the first prompt's inspector at `width`, as the editor. */
-export async function openInspectorCitations(page: Page, width: number): Promise<Locator> {
-  await page.setViewportSize({ width, height: 900 });
-  await signIn(page, EDITOR);
-  return visitInspectorCitations(page);
+/** Reads a downloaded CSV as lines, without its byte order mark. */
+export async function readDownload(download: { path: () => Promise<string> }): Promise<string[]> {
+  const text = readFileSync(await download.path(), 'utf8');
+  return (text.startsWith(BOM) ? text.slice(1) : text).trim().split(/\r?\n/);
 }

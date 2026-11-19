@@ -393,6 +393,10 @@ Every drag has a single-pointer alternative that does not require dragging. Keyb
 
 During a pointer drag, Escape cancels and restores the previous state. The resize handle itself is 8 px wide visually and in hit area; it relies on the "Equivalent" exception of 2.5.8 because the menu alternative exists.
 
+### 7.1 Link canvas
+
+The link canvas (25 §14.17) is a named `group` whose name says the tree list shows the same journey as a table. Cards, stubs, group cards and "+N more" are buttons in reading order (columns left to right, top to bottom in a column). Right and Left Arrow move to the nearest card of the next or previous column; Up and Down move within a column; Enter and Space open or close a card or group; F makes the focused card the focus page and follows the single-key switch (section 14); Escape returns to the focus card. A card's name is a sentence (path, tier, linking pages, anchor, placement); its status, depth and the link's details are the description the tooltip adds, so a screen reader reads them too. Opening past 300 cards is refused with a message, and focus stays on the card. After a card opens or closes, focus stays on it; when the node is gone afterwards (a "+N more" that showed the last pages, a card that closed with its parent) focus goes to the node it hung under, never to the page. The canvas is one Tab stop, the node that had focus last (the focus page at first), with its tools and back-link marker after it: arrows reach every other node, and F covers "Make the focus". Alt, Control and Command with a key are left to the browser. A list that is loading is marked busy with a hidden text; a list that failed says so in words, in the app's assertive live region, and Try again gives focus back to the node above it. Panning and zooming have buttons (Zoom out, Zoom in, Fit to view); nothing needs a drag. Moving a card is the one drag with no single-pointer alternative, and it is the chosen exception under 2.5.7 instead of a nudge menu: it is a non-essential layout aid, no information depends on where a card stands, Reset card positions puts every card back, Escape cancels a move in progress, a touch screen does not drag cards, and a moved card is held inside the content. Selecting cards has the keyboard (Shift and Enter) and the selection bar.
+
 ## 8. Target size (WCAG 2.5.8)
 
 | Element | Target | How it passes |
@@ -681,6 +685,7 @@ At 320 CSS px (1280 px at 400% zoom):
 | `f` | Open the "+ Filter" field picker on table pages ([13-filters-search.md](13-filters-search.md) section 7) | Single character | Yes |
 | `j`, `k` | Next or previous row or record, when focus is in the grid or the inspector ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.10) | Single character | Yes |
 | `a`, `r`, `s`, `e` | Accept, reject, snooze or edit the focused row in triage inboxes ([23-application-patterns.md](23-application-patterns.md) section 10.2) | Single character | Yes |
+| `1` to `8`, `0` | Internal links, Pages tab, while rows are selected: set their tier to T1 to T8 (by the tier's position), or to Untiered with `0` (internal link tracker spec 5.2) | Single character | Yes |
 | F6, Shift+F6 | Cycle focus between regions | Function key | No |
 | Escape | Close the topmost overlay | Non-printable | No |
 

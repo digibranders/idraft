@@ -10,6 +10,7 @@
     { "word": "source-cited", "key": "costs.sources", "reason": "Where a cost figure comes from (provider, tokens, price book): a data source" },
     { "word": "panel", "key": "rankings.features.", "reason": "Knowledge panel is the name of a Google results feature" },
     { "word": "source-cited", "key": "integrations.", "reason": "Data sources are the connected providers (Search Console, Analytics), not cited websites" },
-    { "word": "source-cited", "key": "evidence.", "reason": "To be reviewed in the application pass: evidence sources are where an answer got a claim" }
+    { "word": "source-cited", "key": "evidence.", "reason": "To be reviewed in the application pass: evidence sources are where an answer got a claim" },
+    { "word": "source-cited", "key": "internalLinks.", "reason": "On a link, the source page is the page the link starts from (the opposite of the target page), not a cited website" }
   ]
 }

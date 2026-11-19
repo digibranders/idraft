@@ -11,6 +11,7 @@ import { Delta, type DeltaTip } from '@/components/app/metric/delta';
 import { DeltaCell } from '@/components/app/metric/delta-cell';
 import { BudgetMeter, Meter, type MeterProps } from '@/components/app/metric/meter';
 import { MetricInfo } from '@/components/app/metric/metric-info';
+import { TrendIcon } from '@/components/app/metric/trend-icon';
 import { SampleCount } from '@/components/app/metric/sample-count';
 import {
   StatisticsPanel,
@@ -253,6 +254,24 @@ export function MetricPartsSection(): ReactNode {
       </SpecimenGroup>
 
       <SpecimenGroup
+        title="TrendIcon"
+        note="25 section 9.4a. The change of a rate as an icon: coloured only when detectable, a minus when it rounds to nothing. Its figures go in the tooltip of what holds it."
+      >
+        <SpecimenRow label="Detectable, up">
+          <TrendIcon input={MENTION_RATE_UP} spoken="Up 5.3 pts, detectable change" />
+        </SpecimenRow>
+        <SpecimenRow label="Detectable, down">
+          <TrendIcon input={MENTION_RATE_DOWN} spoken="Down 4.1 pts, detectable change" />
+        </SpecimenRow>
+        <SpecimenRow label="Not detectable">
+          <TrendIcon input={MENTION_RATE_QUIET} spoken="Up 1.8 pts, within normal variation" />
+        </SpecimenRow>
+        <SpecimenRow label="Flat">
+          <TrendIcon input={{ ...MENTION_RATE_QUIET, value: 0 }} spoken="No change, within normal variation" />
+        </SpecimenRow>
+      </SpecimenGroup>
+
+      <SpecimenGroup
         title="DeltaCell"
         note="The change column of a table, at Compact (32 px rows, h-row-compact) and Default (40 px rows, h-row)."
       >
@@ -283,6 +302,13 @@ export function MetricPartsSection(): ReactNode {
           <span className="type-body">
             <EngineLogo engine="chatgpt_web" name="ChatGPT" hidden />
           </span>
+        </SpecimenRow>
+        <SpecimenRow label="Name for screen readers only (WP-77)">
+          {ENGINES.map((engine) => (
+            <span key={engine.code} className="type-body">
+              <EngineLogo engine={engine.code} name={engine.name} nameDisplay="visually-hidden" />
+            </span>
+          ))}
         </SpecimenRow>
         <SpecimenRow label="Unknown code">
           <span className="type-body">

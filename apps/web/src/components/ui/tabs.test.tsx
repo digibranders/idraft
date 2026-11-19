@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { Bell } from 'lucide-react';
 import { useState, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -144,6 +145,27 @@ describe('Tabs', () => {
     expect(screen.queryByText('12')).toBeNull();
     expect(screen.getByRole('tablist').querySelector('span.absolute')).toBeNull();
     expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(3);
+  });
+
+  it('gives a segmented tab a glyph from xl up and a badge that is part of its name', () => {
+    renderWithProviders(
+      <Tabs
+        variant="segmented"
+        label="Views"
+        value="a"
+        onValueChange={vi.fn()}
+        items={[
+          { value: 'a', label: 'Changes', icon: Bell, badge: <span className="sr-only">, 3 alerts</span> },
+          { value: 'b', label: 'Pages' },
+        ]}
+      >
+        <TabsPanel value="a">A</TabsPanel>
+        <TabsPanel value="b">B</TabsPanel>
+      </Tabs>,
+    );
+    expect(tab(/Changes/)).toHaveAccessibleName('Changes, 3 alerts');
+    expect(tab(/Changes/).querySelector('svg')).toHaveClass('hidden', 'xl:block');
+    expect(tab(/Pages/).querySelector('svg')).toBeNull();
   });
 
   it('passes other attributes on to its root', () => {

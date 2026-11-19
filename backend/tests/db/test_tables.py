@@ -98,6 +98,13 @@ DECLARED = {
     "seo.crawl_links",
     "seo.crawl_tier_flow",
     "seo.crawl_tier_stats",
+    "seo.crawl_link_changes",
+    "seo.crawl_page_changes",
+    "seo.crawl_alerts",
+    "seo.crawl_mentions",
+    "core.link_opportunity_decisions",
+    "core.tier_suggestion_dismissals",
+    "fp.gsc_page_daily",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
 _PARTITION = re.compile(r"_p\d{6}$")

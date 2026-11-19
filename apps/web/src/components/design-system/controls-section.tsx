@@ -29,8 +29,10 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { SavedViewMenu, type SavedViewExtraItem } from '@/components/app/views/saved-view-menu';
 import { useSavedView } from '@/components/app/views/use-saved-view';
 import { defaultView, type SavedView } from '@/components/app/views/views-model';
+import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
+import { Select, type SelectOption } from '@/components/ui/select';
 import {
   EMPTY_VALUE,
   formatDateRange,
@@ -971,6 +973,51 @@ export function TopBarGroup(): ReactNode {
   );
 }
 
+// -------------------------------------------------------------------------------------------------
+// The scope select of the Citations page (WP-77)
+
+const SCOPE_PLATFORMS: readonly SelectOption<string>[] = [
+  { value: 'all', label: 'All platforms' },
+  { value: 'chatgpt_web', label: 'ChatGPT', display: <EngineLogo engine="chatgpt_web" name="ChatGPT" truncate /> },
+  { value: 'gemini_web', label: 'Gemini', display: <EngineLogo engine="gemini_web" name="Gemini" truncate /> },
+];
+const SCOPE_RUNS: readonly SelectOption<string>[] = [
+  { value: '4', label: 'Last 4 runs', note: '28 days' },
+  { value: '2', label: 'Last 2 runs', note: 'Sep 21 to Sep 28' },
+  { value: '1', label: 'Last run', note: 'Sep 28' },
+];
+
+export function ScopeSelectGroup(): ReactNode {
+  const [platform, setPlatform] = useState('gemini_web');
+  const [runs, setRuns] = useState('4');
+  return (
+    <SpecimenGroup title="Scope select" note="WP-77. A prefix names the control; a note gives each choice its dates.">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select<string>
+          aria-label="Platform"
+          prefix="Platform:"
+          placeholder="All platforms"
+          value={platform}
+          onValueChange={setPlatform}
+          options={SCOPE_PLATFORMS}
+          popupClassName="min-w-52"
+          className="w-56"
+        />
+        <Select<string>
+          aria-label="Runs"
+          prefix="Runs:"
+          placeholder="Runs"
+          value={runs}
+          onValueChange={setRuns}
+          options={SCOPE_RUNS}
+          popupClassName="min-w-56"
+          className="w-44"
+        />
+      </div>
+    </SpecimenGroup>
+  );
+}
+
 /** The mobile list rows, the saved view menu and the date range picker of WP-10. */
 export function ControlsSection(): ReactNode {
   return (
@@ -984,6 +1031,7 @@ export function ControlsSection(): ReactNode {
       <SavedViewStatesGroup />
       <DateRangeGroup />
       <TopBarGroup />
+      <ScopeSelectGroup />
     </div>
   );
 }

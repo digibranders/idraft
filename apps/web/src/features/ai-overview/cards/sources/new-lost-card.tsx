@@ -111,7 +111,7 @@ export default function NewLostCard({ item, live }: CardProps): ReactElement {
       id: figure.id,
       label: name,
       own: figure.own,
-      href: citations({ tab: 'new-lost', kind }) ?? undefined,
+      href: citations({ tab: 'pages' }) ?? undefined,
       badge: <DomainRoleBadge role={figure.role} />,
       value: {
         kind: 'value',

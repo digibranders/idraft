@@ -16,6 +16,8 @@ import type {
 } from '@/components/app/data-table/types';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { BoardTable, type BoardColumn, type BoardSort } from '@/components/app/table/board-table';
+import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { formatInteger } from '@/lib/format';
 import { DEFAULT_DENSITY, type Density, type SortKey } from '@/lib/tables/table-state';
@@ -419,9 +421,98 @@ function ThreeLevelTable(): ReactNode {
   );
 }
 
+interface BoardSample {
+  id: string;
+  page: string;
+  citations: number;
+  prompts: number;
+}
+
+const BOARD_ROWS: readonly BoardSample[] = [
+  { id: 'pricing', page: '/pricing', citations: 38, prompts: 9 },
+  { id: 'crm-guide', page: '/guides/crm-for-startups', citations: 24, prompts: 12 },
+  { id: 'compare', page: '/compare/hubspot-alternatives', citations: 17, prompts: 5 },
+  { id: 'integrations', page: '/integrations', citations: 6, prompts: 2 },
+];
+
+const BOARD_COLUMNS: readonly BoardColumn<BoardSample>[] = [
+  {
+    id: 'page',
+    header: 'Page',
+    width: 280,
+    sortKey: 'page',
+    cell: (row) => <span className="min-w-0 truncate text-foreground">{row.page}</span>,
+  },
+  {
+    id: 'citations',
+    header: 'Citations',
+    width: 104,
+    sortKey: 'citations',
+    tip: 'Answers whose citation list includes this URL',
+    cell: (row) => formatInteger(row.citations),
+    cellClassName: 'num text-foreground',
+  },
+  {
+    id: 'prompts',
+    header: 'Prompts',
+    width: null,
+    sortKey: 'prompts',
+    tip: 'How many tracked prompts cite this page',
+    cell: (row) => formatInteger(row.prompts),
+    cellClassName: 'num text-foreground-secondary',
+  },
+];
+
+/** Four rows, a sorted header, the pinned Page column and the flexible Prompts column; sorts as the board does. */
+function BoardSample(): ReactNode {
+  const [sort, setSort] = useState<BoardSort>({ key: 'citations', dir: 'desc' });
+  const [active, setActive] = useState<string | null>('crm-guide');
+  const rows = [...BOARD_ROWS].sort((a, b) => {
+    let order = a.citations - b.citations;
+    if (sort.key === 'page') order = a.page.localeCompare(b.page);
+    else if (sort.key === 'prompts') order = a.prompts - b.prompts;
+    return sort.dir === 'asc' ? order : -order;
+  });
+  return (
+    <div className="flex h-72 flex-col overflow-hidden rounded-lg border border-border bg-surface">
+      <BoardTable<BoardSample>
+        caption="Cited pages, board table"
+        columns={BOARD_COLUMNS}
+        rows={rows}
+        rowId={(row) => row.id}
+        rowLabel={(row) => `Open ${row.page}`}
+        identityTip={(row) => ({ content: row.page })}
+        onOpen={(row) => setActive(row.id)}
+        activeId={active}
+        sort={sort}
+        onSortChange={setSort}
+      />
+    </div>
+  );
+}
+
 export function TablesSection(): ReactNode {
   return (
     <>
+      <SpecimenGroup
+        title="BoardTable"
+        note="12 section 20, WP-77. The table of an analysis board: fixed widths with one flexible column, a pinned first column that is the row's button, headers that sort descending first, no toolbar of its own."
+      >
+        <BoardSample />
+        <div className="rounded-lg border border-border bg-surface">
+          <EmptyState
+            variant="table"
+            headingLevel={3}
+            title="No pages match"
+            reason="No page contains “crm”."
+            primaryAction={
+              <Button size="sm" variant="secondary">
+                Clear search
+              </Button>
+            }
+          />
+        </div>
+      </SpecimenGroup>
       <SpecimenGroup
         title="DataTable, client mode"
         note="12. Compact rows, 12 px text, capital headers and left aligned columns are the defaults (owner decisions of 2026-10-29). 300 rows: rows near the view render, the rest keep their space. Sort from a header, select with the checkboxes or Space, open a row with Enter. Missing metrics read Pending and sort last both ways."

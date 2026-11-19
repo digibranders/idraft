@@ -1828,6 +1828,11 @@ crawl_runs = Table(
     Column("estimated_cost_usd", Numeric(14, 6)),
     Column("cost_usd", Numeric(14, 6)),
     Column("stop_reason", Text),
+    Column("previous_run_id", Uuid),
+    Column("enrich_state", Text, nullable=False, server_default=FetchedValue()),
+    Column("enrich_phase", Text),
+    Column("enrich_failures", SmallInteger, nullable=False, server_default=FetchedValue()),
+    Column("enrich_offset", BigInteger, nullable=False, server_default=FetchedValue()),
     Column("error_code", Text),
     Column("error_message", Text),
     Column("cancel_requested", Boolean, nullable=False, server_default=FetchedValue()),
@@ -1901,6 +1906,8 @@ crawl_pages = Table(
     Column("is_orphan", Boolean, nullable=False, server_default=FetchedValue()),
     Column("is_editorial_orphan", Boolean, nullable=False, server_default=FetchedValue()),
     Column("deep_only_through_auto", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("editorial_anchors", Integer, nullable=False, server_default=FetchedValue()),
+    Column("generic_anchors", Integer, nullable=False, server_default=FetchedValue()),
     _run_key(),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
@@ -1964,4 +1971,117 @@ crawl_tier_stats = Table(
     ),
     _run_key(),
     schema="seo",
+)
+
+crawl_link_changes = Table(
+    "crawl_link_changes",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("change", Text, primary_key=True),
+    Column("scope", Text, primary_key=True),
+    Column("source_url_id", BigInteger, primary_key=True),
+    Column("target_url_id", BigInteger, primary_key=True),
+    Column("placement", Text, nullable=False),
+    Column("anchor", Text, nullable=False, server_default=FetchedValue()),
+    Column("still_linked_by", Text),
+    _run_key(),
+    schema="seo",
+)
+
+crawl_page_changes = Table(
+    "crawl_page_changes",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("url_id", BigInteger, primary_key=True),
+    Column("is_new", Boolean, nullable=False),
+    Column("editorial_in_delta", Integer),
+    Column("equity_points", Float),
+    Column("depth_state", Text),
+    Column("depth_delta", Integer),
+    _run_key(),
+    schema="seo",
+)
+
+crawl_alerts = Table(
+    "crawl_alerts",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("lost_links", Integer, nullable=False),
+    Column("max_position", SmallInteger, nullable=False),
+    Column("threshold", SmallInteger, nullable=False),
+    Column("channel", Text, nullable=False),
+    Column("delivery_state", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    _run_key(),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="seo",
+)
+
+crawl_mentions = Table(
+    "crawl_mentions",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("source_url_id", BigInteger, primary_key=True),
+    Column("target_url_id", BigInteger, primary_key=True),
+    Column("phrase", Text, nullable=False),
+    Column("context", Text, nullable=False),
+    Column("origin", Text, nullable=False),
+    _run_key(),
+    schema="seo",
+)
+
+link_opportunity_decisions = Table(
+    "link_opportunity_decisions",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("source_url_id", BigInteger, primary_key=True),
+    Column("target_url_id", BigInteger, primary_key=True),
+    Column("status", Text, nullable=False),
+    Column("decided_by", Uuid, ForeignKey(users.c.id)),
+    Column("decided_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
+tier_suggestion_dismissals = Table(
+    "tier_suggestion_dismissals",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("url_id", BigInteger, primary_key=True),
+    Column("dismissed_by", Uuid, ForeignKey(users.c.id)),
+    Column("dismissed_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
+gsc_page_daily = Table(
+    "gsc_page_daily",
+    metadata,
+    Column("integration_id", Uuid, primary_key=True),
+    Column("metric_date", Date, primary_key=True),
+    Column("url_id", BigInteger, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("clicks", Integer, nullable=False),
+    Column("impressions", Integer, nullable=False),
+    Column("ingested_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["integration_id", "workspace_id"],
+        [integrations.c.id, integrations.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="fp",
 )

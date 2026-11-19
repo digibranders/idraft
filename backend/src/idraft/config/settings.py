@@ -175,6 +175,12 @@ class Settings(_DatabaseSettings):
     # Resolve submissions of unknown outcome by asking the provider which tasks it holds. Off
     # until spike S-01 confirms that DataForSEO's task list returns our tags.
     resolve_unknown_submissions: bool = False
+    # The worker only. Site crawls for the internal link tracker: the crawl tick, which posts
+    # queued crawls (paid when posted), starts the weekly crawls and reads finished ones, and its
+    # ingest job. Off until the On-Page adapter is checked against the real API and its cost
+    # estimate against the invoice: with it off nothing is registered, so nothing is queued,
+    # posted or ingested.
+    crawls_enabled: bool = False
     # Names this installation in every task it sends a provider. Two installations sharing a
     # provider account (production and a restore rehearsal, say) then never take each other's
     # answers. Production is `prod`; a copy of its database must be started with another.

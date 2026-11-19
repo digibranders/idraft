@@ -18,15 +18,16 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
   sections.flatMap((section) => section.groups.flatMap((group) => group.items.map((item) => item.key)));
 
 describe('the navigation registry', () => {
-  it('has the 16 destinations of 11 section 1.1, in 3 sections', () => {
+  it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8) and Internal links, in 3 sections', () => {
     expect(NAVIGATION).toHaveLength(16);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
       'keywords',
       'pages',
+      'internalLinks',
     ]);
-    expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(4);
+    expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(3);
   });
 
   it('asks only for permissions the API has', () => {
@@ -35,12 +36,14 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, AI Overview, Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Competitors, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'internalLinks',
       'aiOverview',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'costs',
@@ -62,18 +65,22 @@ describe('the navigation registry', () => {
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
     expect(shownTo('viewer')).toEqual([
       'keywords',
+      'internalLinks',
       'aiOverview',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'settings',
     ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
+      'internalLinks',
       'aiOverview',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'costs',
@@ -179,8 +186,6 @@ describe('the navigation registry', () => {
       'matrix',
       'rankings',
       'pages',
-      'sources',
-      'competitors',
       'discover',
       'reports',
     ]);
@@ -189,11 +194,24 @@ describe('the navigation registry', () => {
   it('finds the planned destinations of the AI visibility pages by their paths', () => {
     const at = (path: string): string | undefined => destinationOf(NAVIGATION, path, 'digibranders', 'fynix')?.key;
     expect(at('/digibranders/fynix/ai/citations')).toBe('citations');
-    expect(at('/digibranders/fynix/ai/sources')).toBe('sources');
     expect(at('/digibranders/fynix/competitors')).toBe('competitors');
     expect(at('/digibranders/fynix/discover/prompts')).toBe('discover');
     expect(at('/digibranders/fynix/reports')).toBe('reports');
     expect(at('/digibranders/fynix/matrix')).toBe('matrix');
+  });
+
+  it('Competitors is a live destination in the second section, below the AI group, for data:read', () => {
+    expect(NAVIGATION.find((item) => item.key === 'competitors')).toMatchObject({
+      path: '/competitors',
+      section: 2,
+      group: null,
+      permission: 'data:read',
+      status: 'live',
+    });
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/competitors', 'digibranders', 'fynix')?.key).toBe(
+      'competitors',
+    );
+    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('billing')))).not.toContain('competitors');
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {

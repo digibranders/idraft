@@ -18,6 +18,9 @@ export const INSPECTOR_TYPES = [
   'competitor',
   'domain',
   'source',
+  // The Citations page's drawers (WP-77): a cited page by its url_id, a prompt of the gap analysis
+  'cited-page',
+  'gap-prompt',
   'run',
   'candidate',
 ] as const;
@@ -44,7 +47,15 @@ const SNAP = 8;
 /** An id is an opaque token of the API: no spaces, and not longer than this. */
 const MAX_ID_LENGTH = 200;
 
-const WIDE_TYPES: ReadonlySet<InspectorType> = new Set(['prompt', 'topic', 'citation', 'answer', 'competitor']);
+const WIDE_TYPES: ReadonlySet<InspectorType> = new Set([
+  'prompt',
+  'topic',
+  'citation',
+  'answer',
+  'competitor',
+  'cited-page',
+  'gap-prompt',
+]);
 const TYPES: ReadonlySet<string> = new Set(INSPECTOR_TYPES);
 
 const isInspectorType = (value: string): value is InspectorType => TYPES.has(value);

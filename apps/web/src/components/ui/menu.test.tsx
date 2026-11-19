@@ -207,6 +207,28 @@ describe('Menu', () => {
     expect(dark).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the menu open after a radio pick, and closes it with focus back on the trigger when closeOnClick is set', async () => {
+    const pick = (closeOnClick: boolean) => (
+      <Menu
+        trigger={<Button>More actions</Button>}
+        items={[
+          { id: 'light', label: 'Light', kind: 'radio', checked: true, closeOnClick },
+          { id: 'dark', label: 'Dark', kind: 'radio', closeOnClick, onSelect: vi.fn() },
+        ]}
+      />
+    );
+    const stays = renderWithProviders(pick(false));
+    const menu = await open(stays.user);
+    await stays.user.click(within(menu).getByRole('menuitemradio', { name: 'Dark' }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    stays.unmount();
+    const closes = renderWithProviders(pick(true));
+    const second = await open(closes.user);
+    await closes.user.click(within(second).getByRole('menuitemradio', { name: 'Dark' }));
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus());
+  });
+
   it('renders a link item as a link, and closes when it is followed', async () => {
     const onSelect = vi.fn();
     const { user } = renderWithProviders(

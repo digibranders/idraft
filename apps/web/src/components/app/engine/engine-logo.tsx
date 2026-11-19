@@ -13,6 +13,12 @@ export interface EngineLogoProps {
   hidden?: boolean | undefined;
   /** Ends the name in an ellipsis when the row is too narrow. */
   truncate?: boolean | undefined;
+  /**
+   * `visually-hidden`: the mark alone on screen and the name for screen readers, where a column of marks would repeat
+   * the names (Citations Platforms and Lost on, C 528 and 658); the name is still in the cell's tooltip. A mark is never
+   * replaced by nothing: without one the name stays visible. Default `visible`.
+   */
+  nameDisplay?: 'visible' | 'visually-hidden' | undefined;
 }
 
 /**
@@ -20,13 +26,22 @@ export interface EngineLogoProps {
  * (`alt=""`) because the name beside it is the label, and no export of this folder renders a mark without it.
  * An engine without a mark, or `hidden`, shows the name alone.
  */
-export function EngineLogo({ engine, name, hidden = false, truncate = false }: EngineLogoProps): ReactElement {
-  const label = truncate ? <Truncate text={name} /> : name;
+export function EngineLogo({
+  engine,
+  name,
+  hidden = false,
+  truncate = false,
+  nameDisplay = 'visible',
+}: EngineLogoProps): ReactElement {
+  const text = truncate ? <Truncate text={name} /> : name;
   const mark = hidden ? null : <EngineMark engine={engine} />;
   if (mark === null || engineMark(engine) === null)
-    return <span className="inline-flex min-w-0 items-center">{label}</span>;
+    return <span className="inline-flex min-w-0 items-center">{text}</span>;
+  const hiddenName = nameDisplay === 'visually-hidden';
+  const label = hiddenName ? <span className="sr-only">{name}</span> : text;
   return (
-    <span className="inline-flex min-w-0 items-center gap-2">
+    // `relative` contains the absolutely placed `sr-only` name, so it cannot reach out to a distant scroll container
+    <span className={cn('inline-flex min-w-0 items-center gap-2', hiddenName && 'relative')}>
       {mark}
       {label}
     </span>

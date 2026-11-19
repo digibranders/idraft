@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from idraft.collectors import gsc_store
+from idraft.collectors import gsc_pages, gsc_store
 from idraft.collectors.gsc_limits import GscLimiter
 from idraft.collectors.gsc_store import DayRow, IntegrationFacts
 from idraft.db.engine import workspace_transaction
@@ -106,6 +106,8 @@ class SyncContext:
     monotonic: Callable[[], float] = time.monotonic
     budget: timedelta = PASS_BUDGET
     page_size: int = SEARCH_ANALYTICS_ROW_LIMIT
+    # Also pull clicks and impressions per page, one `[date, page]` call per day (plan 04 D10).
+    page_totals: bool = False
 
 
 def pacific_today(now: datetime) -> date:
@@ -207,6 +209,44 @@ class _Pass:
                 return rows
             rows.extend(page)
 
+    async def _page_day(self, day: date) -> list[AnalyticsRow]:
+        rows: list[AnalyticsRow] = []
+        while True:
+            page = await self._query(
+                start=day, end=day, dimensions=("date", "page"), start_row=len(rows)
+            )
+            if not page:
+                return rows
+            rows.extend(page)
+
+    async def _pages_window(self, probe: Sequence[date], start: date, end: date) -> bool:
+        """The page rows of the days of the window that have none yet, one call per day, and the
+        pruning of days past `PAGE_KEEP_DAYS`. True when it stopped on the budget."""
+        async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
+            have = await gsc_pages.stored_page_days(db, self._facts, start, end)
+        for day in probe:
+            if day < start or day > end or day in have:
+                continue
+            if self._out_of_time():
+                return True
+            rows, skipped = gsc_pages.page_day_rows(await self._page_day(day), day)
+            async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
+                written, unknown = await gsc_pages.replace_page_day(db, self._facts, day, rows)
+            if skipped or unknown:
+                _log.info(
+                    "gsc page rows set aside",
+                    integration_id=str(self._facts.integration_id),
+                    day=day.isoformat(),
+                    skipped=skipped,
+                    unknown=unknown,
+                    written=written,
+                )
+        async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
+            await gsc_pages.prune_pages(
+                db, self._facts, end - timedelta(days=gsc_pages.PAGE_KEEP_DAYS)
+            )
+        return False
+
     async def _store(self, day: date, *, history_next: date | None = None) -> None:
         """Fetch one day and write it with the progress, in one transaction."""
         rows, skipped = day_rows(await self._day(day), day)
@@ -260,6 +300,8 @@ class _Pass:
             if self._out_of_time():
                 return True
             await self._store(day)
+        if self._ctx.page_totals and await self._pages_window(probe, window_start, latest):
+            return True
 
         # The sweep's ends are set once, to the first day the recent pass covers; a state that lost
         # them (it is read tolerantly) gets them again, so the pass cannot end with the history

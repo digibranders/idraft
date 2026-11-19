@@ -618,6 +618,15 @@ describe('LABEL_ON', () => {
     'rank-band-4',
     'rank-band-5',
     'rank-band-none',
+    'tier-1',
+    'tier-2',
+    'tier-3',
+    'tier-4',
+    'tier-5',
+    'tier-6',
+    'tier-7',
+    'tier-8',
+    'tier-none',
   ];
   const entries = COLORS.map((name): [ShareColor, string | null] => [name, LABEL_ON[name]]);
 

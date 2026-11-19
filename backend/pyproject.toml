@@ -144,6 +144,21 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "crawl placement is pure: no other idraft package, no I/O, numeric or HTML libraries"
+type = "forbidden"
+# Scoped to the one module: idraft.crawl.edges imports idraft.extraction.urls.
+source_modules = ["idraft.crawl.placement"]
+forbidden_modules = [
+  "idraft.ai", "idraft.api", "idraft.cli", "idraft.collectors", "idraft.config",
+  "idraft.db", "idraft.devseed", "idraft.domain", "idraft.extraction", "idraft.keywords",
+  "idraft.providers", "idraft.ranks", "idraft.storage", "idraft.vault", "idraft.worker",
+  "idraft.crawl.ceiling", "idraft.crawl.edges", "idraft.crawl.graph", "idraft.crawl.hosts",
+  "idraft.crawl.schedule", "idraft.crawl.scopes", "idraft.crawl.template", "idraft.crawl.tiers",
+  "sqlalchemy", "asyncpg", "redis", "httpx", "fastapi", "starlette",
+  "numpy", "scipy", "lxml", "selectolax", "bs4",
+]
+
+[[tool.importlinter.contracts]]
 name = "providers never touch the database"
 type = "forbidden"
 source_modules = ["idraft.providers"]

@@ -241,3 +241,26 @@ describe('Select', () => {
     expect(await axe(baseElement)).toHaveNoViolations();
   });
 });
+
+describe('Select as a scope control (WP-77)', () => {
+  it('names the choice after a prefix and draws an option with its own content and a note', async () => {
+    const { user } = renderWithProviders(
+      <Select<string>
+        aria-label="Runs: Last 4 runs"
+        triggerPrefix="Runs:"
+        value="4"
+        onValueChange={() => undefined}
+        placeholder="Runs"
+        popupClassName="min-w-56"
+        options={[
+          { value: '4', label: 'Last 4 runs', note: '28 days' },
+          { value: '1', label: 'Last run', display: <strong>Last run</strong>, note: 'Sep 28' },
+        ]}
+      />,
+    );
+    const trigger = screen.getByRole('combobox', { name: 'Runs: Last 4 runs' });
+    expect(trigger).toHaveTextContent('Runs:Last 4 runs');
+    await user.click(trigger);
+    expect(await screen.findByRole('option', { name: /Last run/ })).toHaveTextContent('Sep 28');
+  });
+});

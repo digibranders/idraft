@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Final, Literal
 from uuid import UUID
 
@@ -10,6 +10,7 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     Field,
+    PlainValidator,
     StringConstraints,
     field_validator,
     model_validator,
@@ -17,6 +18,7 @@ from pydantic import (
 
 from idraft.api.pagination import CursorPageInfo
 from idraft.api.schemas.common import Body, Patch, UserRef, printable, refuse_null
+from idraft.api.schemas.metrics import Usd
 
 TierName = Annotated[
     str,
@@ -79,9 +81,39 @@ PageFlag = Literal[
     "deep_only_through_auto",
     "placement_unknown",
     "has_broken_outlinks",
+    "generic_anchors",
 ]
-PageWorklist = Literal["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto"]
-UrlId = Annotated[int, Field(gt=0, le=9_223_372_036_854_775_807)]
+PageWorklist = Literal[
+    "under_linked_t1",
+    "orphans",
+    "editorial_orphans",
+    "deep_only_through_auto",
+    "lost_links_top",
+    "weak_outlinks",
+]
+INT64_MAX: Final = 9_223_372_036_854_775_807
+
+
+def parse_url_id(value: object) -> int:
+    """A `core.urls` id from the API: a string of digits (a JSON number loses digits above 2**53
+    in a browser), or a whole number from a caller that sends one. Positive and within int64."""
+    if isinstance(value, bool):
+        raise ValueError("an id is a positive whole number")
+    if isinstance(value, str):
+        if not (value.isascii() and value.isdigit() and not value.startswith("0")):
+            raise ValueError("an id is a positive whole number, sent as a string")
+        number = int(value)
+    elif isinstance(value, int):
+        number = value
+    else:
+        raise ValueError("an id is a positive whole number, sent as a string")
+    if not 0 < number <= INT64_MAX:
+        raise ValueError("an id is a positive whole number that fits 64 bits")
+    return number
+
+
+# Requests take the id as a string, like responses give it; the code works with the int.
+UrlId = Annotated[int, PlainValidator(parse_url_id, json_schema_input_type=str)]
 BULK_IDS_MAX: Final = 5_000
 BULK_MATCH_MAX: Final = 20_000
 TERMS_MAX: Final = 50
@@ -96,7 +128,7 @@ class PageFilter(Body):
     tag_ids: Annotated[list[UUID], Field(max_length=TERMS_MAX)] | None = None
     status: Annotated[list[StatusClass], Field(max_length=4)] | None = None
     indexable: bool | None = None
-    flags: Annotated[list[PageFlag], Field(max_length=5)] | None = None
+    flags: Annotated[list[PageFlag], Field(max_length=6)] | None = None
     worklist: PageWorklist | None = None
     q: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
 
@@ -248,6 +280,7 @@ RowFlag = Literal[
     "broken",
     "redirect",
     "non_indexable",
+    "generic_anchors",
 ]
 PageSort = Literal[
     "path",
@@ -262,6 +295,8 @@ PageSort = Literal[
     "-equity_share",
     "status_code",
     "-status_code",
+    "change",
+    "-change",
 ]
 EdgeWorklist = Literal["broken_and_redirected", "links_to_non_indexable"]
 UrlIdText = Annotated[str, Field(description="A `core.urls` id: a 64-bit integer as a string.")]
@@ -275,6 +310,79 @@ class PageTagRef(BaseModel):
 class TierCount(BaseModel):
     tier: TierRef | None = Field(description="null is Untiered.")
     pages: int
+
+
+class PageChange(BaseModel):
+    is_new: bool
+    editorial_in_delta: int | None
+    equity_points: float | None
+    depth_state: Literal["lost", "found"] | None
+    depth_delta: int | None
+
+
+class KeywordSummary(BaseModel):
+    tracked: int
+    ranking: int
+    average_rank: float | None
+    best_volume: int | None
+
+
+class CitationCounts(BaseModel):
+    chatgpt: int
+    gemini: int
+    ai_mode: int
+    total: int
+
+
+class AnchorSummary(BaseModel):
+    total: int
+    # Null, with `matches_keyword` and `top`, when the crawl's links are gone (410 on the link
+    # reads): only the stored counts of the enrichment remain.
+    distinct: int | None
+    generic: int
+    generic_share: float
+    matches_keyword: bool | None
+
+
+class GscPage(BaseModel):
+    state: Literal["ok", "pending", "not_connected"]
+    clicks: int | None = Field(description="Google's clicks for the page, last 28 days.")
+    impressions: int | None
+    window_start: date | None
+    window_end: date | None
+
+
+class PageExtras(BaseModel):
+    change: PageChange | None = None
+    keywords: KeywordSummary | None = None
+    citations: CitationCounts | None = None
+    anchors: AnchorSummary | None = None
+    gsc: GscPage | None = None
+
+
+class KeywordRow(BaseModel):
+    keyword: str
+    rank: int | None
+    change: int | None = Field(description="Places moved since the last check; positive is up.")
+    volume: int | None
+
+
+class AnchorText(BaseModel):
+    text: str
+    count: int
+    generic: bool
+
+
+class AnchorDetail(AnchorSummary):
+    top: list[AnchorText] | None
+
+
+class PageDetailExtras(BaseModel):
+    change: PageChange | None
+    keywords: list[KeywordRow]
+    citations: CitationCounts
+    anchors: AnchorDetail
+    gsc: GscPage
 
 
 class PageRow(BaseModel):
@@ -309,12 +417,19 @@ class PageRow(BaseModel):
     tier_set_at: datetime | None
     tags: list[PageTagRef]
     flags: list[RowFlag]
+    extras: PageExtras | None = Field(
+        default=None, description="Set when the list was asked for `include`."
+    )
 
 
 class ListMeta(BaseModel):
     run_id: UUID
     scope: LinkScopeName
     total: int
+    links_available: bool = Field(
+        default=True,
+        description="False when the crawl's links were dropped: link counts are the stored ones.",
+    )
 
 
 class PageRowPage(BaseModel):
@@ -391,6 +506,7 @@ class PageDetail(BaseModel):
     outlinks: list[Neighbor]
     linking_pages_total: int
     outlinks_total: int
+    extras: PageDetailExtras
 
 
 class PageDetailResponse(BaseModel):
@@ -457,9 +573,63 @@ class Worklists(BaseModel):
     orphans: int
     editorial_orphans: int
     deep_only_through_auto: int
+    lost_links_top: int = Field(description="Pages that lost an editorial link and are important.")
+    weak_outlinks: int = Field(description="T1 pages that mostly link to weak targets.")
     broken_and_redirected: int = Field(description="Links of every scope.")
     links_to_non_indexable: int = Field(description="Links of every scope.")
 
 
 class WorklistsResponse(BaseModel):
     data: Worklists
+
+
+CrawlState = Literal[
+    "queued", "crawling", "processing", "ready", "stopped_at_ceiling", "failed", "cancelled"
+]
+CrawlTrigger = Literal["website_added", "schedule", "manual", "ceiling_retry"]
+
+
+class CrawlRun(BaseModel):
+    run_id: UUID
+    trigger: CrawlTrigger
+    state: CrawlState
+    ceiling: int = Field(description="The safety stop: the crawl ends at this many pages.")
+    pages_found: int = Field(description="Crawled and still queued, while it runs.")
+    pages_crawled: int
+    sitemap_pages: int | None
+    render_javascript: bool
+    estimated_cost_usd: Usd | None
+    cost_usd: Usd | None
+    stop_reason: str | None
+    error_code: str | None
+    error_message: str | None
+    hints: list[Literal["render_javascript"]]
+    is_latest: bool = Field(description="The crawl `run=latest` reads.")
+    links_available: bool = Field(
+        description="False once the crawl's links were dropped (past the last four finished "
+        "crawls): its pages stay, links, journeys and changes of links are gone."
+    )
+    previous_run_id: UUID | None = Field(description="The crawl its changes are measured against.")
+    enrich_state: Literal["pending", "running", "done", "failed"] = Field(
+        description="State of the second job: changes, anchors and mentions."
+    )
+    created_at: datetime
+    submitted_at: datetime | None
+    finished_at: datetime | None
+    requested_by: UserRef | None
+
+
+class CrawlRunPage(BaseModel):
+    data: list[CrawlRun]
+    page: CursorPageInfo
+
+
+class CrawlRunResponse(BaseModel):
+    data: CrawlRun
+
+
+class CrawlCreate(Body):
+    higher_limit: bool = Field(
+        default=False,
+        description="Crawl again with a higher limit after a crawl stopped at its ceiling.",
+    )

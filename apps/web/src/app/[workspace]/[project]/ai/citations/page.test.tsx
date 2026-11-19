@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CitationsPage, { generateMetadata } from './page';
 import { CitationsScreen } from '@/features/citations';
+import { PromptDrawerHost } from '@/features/prompts';
 import type { components } from '@/lib/api/schema';
 import { projectFactory } from '@/mocks/factories/project';
 import { MOCK_PROJECTS } from '@/mocks/fixtures';
@@ -30,6 +31,8 @@ vi.mock('@/lib/session/server', () => ({
     }),
 }));
 vi.mock('@/lib/projects/server', () => ({ projectsOfMembership: () => Promise.resolve(state.open) }));
+// The prompts feature is another feature's: the page only composes its element
+vi.mock('@/features/prompts', () => ({ PromptDrawerHost: () => null }));
 
 const [fynixSeed, cleanstartSeed] = MOCK_PROJECTS;
 if (fynixSeed === undefined || cleanstartSeed === undefined) throw new Error('The fixture projects are missing');
@@ -44,7 +47,7 @@ beforeEach(() => {
 });
 
 describe('Citations of a project', () => {
-  it('renders the screen for a project the member can open', async () => {
+  it('renders the Cited pages tab for a project the member can open, with the prompt inspector composed in', async () => {
     expect(await page('cleanstart')).toMatchObject({
       type: CitationsScreen,
       props: {
@@ -55,6 +58,12 @@ describe('Citations of a project', () => {
           slug: 'cleanstart',
           name: 'Cleanstart',
           timeZone: cleanstart.timezone,
+          ownDomain: cleanstart.primary_domain?.registrable_domain,
+        },
+        tab: 'pages',
+        promptDrawer: {
+          type: PromptDrawerHost,
+          props: { workspaceId: 'w1', projectId: cleanstart.project_id, timeZone: cleanstart.timezone },
         },
       },
     });

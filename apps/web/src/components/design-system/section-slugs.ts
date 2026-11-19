@@ -24,6 +24,7 @@ export const PREVIEW_SECTION_SLUGS = [
   'domains-feeds',
   'controls',
   'layouts',
+  'links',
 ] as const;
 
 export type PreviewSectionSlug = (typeof PREVIEW_SECTION_SLUGS)[number];

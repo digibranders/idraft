@@ -62,6 +62,7 @@ Variants:
 |---|---|---|
 | `region` (default) | Table body below the real table header, chart panel, page content | As above. In a table it sits 32 px below the header, not vertically centered in a tall viewport |
 | `inline` | Inspector sections, metric strip slots, small panels under 200 px tall | No icon, 16 px padding, left-aligned, title and reason on one line where they fit, action as a text link |
+| `table` (WP-77) | The body of a `BoardTable` panel that has nothing to show ([12 §20](12-tables.md)) | No icon, centered, 48 px above and below and 16 px at the sides, no 400 px cap; the reason in `type-meta` at reading width (`max-w-reading`); the one button 16 px under the reason (8 px gap plus 8 px margin) |
 
 Placement rules: a table that is empty still renders its header and toolbar (so the user sees what would be there); a chart panel keeps its title and frame; the metric strip shows each metric's label with its value state rather than one empty state for the strip.
 

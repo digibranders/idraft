@@ -233,7 +233,7 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
       case 'runs':
         return drill('runs');
       case 'newSources':
-        return citations({ tab: 'new-lost', kind: 'new' });
+        return citations({ tab: 'pages' });
     }
   };
   // A row about the whole window has no time of its own: it says the window instead of "just now"

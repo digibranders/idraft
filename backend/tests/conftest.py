@@ -32,6 +32,7 @@ SETTINGS_VARIABLES = (
     "APP_ORIGIN",
     "BREACHED_PASSWORD_CHECK",
     "COLLECT_CONCURRENCY",
+    "CRAWLS_ENABLED",
     "DATABASE_URL",
     "DATAFORSEO_LOGIN",
     "DATAFORSEO_PASSWORD",
@@ -231,6 +232,7 @@ def app_settings(migrated: PostgresServer, redis_url: str) -> Settings:
         totp_encryption_key=TEST_TOTP_KEY,
         secrets_encryption_key=TEST_SECRETS_KEY,
         breached_password_check=False,
+        crawls_enabled=True,
     )
 
 

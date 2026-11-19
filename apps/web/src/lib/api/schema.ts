@@ -1150,6 +1150,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Citation gap analysis: you and up to five competitors per prompt
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`. A prompt is lost on an engine where a selected competitor is cited and you are not.
+         */
+        get: operations["citation_gaps_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-gaps/{prompt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One prompt of the gap analysis
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.
+         */
+        get: operations["citation_gap_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps__prompt_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The six citation measures of the Citations page
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.
+         */
+        get: operations["citation_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations": {
         parameters: {
             query?: never;
@@ -1162,6 +1222,46 @@ export interface paths {
          * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). The answers the prompts summary counts: valid, current and not superseded, of the active prompts, branded ones only with `include_branded`; `filter[prompt_id]` reads one prompt's answers whatever its state, and `filter[term]` the prompts given the term or one under it. A citation unit is a distinct canonical URL per answer (docs/16 C2). Aggregated by query over `ai.citations` (no rollup table: a 28 day window of a full project is about 3,600 answers). One row per citation of a counted answer, in the answer's order (a URL listed twice is two rows and one unit). `filter[registrable_domain]` and `filter[url_id]` give the citations behind a domain or page row. Keyset pages `(observed_at DESC, observation_id DESC, citation_index)`; a cursor is bound to its filters (`400 invalid_cursor` otherwise).
          */
         get: operations["citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pages cited in AI answers, with the prompts behind each
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`. Offset pages. `meta.owners` counts the pages of each role whatever the filter and `q`.
+         */
+        get: operations["cited_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages/{url_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One cited page: its prompts, platforms and the domains cited beside it
+         * @description Counts each prompt and engine's last `runs` collection runs with a counted answer (slots 1 to `runs`) against the `runs` before them, over at most 183 days. A citation unit is a distinct canonical URL per answer (docs/16 C2); flagged citations are left out unless asked for. The answers are those of the sources routes: valid, current, not superseded, of the active non-branded prompts unless `include_branded`.
+         */
+        get: operations["cited_page_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages__url_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1748,6 +1848,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lost or added links against the previous crawl, important targets first */
+        get: operations["changes_links_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_links_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pages whose editorial links in, equity or depth moved most */
+        get: operations["changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts of what the crawl changed, and the alert for links lost to important pages */
+        get: operations["changes_summary_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges": {
         parameters: {
             query?: never;
@@ -1781,6 +1932,40 @@ export interface paths {
          */
         get: operations["neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pages that mention a topic of another page without linking to it */
+        get: operations["list_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Accept, dismiss or reopen opportunities of the latest crawl */
+        put: operations["decide_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_decisions_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1822,6 +2007,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The shortest route from the home page to a page
+         * @description `any` follows every followed link, `editorial` only editorial links; a redirect is one step to its target. A route is null when the page is not reached in 12 clicks.
+         */
+        get: operations["paths_api_v1_workspaces__workspace_id__projects__project_id__internal_links_paths_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow": {
         parameters: {
             query?: never;
@@ -1833,6 +2038,57 @@ export interface paths {
         get: operations["tier_flow_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_flow_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pages whose clicks or keyword ranks say they belong in a higher tier */
+        get: operations["list_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set the suggested tiers by hand */
+        post: operations["accept_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hide suggestions for the project */
+        post: operations["dismiss_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_dismiss_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2094,6 +2350,64 @@ export interface paths {
          * @description The given keywords (which the project tracks; `422 validation_failed` with `keyword_unknown` otherwise), else the project's tracked keywords whose metrics are older than `stale_days` (default 25). The run is `planned` and the worker plans it within a minute; a budget used up blocks it (`budget_blocked`). `429 manual_run_limit` after 20 manual runs in a day (UTC), with `limit`; runs the system starts for new keywords do not count.
          */
         post: operations["refresh_keyword_metrics_api_v1_workspaces__workspace_id__projects__project_id__keyword_metrics_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's crawls, newest first */
+        get: operations["list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get"];
+        put?: never;
+        /**
+         * Crawl now
+         * @description Queues a crawl of the project's website. `503 crawls_disabled` while site crawls are not switched on, and nothing is queued. One crawl per project runs at a time (`409 crawl_in_progress` with its `run_id`). `422 no_website` without a website; `422 budget_exceeded` (with `budget_id`) when the crawl would pass a budget, and nothing is queued. `higher_limit` crawls again after a crawl stopped at its ceiling, with twice the limit or what the sitemap asks for.
+         */
+        post: operations["start_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One crawl, with its progress */
+        get: operations["get_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a queued or running crawl
+         * @description A queued crawl ends at once. A running one is stopped by the worker within a minute and comes back with its state unchanged. `409 invalid_state_transition` for any other state.
+         */
+        post: operations["cancel_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2675,7 +2989,7 @@ export interface paths {
         head?: never;
         /**
          * Change the project's settings
-         * @description A JSON merge patch of `seo`: members left out keep their value. The `seo` defaults apply to tracked keywords created after the change.
+         * @description A JSON merge patch of `seo` and `internal_links`: parts and members left out keep their value. The `seo` defaults apply to tracked keywords created after the change. `internal_links.allowed_subdomains` must be the project's website or hosts under it.
          */
         patch: operations["update_settings_api_v1_workspaces__workspace_id__projects__project_id__settings_patch"];
         trace?: never;
@@ -3906,6 +4220,46 @@ export interface components {
              */
             state: "absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown";
         };
+        /** AlertSettings */
+        AlertSettings: {
+            /**
+             * Channel
+             * @default app
+             * @enum {string}
+             */
+            channel: "app" | "email" | "slack";
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Max Position
+             * @description Tier positions 1 to this one are important.
+             * @default 2
+             */
+            max_position: number;
+            /**
+             * Threshold
+             * @description Lost links that raise an alert.
+             * @default 1
+             */
+            threshold: number;
+        };
+        /** AlertSettingsPatch */
+        AlertSettingsPatch: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel?: "app" | "email" | "slack";
+            /** Enabled */
+            enabled?: boolean;
+            /** Max Position */
+            max_position?: number;
+            /** Threshold */
+            threshold?: number;
+        };
         /** Alias */
         Alias: {
             /** Alias */
@@ -4136,6 +4490,43 @@ export interface components {
             /** Links */
             links: number;
         };
+        /** AnchorDetail */
+        AnchorDetail: {
+            /** Distinct */
+            distinct: number | null;
+            /** Generic */
+            generic: number;
+            /** Generic Share */
+            generic_share: number;
+            /** Matches Keyword */
+            matches_keyword: boolean | null;
+            /** Top */
+            top: components["schemas"]["AnchorText"][] | null;
+            /** Total */
+            total: number;
+        };
+        /** AnchorSummary */
+        AnchorSummary: {
+            /** Distinct */
+            distinct: number | null;
+            /** Generic */
+            generic: number;
+            /** Generic Share */
+            generic_share: number;
+            /** Matches Keyword */
+            matches_keyword: boolean | null;
+            /** Total */
+            total: number;
+        };
+        /** AnchorText */
+        AnchorText: {
+            /** Count */
+            count: number;
+            /** Generic */
+            generic: boolean;
+            /** Text */
+            text: string;
+        };
         /**
          * Annotation
          * @description A boundary drawn on every time chart (overview-and-charts N9).
@@ -4222,6 +4613,36 @@ export interface components {
              * @description The JSON of `ImportOptions`.
              */
             options?: string | null;
+        };
+        /** BrandCell */
+        BrandCell: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            /** Mentioned */
+            mentioned: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "cited" | "mentioned" | "not" | "none";
+        };
+        /** BrandOnPrompt */
+        BrandOnPrompt: {
+            /**
+             * Cited On
+             * @description Engines with answers where the brand is cited.
+             */
+            cited_on: number;
+            /** Engines */
+            engines: components["schemas"]["EngineBrandCell"][];
+            /**
+             * Platforms
+             * @description Engines with answers.
+             */
+            platforms: number;
+            total: components["schemas"]["BrandCell"];
         };
         /** Budget */
         Budget: {
@@ -4453,6 +4874,141 @@ export interface components {
              */
             width?: ("third" | "half" | "two_thirds" | "full") | null;
         };
+        /** ChangeAlert */
+        ChangeAlert: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "app" | "email" | "slack";
+            /**
+             * Delivery State
+             * @enum {string}
+             */
+            delivery_state: "shown_in_app" | "channel_unavailable";
+            /** Lost Links */
+            lost_links: number;
+            /** Max Position */
+            max_position: number;
+            /** Threshold */
+            threshold: number;
+        };
+        /** ChangeLink */
+        ChangeLink: {
+            /** Anchor */
+            anchor: string;
+            /**
+             * Placement
+             * @enum {string}
+             */
+            placement: "content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb";
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "lost_to_t1" | "lost_to_t2" | "lower" | "none";
+            source: components["schemas"]["ChangePage"];
+            /**
+             * Still Linked By
+             * @description Another link that still joins the pair in this crawl (editorial scope).
+             */
+            still_linked_by: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb") | null;
+            target: components["schemas"]["ChangePage"];
+        };
+        /** ChangeLinkMeta */
+        ChangeLinkMeta: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "lost" | "added";
+            /**
+             * Link Scope
+             * @enum {string}
+             */
+            link_scope: "editorial" | "all";
+            /**
+             * Only
+             * @enum {string}
+             */
+            only: "top" | "all";
+            /** Previous Run Id */
+            previous_run_id: string | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Total */
+            total: number;
+            /**
+             * Truncated
+             * @description The stored changes were cut at 200,000 rows.
+             */
+            truncated: boolean;
+        };
+        /** ChangeLinkPage */
+        ChangeLinkPage: {
+            /** Data */
+            data: components["schemas"]["ChangeLink"][];
+            meta: components["schemas"]["ChangeLinkMeta"];
+        };
+        /** ChangePage */
+        ChangePage: {
+            /** Path */
+            path: string;
+            /** @description null is Untiered. */
+            tier: components["schemas"]["TierRef"] | null;
+            /** Url */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** ChangesSummary */
+        ChangesSummary: {
+            alert: components["schemas"]["ChangeAlert"] | null;
+            /** All Added */
+            all_added: number;
+            /** All Lost */
+            all_lost: number;
+            /** Editorial Added */
+            editorial_added: number;
+            /** Editorial Lost */
+            editorial_lost: number;
+            /** Important Max Position */
+            important_max_position: number;
+            /**
+             * Lost To Top
+             * @description Editorial links lost to the important tiers.
+             */
+            lost_to_top: number;
+            /** Pages Added */
+            pages_added: number;
+            /** Pages Lost */
+            pages_lost: number;
+            /** Previous Finished At */
+            previous_finished_at: string | null;
+            /** Previous Run Id */
+            previous_run_id: string | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * State
+             * @description `pending` until the crawl's changes are worked out, `unavailable` when enrichment failed before that.
+             * @enum {string}
+             */
+            state: "first_crawl" | "pending" | "ready" | "unavailable";
+        };
+        /** ChangesSummaryResponse */
+        ChangesSummaryResponse: {
+            data: components["schemas"]["ChangesSummary"];
+        };
         /**
          * CheckNow
          * @description Keywords to check at once, each a search of its own through the standard queue.
@@ -4465,6 +5021,74 @@ export interface components {
             depth?: 100 | null;
             /** Tracked Keyword Ids */
             tracked_keyword_ids: string[];
+        };
+        /** CitationCounts */
+        CitationCounts: {
+            /** Ai Mode */
+            ai_mode: number;
+            /** Chatgpt */
+            chatgpt: number;
+            /** Gemini */
+            gemini: number;
+            /** Total */
+            total: number;
+        };
+        /** CitationGapDetail */
+        CitationGapDetail: {
+            /** Answers */
+            answers: number;
+            /** Closest Pages */
+            closest_pages: components["schemas"]["GapPage"][];
+            /** Competitor Pages */
+            competitor_pages: components["schemas"]["GapPage"][];
+            /** Own Pages */
+            own_pages: components["schemas"]["GapPage"][];
+            row: components["schemas"]["CitationGapRow"];
+            /** Third Party Pages */
+            third_party_pages: components["schemas"]["GapPage"][];
+            window: components["schemas"]["RunWindow"];
+        };
+        /** CitationGapList */
+        CitationGapList: {
+            /** Data */
+            data: components["schemas"]["CitationGapRow"][];
+            meta: components["schemas"]["CitationGapsMeta"];
+        };
+        /** CitationGapRow */
+        CitationGapRow: {
+            /** Competitor Answers */
+            competitor_answers: number;
+            /** Competitors */
+            competitors: components["schemas"]["CompetitorOnPrompt"][];
+            /**
+             * Gap
+             * @description How many engines the prompt is lost on.
+             */
+            gap: number;
+            /** Lost On */
+            lost_on: components["schemas"]["EngineCode"][];
+            /** Lost To */
+            lost_to: string[];
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+            /** @description The prompt's first term in path order. */
+            topic: components["schemas"]["PromptTopic"] | null;
+            you: components["schemas"]["BrandOnPrompt"];
+        };
+        /** CitationGapsMeta */
+        CitationGapsMeta: {
+            /** Competitors */
+            competitors: components["schemas"]["GapCompetitor"][];
+            /** Gaps */
+            gaps: number;
+            /** Prompts */
+            prompts: number;
+            window: components["schemas"]["RunWindow"];
         };
         /** CitationOut */
         CitationOut: {
@@ -4504,6 +5128,36 @@ export interface components {
             title: string | null;
             /** Url */
             url: string;
+        };
+        /** CitationOverview */
+        CitationOverview: {
+            /**
+             * Citations
+             * @description Own citation units in the current window.
+             */
+            citations: number;
+            /** Domains */
+            domains: number;
+            /** Engines */
+            engines: components["schemas"]["EngineCitationCounts"][];
+            /**
+             * Matched Citations
+             * @description Own units now, on the prompt and engine pairs answered in both windows.
+             */
+            matched_citations: number;
+            /** Matched Pairs */
+            matched_pairs: number;
+            /** Matched Previous Citations */
+            matched_previous_citations: number;
+            /** Own Urls */
+            own_urls: number;
+            /** Previous Citations */
+            previous_citations: number;
+            /** Previous Domains */
+            previous_domains: number;
+            /** Previous Own Urls */
+            previous_own_urls: number;
+            window: components["schemas"]["RunWindow"];
         };
         /** CitationPage */
         CitationPage: {
@@ -4571,6 +5225,124 @@ export interface components {
             url: string;
             /** Url Id */
             url_id: number;
+        };
+        /** CitedAlongside */
+        CitedAlongside: {
+            /**
+             * Answers
+             * @description Answers citing this page that also cite this domain.
+             */
+            answers: number;
+            /** Color Index */
+            color_index: number | null;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Entity Id */
+            entity_id: string | null;
+            /** Entity Name */
+            entity_name: string | null;
+            /** Registrable Domain */
+            registrable_domain: string;
+        };
+        /** CitedPageDetail */
+        CitedPageDetail: {
+            /** Alongside */
+            alongside: components["schemas"]["CitedAlongside"][];
+            page: components["schemas"]["CitedPageRow"];
+            /** Prompts */
+            prompts: components["schemas"]["CitedPagePrompt"][];
+            window: components["schemas"]["RunWindow"];
+        };
+        /** CitedPagePage */
+        CitedPagePage: {
+            /** Data */
+            data: components["schemas"]["CitedPageRow"][];
+            meta: components["schemas"]["CitedPagesMeta"];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** CitedPagePrompt */
+        CitedPagePrompt: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            /** Engines */
+            engines: components["schemas"]["EngineAnswers"][];
+            /**
+             * Last Cited At
+             * Format: date-time
+             */
+            last_cited_at: string;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+        };
+        /** CitedPageRow */
+        CitedPageRow: {
+            /** Citations */
+            citations: number;
+            /** Color Index */
+            color_index: number | null;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Engines */
+            engines: components["schemas"]["EngineUnits"][];
+            /** Entity Id */
+            entity_id: string | null;
+            /** Entity Name */
+            entity_name: string | null;
+            /** Host */
+            host: string;
+            /**
+             * Last Cited At
+             * Format: date-time
+             */
+            last_cited_at: string;
+            /** Path */
+            path: string;
+            /** Previous Citations */
+            previous_citations: number;
+            /** Prompts */
+            prompts: number;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Title */
+            title: string | null;
+            /**
+             * Top Prompts
+             * @description Most citations first.
+             */
+            top_prompts: components["schemas"]["PromptCount"][];
+            /**
+             * Trend
+             * @description Units per slot of `window.trend`, oldest first.
+             */
+            trend: number[];
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
+        /** CitedPagesMeta */
+        CitedPagesMeta: {
+            /**
+             * Citations
+             * @description Units of the rows the filter and `q` keep, every page.
+             */
+            citations: number;
+            /** @description Pages per role, whatever the role filter and `q`. */
+            owners: components["schemas"]["OwnerCounts"];
+            window: components["schemas"]["RunWindow"];
         };
         /** CitedWith */
         CitedWith: {
@@ -4747,6 +5519,27 @@ export interface components {
              * @description Cited in the baseline, not now.
              */
             lost: components["schemas"]["CompareSource"][];
+        };
+        /** CompetitorOnPrompt */
+        CompetitorOnPrompt: {
+            /**
+             * Cited On
+             * @description Engines with answers where the brand is cited.
+             */
+            cited_on: number;
+            /** Engines */
+            engines: components["schemas"]["EngineBrandCell"][];
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Platforms
+             * @description Engines with answers.
+             */
+            platforms: number;
+            total: components["schemas"]["BrandCell"];
         };
         /** CompetitorOverride */
         CompetitorOverride: {
@@ -4964,6 +5757,102 @@ export interface components {
             /** Engines */
             engines: components["schemas"]["EngineSummary"][];
         };
+        /** CrawlCreate */
+        CrawlCreate: {
+            /**
+             * Higher Limit
+             * @description Crawl again with a higher limit after a crawl stopped at its ceiling.
+             * @default false
+             */
+            higher_limit: boolean;
+        };
+        /** CrawlRun */
+        CrawlRun: {
+            /**
+             * Ceiling
+             * @description The safety stop: the crawl ends at this many pages.
+             */
+            ceiling: number;
+            /** Cost Usd */
+            cost_usd: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Enrich State
+             * @description State of the second job: changes, anchors and mentions.
+             * @enum {string}
+             */
+            enrich_state: "pending" | "running" | "done" | "failed";
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Estimated Cost Usd */
+            estimated_cost_usd: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Hints */
+            hints: "render_javascript"[];
+            /**
+             * Is Latest
+             * @description The crawl `run=latest` reads.
+             */
+            is_latest: boolean;
+            /**
+             * Links Available
+             * @description False once the crawl's links were dropped (past the last four finished crawls): its pages stay, links, journeys and changes of links are gone.
+             */
+            links_available: boolean;
+            /** Pages Crawled */
+            pages_crawled: number;
+            /**
+             * Pages Found
+             * @description Crawled and still queued, while it runs.
+             */
+            pages_found: number;
+            /**
+             * Previous Run Id
+             * @description The crawl its changes are measured against.
+             */
+            previous_run_id: string | null;
+            /** Render Javascript */
+            render_javascript: boolean;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Sitemap Pages */
+            sitemap_pages: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "crawling" | "processing" | "ready" | "stopped_at_ceiling" | "failed" | "cancelled";
+            /** Stop Reason */
+            stop_reason: string | null;
+            /** Submitted At */
+            submitted_at: string | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "website_added" | "schedule" | "manual" | "ceiling_retry";
+        };
+        /** CrawlRunPage */
+        CrawlRunPage: {
+            /** Data */
+            data: components["schemas"]["CrawlRun"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** CrawlRunResponse */
+        CrawlRunResponse: {
+            data: components["schemas"]["CrawlRun"];
+        };
         /**
          * CursorPageInfo
          * @description A keyset page (docs/19 section 2.4). `next_cursor` is opaque; pass it back as `cursor`.
@@ -4975,6 +5864,17 @@ export interface components {
             limit: number;
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** DecisionResponse */
+        DecisionResponse: {
+            data: components["schemas"]["DecisionResult"];
+        };
+        /** DecisionResult */
+        DecisionResult: {
+            /** Changed */
+            changed: number;
+            /** Matched */
+            matched: number;
         };
         /** DeviceCounts */
         DeviceCounts: {
@@ -5168,6 +6068,29 @@ export interface components {
             /** Vendor */
             vendor: string;
         };
+        /** EngineAnswers */
+        EngineAnswers: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            engine_code: components["schemas"]["EngineCode"];
+        };
+        /** EngineBrandCell */
+        EngineBrandCell: {
+            /** Answers */
+            answers: number;
+            /** Cited */
+            cited: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /** Mentioned */
+            mentioned: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "cited" | "mentioned" | "not" | "none";
+        };
         /**
          * EngineCells
          * @description The cells of one engine over the comparison window, weighted as the current ones.
@@ -5177,6 +6100,29 @@ export interface components {
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
             share_of_voice: components["schemas"]["MetricCell"];
+        };
+        /** EngineCitationCounts */
+        EngineCitationCounts: {
+            /** Answers */
+            answers: number;
+            /**
+             * Answers Citing
+             * @description Answers with at least one own citation unit.
+             */
+            answers_citing: number;
+            engine_code: components["schemas"]["EngineCode"];
+            /** Previous Answers */
+            previous_answers: number;
+            /** Previous Answers Citing */
+            previous_answers_citing: number;
+            /** Previous Prompts */
+            previous_prompts: number;
+            /** Previous Prompts Citing */
+            previous_prompts_citing: number;
+            /** Prompts */
+            prompts: number;
+            /** Prompts Citing */
+            prompts_citing: number;
         };
         /** EngineCoMentions */
         EngineCoMentions: {
@@ -5760,6 +6706,33 @@ export interface components {
              */
             workload: "ai_prompt";
         };
+        /** GapCompetitor */
+        GapCompetitor: {
+            /** Color Index */
+            color_index: number | null;
+            /** Domain */
+            domain: string | null;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Name */
+            name: string;
+        };
+        /** GapPage */
+        GapPage: {
+            /** Citations */
+            citations: number;
+            /** Engines */
+            engines: components["schemas"]["EngineCode"][];
+            /** Entity Id */
+            entity_id: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
         /** GeneratedFrom */
         GeneratedFrom: {
             /**
@@ -5806,6 +6779,25 @@ export interface components {
             /** @description `ok` only: the tracked device's clicks and impressions in 4-day buckets of the window, oldest first; the buckets add up to that device's counts. */
             trend?: components["schemas"]["GscTrend"] | null;
             window?: components["schemas"]["GscWindow"] | null;
+        };
+        /** GscPage */
+        GscPage: {
+            /**
+             * Clicks
+             * @description Google's clicks for the page, last 28 days.
+             */
+            clicks: number | null;
+            /** Impressions */
+            impressions: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected";
+            /** Window End */
+            window_end: string | null;
+            /** Window Start */
+            window_start: string | null;
         };
         /**
          * GscTrend
@@ -6240,6 +7232,41 @@ export interface components {
              */
             window_start: string | null;
         };
+        /** InternalLinksSettings */
+        InternalLinksSettings: {
+            /** @description The alert for links lost to the important tiers (spec 7.10). */
+            alerts?: components["schemas"]["AlertSettings"];
+            /**
+             * Allowed Subdomains
+             * @description Hosts of the project's site, besides its own and its `www.` form, that crawls follow (up to 10).
+             */
+            allowed_subdomains?: string[];
+            /**
+             * Render Javascript
+             * @description Crawls render JavaScript; each page costs ten times as much.
+             * @default false
+             */
+            render_javascript: boolean;
+            /**
+             * Schedule
+             * @default weekly
+             * @enum {string}
+             */
+            schedule: "weekly" | "every_two_weeks" | "monthly" | "off";
+        };
+        /** InternalLinksSettingsPatch */
+        InternalLinksSettingsPatch: {
+            alerts?: components["schemas"]["AlertSettingsPatch"];
+            /** Allowed Subdomains */
+            allowed_subdomains?: string[];
+            /** Render Javascript */
+            render_javascript?: boolean;
+            /**
+             * Schedule
+             * @enum {string}
+             */
+            schedule?: "weekly" | "every_two_weeks" | "monthly" | "off";
+        };
         /**
          * InvalidByStatus
          * @description The stored answers that are not valid. A partial answer counts as valid (doc 07 section
@@ -6652,6 +7679,31 @@ export interface components {
             data: components["schemas"]["Keyword"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /** KeywordRow */
+        KeywordRow: {
+            /**
+             * Change
+             * @description Places moved since the last check; positive is up.
+             */
+            change: number | null;
+            /** Keyword */
+            keyword: string;
+            /** Rank */
+            rank: number | null;
+            /** Volume */
+            volume: number | null;
+        };
+        /** KeywordSummary */
+        KeywordSummary: {
+            /** Average Rank */
+            average_rank: number | null;
+            /** Best Volume */
+            best_volume: number | null;
+            /** Ranking */
+            ranking: number;
+            /** Tracked */
+            tracked: number;
+        };
         /**
          * LayoutDocument
          * @description The numbers and cards of one screen, in order: a full snapshot, at most 16 KB.
@@ -6742,6 +7794,12 @@ export interface components {
         };
         /** ListMeta */
         ListMeta: {
+            /**
+             * Links Available
+             * @description False when the crawl's links were dropped: link counts are the stored ones.
+             * @default true
+             */
+            links_available: boolean;
             /**
              * Run Id
              * Format: uuid
@@ -7169,6 +8227,38 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** MovedPage */
+        MovedPage: {
+            /** Depth */
+            depth: number | null;
+            /** Depth Delta */
+            depth_delta: number | null;
+            /** Depth State */
+            depth_state: ("lost" | "found") | null;
+            /** Editorial In */
+            editorial_in: number;
+            /** Editorial In Delta */
+            editorial_in_delta: number | null;
+            /** Equity Points */
+            equity_points: number | null;
+            page: components["schemas"]["ChangePage"];
+        };
+        /** MovedPageList */
+        MovedPageList: {
+            /** Data */
+            data: components["schemas"]["MovedPage"][];
+            meta: components["schemas"]["MovedPageMeta"];
+        };
+        /** MovedPageMeta */
+        MovedPageMeta: {
+            /** Previous Run Id */
+            previous_run_id: string | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
         /** Neighbor */
         Neighbor: {
             /** Anchor */
@@ -7569,6 +8659,80 @@ export interface components {
             /** Self */
             self: string;
         };
+        /** Opportunity */
+        Opportunity: {
+            /**
+             * Anchor
+             * @description The words to link: the phrase as written in the text.
+             */
+            anchor: string;
+            /** Context */
+            context: string;
+            /**
+             * Key
+             * @description "{source_url_id}>{target_url_id}".
+             */
+            key: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "keyword" | "anchor";
+            /** Phrase */
+            phrase: string;
+            source: components["schemas"]["ChangePage"];
+            /** Source Equity Share */
+            source_equity_share: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "accepted" | "dismissed";
+            target: components["schemas"]["ChangePage"];
+        };
+        /** OpportunityCounts */
+        OpportunityCounts: {
+            /** Accepted */
+            accepted: number;
+            /** Dismissed */
+            dismissed: number;
+            /** Open */
+            open: number;
+        };
+        /** OpportunityDecisions */
+        OpportunityDecisions: {
+            /** Items */
+            items: components["schemas"]["OpportunityPair"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "accepted" | "dismissed";
+        };
+        /** OpportunityMeta */
+        OpportunityMeta: {
+            counts: components["schemas"]["OpportunityCounts"];
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Total */
+            total: number;
+        };
+        /** OpportunityPage */
+        OpportunityPage: {
+            /** Data */
+            data: components["schemas"]["Opportunity"][];
+            meta: components["schemas"]["OpportunityMeta"];
+        };
+        /** OpportunityPair */
+        OpportunityPair: {
+            /** Source Url Id */
+            source_url_id: string;
+            /** Target Url Id */
+            target_url_id: string;
+        };
         /** OutcomeCells */
         OutcomeCells: {
             cited_only: components["schemas"]["MetricCell"];
@@ -7663,8 +8827,33 @@ export interface components {
             /** Url Id */
             url_id: number;
         };
+        /** OwnerCounts */
+        OwnerCounts: {
+            /** All */
+            all: number;
+            /** Competitor */
+            competitor: number;
+            /** Own */
+            own: number;
+            /** Third Party */
+            third_party: number;
+        };
+        /** PageChange */
+        PageChange: {
+            /** Depth Delta */
+            depth_delta: number | null;
+            /** Depth State */
+            depth_state: ("lost" | "found") | null;
+            /** Editorial In Delta */
+            editorial_in_delta: number | null;
+            /** Equity Points */
+            equity_points: number | null;
+            /** Is New */
+            is_new: boolean;
+        };
         /** PageDetail */
         PageDetail: {
+            extras: components["schemas"]["PageDetailExtras"];
             /** Linking By Placement */
             linking_by_placement: components["schemas"]["PlacementCount"][];
             /** Linking By Tier */
@@ -7681,9 +8870,26 @@ export interface components {
             /** Top Anchors */
             top_anchors: components["schemas"]["AnchorCount"][];
         };
+        /** PageDetailExtras */
+        PageDetailExtras: {
+            anchors: components["schemas"]["AnchorDetail"];
+            change: components["schemas"]["PageChange"] | null;
+            citations: components["schemas"]["CitationCounts"];
+            gsc: components["schemas"]["GscPage"];
+            /** Keywords */
+            keywords: components["schemas"]["KeywordRow"][];
+        };
         /** PageDetailResponse */
         PageDetailResponse: {
             data: components["schemas"]["PageDetail"];
+        };
+        /** PageExtras */
+        PageExtras: {
+            anchors?: components["schemas"]["AnchorSummary"] | null;
+            change?: components["schemas"]["PageChange"] | null;
+            citations?: components["schemas"]["CitationCounts"] | null;
+            gsc?: components["schemas"]["GscPage"] | null;
+            keywords?: components["schemas"]["KeywordSummary"] | null;
         };
         /**
          * PageFilter
@@ -7691,7 +8897,7 @@ export interface components {
          */
         PageFilter: {
             /** Flags */
-            flags?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks")[] | null;
+            flags?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors")[] | null;
             /** Indexable */
             indexable?: boolean | null;
             /** Q */
@@ -7703,7 +8909,7 @@ export interface components {
             /** Tier Ids */
             tier_ids?: (string | "none")[] | null;
             /** Worklist */
-            worklist?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto") | null;
+            worklist?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
         };
         /** PageRow */
         PageRow: {
@@ -7717,8 +8923,10 @@ export interface components {
             depth_without_auto: number | null;
             /** Equity Share */
             equity_share: number | null;
+            /** @description Set when the list was asked for `include`. */
+            extras?: components["schemas"]["PageExtras"] | null;
             /** Flags */
-            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "redirect" | "non_indexable")[];
+            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "redirect" | "non_indexable" | "generic_anchors")[];
             /** In Sitemap */
             in_sitemap: boolean;
             /** Is Indexable */
@@ -7794,7 +9002,7 @@ export interface components {
         PageSelection: {
             filter?: components["schemas"]["PageFilter"] | null;
             /** Url Ids */
-            url_ids?: number[] | null;
+            url_ids?: string[] | null;
         };
         /** PageTagChange */
         PageTagChange: {
@@ -7804,7 +9012,7 @@ export interface components {
             /** Remove */
             remove: string[];
             /** Url Ids */
-            url_ids?: number[] | null;
+            url_ids?: string[] | null;
         };
         /** PageTagRef */
         PageTagRef: {
@@ -7887,7 +9095,7 @@ export interface components {
              */
             tier_id: string | null;
             /** Url Ids */
-            url_ids?: number[] | null;
+            url_ids?: string[] | null;
         };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
@@ -8122,6 +9330,12 @@ export interface components {
              * @description A `location_id` of `GET /api/v1/locations`.
              */
             default_location_id?: number | null;
+            /**
+             * Map Internal Links
+             * @description With `primary_domain`, queue the first crawl of the site's internal links. The web form sends true (the checkbox is ticked by default).
+             * @default false
+             */
+            map_internal_links: boolean;
             /** Name */
             name: string;
             /** @description Created with role `own`, primary. */
@@ -8311,6 +9525,7 @@ export interface components {
              * @description Read-only: bumped by entity changes.
              */
             entity_config_version: number;
+            internal_links?: components["schemas"]["InternalLinksSettings"];
             seo?: components["schemas"]["SeoSettings"];
             /**
              * Version
@@ -8321,10 +9536,12 @@ export interface components {
         };
         /**
          * ProjectSettingsPatch
-         * @description A JSON merge patch (RFC 7396) of the settings: members left out keep their value.
+         * @description A JSON merge patch (RFC 7396) of the settings: members left out keep their value. A part
+         *     cannot be null: `null` would mean "delete" in a merge patch, and no part can be deleted.
          */
         ProjectSettingsPatch: {
-            seo: components["schemas"]["SeoSettingsPatch"];
+            internal_links?: components["schemas"]["InternalLinksSettingsPatch"];
+            seo?: components["schemas"]["SeoSettingsPatch"];
         };
         /** ProjectSettingsResponse */
         ProjectSettingsResponse: {
@@ -8531,6 +9748,18 @@ export interface components {
              * @description Of those, the prompts that changed.
              */
             updated: number;
+        };
+        /** PromptCount */
+        PromptCount: {
+            /** Citations */
+            citations: number;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
         };
         /**
          * PromptCreate
@@ -8874,6 +10103,16 @@ export interface components {
             term_id: string;
             /** Vocabulary Kind */
             vocabulary_kind: string;
+        };
+        /** PromptTopic */
+        PromptTopic: {
+            /** Name */
+            name: string;
+            /**
+             * Term Id
+             * Format: uuid
+             */
+            term_id: string;
         };
         /** PromptVersion */
         PromptVersion: {
@@ -9234,6 +10473,42 @@ export interface components {
              */
             observations: number;
         };
+        /** Route */
+        Route: {
+            /** Clicks */
+            clicks: number;
+            /** Steps */
+            steps: components["schemas"]["RouteStep"][];
+        };
+        /** RouteStep */
+        RouteStep: {
+            /**
+             * Anchor
+             * @description The words of the link that reached this page.
+             */
+            anchor: string | null;
+            page: components["schemas"]["ChangePage"];
+            /** Placement */
+            placement: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb") | null;
+            /** Scope */
+            scope: ("editorial" | "auto_generated" | "template") | null;
+            /** Status Code */
+            status_code: number | null;
+            /** Via Redirect */
+            via_redirect: boolean;
+        };
+        /** Routes */
+        Routes: {
+            /** @description Over every followed link; null when not reachable. */
+            any: components["schemas"]["Route"] | null;
+            /** @description Over editorial links (and redirects) only. */
+            editorial: components["schemas"]["Route"] | null;
+            target: components["schemas"]["ChangePage"];
+        };
+        /** RoutesResponse */
+        RoutesResponse: {
+            data: components["schemas"]["Routes"];
+        };
         /** RowActionInput */
         RowActionInput: {
             /**
@@ -9483,6 +10758,73 @@ export interface components {
              * @enum {string}
              */
             reason: "prompt_too_long" | "location_not_enabled" | "check_pending" | "prompt_pending";
+        };
+        /**
+         * RunSlot
+         * @description One run position over every prompt and engine: slot 1 is each pair's latest run.
+         */
+        RunSlot: {
+            /** Answers */
+            answers: number;
+            /**
+             * First At
+             * Format: date-time
+             * @description The earliest answer in this slot.
+             */
+            first_at: string;
+            /**
+             * Last At
+             * Format: date-time
+             * @description The latest answer in this slot.
+             */
+            last_at: string;
+            /**
+             * Slot
+             * @description 1 is each prompt and engine's latest run with an answer.
+             */
+            slot: number;
+        };
+        /** RunWindow */
+        RunWindow: {
+            /**
+             * Answers
+             * @description Answers in the current window.
+             */
+            answers: number;
+            /**
+             * Current
+             * @description Slots 1 to `runs` that hold answers.
+             */
+            current: components["schemas"]["RunSlot"][];
+            /** Latest Answer At */
+            latest_answer_at: string | null;
+            /**
+             * Latest Run Number
+             * @description How many AI prompt runs the project has had up to the latest answer's run.
+             */
+            latest_run_number: number | null;
+            /**
+             * Previous
+             * @description Slots `runs + 1` to `2 * runs` that hold answers.
+             */
+            previous: components["schemas"]["RunSlot"][];
+            /**
+             * Prompts
+             * @description Prompts with an answer in the current window.
+             */
+            prompts: number;
+            /**
+             * Runs
+             * @description 1, 2 or 4: the slots of the current window.
+             */
+            runs: number;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Trend
+             * @description Slots 1 to 8 that hold answers, oldest first.
+             */
+            trend: components["schemas"]["RunSlot"][];
         };
         /** Schedule */
         Schedule: {
@@ -10455,6 +11797,29 @@ export interface components {
              */
             t: string;
         };
+        /** SuggestionReason */
+        SuggestionReason: {
+            /** Clicks */
+            clicks: number | null;
+            /** Keyword */
+            keyword: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "clicks" | "rank";
+            /** Rank */
+            rank: number | null;
+            /** Volume */
+            volume: number | null;
+        };
+        /** SuggestionSelection */
+        SuggestionSelection: {
+            /** All */
+            all?: true | null;
+            /** Url Ids */
+            url_ids?: string[] | null;
+        };
         /**
          * SummaryDetailContext
          * @description What is true of every cell of `EngineSummary.detail` in the response.
@@ -10928,6 +12293,44 @@ export interface components {
             /** Pages */
             pages: number;
             tier: components["schemas"]["TierRef"] | null;
+        };
+        /** TierSuggestionList */
+        TierSuggestionList: {
+            /** Data */
+            data: components["schemas"]["TierSuggestionRow"][];
+            meta: components["schemas"]["TierSuggestionMeta"];
+        };
+        /** TierSuggestionMeta */
+        TierSuggestionMeta: {
+            /**
+             * Gsc State
+             * @description `ok`: clicks were used with the ranks; otherwise only ranks were.
+             * @enum {string}
+             */
+            gsc_state: "ok" | "pending" | "not_connected";
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
+        /** TierSuggestionRow */
+        TierSuggestionRow: {
+            from_tier: components["schemas"]["TierRef"] | null;
+            /** Path */
+            path: string;
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Title */
+            title: string | null;
+            to_tier: components["schemas"]["TierRef"];
+            /** Url */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
         };
         /** TopicSummaryRow */
         TopicSummaryRow: {
@@ -11861,6 +13264,11 @@ export interface components {
              * @description Links of every scope.
              */
             links_to_non_indexable: number;
+            /**
+             * Lost Links Top
+             * @description Pages that lost an editorial link and are important.
+             */
+            lost_links_top: number;
             /** Orphans */
             orphans: number;
             /**
@@ -11870,6 +13278,11 @@ export interface components {
             run_id: string;
             /** Under Linked T1 */
             under_linked_t1: number;
+            /**
+             * Weak Outlinks
+             * @description T1 pages that mostly link to weak targets.
+             */
+            weak_outlinks: number;
         };
         /** WorklistsResponse */
         WorklistsResponse: {
@@ -14519,6 +15932,140 @@ export interface operations {
             };
         };
     };
+    citation_gaps_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps_get: {
+        parameters: {
+            query: {
+                /** @description Up to five tracked competitors, the columns of the gap analysis. */
+                "filter[competitor_id_in]": string[];
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationGapList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    citation_gap_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_gaps__prompt_id__get: {
+        parameters: {
+            query: {
+                /** @description Up to five tracked competitors, the columns of the gap analysis. */
+                "filter[competitor_id_in]": string[];
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                prompt_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationGapDetail"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    citation_overview_api_v1_workspaces__workspace_id__projects__project_id__ai_citation_overview_get: {
+        parameters: {
+            query?: {
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitationOverview"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     citation_list_api_v1_workspaces__workspace_id__projects__project_id__ai_citations_get: {
         parameters: {
             query?: {
@@ -14556,6 +16103,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CitationPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cited_pages_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages_get: {
+        parameters: {
+            query?: {
+                "filter[domain_role_in]"?: ("own" | "competitor" | "third_party") | null;
+                q?: string | null;
+                sort?: "-citations" | "citations" | "-change" | "change" | "-prompts" | "prompts" | "-last_cited" | "last_cited" | "page" | "-page";
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitedPagePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cited_page_api_v1_workspaces__workspace_id__projects__project_id__ai_cited_pages__url_id__get: {
+        parameters: {
+            query?: {
+                /** @description Each prompt and engine's last 1, 2 or 4 runs. */
+                runs?: number;
+                "filter[engine_code_in]"?: components["schemas"]["EngineCode"][] | null;
+                /** @description The prompts given the term or one under it. */
+                "filter[term]"?: string | null;
+                include_branded?: boolean;
+                /** @description Count the citations flagged `unresolved_redirect` (a redirect link that was not resolved to its target, such as Gemini's grounding links), which are left out of every share and unit by default (docs/14 section 9). A citation with several excluded flags counts only when every one of them is asked for. The citation list and the fan-out read always keep them. */
+                include_unresolved_redirects?: boolean;
+                /** @description Count the citations flagged `engine_internal` (links into the engine's own product), which are left out of every share and unit by default (docs/14 section 9). Ingest does not set this flag yet, so nothing is left out until it does. A citation with several excluded flags counts only when every one of them is asked for. */
+                include_engine_internal?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CitedPageDetail"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -15966,6 +17605,119 @@ export interface operations {
             };
         };
     };
+    changes_links_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_links_get: {
+        parameters: {
+            query: {
+                change: "lost" | "added";
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                link_scope?: "editorial" | "all";
+                only?: "top" | "all";
+                offset?: number;
+                limit?: number;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description With `format=csv`: the rows as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeLinkPage"];
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MovedPageList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    changes_summary_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_summary_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangesSummaryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_edges_api_v1_workspaces__workspace_id__projects__project_id__internal_links_edges_get: {
         parameters: {
             query?: {
@@ -15977,8 +17729,8 @@ export interface operations {
                 "filter[tag]"?: string[] | null;
                 "filter[placement]"?: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb")[] | null;
                 "filter[target_status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
-                "filter[source]"?: number | null;
-                "filter[target]"?: number | null;
+                "filter[source]"?: string | null;
+                "filter[target]"?: string | null;
                 "filter[worklist]"?: ("broken_and_redirected" | "links_to_non_indexable") | null;
                 q_source?: string | null;
                 q_target?: string | null;
@@ -16020,7 +17772,7 @@ export interface operations {
     neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get: {
         parameters: {
             query: {
-                url_id: number;
+                url_id: string;
                 direction: "in" | "out";
                 /** @description `latest` or a crawl id. */
                 run?: "latest" | string;
@@ -16057,6 +17809,87 @@ export interface operations {
             };
         };
     };
+    list_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                status?: ("open" | "accepted" | "dismissed") | null;
+                /** @description A tier position, 1 to 8, or `none` for pages without a tier. */
+                "filter[target_tier]"?: string | null;
+                q?: string | null;
+                offset?: number;
+                limit?: number;
+                format?: "json" | "csv";
+                /** @description `planned`: the accepted rows, or every open row when none is accepted. */
+                export?: "planned" | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description With `format=csv` or `export=planned`: the rows as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityPage"];
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    decide_opportunities_api_v1_workspaces__workspace_id__projects__project_id__internal_links_opportunities_decisions_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityDecisions"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get: {
         parameters: {
             query?: {
@@ -16067,10 +17900,12 @@ export interface operations {
                 "filter[tag]"?: string[] | null;
                 "filter[status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
                 "filter[indexable]"?: boolean | null;
-                "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks")[] | null;
-                "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto") | null;
+                "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors")[] | null;
+                "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
                 q?: string | null;
-                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code";
+                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change";
+                /** @description Parts to add to each row as `extras`. */
+                include?: ("changes" | "keywords" | "citations" | "anchors" | "gsc")[] | null;
                 format?: "json" | "csv";
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
@@ -16116,7 +17951,7 @@ export interface operations {
             header?: never;
             path: {
                 project_id: string;
-                url_id: number;
+                url_id: string;
                 workspace_id: string;
             };
             cookie?: never;
@@ -16130,6 +17965,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    paths_api_v1_workspaces__workspace_id__projects__project_id__internal_links_paths_get: {
+        parameters: {
+            query: {
+                url_id: string;
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutesResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -16166,6 +18037,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TierFlowResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierSuggestionList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    accept_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    dismiss_suggestions_api_v1_workspaces__workspace_id__projects__project_id__internal_links_tier_suggestions_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -16770,6 +18745,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get: {
+        parameters: {
+            query?: {
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrawlCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_crawl_api_v1_workspaces__workspace_id__projects__project_id__link_crawls__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                run_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -19312,6 +21425,8 @@ export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterEnt
 export const pathsApiV1WorkspacesWorkspace_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idKeywordsKeyword_idMetricsHistoryGetParametersQuerySourceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history"]["get"]["parameters"]["query"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitationsGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citations"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitedPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCitedPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/cited-pages"]["get"]["parameters"]["query"]["sort"]> = ["-citations", "citations", "-change", "change", "-prompts", "prompts", "-last_cited", "last_cited", "page", "-page"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["include"]> = ["lost_prompts", "top_sources"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiCompetitorsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/competitors"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsOverviewGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/overview"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
@@ -19335,6 +21450,10 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGet
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryChangeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["change"]> = ["lost", "added"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryLink_scopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["link_scope"]> = ["editorial", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryOnlyValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["only"]> = ["top", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[placement]"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterTarget_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[target_status]"]> = ["2xx", "3xx", "4xx", "5xx"];
@@ -19342,11 +21461,14 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdge
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksNeighborsGetParametersQueryDirectionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"]["get"]["parameters"]["query"]["direction"]> = ["in", "out"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksNeighborsGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksOpportunitiesGetParametersQueryStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities"]["get"]["parameters"]["query"]["status"]> = ["open", "accepted", "dismissed"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksOpportunitiesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksTierFlowGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
@@ -19389,6 +21511,8 @@ export const aiMetricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const aioCitationsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioCitations"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioHistoryItemAi_overview_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioHistoryItem"]["ai_overview_state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioStateInfoStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioStateInfo"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
+export const alertSettingsChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertSettings"]["channel"]> = ["app", "email", "slack"];
+export const alertSettingsPatchChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertSettingsPatch"]["channel"]> = ["app", "email", "slack"];
 export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasInputMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasInput"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const aliasTestMentionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasTestMention"]["status"]> = ["accepted", "uncertain", "discarded"];
@@ -19397,6 +21521,7 @@ export const aliasTestSpanStatusValues: ReadonlyArray<FlattenedDeepRequired<comp
 export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AliasUpdate"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
 export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
+export const brandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
@@ -19404,8 +21529,19 @@ export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<com
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const budgetUpdateAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetUpdate"]["action_on_hard"]> = ["pause", "alert_only"];
 export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
+export const changeAlertChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeAlert"]["channel"]> = ["app", "email", "slack"];
+export const changeAlertDelivery_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeAlert"]["delivery_state"]> = ["shown_in_app", "channel_unavailable"];
+export const changeLinkPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLink"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
+export const changeLinkPriorityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLink"]["priority"]> = ["lost_to_t1", "lost_to_t2", "lower", "none"];
+export const changeLinkStill_linked_byAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLink"]["still_linked_by"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
+export const changeLinkMetaChangeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["change"]> = ["lost", "added"];
+export const changeLinkMetaLink_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["link_scope"]> = ["editorial", "all"];
+export const changeLinkMetaOnlyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["only"]> = ["top", "all"];
+export const changesSummaryStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangesSummary"]["state"]> = ["first_crawl", "pending", "ready", "unavailable"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const citedAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const citedPageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedPageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const compareEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareEntity"]["role"]> = ["own", "competitor", "watch"];
 export const compareSourceDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareSource"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
@@ -19414,11 +21550,15 @@ export const connectionAuth_methodValues: ReadonlyArray<FlattenedDeepRequired<co
 export const connectionProductValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["product"]> = ["google", "bing_wmt", "cloudflare"];
 export const connectionStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Connection"]["status"]> = ["active", "reauth_required", "revoked", "error"];
 export const costWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CostWorkload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync", "ai_overview", "extraction_llm", "keyword_research", "first_party", "site_crawl"];
+export const crawlRunEnrich_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CrawlRun"]["enrich_state"]> = ["pending", "running", "done", "failed"];
+export const crawlRunStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CrawlRun"]["state"]> = ["queued", "crawling", "processing", "ready", "stopped_at_ceiling", "failed", "cancelled"];
+export const crawlRunTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CrawlRun"]["trigger"]> = ["website_added", "schedule", "manual", "ceiling_retry"];
 export const domainInputMatch_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainInput"]["match_scope"]> = ["path_prefix", "host", "registrable"];
 export const domainRefCategory_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["DomainRef"]["category_source"]> = ["seed_list", "rule", "llm", "manual", "tenant_override"];
 export const edgeRowKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["kind"]> = ["text", "image"];
 export const edgeRowPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const edgeRowScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["scope"]> = ["editorial", "auto_generated", "template"];
+export const engineBrandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineBrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
 export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
 export const engineProviderParamsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParams"]["device"]> = ["desktop", "mobile"];
 export const engineProviderParamsUpdateDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParamsUpdate"]["device"]> = ["desktop", "mobile"];
@@ -19440,6 +21580,7 @@ export const filterList_Literal__question____comparison____recommendation____how
 export const filterList_Literal__tofu____mofu____bofu____retention____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__tofu____mofu____bofu____retention____unknown___"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const generatedFromTemplateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GeneratedFrom"]["template"]> = ["recommendation", "comparison", "how_to", "procurement"];
 export const gscBlockStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GscBlock"]["state"]> = ["ok", "pending", "not_connected"];
+export const gscPageStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["GscPage"]["state"]> = ["ok", "pending", "not_connected"];
 export const historyColumnsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryColumns"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const historyPointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["HistoryPoint"]["state"]> = ["ranked", "beyond_depth", "failed"];
 export const importDefaultsDepth_profileAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ImportDefaults"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
@@ -19453,6 +21594,8 @@ export const integrationKindValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const integrationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Integration"]["status"]> = ["active", "reauth_required", "disabled", "error"];
 export const integrationCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationCreate"]["kind"]> = ["gsc", "ga4"];
 export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IntegrationSync"]["phase"]> = ["pending", "backfilling", "synced"];
+export const internalLinksSettingsScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettings"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
+export const internalLinksSettingsPatchScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettingsPatch"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
 export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
@@ -19470,6 +21613,7 @@ export const mentionOutRoleValues: ReadonlyArray<FlattenedDeepRequired<component
 export const metricContextPrompt_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["prompt_rows"]> = ["observation_weighted", "prompt_weighted"];
 export const metricContextTopic_rowsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricContext"]["topic_rows"]> = ["observation_weighted", "prompt_weighted"];
 export const metricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MetricValue"]["unit"]> = ["ratio", "count", "rank", "score", "usd", "clicks"];
+export const movedPageDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MovedPage"]["depth_state"]> = ["lost", "found"];
 export const neighborPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Neighbor"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const neighborScopeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Neighbor"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const neighborMetaDirectionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["NeighborMeta"]["direction"]> = ["in", "out"];
@@ -19480,10 +21624,14 @@ export const observationFactsOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepReq
 export const observationSummaryStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ObservationSummary"]["status"]> = ["complete", "partial", "empty", "refused", "error"];
 export const operationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["kind"]> = ["collection_run", "keyword_import"];
 export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Operation"]["status"]> = ["queued", "running", "waiting_for_input", "succeeded", "succeeded_with_errors", "failed", "cancelled", "blocked"];
-export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks"];
+export const opportunityOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Opportunity"]["origin"]> = ["keyword", "anchor"];
+export const opportunityStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Opportunity"]["status"]> = ["open", "accepted", "dismissed"];
+export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OpportunityDecisions"]["status"]> = ["open", "accepted", "dismissed"];
+export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
+export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
 export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx"];
-export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto"];
-export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "redirect", "non_indexable"];
+export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "redirect", "non_indexable", "generic_anchors"];
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
 export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
 export const placementCountPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PlacementCount"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
@@ -19525,6 +21673,8 @@ export const resolvedLayoutScreenValues: ReadonlyArray<FlattenedDeepRequired<com
 export const resolvedLayoutSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["source"]> = ["personal", "team", "builtin"];
 export const roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Role"]> = ["owner", "admin", "editor", "analyst", "viewer", "billing"];
 export const roleUnitsDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RoleUnits"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const routeStepPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RouteStep"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
+export const routeStepScopeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RouteStep"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const rowActionInputActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RowActionInput"]["action"]> = ["create", "skip", "merge", "force_separate"];
 export const runStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const runTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
@@ -19566,6 +21716,7 @@ export const sourceDomainRowCategory_sourceAnyOf0Values: ReadonlyArray<Flattened
 export const sourceDomainRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceDomainRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sourcePageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourcePageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
+export const suggestionReasonKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SuggestionReason"]["kind"]> = ["clicks", "rank"];
 export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
@@ -19577,6 +21728,7 @@ export const tierRuleCreateMatch_typeValues: ReadonlyArray<FlattenedDeepRequired
 export const tierRulePatchMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRulePatch"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierRulePreviewRequestMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRulePreviewRequest"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierRuleViewMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleView"]["match_type"]> = ["exact", "prefix", "pattern"];
+export const tierSuggestionMetaGsc_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierSuggestionMeta"]["gsc_state"]> = ["ok", "pending", "not_connected"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];

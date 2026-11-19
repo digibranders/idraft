@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import {
   RATE_SPAN,
@@ -34,8 +34,14 @@ const TONE_TOKEN: Readonly<Record<SparklineTone, string>> = {
  */
 export type SparklineKind = 'count' | 'rate' | 'rank';
 
+const dprOf = (): number => (typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
+
 /** The bottom of the rank scale unless a table says otherwise. */
 const RANK_DEPTH = 20;
+
+const ENTITY_TOKENS = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5', '--chart-6'] as const;
+const entityToken = (entity: { own: boolean; colorIndex: number | null }): string =>
+  entity.own ? '--chart-1' : (ENTITY_TOKENS[(entity.colorIndex ?? 0) - 1] ?? '--chart-other');
 
 export interface SparklineCellProps {
   /** The values, oldest first; `null` for a point without one. */
@@ -50,6 +56,20 @@ export interface SparklineCellProps {
   rankDepth?: number | undefined;
   /** `compact` is 64 x 16 px, `default` 64 x 20 px; left out, 20 px as it has been. */
   density?: Density | undefined;
+  /**
+   * Pixels; 64 unless a board column asks for more (the Citations Trend column: 96, C 536). `fill` (WP-77): the width
+   * of its parent, measured, for a sparkline that spans a card (the page drawer's trend, I 166).
+   */
+  width?: number | 'fill' | undefined;
+  /** Pixels; overrides `density` (the page drawer's 56 px trend, I 166). */
+  height?: number | undefined;
+  /**
+   * Draws in the entity's colour, as `EntitySwatch` does: `chart-1` for the own brand, `chart-N` for its color index,
+   * `chart-other` past six or without one. Overrides `tone`.
+   */
+  entity?: { own: boolean; colorIndex: number | null } | undefined;
+  /** The dot on the last point; the preview's sparklines have none. Default true. */
+  endDot?: boolean | undefined;
   className?: string | undefined;
 }
 
@@ -66,17 +86,36 @@ export function SparklineCell({
   minSpan,
   rankDepth = RANK_DEPTH,
   density,
+  width,
+  height: heightProp,
+  entity,
+  endDot = true,
   className,
 }: SparklineCellProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const height = density === 'compact' ? SPARK_HEIGHT_COMPACT : SPARK_HEIGHT;
+  const box = useRef<HTMLSpanElement | null>(null);
+  const [measured, setMeasured] = useState<number | null>(null);
+  useEffect(() => {
+    if (width !== 'fill') return undefined;
+    const element = box.current;
+    if (element === null || typeof ResizeObserver === 'undefined') return undefined;
+    // As MetricStrip measures its panel: the canvas is drawn again at each new width
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) setMeasured(Math.floor(entry.contentRect.width));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [width]);
+  const boxWidth = width === 'fill' ? (measured ?? 0) : (width ?? SPARK_WIDTH);
+  const height = heightProp ?? (density === 'compact' ? SPARK_HEIGHT_COMPACT : SPARK_HEIGHT);
+  const token = entity === undefined ? TONE_TOKEN[tone] : entityToken(entity);
 
   const geo = useMemo(
     () =>
       kind === 'rank'
-        ? sparklineGeometry(values, SPARK_WIDTH, height, 0, { low: 1, high: rankDepth, invert: true })
-        : sparklineGeometry(values, SPARK_WIDTH, height, minSpan ?? (kind === 'rate' ? RATE_SPAN : 0)),
-    [values, kind, minSpan, rankDepth, height],
+        ? sparklineGeometry(values, boxWidth, height, 0, { low: 1, high: rankDepth, invert: true })
+        : sparklineGeometry(values, boxWidth, height, minSpan ?? (kind === 'rate' ? RATE_SPAN : 0)),
+    [values, kind, minSpan, rankDepth, boxWidth, height],
   );
   const hasSegments = geo.segments.length > 0;
 
@@ -92,7 +131,7 @@ export function SparklineCell({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const color = readColorToken(TONE_TOKEN[tone]);
+      const color = readColorToken(token);
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
       ctx.lineWidth = 1.5;
@@ -118,7 +157,7 @@ export function SparklineCell({
         }
       }
 
-      if (geo.last !== null) {
+      if (endDot && geo.last !== null) {
         ctx.beginPath();
         ctx.arc(geo.last.x, geo.last.y, 1.5, 0, Math.PI * 2);
         ctx.fill();
@@ -133,7 +172,29 @@ export function SparklineCell({
     return () => {
       theme.disconnect();
     };
-  }, [hasSegments, geo, tone]);
+  }, [hasSegments, geo, token, endDot]);
+
+  if (width === 'fill') {
+    // The box has its height before the first measure; the line appears once the width is known
+    return (
+      <span ref={box} role="img" aria-label={label} className={cn('block w-full', className)} style={{ height }}>
+        {boxWidth === 0 ? null : hasSegments ? (
+          <canvas
+            ref={canvasRef}
+            aria-hidden="true"
+            width={boxWidth * dprOf()}
+            height={height * dprOf()}
+            style={{ width: boxWidth, height }}
+            className="block"
+          />
+        ) : (
+          <span className="flex h-full items-center">
+            <span className="w-full border-b border-dashed border-border" />
+          </span>
+        )}
+      </span>
+    );
+  }
 
   if (!hasSegments) {
     return (
@@ -141,7 +202,7 @@ export function SparklineCell({
         role="img"
         aria-label={label}
         className={cn('inline-flex items-center justify-center', className)}
-        style={{ width: SPARK_WIDTH, height }}
+        style={{ width: boxWidth, height }}
       >
         <span className="w-full border-b border-dashed border-border" />
       </span>
@@ -156,9 +217,9 @@ export function SparklineCell({
       // eslint-disable-next-line jsx-a11y/no-interactive-element-to-noninteractive-role -- A chart canvas presents a graphic
       role="img"
       aria-label={label}
-      width={SPARK_WIDTH * dpr}
+      width={boxWidth * dpr}
       height={height * dpr}
-      style={{ width: SPARK_WIDTH, height }}
+      style={{ width: boxWidth, height }}
       className={cn('block shrink-0', className)}
     />
   );

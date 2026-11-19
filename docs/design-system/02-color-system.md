@@ -2,7 +2,7 @@
 
 Status: Accepted (design-system v2)
 Last updated: 2026-09-29
-Visual source: [reference/visual-spec.md](reference/visual-spec.md) section 2. Implementation: [`tokens.css`](../../apps/web/src/styles/tokens.css). Verification: [`tokens.contrast.test.ts`](../../apps/web/src/lib/design/tokens.contrast.test.ts) (220 tests, 110 per theme). The web package suite (`pnpm --dir apps/web run test`: this file plus the formatter tests) passes with 241 of 241 tests on 2026-09-29.
+Visual source: [reference/visual-spec.md](reference/visual-spec.md) section 2. Implementation: [`tokens.css`](../../apps/web/src/styles/tokens.css). Verification: [`tokens.contrast.test.ts`](../../apps/web/src/lib/design/tokens.contrast.test.ts) (342 tests, 171 per theme). The web package suite (`pnpm --dir apps/web run test`: this file plus the formatter tests) passes with 241 of 241 tests on 2026-09-29.
 
 ## 1. Philosophy
 
@@ -246,6 +246,22 @@ In dark mode the band with the most emphasis (1 to 3) is the lightest, so "stron
 | `--div-pos-2` | `0.72 0.10 158` `#6BB88D` | `0.50 0.10 158` `#24744D` |
 | `--div-pos-3` | `0.52 0.11 158` `#1E7C50` | `0.72 0.13 158` `#51BD85` |
 
+### 7.4 Page tiers
+
+`--tier-1` to `--tier-8` and `--tier-none` color a page's tier in Internal links: the 4 px left edge of a link card and the square of a `TierBadge`. One cobalt sequential scale per theme, T1 the strongest contrast. Each reaches 3:1 in both themes on `surface`, `surface-subtle`, `surface-hover`, `surface-selected` and `primary-subtle`, the backgrounds a card edge meets (`tokens.contrast.test.ts`, `TIER_TOKENS`; light `--tier-8` was darkened from `0.645` to `0.630` for the hovered and opened card). The color is never the only cue: the badge always writes the code, and a card's name says its tier.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--tier-1` | `0.38 0.150 262` `#0F3A90` | `0.85 0.065 262` `#B7CFF9` |
+| `--tier-2` | `0.43 0.155 262` `#1B49A3` | `0.80 0.085 262` `#A0BEF5` |
+| `--tier-3` | `0.48 0.160 262` `#2757B6` | `0.76 0.120 262` `#87B1FD` |
+| `--tier-4` | `0.52 0.150 262` `#3664BE` | `0.72 0.135 262` `#75A3F9` |
+| `--tier-5` | `0.56 0.135 262` `#4772C3` | `0.68 0.140 262` `#6796EE` |
+| `--tier-6` | `0.59 0.115 262` `#577CC1` | `0.64 0.130 262` `#608BDB` |
+| `--tier-7` | `0.62 0.095 262` `#6686C0` | `0.60 0.115 262` `#5A7FC5` |
+| `--tier-8` | `0.630 0.075 262` `#7089B7` | `0.565 0.095 262` `#5775AE` |
+| `--tier-none` | `0.600 0.010 256` `#7C8186` | `0.600 0.010 256` `#7C8186` |
+
 ## 8. Engines and entities in color
 
 - Engines (ChatGPT, Gemini, AI Mode, AI Overview) have **no brand colors** in the UI. They are shown as neutral badges with a text label ([14-badges-status.md](14-badges-status.md) section 4). In charts that split by engine, engines take the categorical palette in the fixed order ChatGPT, Gemini, AI Mode, AI Overview, then official API engines, and the legend always names them.
@@ -265,8 +281,9 @@ Every row below is a test in `tokens.contrast.test.ts`, run for each theme. The 
 | Graphical marks on `surface`: `positive-solid`, `negative-solid`, `warning-solid`, `chart-1` to `chart-6`, `chart-other`, `chart-reference` | 3:1 | 11 |
 | `foreground` on each entity evidence highlight (18% of `chart-n` over `surface`) | 4.5:1 | 6 |
 | Categorical palette separation under normal vision and three color-vision simulations (section 7.1) | CIEDE2000 15 normal, 8 simulated | 1 |
+| Page tiers `tier-1` to `tier-8` and `tier-none` on `surface`, `surface-subtle`, `surface-hover`, `surface-selected` and `primary-subtle` (section 7.4), and the order of the scale by contrast | 3:1 | 46 |
 
-Total: 110 tests per theme, 220 in the file.
+The file holds 342 tests, 171 per theme, on 2026-11-17 (the 220 recorded earlier had grown before the tier rows).
 
 Measured values (light): `foreground` on `surface` 17.8:1, `foreground-tertiary` on `surface` 5.4:1, `border-strong` on `surface` 3.6:1, `primary-foreground` on `primary` 5.0:1, `primary-text` on `surface-selected` 5.4:1, `neutral-text` on `neutral-subtle` 7.6:1. The lowest text pair is `negative-text` on `surface-selected` (4.69:1); the lowest non-text pair is `border-strong` on `surface-selected` (3.21:1).
 

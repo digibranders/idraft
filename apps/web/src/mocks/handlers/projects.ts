@@ -4,6 +4,7 @@ import { visibleProjects } from './access';
 import {
   at,
   bodyError,
+  booleanError,
   canonicalHost,
   domainTextError,
   isRecord,
@@ -15,6 +16,7 @@ import { emptyChange } from './workspaces';
 import { entityWorld, readEntityChanges, workspaceOfRow } from '../entities-state';
 import { isPublicSuffix, registrableDomain } from '../factories/domain';
 import { mockLocation } from '../factories/location';
+import { requestCrawl } from '../internal-links-world';
 import { PERMISSION_HOLDERS } from '../factories/permissions';
 import { invalid, invalidField, mock, problem, unknownMembers } from '../respond';
 import { readSession, type MockSession } from '../session';
@@ -65,6 +67,7 @@ const CREATE_FIELDS = [
   'primary_domain',
   'default_location_id',
   'own_entity',
+  'map_internal_links',
 ];
 const CHANGE_FIELDS = [
   'name',
@@ -273,8 +276,9 @@ export const projectHandlers: HttpHandler[] = [
     const errors = [
       ...extra,
       ...missing,
-      ...nullErrors(body, ['name', 'slug', 'deep_check_weekday']),
+      ...nullErrors(body, ['name', 'slug', 'deep_check_weekday', 'map_internal_links']),
       ...projectFieldErrors(body),
+      ...booleanError(body.map_internal_links, 'map_internal_links'),
       ...(Array.isArray(own) ? own : []),
     ];
     if (errors.length > 0 || Array.isArray(own)) return invalid(request, errors);
@@ -319,6 +323,11 @@ export const projectHandlers: HttpHandler[] = [
     const next: WorkspaceChanges = { ...changes, created: [...(changes.created ?? []), created] };
     const project = projectList(next, workspaceId).find((candidate) => candidate.project_id === created.project_id);
     if (!project) throw new Error('The created project is missing from the list');
+    // A ticked box with a website queues the first crawl with the project (backend D14); without a website nothing is queued, and
+    // nothing is queued while crawls are switched off either (`requestCrawl` refuses; the project is created all the same)
+    if (body.map_internal_links === true && project.primary_domain !== null) {
+      requestCrawl(project.project_id, { hasWebsite: true, higherLimit: false, trigger: 'website_added' });
+    }
     return HttpResponse.json({ data: project }, { status: 201, headers: { 'set-cookie': changesCookie(next) } });
   }),
 

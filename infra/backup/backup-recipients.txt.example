@@ -1,0 +1,4 @@
+# Example age public recipient keys for encrypted database backups.
+# Add one public recipient key per line (starting with age1...).
+# NEVER place an age private identity (starting with AGE-SECRET-KEY...) in this file.
+age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p

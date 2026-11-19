@@ -51,6 +51,13 @@ export interface MetricStripItem {
    * value, so the value cell never gets the pointer) and when the value cell is focused by keyboard.
    */
   href?: Route | undefined;
+  /** A second, lighter line of the tooltip: the figures of the delta. `line` strips only. */
+  detail?: string | undefined;
+  /**
+   * The figure's accessible name in a `line` strip: the label, the value and the whole tooltip, since the figure is
+   * the tab stop.
+   */
+  spoken?: string | undefined;
 }
 
 export interface MetricStripGroup {
@@ -63,8 +70,10 @@ export interface MetricStripProps {
   /**
    * `md`: the page strip, one panel in a row. `sm`: the key-value grid of the inspector. `inline`: label and
    * value side by side without a panel, for a page toolbar; the context stays for screen readers and the tooltip.
+   * `line`: one 36 px line per slot, label left and figure right, 2, 3 or 6 columns by the strip's own width, for an
+   * analysis board such as Citations (23 section 2.9).
    */
-  size: 'md' | 'sm' | 'inline';
+  size: 'md' | 'sm' | 'inline' | 'line';
   /** Names the list: "Summary for the filtered keywords". */
   label: string;
   groups: readonly MetricStripGroup[];
@@ -80,7 +89,7 @@ export interface MetricStripProps {
  * strip). Above about 420 px, for six items, that is the two rows of three it always was. Two items that do not fit
  * side by side stack in one column, as two cells of under 140 px would be worse.
  */
-function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'inline'): number {
+function columnsFor(count: number, width: number | null, size: 'md' | 'sm' | 'inline' | 'line'): number {
   if (size === 'sm') return count === 4 ? 2 : Math.min(count, 3);
   if (width === null || width >= count * MIN_CELL + (count - 1)) return count;
   const least = count === 2 ? 1 : 2;
@@ -110,6 +119,45 @@ export function MetricStrip({ size, label, groups, status, nowrap = false }: Met
   );
   const columns = columnsFor(items.length, width, size);
   const md = size === 'md';
+  if (size === 'line') {
+    return (
+      <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true} className="@container">
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border-subtle @xl:grid-cols-3 @5xl:grid-cols-6">
+          {items.map(({ item }) => {
+            const tipped = item.tip !== undefined && status !== 'loading';
+            const unknown = item.unknown !== null && item.unknown !== undefined;
+            return (
+              <div key={item.id} className="relative flex h-control min-w-0 items-center gap-2 bg-surface px-3">
+                <dt className="min-w-0 flex-1 truncate type-meta text-foreground-secondary">{item.label}</dt>
+                {/* The figure's ::after covers the slot, so the mouse anywhere on it reaches this tooltip */}
+                <Tooltip content={item.tip ?? ''} detail={item.detail} purpose="label" disabled={!tipped}>
+                  <dd
+                    {...(tipped ? { tabIndex: 0, 'aria-label': item.spoken } : {})}
+                    className="flex shrink-0 items-center gap-1.5 rounded-sm outline-none after:absolute after:inset-0 focus-visible:focus-ring-inset"
+                  >
+                    {status === 'loading' ? (
+                      <span className="flex w-10 items-center">
+                        <Skeleton shape="text-14" widthPct={100} />
+                      </span>
+                    ) : (
+                      <span
+                        className={cn('num type-body-strong', unknown ? 'text-foreground-tertiary' : 'text-foreground')}
+                      >
+                        {item.value}
+                      </span>
+                    )}
+                    {status === 'loading' || item.delta === undefined || item.delta === null ? null : (
+                      <span className="shrink-0 type-body-strong">{item.delta}</span>
+                    )}
+                  </dd>
+                </Tooltip>
+              </div>
+            );
+          })}
+        </dl>
+      </div>
+    );
+  }
   if (size === 'inline') {
     return (
       <div role="group" aria-label={label} aria-busy={status === 'ready' ? undefined : true}>

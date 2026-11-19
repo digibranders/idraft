@@ -1414,6 +1414,56 @@ bound still limits the list), the marking of `engine_internal` at ingest, `ai.da
 `filter[domain_id]`, overlap, retrieved-not-cited and influential pages. This supersedes the Not built statements of
 sections 3.7.7 to 3.7.9 about the source reads, changes, diversity, domain detail and the include and toggle parameters.
 
+**As built (AI visibility WP-76, 2026-11-17): Citations page.** Five read routes serve the Citations page, all
+`data:read`, no table and no migration (code `backend/src/idraft/api/ai/citation_board_routes.py`, `citation_board.py`,
+`citation_board_model.py`, `citation_board_repository.py`, `schemas/ai_citation_board.py`; plan
+`docs/superpowers/plans/2026-11-17-ai-wp-76-citations-v2-api.md`). Built: `GET {P}/ai/citation-overview` (the six measures
+of the strip and the same measures for the runs before), `GET {P}/ai/cited-pages` (one row per cited page, with the
+prompts behind it), `GET {P}/ai/cited-pages/{url_id}` (the page drawer), `GET {P}/ai/citation-gaps` (one row per prompt:
+you and the selected competitors) and `GET {P}/ai/citation-gaps/{prompt_id}` (the gap drawer). They share these
+parameters: `runs` (1, 2 or 4, default 4; any other value is `422`), `filter[engine_code_in]` (default every engine
+code), `filter[term]` (the term or one under it; the Group column of the gap table is the prompt's first topic term, so
+a prompt with no topic term has `topic` null, decision D-1), `include_branded` (default false) and the two flag toggles
+of the sources lane, `include_unresolved_redirects` and `include_engine_internal` (default false). The two gap routes
+also require `filter[competitor_id_in]`, 1 to 5 competitors the project tracks: a repeated id is dropped, the order is
+kept, and an id the project does not track is `422 competitor_not_tracked` with `entity_ids`. The cited pages list also
+takes `filter[domain_role_in]` (one role), `q` (part of the address or the title, at most 200 characters, case is
+ignored), `sort` (`citations`, `change`, `prompts`, `last_cited` or `page`, each with a leading `-` for descending;
+default `-citations`; ties fall to most citations, then the address) and offset paging (`offset`, `limit` default 50 and
+at most 200). `meta.owners` counts the pages of each role (`own`, `competitor`, `third_party`) and `all`, whatever
+`filter[domain_role_in]` and `q` say, so the role tabs keep their numbers.
+
+**What a run is (D-2).** Per prompt and engine, a run is one collection run that holds at least one counted answer (the
+answers of the sources lane: valid, current, not superseded, of active prompts, branded ones only with
+`include_branded`). Slot 1 is the pair's latest run, slot 2 the one before, up to slot 8, within a 183 day lookback. An
+answer with no collection run is its own run per UTC day. "The last N runs" is slots 1 to N of every pair, and the
+change compares slots N+1 to 2N, so a manual run of five prompts is slot 1 of those five pairs only. Every response
+has `window` with the slots of both windows (first and last answer time and answer count per slot), the answers and
+prompts of the current window, the latest answer time and the number of the latest run. **Counts, not percentages.**
+The rates are returned as counts, so the client can take the equal-weight average of the engines (the preview's rule):
+per engine, `answers` and `answers_citing`, `prompts` and `prompts_citing`, and the same four for the previous
+window. Growth is over all answers of the two windows (D-3): `citations` and `previous_citations` are your citation
+units in each window, and `matched_citations`, `matched_previous_citations` and `matched_pairs` count only the pairs
+answered in both windows, beside it, so the client can choose which to show. `own_urls`, `domains` and their
+`previous_` values are distinct own URLs and distinct registrable domains of every unit, own included. A citation unit
+is one canonical URL in one answer (doc 16 C2); flagged citations are left out as in the sources lane.
+
+**Who counts as cited (D-5).** A brand is cited in an answer when the answer lists at least one citation unit of its
+role (you: `own`) or of its entity (a competitor). Mentioned comes from the fact row (`own_mentioned`,
+`competitor_mentions`), not from the citations. Each brand on a prompt has a `total` and one cell per engine of the
+request, in code order, with `cited`, `mentioned`, `answers` and a `state` (`cited`, `mentioned`, `not` or `none`). The
+gap is decided per engine: a prompt is lost on an engine when it has answers there, none of them cites you, and at
+least one selected competitor is cited there. `lost_on` lists those engines, `lost_to` the competitors cited on them
+and `gap` is the number of engines lost on; rows are sorted by `gap`, then `lost_to`, then competitor answers, then
+text. The gap drawer adds the competitor, own and third party pages of the prompt, and the closest own pages, taken from
+the other prompts that share one of its topic terms.
+
+**Reads and errors.** Each request reads the lookback answers once (measured at 0.2 to 1 s for a full project of 3,300 answers and 33,000 citation rows; the test allows 15 s, the sources budget) and counts in
+memory, in one repeatable read snapshot, so a table and its `meta` agree. A project that is not found is `404`; so is a
+page that none of the current window's answers cites and a prompt with no current answer there. A request for a
+competitor the project does not track is `422` before that check, and a gap route without `filter[competitor_id_in]`,
+or with more than five, is `422 validation_failed`.
+
 #### 3.7.8 Extraction and re-derivation (Phase 8)
 
 | Method | Path | Permission | Request | Response | Pg | Errors | Ph |
@@ -2428,6 +2478,42 @@ Sensitive action without a fresh session:
   "reauth_url": "https://<domain>/reauthenticate?return_to=%2Fsettings%2Fapi-keys"
 }
 ```
+
+### 4.8 Internal links (plan 02)
+
+`{W}` is `/api/v1/workspaces/{workspace_id}` and `{P}` is `{W}/projects/{project_id}`. Ids are UUID strings, except `url_id` and `link_id`, which are 64-bit integers sent as strings. `run` is `latest` (default) or a crawl id; `scope` is `editorial` (default), `auto_generated`, `template` or `all`. A list with no finished crawl answers `404 no_crawl`, except that an unknown project is `404 not_found` first. Unknown query parameters are `422`. An empty `filter[tier]`, `filter[source_tier]` or `filter[target_tier]` is `422`, and so is a `null` member in a patch body. A bad or foreign cursor is `400 invalid_cursor`. The page tags of a row are `PageTagRef {term_id, name}`. Equity share is carried in page rows, the page detail and the tier flow, and can be sorted on; the CSV files do not carry it. Request ids of pages (`url_id`, `filter[source]`, `filter[target]`, `url_ids`) are strings of digits (a whole number is also accepted).
+
+| Method and path | Permission | Query or body | Response |
+|---|---|---|---|
+| `GET {W}/page-tiers` | data:read | none | `PageTierList` |
+| `POST {W}/page-tiers` | workspace:update | `PageTierCreate {name 1..60, description 0..200}` | 201 `PageTierResponse`; 422 `tier_limit` at 8 |
+| `PATCH {W}/page-tiers/{tier_id}` | workspace:update | `PageTierPatch {name?, description?}` | `PageTierResponse` |
+| `DELETE {W}/page-tiers/{tier_id}` | workspace:update | query `move_to` (a tier id or `none`) | 204; 422 `tier_in_use`; 422 `validation_failed` `move_to_self` |
+| `GET {P}/tier-rules` | data:read | none | `TierRuleList` |
+| `POST {P}/tier-rules` | projects:write | `TierRuleCreate {match_type, value, tier_id, position?}` | 201 `TierRuleResponse` |
+| `PATCH {P}/tier-rules/{rule_id}` | projects:write | `TierRulePatch` | `TierRuleResponse` |
+| `DELETE {P}/tier-rules/{rule_id}` | projects:write | none | 204 |
+| `POST {P}/tier-rules/preview` | data:read | `TierRulePreviewRequest` | `TierRulePreviewResponse {matching_pages, would_apply}` |
+| `PUT {P}/pages/tiers` | projects:write | `PageTierSet {url_ids or filter, tier_id}` | `BulkResponse {matched, changed}`; 422 `too_many_subjects` over 20,000 |
+| `POST {P}/pages/tiers/reset` | projects:write | `PageSelection` | `BulkResponse` |
+| `POST {P}/pages/tiers/import` | projects:write | `TierImportRequest {csv up to 1 MB}` | `TierImportResponse {accepted, pending, errors, applied}`; nothing applies while `errors` is not empty |
+| `PUT {P}/pages/tags` | projects:write | `PageTagChange {url_ids or filter, add, remove}` | `TagChangeResponse {matched, added, removed}` |
+| `GET {P}/link-crawls` | data:read | `cursor`, `limit` (50, max 200) | `CrawlRunPage`, newest first |
+| `POST {P}/link-crawls` | runs:trigger | `CrawlCreate {higher_limit}` | 202 `CrawlRunResponse`; 503 `crawls_disabled` while site crawls are off (nothing is queued); 409 `crawl_in_progress` (`run_id`); 422 `no_website`; 422 `budget_exceeded` (`budget_id`); 422 `validation_failed` `no_stopped_crawl` |
+| `GET {P}/link-crawls/{run_id}` | data:read | none | `CrawlRunResponse` |
+| `POST {P}/link-crawls/{run_id}/cancel` | runs:trigger | none | `CrawlRunResponse`; a queued crawl ends `cancelled` at once, a crawling one is asked to stop; 409 `invalid_state_transition` otherwise |
+| `GET {P}/internal-links/pages` | data:read | `run`, `scope`, `filter[tier]`, `filter[tag]`, `filter[status]`, `filter[indexable]`, `filter[flags]`, `filter[worklist]`, `q`, `sort`, `cursor`, `limit`, `format` (`json`, `csv`) | `PageRowPage`, or `text/csv` |
+| `GET {P}/internal-links/pages/{url_id}` | data:read | `run`, `scope` | `PageDetailResponse`; 404 when the URL is not in the crawl |
+| `GET {P}/internal-links/edges` | data:read | `run`, `scope`, `filter[source_tier]`, `filter[target_tier]`, `filter[tag]`, `filter[placement]`, `filter[target_status]`, `filter[source]`, `filter[target]`, `filter[worklist]`, `q_source`, `q_target`, `cursor`, `limit`, `format` | `EdgeRowPage`, or `text/csv` |
+| `GET {P}/internal-links/neighbors` | data:read | `url_id`, `direction`, `run`, `scope`, `limit` (8, max 50), `offset` | `NeighborList` |
+| `GET {P}/internal-links/tier-flow` | data:read | `run`, `scope` | `TierFlowResponse` |
+| `GET {P}/internal-links/worklists` | data:read | `run` | `WorklistsResponse` |
+| `PATCH {P}/settings` | projects:write | `ProjectSettingsPatch {seo?, internal_links?}`, at least one | `ProjectSettingsResponse` with `internal_links {schedule, render_javascript, allowed_subdomains}` |
+| `POST {W}/projects` | projects:write | `ProjectCreate` gains `map_internal_links` (default false) | unchanged; a ticked box queues the first crawl in the same transaction |
+
+While site crawls are off (the `crawls_enabled` setting), Crawl now answers 503 `crawls_disabled` and project create queues no crawl, whatever `map_internal_links` says; reads stay open.
+
+CSV files hold at most 100,000 rows. Full field lists are in `backend/openapi/v1.json` and in docs/superpowers/plans/2026-11-16-internal-links-02-backend-slice-1.md, section "API contract".
 
 ## 5. Outbound webhooks (alerts to Slack and custom URLs)
 

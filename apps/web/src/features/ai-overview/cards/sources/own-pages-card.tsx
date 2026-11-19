@@ -93,7 +93,7 @@ export default function OwnPagesCard({ item, options, live }: CardProps): ReactE
     ]
       .filter((part) => part !== null)
       .join('. ');
-    const href = citations({ tab: 'pages', role: 'own', source: figure.urlId }) ?? undefined;
+    const href = citations({ tab: 'pages', owner: 'own', page: figure.urlId }) ?? undefined;
     return {
       id: figure.id,
       label: name,

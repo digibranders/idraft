@@ -1,9 +1,10 @@
 'use client';
 
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
-import { Ellipsis } from 'lucide-react';
+import { Ellipsis, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 
+import { Icon } from './icon';
 import { IconButton } from './icon-button';
 import { Menu } from './menu';
 import { segmentClassName } from './segmented-control';
@@ -15,6 +16,13 @@ export interface TabItem<TValue extends string> {
   label: string;
   /** A count after the label, already formatted. Underline tabs only. */
   count?: string | undefined;
+  /** Segmented tabs only. A glyph before the label, shown from `xl` up where the row has room. */
+  icon?: LucideIcon | undefined;
+  /**
+   * Segmented tabs only. A badge after the label. It names itself for assistive technology (visible count hidden,
+   * the same words as hidden text), so the tab reads "Changes, 3 alerts".
+   */
+  badge?: ReactNode | undefined;
   disabled?: boolean | undefined;
 }
 
@@ -189,7 +197,17 @@ export function Tabs<TValue extends string>({
           {...(!underline && item.value === value ? { 'data-checked': '' } : {})}
           className={underline ? UNDERLINE_TAB : segmentClassName('sm')}
         >
-          {underline ? <UnderlineTabContent item={item} /> : <ReservedLabel label={item.label} />}
+          {underline ? (
+            <UnderlineTabContent item={item} />
+          ) : (
+            <>
+              {item.icon === undefined ? null : (
+                <Icon icon={item.icon} size="sm" className="hidden shrink-0 xl:block" />
+              )}
+              <ReservedLabel label={item.label} />
+              {item.badge}
+            </>
+          )}
         </TabsPrimitive.Tab>
       ))}
       {underline ? (
