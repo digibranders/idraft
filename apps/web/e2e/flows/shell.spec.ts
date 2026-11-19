@@ -79,6 +79,7 @@ test.describe('the application shell', () => {
       'AI visibility',
       'Prompts',
       'Citations',
+      'Competitors',
       'Integrations',
       'Runs',
       'Settings',

@@ -105,7 +105,7 @@ function cmpOf(page: Destination['compare'], scope: OverviewScope): string | nul
   return scope.compareKind === 'previous_year' ? CMP_YEAR : 'previous';
 }
 
-// competitors is not built: its keys are to be checked against the page when it is
+// competitors is live since WP-39: its keys are to be checked against the page's own parser
 const DESTINATIONS: Readonly<Record<DrillKind, Destination>> = {
   prompts: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },
   topic: { nav: 'prompts', scoped: true, country: true, branded: BRANDED_PROMPTS, compare: 'previous-turns-on' },

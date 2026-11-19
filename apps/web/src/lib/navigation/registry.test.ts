@@ -36,13 +36,14 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Competitors, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
       'internalLinks',
       'aiOverview',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'costs',
@@ -68,6 +69,7 @@ describe('the navigation registry', () => {
       'aiOverview',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'settings',
@@ -78,6 +80,7 @@ describe('the navigation registry', () => {
       'aiOverview',
       'prompts',
       'citations',
+      'competitors',
       'integrations',
       'runs',
       'costs',
@@ -183,7 +186,6 @@ describe('the navigation registry', () => {
       'matrix',
       'rankings',
       'pages',
-      'competitors',
       'discover',
       'reports',
     ]);
@@ -196,6 +198,20 @@ describe('the navigation registry', () => {
     expect(at('/digibranders/fynix/discover/prompts')).toBe('discover');
     expect(at('/digibranders/fynix/reports')).toBe('reports');
     expect(at('/digibranders/fynix/matrix')).toBe('matrix');
+  });
+
+  it('Competitors is a live destination in the second section, below the AI group, for data:read', () => {
+    expect(NAVIGATION.find((item) => item.key === 'competitors')).toMatchObject({
+      path: '/competitors',
+      section: 2,
+      group: null,
+      permission: 'data:read',
+      status: 'live',
+    });
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/competitors', 'digibranders', 'fynix')?.key).toBe(
+      'competitors',
+    );
+    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('billing')))).not.toContain('competitors');
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {

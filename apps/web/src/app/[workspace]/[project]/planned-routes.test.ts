@@ -21,7 +21,6 @@ interface PlannedPage {
 /** The planned pages, each owned by the package that replaces the file when its navigation entry goes live. */
 const PLANNED: ReadonlyArray<readonly [string, () => Promise<PlannedPage>]> = [
   ['/ai/prompts/[promptId]', () => import('./ai/prompts/[promptId]/page')],
-  ['/competitors', () => import('./competitors/page')],
   ['/discover/[tab]', () => import('./discover/[tab]/page')],
   ['/reports', () => import('./reports/page')],
   ['/settings/alert-rules', () => import('./settings/alert-rules/page')],
