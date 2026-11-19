@@ -155,12 +155,12 @@ describe('client summary html', () => {
     walk(messages.internalLinks);
     expect(strings.length).toBeGreaterThan(0);
     expect(strings.filter((text) => /equity/i.test(text))).toEqual([]);
-    expect(strings.filter((text) => /[—–]/.test(text))).toEqual([]);
+    expect(strings.filter((text) => /[\u2014\u2013]/.test(text))).toEqual([]);
   });
 
   it('never carries the word equity or a dash', () => {
     expect(html.toLowerCase()).not.toContain('equity');
-    expect(html).not.toMatch(/[—–]/);
+    expect(html).not.toMatch(/[\u2014\u2013]/);
   });
 
   it('survives a long path and an empty crawl', () => {

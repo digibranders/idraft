@@ -126,7 +126,7 @@ describe('Competitors page', () => {
     render();
     expect(await screen.findByRole('heading', { level: 1, name: 'Competitors' })).toBeInTheDocument();
     expect(screen.getByTestId('competitors-skeleton')).toBeInTheDocument();
-    expect(screen.queryByText('No engine is on')).toBeNull();
+    expect(screen.queryByText('No platform is on')).toBeNull();
     expect(screen.queryByText('Competitors could not be loaded')).toBeNull();
     expect(screen.queryByRole('tablist')).toBeNull();
     release();
@@ -135,15 +135,15 @@ describe('Competitors page', () => {
   it('no engine on shows the no engine state with the settings link for an editor and the admin sentence for a viewer', async () => {
     const seen = watch();
     const editor = renderWithProviders(screenAs('editor', asProject(cleanstart)));
-    expect(await screen.findByRole('heading', { name: 'No engine is on' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Engines' })).toHaveAttribute(
+    expect(await screen.findByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open platforms' })).toHaveAttribute(
       'href',
       '/digibranders/cleanstart/settings/engines',
     );
     editor.unmount();
     renderWithProviders(screenAs('viewer', asProject(cleanstart)));
-    expect(await screen.findByText('Ask a workspace admin to turn on an engine.')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open Engines' })).toBeNull();
+    expect(await screen.findByText('Ask a workspace admin to turn on a platform.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open platforms' })).toBeNull();
     expect(to(seen, '/ai/competitors')).toHaveLength(0);
   });
 
@@ -157,10 +157,10 @@ describe('Competitors page', () => {
     );
     const { user } = render();
     expect(await screen.findByText('Competitors could not be loaded')).toBeInTheDocument();
-    expect(screen.queryByText('No engine is on')).toBeNull();
+    expect(screen.queryByText('No platform is on')).toBeNull();
     expect(screen.queryByRole('tablist')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('No engine is on')).toBeInTheDocument();
+    expect(await screen.findByText('No platform is on')).toBeInTheDocument();
   });
 
   it('the header has the title, the meta line, the saved view menu and the primary Add competitor only with entities:write', async () => {

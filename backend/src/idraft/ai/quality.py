@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from enum import StrEnum
 from fractions import Fraction
 
@@ -131,7 +131,7 @@ SELECT workspace_id, project_id, engine_code,
        count(*) FILTER (WHERE observed_at < $1 AND status = 'refused') AS base_refused
 FROM ai.observations
 WHERE observed_at >= $2 AND observed_at < $3
-  AND ($4::uuid IS NULL OR true) AND ($5::uuid IS NULL OR true)
+  AND ($4::uuid IS NULL OR workspace_id = $4) AND ($5::uuid IS NULL OR project_id = $5)
 GROUP BY workspace_id, project_id, engine_code
 HAVING count(*) FILTER (WHERE observed_at >= $1) > 0
 """
@@ -139,7 +139,7 @@ HAVING count(*) FILTER (WHERE observed_at >= $1) > 0
 # Valid answers are `complete` and `partial`; the share is of those.
 _CITATIONS = """
 SELECT workspace_id, project_id, engine_code,
-       count(*) FILTER (WHERE observed_at >= $1) AS n,
+       count(*) FILTER (WHERE observed_at >= $1 AND status IN ('complete', 'partial')) AS n,
        count(*) FILTER (WHERE observed_at >= $1 AND status IN ('complete', 'partial')
                         AND has_citations) AS present,
        count(*) FILTER (WHERE observed_at < $1 AND status IN ('complete', 'partial')) AS base_n,
@@ -162,7 +162,7 @@ SELECT workspace_id, project_id, engine_code,
        count(*) FILTER (WHERE observed_at < $1 AND status IN ('complete', 'partial')
                         AND fanout_count > 0) AS base_present
 FROM ai.observations
-WHERE observed_at >= $2 AND observed_at < $3
+WHERE observed_at >= $2 AND observed_at < $3 AND engine_code = 'chatgpt_web'
   AND ($4::uuid IS NULL OR workspace_id = $4) AND ($5::uuid IS NULL OR project_id = $5)
 GROUP BY workspace_id, project_id, engine_code
 HAVING count(*) FILTER (WHERE observed_at >= $1) > 0
@@ -220,10 +220,10 @@ def _status_mix(rows: list[asyncpg.Record]) -> list[QualityResult]:
     for row in rows:
         n, failed, refused = row["n"], row["failed"], row["refused"]
         base_n, base_refused = row["base_n"], row["base_refused"]
-        if n < 50:  # MUTATION M1
+        if n < mix.minimum_n:
             state = State.INSUFFICIENT_DATA
         else:
-            state = State.FLAGGED if Fraction(failed, n) >= mix.threshold else State.OK
+            state = State.FLAGGED if Fraction(failed, n) > mix.threshold else State.OK
         results.append(_result(STATUS_MIX, row, failed, n, state))
         if n < refused_check.minimum_n or base_n == 0:
             refused_state = State.INSUFFICIENT_DATA
@@ -247,7 +247,7 @@ def _presence(check_name: str, rows: list[asyncpg.Record]) -> list[QualityResult
             row["base_n"],
             row["base_present"],
         )
-        if n < check.minimum_n:
+        if n < check.minimum_n or base_n == 0:
             state = State.INSUFFICIENT_DATA
         elif Fraction(present, n) < check.threshold * Fraction(base_present, base_n):
             state = State.FLAGGED
@@ -289,7 +289,7 @@ def _duplicates(rows: list[asyncpg.Record]) -> list[QualityResult]:
         if n < check.minimum_n:
             state = State.INSUFFICIENT_DATA
         else:
-            state = State.FLAGGED if Fraction(duplicated, n) >= check.threshold else State.OK
+            state = State.FLAGGED if Fraction(duplicated, n) > check.threshold else State.OK
         results.append(_result(DUPLICATE_ANSWERS, row, duplicated, n, state))
     return results
 
@@ -304,7 +304,7 @@ async def ai_quality_checks(
     """The checks for the UTC `day`, per workspace, project and engine, in one read only
     transaction (five statements, whatever the number of projects). Bind `workspace_id` and
     `project_id` to read one project; leave both out to read every project (owner role)."""
-    day_start = datetime.combine(day, time.min)
+    day_start = datetime.combine(day, time.min, tzinfo=UTC)
     day_end = day_start + timedelta(days=1)
     baseline_start = day_start - timedelta(days=BASELINE_DAYS)
     window = (day_start, baseline_start, day_end, workspace_id, project_id)

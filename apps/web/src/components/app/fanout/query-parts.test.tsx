@@ -29,7 +29,7 @@ describe('TimesUsed', () => {
     const { user } = renderWithProviders(<TimesUsed count={6} total={12} engineLabel="ChatGPT" />);
     await user.tab();
     expect(screen.getByText('In 6 of 12 ChatGPT answers')).toHaveFocus();
-    const tip = '6 answers issued this query, of 12 valid answers on ChatGPT in this window.';
+    const tip = '6 answers issued this fan-out query, of 12 valid answers on ChatGPT in this period.';
     await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(tip));
   });
 
@@ -40,7 +40,7 @@ describe('TimesUsed', () => {
     await user.tab();
     await waitFor(() =>
       expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(
-        'No valid ChatGPT answer in this window.',
+        'No valid ChatGPT answer in this period.',
       ),
     );
   });
@@ -49,7 +49,7 @@ describe('TimesUsed', () => {
 describe('NewBadge', () => {
   it('is an outline badge with no tone', () => {
     renderWithProviders(<NewBadge firstSeen="2026-11-03T08:00:00Z" days={28} timeZone="UTC" />);
-    const badge = screen.getByText('New in window');
+    const badge = screen.getByText('New this period');
     expect(badge).toHaveAttribute('data-slot', 'badge');
     // The neutral outline is the only look: no positive, negative, warning or info token
     expect(badge).toHaveClass('border-border', 'text-foreground-secondary');
@@ -58,10 +58,10 @@ describe('NewBadge', () => {
 
   it('carries the first seen date and the days in its tip', async () => {
     renderWithProviders(<NewBadge firstSeen="2026-11-03T08:00:00Z" days={28} timeZone="UTC" />);
-    screen.getByText('New in window').focus();
+    screen.getByText('New this period').focus();
     await waitFor(() =>
       expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(
-        /^First seen Nov 3(, 2026)?\. Not issued in the 28 days before this window\.$/,
+        /^First seen Nov 3(, 2026)?\. Not issued in the 28 days before this period\.$/,
       ),
     );
   });
@@ -69,7 +69,7 @@ describe('NewBadge', () => {
   it('is a tab stop, so a keyboard reaches the tip', async () => {
     const { user } = renderWithProviders(<NewBadge firstSeen="2026-11-03T08:00:00Z" days={7} timeZone="UTC" />);
     await user.tab();
-    expect(screen.getByText('New in window')).toHaveFocus();
+    expect(screen.getByText('New this period')).toHaveFocus();
   });
 });
 
@@ -111,7 +111,7 @@ describe('CitedDomains', () => {
     expect(popup).toHaveTextContent('hubspot.com');
     expect(popup).toHaveTextContent('9 units');
     expect(popup).toHaveTextContent('1 unit');
-    expect(within(popup).getByText('Own')).toBeInTheDocument();
+    expect(within(popup).getByText('Your site')).toBeInTheDocument();
     expect(within(popup).getByText('Competitor')).toBeInTheDocument();
     expect(within(popup).queryByText('Third party')).toBeNull();
   });

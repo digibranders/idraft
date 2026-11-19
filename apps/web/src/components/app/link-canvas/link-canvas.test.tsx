@@ -857,7 +857,7 @@ describe('LinkCanvas, the legend and controls panel', () => {
     const region = screen.getByRole('region', { name: 'Legend and controls' });
     expect(within(region).getByText('Shift, Cmd or Ctrl and click, or Shift and Enter')).toBeInTheDocument();
     expect(within(region).getByText('Space and drag')).toBeInTheDocument();
-    expect(within(region).getByText(/close the info panel/i)).toBeInTheDocument();
+    expect(within(region).getByText(/close the details/i)).toBeInTheDocument();
   });
 });
 

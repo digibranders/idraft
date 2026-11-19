@@ -57,7 +57,7 @@ describe('FanoutStrip', () => {
     await user.tab();
     await waitFor(() =>
       expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(
-        'No valid ChatGPT answer in this window.',
+        'No valid ChatGPT answer in this period.',
       ),
     );
   });

@@ -31,8 +31,8 @@ describe('the export labels', () => {
     expect(JSON.parse((await screen.findByTestId('file')).textContent ?? '')).toEqual([
       [
         'Prompt',
-        'Topic',
-        'Country',
+        'Group',
+        'Location',
         'Branded',
         'Mention rate (%)',
         'Mention answers',

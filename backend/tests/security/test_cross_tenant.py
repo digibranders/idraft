@@ -1633,7 +1633,9 @@ async def test_no_request_with_another_workspaces_ids_changes_anything(
     """XT-02: every mutating route, both ways, leaves every tenant row as it was."""
     a, b = tenants
     before = await _checksum(migrated, a.workspace, b.workspace)
-    assert all(digest is not None for table, digest in before.items() if table != "ops.audit_logs")
+    # The dismissals are seeded by their own test, which counts them from zero
+    unseeded = {"ops.audit_logs", "core.tier_suggestion_dismissals"}
+    assert all(digest is not None for table, digest in before.items() if table not in unseeded)
 
     for method, path in WORKSPACE_ROUTES:
         if method in _READ:

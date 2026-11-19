@@ -44,7 +44,7 @@ describe('the test kit of the Topics and Prompts header', () => {
   it('records every URL write the page makes, with its history mode', async () => {
     const { user, writes } = renderPrompts({ search: '?tab=prompts' });
     await screen.findByRole('grid', { name: 'Prompts' });
-    await user.click(screen.getByRole('radio', { name: 'Topics' }));
+    await user.click(screen.getByRole('radio', { name: 'Groups' }));
     await waitFor(() => {
       expect(writes.length).toBeGreaterThan(0);
     });

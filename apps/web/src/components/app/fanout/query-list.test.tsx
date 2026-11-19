@@ -90,13 +90,13 @@ describe('FanoutQueryList', () => {
     const verdict: NewVerdict = { kind: 'known', newKeys: new Set([rowKey(row())]) };
     renderWithProviders(<FanoutQueryList {...props({ newVerdict: verdict })} />);
     const items = within(list()).getAllByRole('listitem');
-    expect(within(items[0] ?? document.body).getByText('New in window')).toBeInTheDocument();
-    expect(within(items[1] ?? document.body).queryByText('New in window')).toBeNull();
+    expect(within(items[0] ?? document.body).getByText('New this period')).toBeInTheDocument();
+    expect(within(items[1] ?? document.body).queryByText('New this period')).toBeNull();
   });
 
   it('shows no badge at all while the verdict is unknown', () => {
     renderWithProviders(<FanoutQueryList {...props()} />);
-    expect(screen.queryByText('New in window')).toBeNull();
+    expect(screen.queryByText('New this period')).toBeNull();
   });
 
   it('is no button and no link in a row', () => {
@@ -108,10 +108,10 @@ describe('FanoutQueryList', () => {
 
   it('says once that the cited domains are an association, only when a row has some', () => {
     const { unmount } = renderWithProviders(<FanoutQueryList {...props()} />);
-    expect(screen.getAllByText(/The data does not say which query found which source\./)).toHaveLength(1);
+    expect(screen.getAllByText(/The data does not say which fan-out query found which domain\./)).toHaveLength(1);
     unmount();
     renderWithProviders(<FanoutQueryList {...props({ rows: [ROWS[1] ?? row()], total: 1 })} />);
-    expect(screen.queryByText(/The data does not say which query found which source\./)).toBeNull();
+    expect(screen.queryByText(/The data does not say which fan-out query found which domain\./)).toBeNull();
   });
 
   it('offers Show more while the list is cut and asks for the next size', async () => {

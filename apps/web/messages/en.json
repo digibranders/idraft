@@ -7813,14 +7813,14 @@
     "title": "Competitors",
     "meta": "AI updated {time}, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
     "metaCount": "{count, plural, one {# tracked competitor} other {# tracked competitors}}",
-    "metaNone": "No AI answer in this window, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
+    "metaNone": "No AI answer in this period, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
     "metaStale": "No new AI answer since {date}, {count, plural, one {# tracked competitor} other {# tracked competitors}}",
     "noAccessTitle": "You cannot open competitors",
     "noAccessReason": "Your role cannot read AI data in this project.",
-    "noEngineTitle": "No engine is on",
-    "noEngineReason": "Competitor figures come from the answers of the engines you turn on.",
-    "noEngineAction": "Open Engines",
-    "noEngineAdmin": "Ask a workspace admin to turn on an engine.",
+    "noEngineTitle": "No platform is on",
+    "noEngineReason": "Competitor figures come from the answers of the platforms you turn on.",
+    "noEngineAction": "Open platforms",
+    "noEngineAdmin": "Ask a workspace admin to turn on a platform.",
     "loadFailedTitle": "Competitors could not be loaded",
     "loadFailedReason": "The server did not answer. Try again in a moment.",
     "moreActions": "More actions",
@@ -7835,12 +7835,12 @@
     },
     "views": {
       "default": "Default",
-      "shareOfVoice": "Share of voice by topic",
+      "shareOfVoice": "Share of voice by group",
       "brandedIncluded": "Branded prompts included"
     },
     "filters": {
-      "engine": "Engine",
-      "topic": "Topic",
+      "engine": "Platform",
+      "topic": "Group",
       "branded": "Branded",
       "brandedInclude": "Include branded prompts",
       "droppedTitle": "{count, plural, one {A filter from the link was left out} other {# filters from the link were left out}}",
@@ -7866,14 +7866,14 @@
     "sections": {
       "top": "Top competitor",
       "summary": "Channel summary",
-      "topics": "Topics by brand",
+      "topics": "Groups by brand",
       "lost": "Prompts we lose",
-      "trend": "Share of voice by engine"
+      "trend": "Share of voice by platform"
     },
     "empty": {
       "noCompetitorTitle": "No competitor is tracked",
       "noCompetitorReason": "Share of voice and the comparison need at least one tracked competitor.",
-      "noCompetitorAdmin": "Ask a member who can edit entities to add one."
+      "noCompetitorAdmin": "Ask a member who can edit brands to add one."
     },
     "states": {
       "readFailedTitle": "Competitor figures could not be loaded",
