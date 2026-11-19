@@ -7,6 +7,9 @@ own database role cannot make anyone a platform operator (docs/04-data-model.md 
 `seed-eventus` makes the Eventus Security AI prompt tracking project in a development database
 from `fixtures/ai-prompts/eventus-security.json`, as the API's role and a workspace owner. It
 refuses to run anywhere but a developer's machine (docs/ops/dev-eventus-seed.md).
+
+`ai-quality` prints the AI quality checks of one UTC day (docs/25-observability.md section 9). It
+connects as `migrator` too, reads across workspaces and writes nothing.
 """
 
 from __future__ import annotations
@@ -15,7 +18,9 @@ import argparse
 import asyncio
 import getpass
 import sys
+import uuid
 from collections.abc import Sequence
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 
@@ -194,6 +199,40 @@ def _seed_eventus(arguments: argparse.Namespace) -> int:
     return 0
 
 
+async def _quality_report(
+    database_url: str, day: date, workspace_id: uuid.UUID | None, project_id: uuid.UUID | None
+) -> str | None:
+    """The table of AI quality checks for `day`, or None when the role is not the owner."""
+    # Imported here with the other lazy imports: the checks stay out of `import idraft.cli`.
+    from idraft.ai.quality import ai_quality_checks, render_table
+
+    connection = await asyncpg.connect(database_url, timeout=CONNECT_TIMEOUT_SECONDS)
+    try:
+        if await connection.fetchval("SELECT current_user") != OWNER_ROLE:
+            return None
+        results = await ai_quality_checks(
+            connection, day, workspace_id=workspace_id, project_id=project_id
+        )
+    finally:
+        await connection.close()
+    return render_table(results, day)
+
+
+def _ai_quality(arguments: argparse.Namespace) -> int:
+    settings = load_migrator_settings()
+    day: date = arguments.day or datetime.now(UTC).date() - timedelta(days=1)
+    try:
+        report = asyncio.run(
+            _quality_report(settings.asyncpg_dsn, day, arguments.workspace, arguments.project)
+        )
+    except (OSError, TimeoutError, asyncpg.PostgresError) as error:
+        return _fail(_database_problem(error))
+    if report is None:
+        return _fail(f"This command must connect as {OWNER_ROLE}. Check DATABASE_URL.")
+    sys.stdout.write(report + "\n")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m idraft.cli", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -215,6 +254,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="the fixture JSON to read (default: fixtures/ai-prompts/eventus-security.json)",
     )
     seed.set_defaults(run=_seed_eventus)
+    quality = commands.add_parser(
+        "ai-quality",
+        help="print the AI quality checks (docs/25 section 9) for one UTC day; reads, never writes",
+    )
+    quality.add_argument(
+        "--day", type=date.fromisoformat, help="the UTC day, YYYY-MM-DD (default: yesterday)"
+    )
+    quality.add_argument("--workspace", type=uuid.UUID, help="read one workspace only")
+    quality.add_argument("--project", type=uuid.UUID, help="read one project only")
+    quality.set_defaults(run=_ai_quality)
     arguments = parser.parse_args(argv)
     code: int = arguments.run(arguments)
     return code

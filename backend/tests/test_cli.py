@@ -11,8 +11,10 @@ import pytest
 
 from idraft import cli
 from idraft.api.auth.passwords import verify_password
+from tests.ai.quality_support import DAY, World, failing_day, make_world
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.conftest import BASE_URL, PostgresServer
+from tests.db.support import connection
 
 PASSWORD = "an operator passphrase 9"
 
@@ -397,3 +399,66 @@ def test_importing_the_cli_does_not_build_the_api() -> None:
         [sys.executable, "-c", script], capture_output=True, text=True, check=True, timeout=60
     )
     assert result.stdout.strip() == "False False"
+
+
+def test_ai_quality_prints_flagged_results_and_exits_zero(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def seed() -> World:
+        world = await make_world(migrated)
+        async with connection(migrated) as db:
+            await failing_day(db, world)
+        return world
+
+    world = asyncio.run(seed())
+
+    code, out, err = _run(
+        monkeypatch,
+        capsys,
+        [
+            "ai-quality",
+            "--day",
+            DAY.isoformat(),
+            "--workspace",
+            str(world.project.workspace_id),
+            "--project",
+            str(world.project.id),
+        ],
+        database_url=migrated.url("migrator"),
+    )
+
+    lines = out.splitlines()
+    assert (code, err) == (0, "")
+    assert lines[0].split() == ["project", "window", "engine", "check", "value", "n", "state"]
+    (mix,) = [line for line in lines if " ai_status_mix " in line]
+    assert f"{world.project.workspace_id}/{world.project.id}" in mix
+    assert DAY.isoformat() in mix
+    assert "50/100 = 50.0%" in mix
+    assert mix.endswith("flagged")
+
+
+def test_ai_quality_refuses_to_run_as_any_role_but_migrator(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for role in ("app_api", "app_worker", "superuser"):
+        code, out, err = _run(
+            monkeypatch,
+            capsys,
+            ["ai-quality", "--day", DAY.isoformat()],
+            database_url=migrated.url(role),
+        )
+        assert (code, out) == (1, ""), role
+        assert err == "This command must connect as migrator. Check DATABASE_URL.\n", role
+
+
+def test_ai_quality_needs_a_valid_day(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as stopped:
+        _run(
+            monkeypatch,
+            capsys,
+            ["ai-quality", "--day", "13 November"],
+            database_url=migrated.url("migrator"),
+        )
+    assert stopped.value.code == 2

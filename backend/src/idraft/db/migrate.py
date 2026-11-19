@@ -13,6 +13,7 @@ from alembic.script import ScriptDirectory
 
 from idraft.config.logging import configure_logging
 from idraft.config.settings import load_migrator_settings, to_sqlalchemy_url
+from idraft.db.maintenance import analyze_database
 from idraft.db.probe import probe_database
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
@@ -79,6 +80,12 @@ def main() -> None:
     _log.info(
         "migrations applied", from_revision=before.revision, to_revision=migration_state().head
     )
+    # After the upgrade, so the tables exist. The deploy runs this: statistics are an
+    # optimisation, so whatever goes wrong here is a warning and never fails a release.
+    try:
+        asyncio.run(analyze_database(settings.asyncpg_dsn))
+    except Exception as error:
+        _log.warning("analyze skipped", error_kind=type(error).__name__)
 
 
 if __name__ == "__main__":  # pragma: no cover
