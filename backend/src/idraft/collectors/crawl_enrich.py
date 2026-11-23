@@ -338,6 +338,7 @@ async def _changes(
                 )
             )
         keys = {"run_id": str(run.id), "workspace_id": str(run.workspace_id)}
+        compared = False
         previous = (
             await db.execute(
                 _PREVIOUS,
@@ -347,7 +348,8 @@ async def _changes(
         if previous is not None:
             both = {**keys, "previous_id": str(previous.id)}
             await db.execute(_PAGE_CHANGES, both)
-            if previous.links_kept and run.links_kept:
+            compared = previous.links_kept and run.links_kept
+            if compared:
                 for scope in ("editorial", "all"):
                     await db.execute(
                         _link_change_statement(scope), {**both, "scope": scope, "cap": CHANGES_MAX}
@@ -375,6 +377,7 @@ async def _changes(
                 enrich_phase="anchors",
                 enrich_offset=0,
                 enrich_failures=0,
+                links_compared=compared,
             )
         )
     return True

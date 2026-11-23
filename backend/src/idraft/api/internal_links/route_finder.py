@@ -42,6 +42,52 @@ _LEVEL_SQL: Final = """
 """
 
 
+# The targets that more than half of the served pages carry as followed template links: what
+# `crawl.graph.template_roots` stands in for an unreadable start page. `:start` is NULL when the
+# crawl recorded no start page.
+_ROOTS_SQL: Final = text(
+    """
+    WITH served AS (
+        SELECT url_id FROM seo.crawl_pages
+        WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
+          AND status_code = 200 AND url_id IS DISTINCT FROM CAST(:start AS bigint)
+    )
+    SELECT l.target_url_id FROM seo.crawl_links l
+    JOIN served s ON s.url_id = l.source_url_id
+    WHERE l.run_id = CAST(:run_id AS uuid) AND l.workspace_id = CAST(:workspace_id AS uuid)
+      AND l.scope = 'template' AND l.is_followed
+    GROUP BY l.target_url_id
+    HAVING 2 * count(DISTINCT l.source_url_id) > (SELECT count(*) FROM served)
+    ORDER BY l.target_url_id
+    """
+)
+# True when the start page was not served or has no links, and does not redirect.
+_START_UNREADABLE = text(
+    """
+    SELECT NOT (p.redirect_url_id IS NOT NULL AND p.redirect_url_id <> p.url_id)
+           AND NOT (p.status_code = 200 AND EXISTS (
+               SELECT 1 FROM seo.crawl_links l
+               WHERE l.run_id = p.run_id AND l.workspace_id = p.workspace_id
+                 AND l.source_url_id = p.url_id))
+    FROM seo.crawl_pages p
+    WHERE p.run_id = CAST(:run_id AS uuid) AND p.workspace_id = CAST(:workspace_id AS uuid)
+      AND p.url_id = CAST(:start AS bigint)
+    """
+)
+TEMPLATE_ANCHOR: Final = "Template link"
+
+
+def _head(parents: dict[int, Hop], target: int) -> int:
+    """The start the route to `target` begins at: the page its hops lead back to."""
+    page = target
+    for _ in range(MAX_LEVELS + 1):
+        hop = parents.get(page)
+        if hop is None:
+            break
+        page = hop.source
+    return page
+
+
 class RouteFinder:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -55,23 +101,35 @@ class RouteFinder:
         )
 
     @staticmethod
+    async def _needs_roots(db: AsyncSession, keys: dict[str, str], start: int) -> bool:
+        """Whether the start page cannot lead anywhere itself: it was not served or has no
+        links, and does not redirect (as `crawl.graph.template_roots` decides)."""
+        needs: bool | None = (
+            await db.execute(_START_UNREADABLE, {**keys, "start": start})
+        ).scalar_one_or_none()
+        return needs is not False
+
+    @staticmethod
     async def _search(
         db: AsyncSession,
         keys: dict[str, str],
         redirects: dict[int, int],
-        start: int,
+        starts: Sequence[int],
+        seeded: dict[int, Hop],
         target: int,
         *,
         editorial: bool,
     ) -> dict[int, Hop] | None:
-        """Level by level from `start`: the hop that reached each page, or None when `target`
-        was not reached within `MAX_LEVELS` clicks. A redirect page has one way on, its target."""
+        """Level by level from `starts`: the hop that reached each page, or None when `target`
+        was not reached within `MAX_LEVELS` clicks. A redirect page has one way on, its target.
+        `seeded` holds pages reached from a start by a hop that is not a stored link (a template
+        root); the search goes on from those, not from the start."""
         statement = text(
             _LEVEL_SQL.format(scope="AND scope = 'editorial'" if editorial else "")
         ).bindparams(bindparam("frontier", type_=ARRAY(BigInteger)))
-        parents: dict[int, Hop] = {}
-        seen = {start}
-        frontier = [start]
+        parents: dict[int, Hop] = dict(seeded)
+        seen = {*starts, *seeded}
+        frontier = list(seeded) or list(starts)
         for _ in range(MAX_LEVELS):
             if not frontier or target in seen:
                 break
@@ -190,9 +248,24 @@ class RouteFinder:
             ).scalar_one()
             tiers = await load_tiers(db, access.workspace_id)
             target = (await self._pages(db, scope, tiers, [url_id]))[url_id]
-            if start is None:
-                # A crawl that recorded no start page has no route from it to anywhere.
+            keys = {"run_id": str(scope.run_id), "workspace_id": str(scope.workspace_id)}
+            roots: list[int] = []
+            if start is None or await self._needs_roots(db, keys, start):
+                roots = list(
+                    (await db.execute(_ROOTS_SQL, {**keys, "start": start})).scalars().all()
+                )
+            if start is None and not roots:
                 return Routes(target=target, any=None, editorial=None)
+            if start is None:
+                # No start page was recorded: the walk begins at the pages every page links to.
+                starts, seeded = roots, {}
+            else:
+                starts = [start]
+                seeded = {
+                    root: Hop(start, root, TEMPLATE_ANCHOR, "navigation", "template")
+                    for root in roots
+                    if root != start
+                }
             redirects = {
                 row.url_id: row.redirect_url_id
                 for row in await db.execute(
@@ -203,12 +276,15 @@ class RouteFinder:
                     )
                 )
             }
-            keys = {"run_id": str(scope.run_id), "workspace_id": str(scope.workspace_id)}
             found: list[Route | None] = []
             for editorial in (False, True):
                 parents = await self._search(
-                    db, keys, redirects, start, url_id, editorial=editorial
+                    db, keys, redirects, starts, seeded, url_id, editorial=editorial
                 )
-                steps = None if parents is None else rebuild_route(parents, start, url_id)
+                steps = (
+                    None
+                    if parents is None
+                    else rebuild_route(parents, _head(parents, url_id), url_id)
+                )
                 found.append(None if steps is None else await self._route(db, scope, tiers, steps))
             return Routes(target=target, any=found[0], editorial=found[1])

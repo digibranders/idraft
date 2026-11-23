@@ -168,6 +168,7 @@ class ChangeService:
                     crawl_runs.c.previous_run_id,
                     crawl_runs.c.enrich_state,
                     crawl_runs.c.enrich_phase,
+                    crawl_runs.c.links_compared,
                 ).where(crawl_runs.c.workspace_id == access.workspace_id, crawl_runs.c.id == run_id)
             )
         ).one()
@@ -231,6 +232,7 @@ class ChangeService:
                 previous_run_id=row.previous_run_id,
                 previous_finished_at=finished,
                 state=_state(row),
+                links_compared=row.links_compared,
                 editorial_lost=counts.editorial_lost,
                 editorial_added=counts.editorial_added,
                 all_lost=counts.all_lost,

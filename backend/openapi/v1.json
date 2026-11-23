@@ -3459,6 +3459,11 @@
             "title": "Important Max Position",
             "type": "integer"
           },
+          "links_compared": {
+            "description": "False when the link counts were not worked out: the links of this crawl or of the one before were dropped. The counts are then zero, not measured.",
+            "title": "Links Compared",
+            "type": "boolean"
+          },
           "lost_to_top": {
             "description": "Editorial links lost to the important tiers.",
             "title": "Lost To Top",
@@ -3518,6 +3523,7 @@
           "previous_run_id",
           "previous_finished_at",
           "state",
+          "links_compared",
           "editorial_lost",
           "editorial_added",
           "all_lost",
@@ -13815,6 +13821,11 @@
             "title": "Linking Pages Total",
             "type": "integer"
           },
+          "links_available": {
+            "description": "False when retention dropped the crawl's links: the link lists and counts are then empty, not zero.",
+            "title": "Links Available",
+            "type": "boolean"
+          },
           "outlinks": {
             "items": {
               "$ref": "#/components/schemas/Neighbor"
@@ -13846,6 +13857,7 @@
           "outlinks",
           "linking_pages_total",
           "outlinks_total",
+          "links_available",
           "extras"
         ],
         "title": "PageDetail",

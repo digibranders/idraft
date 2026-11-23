@@ -205,6 +205,26 @@ async def test_the_link_lists_of_a_crawl_without_its_links_are_gone(
     assert summary.status_code == 200
 
 
+async def test_the_summary_says_when_the_links_were_not_compared(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace, project, older, newer, _, _ = await _ready(migrated, worker_db)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    url = project_url(workspace, project, "internal-links", "changes", "summary")
+    compared = await api.get(url, headers=viewer.headers)
+
+    await execute(migrated, "SELECT seo.drop_crawl_links_partition($1)", older)
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET links_dropped_at = now() WHERE id = $1", older
+    )
+    await execute(migrated, "UPDATE seo.crawl_runs SET links_compared = false WHERE id = $1", newer)
+    skipped = await api.get(url, headers=viewer.headers)
+
+    assert compared.json()["data"]["links_compared"] is True
+    assert skipped.json()["data"]["state"] == "ready"
+    assert skipped.json()["data"]["links_compared"] is False
+
+
 async def test_the_lost_links_come_as_csv(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
 ) -> None:

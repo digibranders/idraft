@@ -267,6 +267,34 @@ async def test_a_crawl_whose_predecessor_lost_its_links_still_gets_page_changes(
         migrated, "SELECT url_id FROM seo.crawl_page_changes WHERE run_id = $1", newer
     )
     assert {row["url_id"] for row in pages} == {ids["/pricing"], ids["/blog/b"]}
+    compared = await fetch(
+        migrated, "SELECT links_compared FROM seo.crawl_runs WHERE id = $1", newer
+    )
+    assert compared[0]["links_compared"] is False
+
+
+async def test_a_diff_that_ran_is_recorded_and_a_rerun_after_a_drop_resets_it(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    older, newer, _, _ = await two_crawls(migrated, workspace, project)
+    await _enrich(worker_db, workspace.id, newer)
+    sql = "SELECT links_compared FROM seo.crawl_runs WHERE id = $1"
+    assert (await fetch(migrated, sql, newer))[0]["links_compared"] is True
+
+    await execute(migrated, "SELECT seo.drop_crawl_links_partition($1)", older)
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET links_dropped_at = now() WHERE id = $1", older
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET enrich_state = 'pending', enrich_phase = NULL WHERE id = $1",
+        newer,
+    )
+    await _enrich(worker_db, workspace.id, newer)
+
+    assert (await fetch(migrated, sql, newer))[0]["links_compared"] is False
 
 
 async def test_an_overtaken_pass_writes_nothing_and_does_not_reopen_a_finished_crawl(

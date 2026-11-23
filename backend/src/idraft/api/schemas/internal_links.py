@@ -506,6 +506,10 @@ class PageDetail(BaseModel):
     outlinks: list[Neighbor]
     linking_pages_total: int
     outlinks_total: int
+    links_available: bool = Field(
+        description="False when retention dropped the crawl's links: the link lists and "
+        "counts are then empty, not zero."
+    )
     extras: PageDetailExtras
 
 
