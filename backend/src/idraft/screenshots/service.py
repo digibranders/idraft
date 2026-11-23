@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Final, Protocol
+from typing import Final, Literal, Protocol
 from uuid import UUID
 
 from idraft.providers.dataforseo.screenshot import PATH, SCREENSHOT_HEIGHT, TASK_WINDOW_DAYS
@@ -22,6 +22,22 @@ from idraft.storage.screenshots import put_screenshot
 
 # Engines whose answer has a platform page: the ChatGPT and Gemini scrapers and AI Mode.
 PAGE_ENGINES: Final = frozenset({"chatgpt_web", "gemini_web", "google_ai_mode"})
+
+# `available`: a stored image. `capturable`: none yet and the provider can still make one.
+# `expired`: none, and too late. `unsupported`: the engine has no platform page.
+ScreenshotState = Literal["available", "capturable", "expired", "unsupported"]
+
+
+def screenshot_state(
+    engine_code: str, observed_at: datetime, *, stored: bool, now: datetime
+) -> ScreenshotState:
+    """What can be done about the screenshot of one answer; the one rule the capture route and
+    the prompts summary share."""
+    if stored:
+        return "available"
+    if engine_code not in PAGE_ENGINES:
+        return "unsupported"
+    return "capturable" if now - observed_at <= timedelta(days=TASK_WINDOW_DAYS) else "expired"
 
 
 class ExpiredError(Exception):

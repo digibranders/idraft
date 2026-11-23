@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from functools import partial
 from typing import Any, Final, Literal, cast
 from uuid import UUID
@@ -16,6 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import summary_repository as repository
+from idraft.api.ai.screenshots import screenshot_path
 from idraft.api.ai.summary_repository import Counts, EntityCounts, SummaryPrompt, TrackedEntity
 from idraft.api.problems import NotFoundError, WindowTooLargeError
 from idraft.api.ranks.repository import project_zone
@@ -30,6 +31,7 @@ from idraft.api.schemas.ai import (
     EngineSummary,
     EntityCells,
     EntityPreviousCells,
+    LatestAnswer,
     MetricCell,
     MetricContext,
     Outcome,
@@ -55,6 +57,7 @@ from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import ENGINES
 from idraft.domain.ai_metrics import POOL_BELOW_PROMPTS, pool_window, pools
+from idraft.screenshots.service import screenshot_state
 
 # The default window, and the longest one, in project-local days.
 SUMMARY_DAYS: Final = 28
@@ -490,6 +493,10 @@ class _Read:
     previous_named: Mapping[tuple[UUID, str, UUID], EntityCounts] = field(default_factory=dict)
     # Whether `counts` holds the small cells' counts (`include=cells`): the rows then carry them.
     detail: bool = False
+    # With `include=facts`: the newest valid answer of each prompt and engine, as the API shows
+    # it. None: not asked for, so a prompt row carries no `latest`; asked for, a prompt and
+    # engine without a valid answer is absent here and its `latest` is null.
+    latest: Mapping[tuple[UUID, str], LatestAnswer] | None = None
 
 
 def _entity_cells(
@@ -660,7 +667,30 @@ def _engine_row(
         series=None if read.weeks is None else [point(week) for week in read.weeks],
         entities=None if read.entity_ids is None else [entity(e) for e in read.entity_ids],
         detail=_detail(code, current, topic=topic) if read.detail else None,
+        latest=NOT_ASKED
+        if read.latest is None or topic
+        else read.latest.get((next(iter(prompt_ids)), code)),
     )
+
+
+def _latest_answers(
+    rows: Mapping[tuple[UUID, str], repository.LatestRow],
+    workspace_id: UUID,
+    project_id: UUID,
+    *,
+    now: datetime,
+) -> dict[tuple[UUID, str], LatestAnswer]:
+    return {
+        (prompt, code): LatestAnswer(
+            observation_id=str(row.observation_id),
+            observed_at=row.observed_at,
+            screenshot_url=screenshot_path(workspace_id, project_id, row.observation_id)
+            if row.stored
+            else None,
+            screenshot_state=screenshot_state(code, row.observed_at, stored=row.stored, now=now),
+        )
+        for (prompt, code), row in rows.items()
+    }
 
 
 def _last_answers(
@@ -935,6 +965,16 @@ class SummaryService:
                 else {}
             )
             names = await repository.topic_names(db, ws, held.keys())
+            latest = (
+                _latest_answers(
+                    await repository.latest_answers(db, ws, project_id, ids, **window),
+                    ws,
+                    project_id,
+                    now=datetime.now(UTC),
+                )
+                if "facts" in query.include
+                else None
+            )
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
             code
@@ -954,6 +994,7 @@ class SummaryService:
             previous=previous,
             previous_named=previous_named,
             detail="cells" in query.include,
+            latest=latest,
         )
         # The filters choose prompt rows and nothing else: every other block reads every prompt
         # in scope (C-5, C-6).

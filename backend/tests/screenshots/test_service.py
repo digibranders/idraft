@@ -18,6 +18,7 @@ from idraft.screenshots.service import (
     ObservationRef,
     UnsupportedEngineError,
     capture_screenshot,
+    screenshot_state,
 )
 
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)
@@ -152,3 +153,21 @@ async def test_an_engine_without_a_platform_page_is_refused_before_any_spend() -
             now=NOW,
         )
     assert provider.calls == 0
+
+
+@pytest.mark.parametrize(
+    ("engine", "age_days", "stored", "state"),
+    [
+        ("chatgpt_web", 1, True, "available"),
+        ("chatgpt_web", 30, True, "available"),
+        ("chatgpt_web", 1, False, "capturable"),
+        ("gemini_web", 7, False, "capturable"),
+        ("google_ai_mode", 8, False, "expired"),
+        ("claude_api", 1, False, "unsupported"),
+    ],
+)
+def test_the_state_of_an_answers_screenshot(
+    engine: str, age_days: int, stored: bool, state: str
+) -> None:
+    observed_at = NOW - timedelta(days=age_days)
+    assert screenshot_state(engine, observed_at, stored=stored, now=NOW) == state

@@ -18,12 +18,14 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Date, Float, Uuid, and_, any_, cast, func, literal, or_, select, tuple_
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import (
     ai_derivations,
     ai_entity_mentions,
     ai_observation_facts,
+    ai_observation_screenshots,
     ai_observations,
     ai_project_engines,
     ai_prompt_terms,
@@ -379,6 +381,62 @@ async def counts_by_prompt(
         )
     rows = await db.execute(statement.group_by(_F.prompt_id, _F.engine_code))
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
+
+
+@dataclass(frozen=True, slots=True)
+class LatestRow:
+    """The newest valid answer of a prompt on an engine, and whether its screenshot is stored."""
+
+    observation_id: int
+    observed_at: datetime
+    stored: bool
+
+
+async def latest_answers(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> dict[tuple[UUID, str], LatestRow]:
+    """The newest valid answer by prompt and engine over the window: one statement for all the
+    prompts, whatever their number, with the screenshot table joined to say whether one is
+    stored."""
+    if not prompt_ids:
+        return {}
+    shots = ai_observation_screenshots.c
+    statement = (
+        select(
+            _F.prompt_id,
+            _F.engine_code,
+            _F.observation_id,
+            _F.observed_at,
+            shots.observation_id.is_not(None).label("stored"),
+        )
+        .select_from(
+            ai_observation_facts.outerjoin(
+                ai_observation_screenshots,
+                and_(
+                    shots.observation_id == _F.observation_id,
+                    shots.observed_at == _F.observed_at,
+                    shots.workspace_id == _F.workspace_id,
+                ),
+            )
+        )
+        .where(
+            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
+            _F.is_valid,
+        )
+        .ext(distinct_on(_F.prompt_id, _F.engine_code))
+        .order_by(_F.prompt_id, _F.engine_code, _F.observed_at.desc(), _F.observation_id.desc())
+    )
+    return {
+        (row.prompt_id, row.engine_code): LatestRow(row.observation_id, row.observed_at, row.stored)
+        for row in await db.execute(statement)
+    }
 
 
 def _detail_columns(answers: Any) -> list[Any]:

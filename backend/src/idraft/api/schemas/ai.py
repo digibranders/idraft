@@ -46,6 +46,7 @@ from idraft.api.schemas.entities import EntityRef
 from idraft.api.schemas.keywords import FunnelStage, Intent, LocationId
 from idraft.api.schemas.metrics import MetricWindow, Usd
 from idraft.domain.ai_engines import PROMPT_TEXT_MAX, EngineCode, ObservationClass
+from idraft.screenshots.service import ScreenshotState
 
 PromptType = Literal[
     "question",
@@ -667,7 +668,7 @@ class MetricCell(BaseModel):
     )
 
 
-SummaryInclude = Literal["series", "entities", "total", "co_mentions", "cells"]
+SummaryInclude = Literal["series", "entities", "total", "co_mentions", "cells", "facts"]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
 
@@ -844,6 +845,21 @@ class WeekCells(BaseModel):
     )
 
 
+class LatestAnswer(BaseModel):
+    """The newest valid answer of an engine for a prompt row."""
+
+    observation_id: str
+    observed_at: datetime
+    screenshot_url: str | None = Field(
+        description="The API path of the stored image, null when none was captured."
+    )
+    screenshot_state: ScreenshotState = Field(
+        description="`available`: a stored image. `capturable`: none yet and the provider can "
+        "still make one (within 7 days of the answer). `expired`: none, and too late. "
+        "`unsupported`: the engine has no platform page."
+    )
+
+
 class EngineSummary(BaseModel):
     engine_code: str
     mentioned: MetricCell
@@ -880,6 +896,15 @@ class EngineSummary(BaseModel):
         exclude_if=_absent,
         description="With `include=cells`: the small cells of the engine over the window, "
         "weighted as the row's cells are. Never in `previous` or in a week. Left out otherwise.",
+    )
+    latest: LatestAnswer | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`, on a prompt row: the newest valid answer of the "
+        "engine in the window and the state of its screenshot; null when the engine has no "
+        "valid answer there. Left out on topic and total rows, and when `facts` was not asked "
+        "for.",
     )
 
 
