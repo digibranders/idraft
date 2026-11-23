@@ -5,16 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { URLCell, type URLCellProps } from './url-cell';
 import { HOSTILE_TITLES, HOSTILE_URLS, MARKER } from './xss-fixtures';
 import { copyText } from '@/lib/dom/clipboard';
-import { faviconUrl } from '@/lib/favicon';
 import { webHref } from '@/lib/format';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/lib/dom/clipboard', () => ({ copyText: vi.fn<(text: string) => Promise<boolean>>() }));
-// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+// These tests stand in the workspace's icon route to exercise the image path; lib/favicon.test.ts and favicon-hook.test.tsx cover the route's address
+const iconFor = (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`;
+
 vi.mock('@/lib/favicon', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/favicon')>()),
-  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+  useFaviconUrl: (host: string | null): string | null => (host === null ? null : iconFor(host)),
 }));
 
 const HREF = '/x?inspect=source:abc' as Route;
@@ -87,7 +88,7 @@ describe('URLCell valid address', () => {
 
   it('shows the site icon beside the host where the table is domain-first', () => {
     const { container } = renderWithProviders(<URLCell {...cell({ favicon: 'show' })} />);
-    expect(container.querySelector('img')).toHaveAttribute('src', faviconUrl('hubspot.com'));
+    expect(container.querySelector('img')).toHaveAttribute('src', iconFor('hubspot.com'));
     expect(container).toHaveTextContent('hubspot.com');
   });
 

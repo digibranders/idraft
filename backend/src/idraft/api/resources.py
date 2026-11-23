@@ -19,6 +19,7 @@ from idraft.api.auth.service import AuthService
 from idraft.api.auth.sessions import SessionStore
 from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.service import EntityService
+from idraft.api.favicons.service import FaviconService
 from idraft.api.imports.service import ImportService
 from idraft.api.integrations.service import IntegrationService
 from idraft.api.internal_links.changes import ChangeService
@@ -79,6 +80,7 @@ class Resources:
     imports: ImportService
     ranks: RankService
     quotas: QuotaService
+    favicons: FaviconService
     integrations: IntegrationService
     ai_engines: EngineService
     prompts: PromptService

@@ -29800,6 +29800,56 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}": {
+      "get": {
+        "description": "A PNG between 32 and 128 px wide, found and kept by the server: the browser never contacts the site or a third party. `404 not_found` when the site has no icon of at least 32 px (also kept, for 6 hours); `400` when the domain is not a public domain name; `429` past 60 icons a minute not yet kept, per workspace. Any workspace member may read it.",
+        "operationId": "get_favicon_api_v1_workspaces__workspace_id__favicons__registrable_domain__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "registrable_domain",
+            "required": true,
+            "schema": {
+              "maxLength": 253,
+              "title": "Registrable Domain",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "The icon."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The icon of a site",
+        "tags": [
+          "workspaces"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/invitations": {
       "get": {
         "operationId": "list_invitations_api_v1_workspaces__workspace_id__invitations_get",

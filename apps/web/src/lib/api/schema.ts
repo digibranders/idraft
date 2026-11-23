@@ -839,6 +839,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The icon of a site
+         * @description A PNG between 32 and 128 px wide, found and kept by the server: the browser never contacts the site or a third party. `404 not_found` when the site has no icon of at least 32 px (also kept, for 6 hours); `400` when the domain is not a public domain name; `429` past 60 icons a minute not yet kept, per workspace. Any workspace member may read it.
+         */
+        get: operations["get_favicon_api_v1_workspaces__workspace_id__favicons__registrable_domain__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/invitations": {
         parameters: {
             query?: never;
@@ -15424,6 +15444,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_favicon_api_v1_workspaces__workspace_id__favicons__registrable_domain__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registrable_domain: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The icon. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
             default: {

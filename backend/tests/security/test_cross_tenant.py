@@ -110,6 +110,10 @@ WORDS = {
     "token": "a-link-token",
 }
 
+# Answers an image, not data of the tenant: the site's icon is the same for every workspace, and
+# the access to it is tested in tests/api/favicons/test_service.py.
+IMAGE_ROUTES = {"/api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}"}
+
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
 # Routes that also name something inside the workspace: a project, a member, an invitation. A
 # word (`WORDS`) names nothing, so a path whose only other parameter is a word is no child.
@@ -123,7 +127,7 @@ CHILD_ROUTES = [
 LIST_ROUTES = [
     (method, path)
     for method, path in WORKSPACE_ROUTES
-    if method == "GET" and (method, path) not in CHILD_ROUTES
+    if method == "GET" and (method, path) not in CHILD_ROUTES and path not in IMAGE_ROUTES
 ] + [("GET", "/api/v1/me"), ("GET", "/api/v1/workspaces")]
 
 # A body each mutating route accepts, so a request that is let through would change something.
