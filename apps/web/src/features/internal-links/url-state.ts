@@ -88,6 +88,14 @@ export const PAGE_SORTS: readonly PageSort[] = [
   '-citations',
   'anchor',
   '-anchor',
+  'tier',
+  '-tier',
+  'clicks',
+  '-clicks',
+  'indexable',
+  '-indexable',
+  'in_sitemap',
+  '-in_sitemap',
 ];
 export const DEFAULT_SORT: PageSort = '-linking_pages';
 /** The longest search text the API takes (1 to 200 characters). */

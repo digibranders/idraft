@@ -24,22 +24,26 @@ describe('the sort of the Pages table (decision W5)', () => {
   });
 
   it('has no sort for a column the server cannot sort, nor for an empty choice', () => {
-    expect(sortOfKeys([{ id: 'tier', desc: false }])).toBeNull();
+    expect(sortOfKeys([{ id: 'tags', desc: false }])).toBeNull();
     expect(sortOfKeys([])).toBeNull();
     expect(keysOfSort('-linking_pages')).toEqual([{ id: 'linking', desc: true }]);
   });
 
-  it('sorts only the nine columns the API sorts, and never by equity', () => {
+  it('sorts only the thirteen columns the API sorts, and never by equity', () => {
     expect(Object.values(SORT_FIELD).sort()).toEqual([
       'anchor',
       'change',
       'citations',
       'click_depth',
+      'clicks',
+      'in_sitemap',
+      'indexable',
       'linking_pages',
       'outlinks',
       'path',
       'rank',
       'status_code',
+      'tier',
     ]);
     const sortable = columns.filter((column) => column.sortValue !== undefined).map((column) => column.id);
     expect(sortable.sort()).toEqual(Object.keys(SORT_FIELD).sort());
@@ -47,7 +51,10 @@ describe('the sort of the Pages table (decision W5)', () => {
     expect(sortOfKeys([{ id: 'rank', desc: true }])).toBe('-rank');
     expect(sortOfKeys([{ id: 'citations', desc: false }])).toBe('citations');
     expect(sortOfKeys([{ id: 'anchors', desc: true }])).toBe('-anchor');
-    for (const id of ['keywords', 'clicks']) {
+    expect(sortOfKeys([{ id: 'sitemap', desc: true }])).toBe('-in_sitemap');
+    expect(sortOfKeys([{ id: 'tier', desc: false }])).toBe('tier');
+    expect(sortOfKeys([{ id: 'clicks', desc: true }])).toBe('-clicks');
+    for (const id of ['keywords', 'impressions']) {
       expect(sortOfKeys([{ id, desc: false }])).toBeNull();
     }
   });

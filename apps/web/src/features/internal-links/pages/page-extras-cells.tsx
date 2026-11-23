@@ -232,6 +232,7 @@ export function extraColumns(
       ...hidden,
       headerTooltip: googleTip,
       width: 120,
+      sortValue: (row) => row.extras?.gsc?.clicks ?? null,
       cellTip: (row) => gscTip(t, row),
     }),
     custom('impressions', 'count', t('columns.impressions'), (row) => gscCell(t, row, 'impressions'), {

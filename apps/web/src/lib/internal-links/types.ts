@@ -101,7 +101,15 @@ export type PageSort =
   | 'citations'
   | '-citations'
   | 'anchor'
-  | '-anchor';
+  | '-anchor'
+  | 'tier'
+  | '-tier'
+  | 'clicks'
+  | '-clicks'
+  | 'indexable'
+  | '-indexable'
+  | 'in_sitemap'
+  | '-in_sitemap';
 
 export type Share = Schemas['Share'];
 export type CreatedShare = Schemas['CreatedShare'];

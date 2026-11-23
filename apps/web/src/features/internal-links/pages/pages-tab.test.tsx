@@ -134,8 +134,9 @@ describe('the Pages tab (spec 7.2)', () => {
     await user.click(within(table).getByRole('button', { name: 'Depth' }));
     await waitFor(() => expect(reads().some((read) => read.get('sort') === '-click_depth')).toBe(true));
     expect(writes.at(-1)).toContain('sort=-click_depth');
-    // The Tier column has no server sort: its header offers none
-    expect(within(table).queryByRole('button', { name: 'Tier' })).toBeNull();
+    // The Tags column has no server sort: its header offers none; Tier sorts on the server since the sorts of plan 06
+    expect(within(table).queryByRole('button', { name: 'Tags' })).toBeNull();
+    expect(within(table).getByRole('button', { name: 'Tier' })).toBeInTheDocument();
     // Linking pages is the default sort: choosing it again leaves the address without a sort
     await user.click(within(table).getByRole('button', { name: 'Linking pages' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('sort='));

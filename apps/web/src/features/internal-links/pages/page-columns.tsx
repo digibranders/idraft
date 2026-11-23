@@ -31,6 +31,10 @@ export const SORT_FIELD: Readonly<Record<string, string>> = {
   rank: 'rank',
   citations: 'citations',
   anchors: 'anchor',
+  tier: 'tier',
+  clicks: 'clicks',
+  reason: 'indexable',
+  sitemap: 'in_sitemap',
 };
 
 /** The sort the table's first key asks for, or `null` for a column the server cannot sort. */
@@ -133,7 +137,10 @@ export function pageColumns(
         />
       ),
     }),
-    custom('tier', 'badge', t('columns.tier'), (row) => <TierBadge tier={row.tier} />, { width: 96 }),
+    custom('tier', 'badge', t('columns.tier'), (row) => <TierBadge tier={row.tier} />, {
+      width: 96,
+      sortValue: (row) => tierPosition(row.tier),
+    }),
     custom(
       'status',
       'status',

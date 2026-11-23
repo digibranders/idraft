@@ -40,7 +40,7 @@ import { textLength } from '@/lib/text/length';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import { checkRuleValue, MAX_RULES } from '@/lib/internal-links/rule-value';
 import { MAX_BODY_BYTES, MAX_CSV_CHARS, parseTierCsv, requestBytes } from '@/lib/internal-links/tier-csv';
-import { MAX_TIERS } from '@/lib/internal-links/tiers';
+import { MAX_TIERS, tierPosition } from '@/lib/internal-links/tiers';
 import type { PageFilter, PageInclude, PageRow, TierImportResult } from '@/lib/internal-links/types';
 
 /**
@@ -232,6 +232,9 @@ const SORTS: Readonly<Record<string, (row: PageRow) => string | number>> = {
   click_depth: (row) => row.click_depth ?? 999,
   linking_pages: (row) => row.linking_pages,
   outlinks: (row) => row.outlinks,
+  tier: (row) => tierPosition(row.tier),
+  indexable: (row) => (row.is_indexable ? 1 : 0),
+  in_sitemap: (row) => (row.in_sitemap ? 1 : 0),
 };
 
 /** `change` sorts by the change of links in since the previous crawl (a page with none has 0). */
@@ -239,12 +242,12 @@ function sortRows(
   rows: PageRow[],
   sort: string,
   deltaOf: (row: PageRow) => number,
-  extraOf: (row: PageRow, key: 'rank' | 'citations' | 'anchor') => number | null,
+  extraOf: (row: PageRow, key: 'rank' | 'citations' | 'anchor' | 'clicks') => number | null,
 ): PageRow[] {
   const desc = sort.startsWith('-');
   const key = desc ? sort.slice(1) : sort;
-  if (key === 'rank' || key === 'citations' || key === 'anchor') {
-    // Like the server: rank and anchor put pages without a value last in both directions; citations count 0
+  if (key === 'rank' || key === 'citations' || key === 'anchor' || key === 'clicks') {
+    // Like the server: rank, anchor and clicks put pages without a value last in both directions; citations count 0
     const value = (row: PageRow): number | null => extraOf(row, key) ?? (key === 'citations' ? 0 : null);
     return [...rows].sort((a, b) => {
       const left = value(a);
@@ -732,14 +735,18 @@ export const internalLinkHandlers: HttpHandler[] = [
       (row, key) => {
         const page = crawledPage(row.url_id);
         if (page === undefined) return null;
-        const extras = pageExtras(run, page, [
-          key === 'rank' ? 'keywords' : key === 'citations' ? 'citations' : 'anchors',
-        ]);
-        return key === 'rank'
-          ? (extras.keywords?.average_rank ?? null)
-          : key === 'citations'
-            ? (extras.citations?.total ?? null)
-            : (extras.anchors?.distinct ?? null);
+        const part = { rank: 'keywords', citations: 'citations', anchor: 'anchors', clicks: 'gsc' } as const;
+        const extras = pageExtras(run, page, [part[key]]);
+        switch (key) {
+          case 'rank':
+            return extras.keywords?.average_rank ?? null;
+          case 'citations':
+            return extras.citations?.total ?? null;
+          case 'anchor':
+            return extras.anchors?.distinct ?? null;
+          case 'clicks':
+            return extras.gsc?.clicks ?? null;
+        }
       },
     );
     if (caller.url.searchParams.get('format') === 'csv') {
