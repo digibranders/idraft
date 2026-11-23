@@ -199,6 +199,7 @@ describe('the Trend column of the tables', () => {
     expect(headers).not.toContain('Trend');
     await waitFor(() => expect(summaries.length).toBeGreaterThan(0));
     // The weeks are asked for all the same, since the prompt's History tab reads them too, and the Groups tab draws them
+    // The page asks for the facts with the series, so the match is looser than `include=series` alone, on purpose
     expect(summaries.every((url) => /[?&]include=series(%2C|,|&|$)/.test(url))).toBe(true);
     expect(within(plain).queryAllByRole('img', { name: /^Mention rate by week: / })).toHaveLength(0);
     off.unmount();

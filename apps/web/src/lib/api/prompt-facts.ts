@@ -160,8 +160,12 @@ export type PromptSummaryRowWithFacts = Omit<PromptSummaryRow, 'engines'> &
 export type TopicSummaryRowWithFacts = Omit<TopicSummaryRow, 'engines'> &
   TopicRowFacts & { engines: EngineSummaryWithFacts[] };
 
-/** The prompt summary read when it was asked for `include=entities,facts`. */
-export type PromptsSummaryWithFacts = Omit<PromptsSummary, 'prompts' | 'topics'> & {
+/**
+ * The prompt summary read when it was asked for `include=entities,facts`. `entities` is optional: the Prompts page's own
+ * read, which carries the weekly series, does not ask for the entity cells.
+ */
+export type PromptsSummaryWithFacts = Omit<PromptsSummary, 'prompts' | 'topics' | 'entities'> & {
+  entities?: PromptsSummary['entities'];
   prompts: PromptSummaryRowWithFacts[];
   topics: TopicSummaryRowWithFacts[];
 };

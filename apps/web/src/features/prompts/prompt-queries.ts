@@ -174,8 +174,8 @@ export interface SummaryScope {
   /**
    * Blocks to add. `series` gives each engine a point for each week the window touches (Monday start, in the
    * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity;
-   * `facts` adds the per-platform facts of the Prompts columns (position, sentiment, brands, links, volume), which
-   * the generated client does not know yet, so only a mocked read asks for it (`factsRequested`).
+   * `facts` adds the per-platform facts of the Prompts columns: the API builds `latest` so far, the mocks build the
+   * rest (`factsRequested`).
    */
   include?: readonly ('series' | 'entities' | 'facts')[];
   /** Ask for the previous period (`compare=previous_period`): each engine of each row then carries `previous`. */

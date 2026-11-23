@@ -7,8 +7,7 @@ import type { DateRange } from '../prompt-model';
 import type { PromptScope, SummaryScope } from '../prompt-queries';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import { compareParams } from '@/lib/compare/compare-model';
-import type { paths } from '@/lib/api/schema';
-import { FACTS_INCLUDE as FACTS_INCLUDE_NAME, factsRequested } from '@/lib/prompt-facts/request';
+import { FACTS_INCLUDE, factsRequested } from '@/lib/prompt-facts/request';
 import type {
   PromptsSummaryWithFacts,
   PromptSummaryRowWithFacts,
@@ -17,10 +16,6 @@ import type {
 } from '@/lib/prompt-facts';
 
 const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary' as const;
-
-type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
-
-const FACTS_INCLUDE = FACTS_INCLUDE_NAME as SummaryInclude;
 
 export { factsRequested };
 
@@ -78,7 +73,7 @@ export function indexFacts(summary: PromptsSummaryWithFacts, requested: boolean)
     prompts: new Map(summary.prompts.map((row) => [row.prompt_id, row])),
     topics: new Map(summary.topics.map((row) => [row.term_id, row])),
     // A summary that does not carry the entity set (a read made without `include=entities`) has none to name
-    entities: (summary.entities as readonly TrackedEntity[] | undefined) ?? NO_ENTITIES,
+    entities: summary.entities ?? NO_ENTITIES,
     engineCodes: summary.engine_codes,
     requested,
   };
