@@ -451,6 +451,8 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ai.citations": (READ, access("SELECT, INSERT")),
     "ai.entity_mentions": (READ, access("SELECT, INSERT")),
     "ai.observation_facts": (READ, access("SELECT, INSERT")),
+    # Migration 0031: the API stores a screenshot a person asked for; it is never replaced.
+    "ai.observation_screenshots": (access("SELECT, INSERT"), NONE),
     "core.page_tier_levels": (
         access("SELECT, INSERT, DELETE", UPDATE=("position", "name", "description", "updated_at")),
         READ,

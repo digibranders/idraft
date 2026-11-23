@@ -1728,6 +1728,28 @@ ai_observation_facts = Table(
     schema="ai",
 )
 
+ai_observation_screenshots = Table(
+    "observation_screenshots",
+    metadata,
+    Column("observation_id", BigInteger, primary_key=True),
+    Column("observed_at", DateTime(timezone=True), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("storage_key", Text, nullable=False),
+    Column("width", Integer, nullable=False),
+    Column("height", Integer, nullable=False),
+    Column("byte_size", Integer, nullable=False),
+    Column("truncated", Boolean, nullable=False),
+    Column("cost_usd", Numeric(14, 6), nullable=False),
+    Column("provider_task_id", Text, nullable=False),
+    Column("captured_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    Column("captured_by", Uuid, ForeignKey(users.c.id)),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="ai",
+)
+
 page_tier_levels = Table(
     "page_tier_levels",
     metadata,
