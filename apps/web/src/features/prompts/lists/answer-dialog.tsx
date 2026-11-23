@@ -9,9 +9,13 @@ import { formatTableDateTime } from '@/lib/format';
 
 const stop = (event: MouseEvent): void => event.stopPropagation();
 
-/** The address of a stored screenshot when it is one an image may load: a web address or an inline image, never a script. */
+/**
+ * The address of a stored screenshot when it is one an image may load: a web address, an inline image, or the API's own
+ * path of a stored screenshot (same origin, so the session cookie goes with it). Never a script or another scheme.
+ */
 export function imageSource(raw: string): string | null {
   if (/^data:image\/(png|jpe?g|webp|gif|svg\+xml)[;,]/i.test(raw)) return raw;
+  if (/^\/api\/v1\/[A-Za-z0-9\-_/]+\/screenshot$/.test(raw)) return raw;
   try {
     const url = new URL(raw);
     return url.protocol === 'https:' || url.protocol === 'http:' ? raw : null;

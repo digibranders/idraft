@@ -208,7 +208,14 @@ describe('the Cited pages column', () => {
 describe('the Screenshot column', () => {
   const latest = (screenshot_url: string | null): FactsRow =>
     rowOf(
-      engine('chatgpt_web', { latest: { observation_id: '41', observed_at: '2026-09-28T01:14:00Z', screenshot_url } }),
+      engine('chatgpt_web', {
+        latest: {
+          observation_id: '41',
+          observed_at: '2026-09-28T01:14:00Z',
+          screenshot_url,
+          screenshot_state: screenshot_url === null ? 'capturable' : 'available',
+        },
+      }),
     );
 
   it('shows the day of the latest answer on a button named for the platform and the prompt', () => {

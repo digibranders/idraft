@@ -39,6 +39,7 @@ import {
   type Counts,
   type EntityCounts,
 } from '../prompt-summary';
+import { isShotStored, latestOf, sampleShot, shotPathOf, shotStateOf, storeShot } from '../answer-screenshots';
 import { answerFactsExtra, factsBuilder } from '../prompt-facts';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
@@ -560,6 +561,53 @@ export const promptAnswerHandlers: HttpHandler[] = [
     });
   }),
 
+  mock('post', `${OBSERVATIONS}/{observation_id}/screenshot`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'runs:trigger',
+      query: ['observed_at'],
+    });
+    if (caller instanceof Response) return caller;
+    const id = idOf(String(params.observation_id));
+    const hint = hintOf(caller.url);
+    const errors = [id, hint].filter(hasCode);
+    if (errors.length > 0 || typeof id !== 'bigint' || hasCode(hint)) return invalid(request, errors);
+    const projectId = caller.project.project_id;
+    const found = findAnswer(projectId, id, hint, Date.now());
+    if (found === null) return problem(request, 'not_found');
+    const url = shotPathOf(String(params.workspace_id), projectId, found.observation_id);
+    // A second capture returns the stored one and spends nothing
+    if (isShotStored(projectId, found.observation_id)) {
+      return HttpResponse.json({ data: { created: false, truncated: false, width: 1920, height: 4700, url } });
+    }
+    const state = shotStateOf(found.engine_code, false, Date.parse(found.observed_at), Date.now());
+    if (state === 'unsupported') return problem(request, 'screenshot_unsupported');
+    if (state === 'expired') return problem(request, 'screenshot_expired');
+    storeShot(projectId, found.observation_id);
+    return HttpResponse.json(
+      { data: { created: true, truncated: false, width: 1920, height: 4700, url } },
+      { status: 201 },
+    );
+  }),
+
+  mock('get', `${OBSERVATIONS}/{observation_id}/screenshot`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: ['observed_at'],
+    });
+    if (caller instanceof Response) return caller;
+    const id = idOf(String(params.observation_id));
+    const hint = hintOf(caller.url);
+    const errors = [id, hint].filter(hasCode);
+    if (errors.length > 0 || typeof id !== 'bigint' || hasCode(hint)) return invalid(request, errors);
+    const found = findAnswer(caller.project.project_id, id, hint, Date.now());
+    if (found === null) return problem(request, 'not_found');
+    if (!isShotStored(caller.project.project_id, found.observation_id)) return problem(request, 'no_screenshot');
+    // The real route serves a PNG; the mock serves a sample picture an image element can draw
+    return new HttpResponse(sampleShot(found.observation_id), {
+      headers: { 'content-type': 'image/svg+xml', 'cache-control': 'private, max-age=3600' },
+    });
+  }),
+
   mock('get', `${P}/ai/prompts-summary`, ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
       permission: 'data:read',
@@ -860,6 +908,12 @@ export const promptAnswerHandlers: HttpHandler[] = [
             ]),
           ),
           answers: (promptId, code) => byPrompt.get(promptId)?.get(code) ?? [],
+          latestOf: (code, newest) =>
+            latestOf(
+              { workspaceId: String(params.workspace_id), projectId: caller.project.project_id, now: Date.now() },
+              code,
+              newest,
+            ),
         })
       : null;
     const topicRow = (termId: string | null, members: ReadonlySet<string>): TopicSummaryRow => {
