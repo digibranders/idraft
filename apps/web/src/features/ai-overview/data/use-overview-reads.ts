@@ -17,6 +17,7 @@ import {
   type ReadScope,
   type SourcesOptions,
   type SummaryOptions,
+  WEEKLY_SHARE_READ,
 } from './overview-queries';
 import { mapRead, useRead, type Gate, type Read } from './read-state';
 import type { EngineCode, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
@@ -51,9 +52,11 @@ export type SummaryReadOptions = SummaryOptions &
     /**
      * The card shows share of voice, which counts brand mentions (D17): the read also asks the topic rows and the total
      * with their entity cells, one small read for each window. Left out, the read is the page's own and share of voice
-     * has no counts in it ("not collected"), so a card that shows none of it asks nothing more.
+     * has no counts in it ("not collected"), so a card that shows none of it asks nothing more. `'weekly'` is the lean
+     * read of the weekly cards (`WEEKLY_SHARE_READ`: the total with its weekly points, no row lists), for a card that
+     * also draws a weekly line from the total: the same request, so it shares the cache of those cards.
      */
-    counts?: boolean | undefined;
+    counts?: boolean | 'weekly' | undefined;
   };
 export type SourcesReadOptions = SourcesOptions & ReadOptions;
 
@@ -120,19 +123,12 @@ function useSummary(
   // Share of voice is a count of brand mentions (D17): the read of the topic rows and the total with their entity cells
   // is small, where the prompt rows with entity cells are megabytes, so it is the one extra read of every window whose
   // own read carries no entity cells
-  const needsCounts = wantsCounts && !(options.include ?? []).includes('entities');
+  const needsCounts = wantsCounts !== false && !(options.include ?? []).includes('entities');
   const counts = useQuery({
     ...overviewSummaryQuery(
       project,
       { scope, enabledEngines },
-      {
-        ...BRAND_MENTION_READ,
-        // The weekly points of a card that draws them come with their entity cells (the weeks of a share of voice line)
-        include: (options.include ?? []).includes('series')
-          ? [...BRAND_MENTION_READ.include, 'series']
-          : BRAND_MENTION_READ.include,
-        period,
-      },
+      { ...(wantsCounts === 'weekly' ? WEEKLY_SHARE_READ : BRAND_MENTION_READ), period },
     ),
     enabled: gate === 'run' && needsCounts,
     placeholderData: keepPreviousData,

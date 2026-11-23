@@ -8,6 +8,7 @@ import { at } from './competitors/model/summary-fixtures';
 import SovOverTimeCard from './competitors/sov-over-time-card';
 import SovRankCard from './competitors/sov-rank-card';
 import RateTrendCard from './engines/rate-trend-card';
+import HeadlineCard from './headline/headline-card';
 import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary, WeekCells } from '@/lib/api/types';
 import { stubViewport } from '@/test/customize-harness';
@@ -86,6 +87,19 @@ describe('the weekly share of voice cards ask for the per-brand weekly cells', (
       expect(includeOf(url)).toEqual(['entities', 'series', 'total']);
       expect(url.searchParams.get('rows')).toBe('none');
     }
+  });
+
+  it('the headline tiles draw their sparklines from the same lean read, and their prompt rows carry no weekly points', async () => {
+    const urls = serveRecording(weeklySummary());
+    renderCard('ai.visibility_split', HeadlineCard, { engine: 'chatgpt_web' }, { searchParams: 'cmp=off' });
+    await waitFor(() => {
+      expect(urls.map((url) => includeOf(url).join(','))).toContain('entities,series,total');
+    });
+    const reads = urls.map((url) => ({ include: includeOf(url).join(','), rows: url.searchParams.get('rows') }));
+    expect(reads).toContainEqual({ include: 'entities,series,total', rows: 'none' });
+    // No read asks the topic rows with the weekly points (the older counts read), and no row list carries `series`
+    expect(reads).not.toContainEqual({ include: 'entities,series,total', rows: 'topics' });
+    expect(reads.filter((read) => read.rows !== 'none').every((read) => !read.include.includes('series'))).toBe(true);
   });
 
   it('leaves the rate trend with any other metric on its own read: the weekly points of the prompt rows, no entity cells', async () => {
