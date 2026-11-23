@@ -4500,6 +4500,104 @@
         "title": "CitedWith",
         "type": "object"
       },
+      "ClientSummary": {
+        "properties": {
+          "crawled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crawled At"
+          },
+          "flow": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryFlowCell"
+            },
+            "title": "Flow",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project's website host.",
+            "title": "Host"
+          },
+          "important_max_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiers T1 to this one count as important.",
+            "title": "Important Max Position"
+          },
+          "lost": {
+            "$ref": "#/components/schemas/SummaryLost"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryTier"
+            },
+            "title": "Tiers",
+            "type": "array"
+          },
+          "worklists": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryWorklist"
+            },
+            "title": "Worklists",
+            "type": "array"
+          }
+        },
+        "required": [
+          "host",
+          "crawled_at",
+          "pages",
+          "tiers",
+          "flow",
+          "worklists",
+          "lost",
+          "important_max_position",
+          "generated_at"
+        ],
+        "title": "ClientSummary",
+        "type": "object"
+      },
+      "ClientSummaryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientSummary"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ClientSummaryResponse",
+        "type": "object"
+      },
       "CoMentionPair": {
         "properties": {
           "a": {
@@ -5667,6 +5765,73 @@
           "data"
         ],
         "title": "CrawlRunResponse",
+        "type": "object"
+      },
+      "CreatedShare": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ShareState"
+          },
+          "token": {
+            "description": "The secret of the link, shown this once. The public page is `/api/v1/public/internal-links/summary/{token}` and the web builds its own address.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "created_by",
+          "expires_at",
+          "revoked_at",
+          "state",
+          "token"
+        ],
+        "title": "CreatedShare",
+        "type": "object"
+      },
+      "CreatedShareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreatedShare"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CreatedShareResponse",
         "type": "object"
       },
       "CursorPageInfo": {
@@ -7378,6 +7543,14 @@
         },
         "title": "EntityUpdate",
         "type": "object"
+      },
+      "ExpiryDays": {
+        "enum": [
+          7,
+          30,
+          90
+        ],
+        "type": "integer"
       },
       "FanoutCitedDomain": {
         "properties": {
@@ -20880,6 +21053,104 @@
         "title": "SessionList",
         "type": "object"
       },
+      "Share": {
+        "description": "A link as listed. The token is never here: it is shown once, when the link is made.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ShareState"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "created_by",
+          "expires_at",
+          "revoked_at",
+          "state"
+        ],
+        "title": "Share",
+        "type": "object"
+      },
+      "ShareCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_days": {
+            "$ref": "#/components/schemas/ExpiryDays",
+            "default": 30,
+            "description": "Days until the link stops working."
+          }
+        },
+        "title": "ShareCreate",
+        "type": "object"
+      },
+      "ShareList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Share"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ShareList",
+        "type": "object"
+      },
+      "ShareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Share"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ShareResponse",
+        "type": "object"
+      },
+      "ShareState": {
+        "enum": [
+          "active",
+          "expired",
+          "revoked"
+        ],
+        "type": "string"
+      },
       "SignInRequest": {
         "additionalProperties": false,
         "properties": {
@@ -22082,6 +22353,107 @@
         "title": "SummaryEntity",
         "type": "object"
       },
+      "SummaryFlowCell": {
+        "properties": {
+          "from_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Code"
+          },
+          "links": {
+            "title": "Links",
+            "type": "integer"
+          },
+          "to_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Code"
+          }
+        },
+        "required": [
+          "from_code",
+          "to_code",
+          "links"
+        ],
+        "title": "SummaryFlowCell",
+        "type": "object"
+      },
+      "SummaryLost": {
+        "properties": {
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryLostLink"
+            },
+            "maxItems": 20,
+            "title": "Links",
+            "type": "array"
+          },
+          "state": {
+            "description": "`no_comparison` for a first crawl, `dropped` when the links of either crawl are no longer stored.",
+            "enum": [
+              "available",
+              "no_comparison",
+              "dropped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lost links to the important tiers; null unless available.",
+            "title": "Total"
+          }
+        },
+        "required": [
+          "state",
+          "total",
+          "links"
+        ],
+        "title": "SummaryLost",
+        "type": "object"
+      },
+      "SummaryLostLink": {
+        "properties": {
+          "anchor": {
+            "title": "Anchor",
+            "type": "string"
+          },
+          "from_path": {
+            "title": "From Path",
+            "type": "string"
+          },
+          "to_path": {
+            "title": "To Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_path",
+          "to_path",
+          "anchor"
+        ],
+        "title": "SummaryLostLink",
+        "type": "object"
+      },
       "SummaryMetricContext": {
         "properties": {
           "cited": {
@@ -22115,6 +22487,56 @@
           "share_of_voice"
         ],
         "title": "SummaryMetricContext",
+        "type": "object"
+      },
+      "SummaryTier": {
+        "properties": {
+          "average_depth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Depth"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "T1, T2 and so on; null for the pages with no tier.",
+            "title": "Code"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "pages",
+          "average_depth"
+        ],
+        "title": "SummaryTier",
         "type": "object"
       },
       "SummaryTotal": {
@@ -22166,6 +22588,33 @@
           "engines"
         ],
         "title": "SummaryTotal",
+        "type": "object"
+      },
+      "SummaryWorklist": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "enum": [
+              "under_linked_t1",
+              "orphans",
+              "editorial_orphans",
+              "deep_only_through_auto",
+              "broken_and_redirected",
+              "links_to_non_indexable",
+              "weak_outlinks"
+            ],
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ],
+        "title": "SummaryWorklist",
         "type": "object"
       },
       "TagChangeResponse": {
@@ -27425,6 +27874,50 @@
         "summary": "Where Google returns the person after consent",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/public/internal-links/summary/{token}": {
+      "get": {
+        "description": "Read only, no sign-in. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached.",
+        "operationId": "public_summary_api_v1_public_internal_links_summary__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The client summary of a shared link",
+        "tags": [
+          "public"
         ]
       }
     },
@@ -38316,7 +38809,13 @@
                 "status_code",
                 "-status_code",
                 "change",
-                "-change"
+                "-change",
+                "rank",
+                "-rank",
+                "citations",
+                "-citations",
+                "anchor",
+                "-anchor"
               ],
               "title": "Sort",
               "type": "string"
@@ -38604,6 +39103,185 @@
           }
         },
         "summary": "The shortest route from the home page to a page",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares": {
+      "get": {
+        "operationId": "list_shares_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The client summary links of the project, newest first, without their tokens",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "post": {
+        "description": "The token in the answer is shown once and is not stored; only its hash is. The link stops working at `expires_at` (7, 30 or 90 days, default 30) or when revoked.",
+        "operationId": "create_share_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Make a read-only link to the client summary that anyone holding it can open",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares/{share_id}": {
+      "delete": {
+        "description": "Revoking a link that is already revoked changes nothing.",
+        "operationId": "revoke_share_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares__share_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Revoke a client summary link",
         "tags": [
           "internal-links"
         ]
