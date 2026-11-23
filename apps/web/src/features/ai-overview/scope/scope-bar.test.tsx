@@ -321,6 +321,52 @@ describe('the scope bar below 768 px', () => {
     expect(screen.getByRole('button', { name: 'Filters' })).toHaveFocus();
   });
 
+  it('keeps Tab and Shift+Tab inside the open sheet, and keeps what is behind it out of reach', async () => {
+    // The skip link and the project switcher of the app shell sit before the page, as they do in the layout
+    const { user } = renderWithProviders(
+      <>
+        <a href="#main">Skip to main content</a>
+        <button type="button">Project switcher</button>
+        {overviewAs('admin')}
+        <button type="button">After the page</button>
+      </>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Filters' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' });
+    await within(sheet).findByRole('combobox', { name: 'Location: All locations' });
+    const behind = [
+      document.querySelector('a[href="#main"]'),
+      ...screen.getAllByRole('button', { hidden: true }).filter((button) => !sheet.contains(button)),
+    ];
+    // Every element that took focus: the trap's own guards are allowed to take it for a moment, the page behind is not
+    const focused: Element[] = [];
+    const record = (event: FocusEvent): void => {
+      if (event.target instanceof Element) focused.push(event.target);
+    };
+    document.addEventListener('focusin', record);
+    // More presses than the sheet has stops, so a leak would show as a stop behind it
+    for (const shift of [false, true]) {
+      for (let press = 0; press < 20; press += 1) {
+        await user.tab({ shift });
+        await waitFor(() => {
+          expect(sheet.contains(document.activeElement)).toBe(true);
+        });
+      }
+    }
+    document.removeEventListener('focusin', record);
+    expect(focused.length).toBeGreaterThan(20);
+    expect(focused.filter((target) => behind.includes(target))).toEqual([]);
+  });
+
+  it('shows the Location name in the sheet under its label, not the pin alone', async () => {
+    const { user } = renderWithProviders(overviewAs('admin'));
+    await user.click(await screen.findByRole('button', { name: 'Filters' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' });
+    const control = await within(sheet).findByRole('combobox', { name: 'Location: All locations' });
+    expect(control).toHaveTextContent('All locations');
+    expect(within(sheet).getByText('Location')).toBeVisible();
+  });
+
   it('has no badge while nothing differs', async () => {
     renderWithProviders(overviewAs('admin'));
     const button = await screen.findByRole('button', { name: 'Filters' });
