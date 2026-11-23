@@ -39,6 +39,10 @@ class ChangesSummary(BaseModel):
         description="`pending` until the crawl's changes are worked out, `unavailable` when "
         "enrichment failed before that."
     )
+    links_compared: bool = Field(
+        description="False when the link counts were not worked out: the links of this crawl or "
+        "of the one before were dropped. The counts are then zero, not measured."
+    )
     editorial_lost: int
     editorial_added: int
     all_lost: int

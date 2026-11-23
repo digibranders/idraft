@@ -77,6 +77,8 @@ RUN_WORKER_UPDATE = (
     "enrich_phase",
     "enrich_failures",
     "enrich_offset",
+    # Migration 0028: whether the link diff ran.
+    "links_compared",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",
