@@ -3593,6 +3593,19 @@
             "title": "Chatgpt",
             "type": "integer"
           },
+          "citations_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The day of the project's newest AI answer behind these counts (today's numbers, not the crawl's day); null when there is none.",
+            "title": "Citations As Of"
+          },
           "gemini": {
             "title": "Gemini",
             "type": "integer"
@@ -3606,7 +3619,8 @@
           "chatgpt",
           "gemini",
           "ai_mode",
-          "total"
+          "total",
+          "citations_as_of"
         ],
         "title": "CitationCounts",
         "type": "object"
@@ -10592,6 +10606,19 @@
             ],
             "title": "Rank"
           },
+          "rank_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The day of the check that gave `rank`; null when it was never checked.",
+            "title": "Rank As Of"
+          },
           "volume": {
             "anyOf": [
               {
@@ -10608,7 +10635,8 @@
           "keyword",
           "rank",
           "change",
-          "volume"
+          "volume",
+          "rank_as_of"
         ],
         "title": "KeywordRow",
         "type": "object"
@@ -10637,6 +10665,19 @@
             ],
             "title": "Best Volume"
           },
+          "rank_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The day of the newest check behind these ranks (today's numbers, not the crawl's day); null when none was checked.",
+            "title": "Rank As Of"
+          },
           "ranking": {
             "title": "Ranking",
             "type": "integer"
@@ -10650,7 +10691,8 @@
           "tracked",
           "ranking",
           "average_rank",
-          "best_volume"
+          "best_volume",
+          "rank_as_of"
         ],
         "title": "KeywordSummary",
         "type": "object"
@@ -12005,6 +12047,7 @@
                 "type": "null"
               }
             ],
+            "description": "Link strength change in points since the previous crawl.",
             "title": "Equity Points"
           },
           "page": {
@@ -12103,6 +12146,7 @@
                 "type": "null"
               }
             ],
+            "description": "Link strength: the page's share of the whole site's, 0 to 1.",
             "title": "Equity Share"
           },
           "has_children": {
@@ -13333,6 +13377,7 @@
                 "type": "null"
               }
             ],
+            "description": "Link strength of the page that would carry the link: its share of the whole site's, 0 to 1.",
             "title": "Source Equity Share"
           },
           "status": {
@@ -13774,6 +13819,7 @@
                 "type": "null"
               }
             ],
+            "description": "Link strength change in points since the previous crawl.",
             "title": "Equity Points"
           },
           "is_new": {
@@ -14153,6 +14199,7 @@
                 "type": "null"
               }
             ],
+            "description": "Link strength: the page's share of the whole site's, 0 to 1. Show the change in points, never this share.",
             "title": "Equity Share"
           },
           "extras": {
@@ -23134,6 +23181,7 @@
             "title": "Average Depth"
           },
           "equity_share": {
+            "description": "Link strength of the tier: its pages' share of the whole site's, 0 to 1.",
             "title": "Equity Share",
             "type": "number"
           },
@@ -37193,7 +37241,7 @@
             "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
           }
         },
-        "summary": "Pages whose editorial links in, equity or depth moved most",
+        "summary": "Pages whose editorial links in, link strength or depth moved most",
         "tags": [
           "internal-links"
         ]
@@ -37636,7 +37684,7 @@
     },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors": {
       "get": {
-        "description": "The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then equity share, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.",
+        "description": "The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then link strength, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.",
         "operationId": "neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get",
         "parameters": [
           {

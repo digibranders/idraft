@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import Any, Final
 
 from sqlalchemy import ARRAY, BigInteger, Row, Text, and_, bindparam, exists, select, text
@@ -42,7 +43,7 @@ _KEYWORDS = text(
     WITH owned AS (
         SELECT coalesce(tk.target_url_id, st.current_url_id) AS page_url, tk.keyword_id,
                k.text AS keyword, st.current_rank AS rank, st.rank_change AS change,
-               m.search_volume AS volume
+               m.search_volume AS volume, st.last_observed_at AS observed_at
         FROM seo.tracked_keywords tk
         JOIN seo.keywords k ON k.id = tk.keyword_id AND k.workspace_id = tk.workspace_id
         LEFT JOIN seo.tracked_keyword_state st ON st.tracked_keyword_id = tk.id
@@ -54,7 +55,7 @@ _KEYWORDS = text(
           AND tk.project_id = CAST(:project_id AS uuid)
           AND tk.is_active AND tk.deleted_at IS NULL
     )
-    SELECT DISTINCT ON (page_url, keyword_id) page_url, keyword, rank, change, volume
+    SELECT DISTINCT ON (page_url, keyword_id) page_url, keyword, rank, change, volume, observed_at
     FROM owned WHERE page_url = ANY(:ids)
     ORDER BY page_url, keyword_id, rank NULLS LAST
     """
@@ -62,7 +63,8 @@ _KEYWORDS = text(
 # D9: distinct answers per engine in 28 days, answers that were not superseded.
 _CITATIONS = text(
     """
-    SELECT c.url_id, c.engine_code, count(DISTINCT c.observation_id) AS answers
+    SELECT c.url_id, c.engine_code, count(DISTINCT c.observation_id) AS answers,
+           NULL::timestamptz AS newest
     FROM ai.citations c
     JOIN ai.observations o ON o.id = c.observation_id AND o.observed_at = c.observed_at
          AND o.workspace_id = c.workspace_id
@@ -70,6 +72,12 @@ _CITATIONS = text(
       AND c.url_id = ANY(:ids) AND c.domain_role = 'own'
       AND c.observed_at >= now() - interval '28 days' AND o.superseded_by IS NULL
     GROUP BY c.url_id, c.engine_code
+    UNION ALL
+    -- One more row, in the same statement: the project's newest answer that was not superseded,
+    -- which dates the counts whatever page they are shown for.
+    SELECT NULL, NULL, 0, max(observed_at) FROM ai.observations
+    WHERE workspace_id = CAST(:workspace_id AS uuid) AND project_id = CAST(:project_id AS uuid)
+      AND superseded_by IS NULL
     """
 ).bindparams(bindparam("ids", type_=ARRAY(BigInteger)))
 # D7: anchors group by the edge-trimmed text without letter case and count every link, the way
@@ -116,7 +124,11 @@ _ANCHORS = text(
     bindparam("keyword_words", type_=ARRAY(Text)),
 )
 
-NO_CITATIONS: Final = CitationCounts(chatgpt=0, gemini=0, ai_mode=0, total=0)
+NO_CITATIONS: Final = CitationCounts(chatgpt=0, gemini=0, ai_mode=0, total=0, citations_as_of=None)
+
+
+def _day(moment: datetime) -> date:
+    return moment.astimezone(UTC).date()
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +137,7 @@ class KeywordFact:
     rank: int | None
     change: int | None
     volume: int | None
+    observed_at: datetime | None
 
 
 async def changes_of(
@@ -191,7 +204,7 @@ async def keywords_of(
         },
     ):
         found.setdefault(row.page_url, []).append(
-            KeywordFact(row.keyword, row.rank, row.change, row.volume)
+            KeywordFact(row.keyword, row.rank, row.change, row.volume, row.observed_at)
         )
     return found
 
@@ -199,17 +212,25 @@ async def keywords_of(
 def summarize_keywords(rows: Sequence[KeywordFact]) -> KeywordSummary:
     ranks = [row.rank for row in rows if row.rank is not None]
     volumes = [row.volume for row in rows if row.volume is not None]
+    days = [_day(row.observed_at) for row in rows if row.observed_at]
     return KeywordSummary(
         tracked=len(rows),
         ranking=len(ranks),
         average_rank=round(sum(ranks) / len(ranks), 1) if ranks else None,
         best_volume=max(volumes) if volumes else None,
+        rank_as_of=max(days, default=None),
     )
 
 
 def keyword_rows(rows: Sequence[KeywordFact]) -> list[KeywordRow]:
     return [
-        KeywordRow(keyword=row.keyword, rank=row.rank, change=row.change, volume=row.volume)
+        KeywordRow(
+            keyword=row.keyword,
+            rank=row.rank,
+            change=row.change,
+            volume=row.volume,
+            rank_as_of=_day(row.observed_at) if row.observed_at else None,
+        )
         for row in sorted(rows, key=lambda row: (row.rank is None, row.rank or 0, row.keyword))
     ]
 
@@ -218,6 +239,7 @@ async def citations_of(
     db: AsyncSession, scope: PageScope, ids: Sequence[int]
 ) -> dict[int, CitationCounts]:
     counts: dict[int, dict[str, int]] = {}
+    newest: datetime | None = None
     for row in await db.execute(
         _CITATIONS,
         {
@@ -226,17 +248,22 @@ async def citations_of(
             "ids": list(ids),
         },
     ):
+        if row.url_id is None:
+            newest = row.newest
+            continue
         name = ENGINES.get(row.engine_code)
         if name is not None:
             counts.setdefault(row.url_id, {})[name] = row.answers
+    as_of = _day(newest) if newest is not None else None
     return {
         url: CitationCounts(
-            chatgpt=found.get("chatgpt", 0),
+            chatgpt=(found := counts.get(url, {})).get("chatgpt", 0),
             gemini=found.get("gemini", 0),
             ai_mode=found.get("ai_mode", 0),
             total=sum(found.values()),
+            citations_as_of=as_of,
         )
-        for url, found in counts.items()
+        for url in ids
     }
 
 
