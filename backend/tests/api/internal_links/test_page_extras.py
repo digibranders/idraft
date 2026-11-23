@@ -84,6 +84,15 @@ async def test_change_and_anchor_columns_follow_the_stored_changes_and_counts(
     assert str(ids["/pricing"]) == rows["/pricing"]["url_id"]
 
 
+async def _utc_day(pg: PostgresServer, days_ago: int) -> str:
+    row = await fetchrow(
+        pg,
+        "SELECT ((now() AT TIME ZONE 'UTC') - make_interval(days => $1))::date::text AS day",
+        days_ago,
+    )
+    return str(row["day"])
+
+
 async def test_tracked_keywords_rank_and_volume_come_from_the_keyword_tables(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
 ) -> None:
@@ -96,6 +105,14 @@ async def test_tracked_keywords_rank_and_volume_come_from_the_keyword_tables(
     await track_keyword(
         migrated, workspace, project, "soc cost", page, rank=None, change=None, volume=700
     )
+    # Only the ranked keyword was checked, three days ago; the other was never checked.
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keyword_state SET last_observed_at = now() - interval '3 days' "
+        "WHERE project_id = $1 AND current_rank IS NOT NULL",
+        project,
+    )
+    as_of = await _utc_day(migrated, 3)
 
     response = await api.get(
         project_url(workspace, project, "internal-links", "pages"),
@@ -106,16 +123,22 @@ async def test_tracked_keywords_rank_and_volume_come_from_the_keyword_tables(
     keywords = {row["path"]: row for row in response.json()["data"]}["/pricing"]["extras"][
         "keywords"
     ]
-    assert keywords == {"tracked": 2, "ranking": 1, "average_rank": 4.0, "best_volume": 2900}
+    assert keywords == {
+        "tracked": 2,
+        "ranking": 1,
+        "average_rank": 4.0,
+        "best_volume": 2900,
+        "rank_as_of": as_of,
+    }
     detail = await api.get(
         project_url(workspace, project, "internal-links", "pages", ids["/pricing"]),
         headers=viewer.headers,
     )
     rows = detail.json()["data"]["extras"]["keywords"]
-    assert {(row["keyword"], row["rank"], row["change"], row["volume"]) for row in rows} == {
-        ("pricing plans", 4, 2, 2900),
-        ("soc cost", None, None, 700),
-    }
+    assert {
+        (row["keyword"], row["rank"], row["change"], row["volume"], row["rank_as_of"])
+        for row in rows
+    } == {("pricing plans", 4, 2, 2900, as_of), ("soc cost", None, None, 700, None)}
 
 
 async def test_a_keyword_tracked_on_two_devices_counts_once_with_its_best_rank(
@@ -200,7 +223,18 @@ async def test_ai_citations_count_answers_of_the_last_28_days_per_engine(
     citations = {row["path"]: row for row in response.json()["data"]}["/pricing"]["extras"][
         "citations"
     ]
-    assert citations == {"chatgpt": 2, "gemini": 1, "ai_mode": 0, "total": 3}
+    # The newest answer of the project (the ChatGPT one of yesterday) dates the counts.
+    assert citations == {
+        "chatgpt": 2,
+        "gemini": 1,
+        "ai_mode": 0,
+        "total": 3,
+        "citations_as_of": await _utc_day(migrated, 1),
+    }
+    # A page nobody cites still says how old the numbers are.
+    other = {row["path"]: row for row in response.json()["data"]}["/blog"]["extras"]["citations"]
+    assert other["total"] == 0
+    assert other["citations_as_of"] == await _utc_day(migrated, 1)
 
 
 async def test_search_console_is_not_connected_without_a_property(

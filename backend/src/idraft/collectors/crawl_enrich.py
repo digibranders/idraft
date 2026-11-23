@@ -38,7 +38,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from idraft.collectors.crawl_store import DATA_STATES, html_key
 from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.crawl.changes import CHANGES_MAX, AlertSettings, alert_due, alert_settings
-from idraft.crawl.mentions import PhraseSet, find_mentions, index_phrases, visible_text
+from idraft.crawl.mentions import (
+    PhraseSet,
+    boilerplate_blocks,
+    find_mentions,
+    index_phrases,
+    visible_blocks,
+    visible_text,
+)
 from idraft.db.tables import (
     crawl_alerts,
     crawl_link_changes,
@@ -470,6 +477,53 @@ _ALREADY_LINKED = text(
 ).bindparams(bindparam("sources", type_=ARRAY(BigInteger)))
 
 
+# The first pages of a crawl are read once to learn which blocks of text the template repeats
+# (a menu built of plain elements, a header button). The answer is kept for the crawl being
+# enriched, so the steps of one pass do not read the sample again; another crawl replaces it.
+BOILERPLATE_SAMPLE: Final = 40
+_boilerplate_memo: dict[UUID, frozenset[str]] = {}
+
+
+async def _mention_sources(db: AsyncSession, run: _Run, *, after: int, limit: int) -> list[Any]:
+    """The pages whose text is searched: live, indexable, reachable, links read from HTML."""
+    result = await db.execute(
+        select(crawl_pages.c.url_id, urls.c.url_hash)
+        .join(urls, urls.c.id == crawl_pages.c.url_id)
+        .where(
+            crawl_pages.c.workspace_id == run.workspace_id,
+            crawl_pages.c.run_id == run.id,
+            crawl_pages.c.status_code == 200,
+            crawl_pages.c.is_indexable,
+            crawl_pages.c.click_depth.is_not(None),
+            crawl_pages.c.links_state == "from_html",
+            crawl_pages.c.url_id > after,
+        )
+        .order_by(crawl_pages.c.url_id)
+        .limit(limit)
+    )
+    return list(result.all())
+
+
+async def _boilerplate(db: AsyncSession, store: ObjectStore, run: _Run) -> frozenset[str]:
+    # The first step of a pass reads the sample afresh: the stored HTML may have changed.
+    known = None if run.offset == 0 else _boilerplate_memo.get(run.id)
+    if known is not None:
+        return known
+    pages: list[list[str]] = []
+    for source in await _mention_sources(db, run, after=0, limit=BOILERPLATE_SAMPLE):
+        try:
+            html = decompress(await store.get(html_key(run.project_id, source.url_hash)))
+        except RawStorageError:
+            continue
+        # The whole body: a page with a `main` hides the template text that its siblings show.
+        text = html.decode("utf-8", errors="replace")[:MENTION_TEXT_MAX]
+        pages.append(visible_blocks(text, whole_body=True))
+    found = boilerplate_blocks(pages)
+    _boilerplate_memo.clear()
+    _boilerplate_memo[run.id] = found
+    return found
+
+
 async def _mentions(
     sessions: async_sessionmaker[AsyncSession], store: ObjectStore | None, run: _Run
 ) -> bool:
@@ -477,23 +531,10 @@ async def _mentions(
     phrases of every live indexable target. A page whose HTML is gone has no mention."""
     keys = {"run_id": str(run.id), "workspace_id": str(run.workspace_id)}
     async with sessions() as db:
-        sources = (
-            await db.execute(
-                select(crawl_pages.c.url_id, urls.c.url_hash)
-                .join(urls, urls.c.id == crawl_pages.c.url_id)
-                .where(
-                    crawl_pages.c.workspace_id == run.workspace_id,
-                    crawl_pages.c.run_id == run.id,
-                    crawl_pages.c.status_code == 200,
-                    crawl_pages.c.is_indexable,
-                    crawl_pages.c.click_depth.is_not(None),
-                    crawl_pages.c.links_state == "from_html",
-                    crawl_pages.c.url_id > run.offset,
-                )
-                .order_by(crawl_pages.c.url_id)
-                .limit(MENTION_PAGES_PER_STEP)
-            )
-        ).all()
+        sources = await _mention_sources(db, run, after=run.offset, limit=MENTION_PAGES_PER_STEP)
+        boilerplate = (
+            await _boilerplate(db, store, run) if sources and store is not None else frozenset()
+        )
         index: dict[str, list[tuple[int, Any]]] = {}
         already: dict[int, set[int]] = {}
         if sources and store is not None:
@@ -535,7 +576,9 @@ async def _mentions(
             html = decompress(await store.get(html_key(run.project_id, source.url_hash)))
         except RawStorageError:
             continue
-        page_text = visible_text(html.decode("utf-8", errors="replace"))[:MENTION_TEXT_MAX]
+        page_text = visible_text(html.decode("utf-8", errors="replace"), boilerplate=boilerplate)[
+            :MENTION_TEXT_MAX
+        ]
         for mention in find_mentions(
             page_text,
             index,

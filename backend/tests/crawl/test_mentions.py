@@ -2,11 +2,26 @@ from __future__ import annotations
 
 from idraft.crawl.mentions import (
     PhraseSet,
+    boilerplate_blocks,
     find_mentions,
     index_phrases,
     phrase_key,
+    visible_blocks,
     visible_text,
 )
+
+# A site builder (Eventus) puts its header and mega menu in plain divs, so they read as body text.
+_CHROME = (
+    '<div class="header-popup"><div>Report an Incident</div>'
+    "<div>Get 24/7 incident response assistance from our global team</div></div>"
+    "<ul><li>AI-Powered Security Operations</li><li>Managed XDR VAPT CART Breach and Attack "
+    "Simulation Threat Intelligence DFIR</li></ul>"
+)
+
+
+def _page(body: str) -> str:
+    return f"<html><body>{_CHROME}<div><p>{body}</p></div></body></html>"
+
 
 HTML = """
 <html><body>
@@ -104,3 +119,51 @@ def test_at_most_limit_mentions_come_back() -> None:
     text = " ".join(f"Read topic{n} words now." for n in range(100, 140))
     found = find_mentions(text, index_phrases(targets), source_url_id=1, skip=set(), limit=5)
     assert len(found) == 5
+
+
+def test_blocks_that_most_pages_repeat_are_template_text_and_leave_the_page_text() -> None:
+    pages = [
+        _page("Our analysts handle incident response for banks."),
+        _page("Threat intelligence feeds are mapped to MITRE."),
+        _page("EDR agents are rolled out in a week."),
+        _page("A story about something else."),
+    ]
+    template = boilerplate_blocks([visible_blocks(html) for html in pages])
+    assert "Report an Incident" in template
+    assert "Managed XDR VAPT CART Breach and Attack Simulation Threat Intelligence DFIR" in template
+    assert not any("analysts" in block for block in template)
+    text = visible_text(pages[0], boilerplate=template)
+    assert text == "Our analysts handle incident response for banks."
+    index = index_phrases(
+        {7: PhraseSet((), ("threat intelligence",)), 8: PhraseSet((), ("incident response",))}
+    )
+    found = find_mentions(text, index, source_url_id=1, skip=set())
+    assert [mention.phrase for mention in found] == ["incident response"]
+    # Without the template text the menu words would be offered as mentions of the page.
+    raw = find_mentions(visible_text(pages[0]), index, source_url_id=1, skip=set())
+    assert {mention.phrase.lower() for mention in raw} == {
+        "incident response",
+        "threat intelligence",
+    }
+
+
+def test_a_block_on_few_pages_or_a_tiny_crawl_is_not_template_text() -> None:
+    assert boilerplate_blocks([["a menu", "one"], ["a menu", "two"]]) == frozenset()
+    assert (
+        boilerplate_blocks([["a menu"], ["x"], ["y"], ["z"], ["a menu"], ["a menu"]]) == frozenset()
+    )
+    assert boilerplate_blocks([["a menu"], ["a menu"], ["a menu"], ["x"]]) == {"a menu"}
+
+
+def test_the_template_text_is_learned_from_the_whole_body_even_when_pages_have_a_main() -> None:
+    with_main = f"<body>{_CHROME}<main><p>Only this page says it.</p></main></body>"
+    pages = [_page("one"), _page("two"), _page("three"), with_main]
+    assert "Report an Incident" not in visible_blocks(with_main)
+    template = boilerplate_blocks([visible_blocks(html, whole_body=True) for html in pages])
+    assert "Report an Incident" in template
+
+
+def test_an_empty_comment_does_not_hide_the_rest_of_the_page() -> None:
+    for empty in ("<!--->", "<!-->", "<!---->"):
+        html = f"<body><div>{empty}</div><p>Text after it.</p><!-- real --><p>And more.</p></body>"
+        assert visible_text(html) == "Text after it. And more."
