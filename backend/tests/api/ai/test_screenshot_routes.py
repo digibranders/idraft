@@ -12,6 +12,9 @@ from idraft.providers.dataforseo.screenshot import SCREENSHOT_HEIGHT
 from tests.api.ai.screenshot_support import FakeCapture, ShotWorld, use_fakes
 from tests.api.auth.support import fetch
 from tests.api.entities.support import problem
+from tests.api.keywords.support import project_url
+from tests.api.workspaces.support import make_project
+from tests.collectors.support import make_budget
 from tests.conftest import PostgresServer
 
 
@@ -136,3 +139,41 @@ async def test_a_download_that_is_not_an_image_stores_nothing(
         recent_world.observation_id,
     )
     assert rows == []
+    # The provider answered, so it charged: the cost event is kept.
+    costs = await fetch(
+        migrated,
+        "SELECT cost_usd FROM ops.provider_cost_events "
+        "WHERE project_id = $1 AND endpoint = '/v3/serp/screenshot'",
+        recent_world.project.id,
+    )
+    assert [row["cost_usd"] for row in costs] == [Decimal("0.004000")]
+
+
+async def test_over_budget_answers_the_budget_problem_and_makes_no_provider_call(
+    api: httpx.AsyncClient,
+    recent_world: ShotWorld,
+    fake_capture: FakeCapture,
+    migrated: PostgresServer,
+) -> None:
+    await make_budget(
+        migrated, recent_world.project, "0.001", workload="ai_prompt", for_project=True
+    )
+    response = await api.post(recent_world.screenshot_url, headers=recent_world.writer.headers)
+    assert problem(response) == (422, "budget_exceeded")
+    assert fake_capture.provider_calls == 0
+
+
+async def test_an_answer_of_another_project_is_not_found_under_this_one(
+    api: httpx.AsyncClient,
+    recent_world: ShotWorld,
+    fake_capture: FakeCapture,
+    migrated: PostgresServer,
+) -> None:
+    world = recent_world
+    other = await make_project(migrated, world.workspace.id)
+    url = project_url(
+        world.workspace, other, "ai", "observations", world.observation_id, "screenshot"
+    )
+    assert problem(await api.post(url, headers=world.writer.headers)) == (404, "not_found")
+    assert problem(await api.get(url, headers=world.reader.headers)) == (404, "not_found")
+    assert fake_capture.provider_calls == 0

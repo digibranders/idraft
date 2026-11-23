@@ -52,8 +52,11 @@ class ScreenshotResponse(BaseModel):
     response_model=ScreenshotResponse,
     summary="Capture the screenshot of an AI answer",
     description="`runs:trigger`. One DataForSEO call ($0.004) the first time; later calls return "
-    "the stored image and cost nothing (`200` instead of `201`). `410 screenshot_expired` once "
-    "the answer is past the provider's 7 days, `409 screenshot_unsupported` for an engine with "
+    "the stored image and cost nothing (`200` instead of `201`). `422 budget_exceeded` when a "
+    "budget would be passed. `410 screenshot_expired` once the answer is past 6 days 20 hours "
+    "(the provider keeps a page 7 days from posting the task, which is earlier than the "
+    "answer's time) or the provider no longer holds its task, `409 screenshot_unsupported` for "
+    "an engine with "
     "no platform page, `502 screenshot_failed` when the provider or the image could not be "
     "used, `503 screenshots_unavailable` when this installation has no DataForSEO account or "
     "no object storage.",

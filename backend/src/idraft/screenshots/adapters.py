@@ -8,10 +8,13 @@ from typing import Final
 
 import httpx
 
+from idraft.domain.retries import ProviderErrorKind
+from idraft.providers.contract import ProviderCallError
 from idraft.providers.dataforseo.client import DataForSeoClient
 from idraft.providers.dataforseo.screenshot import (
     FAMILY,
     PATH,
+    ScreenshotTaskExpiredError,
     read_screenshot,
     screenshot_body,
 )
@@ -25,9 +28,14 @@ class DataForSeoScreenshots:
         self._client = client
 
     async def screenshot(self, task_id: str) -> tuple[str, Decimal]:
-        answered = await self._client.call(
-            "POST", PATH, family=FAMILY, body=screenshot_body(task_id)
-        )
+        try:
+            answered = await self._client.call(
+                "POST", PATH, family=FAMILY, body=screenshot_body(task_id)
+            )
+        except ProviderCallError as error:
+            if error.error.kind is ProviderErrorKind.NOT_FOUND_EXPIRED:
+                raise ScreenshotTaskExpiredError("the provider no longer holds the task") from None
+            raise
         link = read_screenshot(answered.content)
         return link.url, link.cost_usd
 

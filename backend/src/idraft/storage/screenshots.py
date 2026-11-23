@@ -8,6 +8,7 @@ again after DataForSEO's 7 days).
 
 from __future__ import annotations
 
+import asyncio
 from uuid import UUID
 
 from idraft.storage.raw import ObjectStore, compress, decompress
@@ -21,9 +22,10 @@ async def put_screenshot(
     store: ObjectStore, workspace_id: UUID, project_id: UUID, observation_id: int, png: bytes
 ) -> str:
     key = screenshot_key(workspace_id, project_id, observation_id)
-    await store.put(key, compress(png))
+    # Compressing megabytes takes a moment: off the event loop, as `RawStore.put` hashes.
+    await store.put(key, await asyncio.to_thread(compress, png))
     return key
 
 
 async def get_screenshot(store: ObjectStore, key: str) -> bytes:
-    return decompress(await store.get(key))
+    return await asyncio.to_thread(decompress, await store.get(key))

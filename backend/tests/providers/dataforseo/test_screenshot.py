@@ -15,6 +15,7 @@ from idraft.providers.dataforseo.screenshot import (
     PATH,
     SCREENSHOT_HEIGHT,
     ScreenshotLink,
+    ScreenshotTaskExpiredError,
     UnreadableScreenshotError,
     read_screenshot,
     screenshot_body,
@@ -93,3 +94,11 @@ def test_a_task_status_other_than_ok_is_unreadable() -> None:
     failed["tasks"][0]["status_message"] = "Invalid Field: 'task_id'."
     with pytest.raises(UnreadableScreenshotError, match="40501"):
         read_screenshot(json.dumps(failed).encode())
+
+
+def test_a_task_the_provider_no_longer_holds_is_told_apart() -> None:
+    gone = json.loads(json.dumps(ANSWER))
+    gone["tasks"][0]["status_code"] = 40403
+    gone["tasks"][0]["status_message"] = "Task not found."
+    with pytest.raises(ScreenshotTaskExpiredError):
+        read_screenshot(json.dumps(gone).encode())

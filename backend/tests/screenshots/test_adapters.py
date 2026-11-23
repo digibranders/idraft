@@ -9,6 +9,7 @@ import httpx
 import pytest
 
 from idraft.providers.dataforseo.client import DataForSeoClient
+from idraft.providers.dataforseo.screenshot import ScreenshotTaskExpiredError
 from idraft.screenshots.adapters import IMAGE_MAX, DataForSeoScreenshots, download_image
 from tests.providers.dataforseo.support import LOGIN, ORIGIN, PASSWORD, Api, FakeGate
 
@@ -61,6 +62,16 @@ async def test_the_provider_returns_the_link_and_the_cost(
     assert cost == Decimal("0.004")
     assert api.requests[0].url.path == "/v3/serp/screenshot"
     assert api.posted()[0]["task_id"] == "task-1"
+
+
+async def test_a_task_the_provider_does_not_hold_is_an_expired_task(
+    client_and_api: tuple[DataForSeoClient, Api],
+) -> None:
+    client, api = client_and_api
+    gone = {**ANSWER, "status_code": 40403, "status_message": "Task not found.", "tasks": []}
+    api.answer("POST", "/v3/serp/screenshot", gone)
+    with pytest.raises(ScreenshotTaskExpiredError):
+        await DataForSeoScreenshots(client).screenshot("old-task")
 
 
 async def test_the_download_returns_the_bytes() -> None:

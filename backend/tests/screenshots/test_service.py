@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -11,8 +13,13 @@ from uuid import UUID
 import pytest
 from PIL import Image, ImageDraw
 
-from idraft.providers.dataforseo.screenshot import SCREENSHOT_HEIGHT
+from idraft.providers.dataforseo.screenshot import (
+    PRICE_USD,
+    SCREENSHOT_HEIGHT,
+    ScreenshotTaskExpiredError,
+)
 from idraft.screenshots.service import (
+    BudgetBlockedError,
     CaptureOutcome,
     ExpiredError,
     ObservationRef,
@@ -20,6 +27,7 @@ from idraft.screenshots.service import (
     capture_screenshot,
     screenshot_state,
 )
+from idraft.screenshots.trim import Trimmed, trim_capture
 
 NOW = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)
 WORKSPACE = UUID("11111111-1111-1111-1111-111111111111")
@@ -68,17 +76,28 @@ class FakeStore:
 
 
 class FakeLedger:
-    def __init__(self, existing: dict[int, str] | None = None) -> None:
+    def __init__(
+        self, existing: dict[int, str] | None = None, *, over_budget: bool = False
+    ) -> None:
         self.rows: list[dict[str, object]] = []
         self.costs: list[dict[str, object]] = []
+        self.estimates: list[Decimal] = []
         self.existing = existing or {}
+        self.over_budget = over_budget
 
     async def existing_key(self, observation_id: int) -> str | None:
         return self.existing.get(observation_id)
 
-    async def record(self, row: dict[str, object], cost: dict[str, object]) -> None:
-        self.rows.append(row)
+    async def check_budget(self, estimate: Decimal) -> None:
+        self.estimates.append(estimate)
+        if self.over_budget:
+            raise BudgetBlockedError("budget-1")
+
+    async def record_cost(self, cost: dict[str, object]) -> None:
         self.costs.append(cost)
+
+    async def record_screenshot(self, row: dict[str, object]) -> None:
+        self.rows.append(row)
 
 
 def _ref(*, age_days: float = 1, engine: str = "chatgpt_web") -> ObservationRef:
@@ -161,7 +180,10 @@ async def test_an_engine_without_a_platform_page_is_refused_before_any_spend() -
         ("chatgpt_web", 1, True, "available"),
         ("chatgpt_web", 30, True, "available"),
         ("chatgpt_web", 1, False, "capturable"),
-        ("gemini_web", 7, False, "capturable"),
+        ("gemini_web", 6.5, False, "capturable"),
+        ("gemini_web", 6 + 19 / 24, False, "capturable"),
+        ("gemini_web", 6 + 21 / 24, False, "expired"),
+        ("gemini_web", 7, False, "expired"),
         ("google_ai_mode", 8, False, "expired"),
         ("claude_api", 1, False, "unsupported"),
     ],
@@ -171,3 +193,118 @@ def test_the_state_of_an_answers_screenshot(
 ) -> None:
     observed_at = NOW - timedelta(days=age_days)
     assert screenshot_state(engine, observed_at, stored=stored, now=NOW) == state
+
+
+async def test_an_answer_close_to_the_providers_limit_is_refused_with_a_margin() -> None:
+    # The provider counts its 7 days from posting the task, which is before `observed_at`.
+    provider = FakeProvider()
+    with pytest.raises(ExpiredError):
+        await capture_screenshot(
+            _ref(age_days=6 + 21 / 24),
+            provider=provider,
+            download=FakeDownloader(_page()),
+            store=FakeStore(),
+            ledger=FakeLedger(),
+            now=NOW,
+        )
+    assert provider.calls == 0
+
+
+async def test_a_task_the_provider_no_longer_holds_is_an_expired_answer() -> None:
+    class Gone:
+        async def screenshot(self, task_id: str) -> tuple[str, Decimal]:
+            raise ScreenshotTaskExpiredError("task not found")
+
+    ledger = FakeLedger()
+    with pytest.raises(ExpiredError):
+        await capture_screenshot(
+            _ref(),
+            provider=Gone(),
+            download=FakeDownloader(_page()),
+            store=FakeStore(),
+            ledger=ledger,
+            now=NOW,
+        )
+    assert ledger.costs == []
+
+
+async def test_a_download_that_fails_after_the_provider_answered_keeps_the_cost() -> None:
+    class Broken:
+        async def __call__(self, url: str) -> bytes:
+            raise ValueError("the link did not return an image")
+
+    ledger, store = FakeLedger(), FakeStore()
+    with pytest.raises(ValueError, match="image"):
+        await capture_screenshot(
+            _ref(), provider=FakeProvider(), download=Broken(), store=store, ledger=ledger, now=NOW
+        )
+    assert len(ledger.costs) == 1
+    assert ledger.costs[0]["cost_usd"] == Decimal("0.004")
+    assert ledger.rows == []
+    assert store.objects == {}
+
+
+async def test_an_unusable_capture_keeps_the_cost_and_stores_nothing() -> None:
+    ledger, store = FakeLedger(), FakeStore()
+    with pytest.raises(ValueError, match="image"):
+        await capture_screenshot(
+            _ref(),
+            provider=FakeProvider(),
+            download=FakeDownloader(b"not an image"),
+            store=store,
+            ledger=ledger,
+            now=NOW,
+        )
+    assert len(ledger.costs) == 1
+    assert ledger.rows == []
+
+
+async def test_over_budget_makes_no_provider_call() -> None:
+    provider, ledger = FakeProvider(), FakeLedger(over_budget=True)
+    with pytest.raises(BudgetBlockedError):
+        await capture_screenshot(
+            _ref(),
+            provider=provider,
+            download=FakeDownloader(_page()),
+            store=FakeStore(),
+            ledger=ledger,
+            now=NOW,
+        )
+    assert provider.calls == 0
+    assert ledger.estimates == [PRICE_USD]
+    assert ledger.costs == []
+
+
+async def test_a_stored_screenshot_needs_no_budget() -> None:
+    ledger = FakeLedger(existing={77: "screenshots/v1/x.png.zst"}, over_budget=True)
+    outcome = await capture_screenshot(
+        _ref(),
+        provider=FakeProvider(),
+        download=FakeDownloader(_page()),
+        store=FakeStore(),
+        ledger=ledger,
+        now=NOW,
+    )
+    assert outcome.created is False
+    assert ledger.estimates == []
+
+
+async def test_the_image_work_runs_off_the_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    loop_thread = threading.get_ident()
+    seen: dict[str, int] = {}
+
+    def watched(data: bytes, *, requested_height: int) -> Trimmed:
+        seen["trim"] = threading.get_ident()
+        return trim_capture(data, requested_height=requested_height)
+
+    monkeypatch.setattr("idraft.screenshots.service.trim_capture", watched)
+    await capture_screenshot(
+        _ref(),
+        provider=FakeProvider(),
+        download=FakeDownloader(_page()),
+        store=FakeStore(),
+        ledger=FakeLedger(),
+        now=NOW,
+    )
+    assert seen["trim"] != loop_thread
+    await asyncio.sleep(0)

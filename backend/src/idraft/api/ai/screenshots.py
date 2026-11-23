@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.ai import observation_repository as repository
+from idraft.api.internal_links.problems import BudgetExceededError
 from idraft.api.problems import (
     NoScreenshotError,
     NotFoundError,
@@ -25,10 +27,13 @@ from idraft.api.problems import (
     ScreenshotUnsupportedError,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
+from idraft.collectors import budget
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import ai_observation_screenshots, provider_cost_events
+from idraft.domain.workloads import CostWorkload
 from idraft.providers.contract import ProviderCallError
 from idraft.screenshots.service import (
+    BudgetBlockedError,
     CaptureOutcome,
     Download,
     ExpiredError,
@@ -53,7 +58,8 @@ def screenshot_path(workspace_id: UUID, project_id: UUID, observation_id: int) -
 
 
 class SqlLedger:
-    """The `Ledger` of one caller: the screenshot row and its cost event, in one transaction."""
+    """The `Ledger` of one caller. Each step has a transaction of its own: the cost event is
+    kept even when what follows the provider call fails."""
 
     def __init__(
         self, sessions: async_sessionmaker[AsyncSession], access: WorkspaceAccess, project_id: UUID
@@ -71,14 +77,30 @@ class SqlLedger:
         async with self._transaction() as db:
             return await stored_key(db, self._access.workspace_id, self._project_id, observation_id)
 
-    async def record(self, row: dict[str, object], cost: dict[str, object]) -> None:
+    async def check_budget(self, estimate: Decimal) -> None:
         async with self._transaction() as db:
-            # A second capture that raced this one has been paid for too: its cost stays, and
-            # the first screenshot row stays the one served.
+            verdict = await budget.check(
+                db,
+                workspace_id=self._access.workspace_id,
+                project_id=self._project_id,
+                workload=CostWorkload.AI_PROMPT,
+                now=datetime.now(UTC),
+                estimate=estimate,
+            )
+        if verdict.blocked_by is not None:
+            raise BudgetBlockedError(str(verdict.blocked_by))
+
+    async def record_cost(self, cost: dict[str, object]) -> None:
+        async with self._transaction() as db:
+            await db.execute(insert(provider_cost_events).values(**cost))
+
+    async def record_screenshot(self, row: dict[str, object]) -> None:
+        async with self._transaction() as db:
+            # A second capture that raced this one has been paid for too (its cost event is
+            # already recorded); the first screenshot row stays the one served.
             await db.execute(
                 insert(ai_observation_screenshots).values(**row).on_conflict_do_nothing()
             )
-            await db.execute(insert(provider_cost_events).values(**cost))
 
 
 async def stored_key(
@@ -157,9 +179,11 @@ class ScreenshotService:
                 now=datetime.now(UTC),
                 captured_by=access.user_id,
             )
+        except BudgetBlockedError as blocked:
+            raise BudgetExceededError(budget_id=blocked.budget_id) from None
         except ExpiredError:
             raise ScreenshotExpiredError(
-                "The answer is older than the provider's 7 days."
+                "The answer is too old: the provider keeps its page for 7 days."
             ) from None
         except UnsupportedEngineError:
             raise ScreenshotUnsupportedError(

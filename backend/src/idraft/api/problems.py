@@ -263,7 +263,8 @@ class RawUnavailableError(ProblemError):
 
 
 class ScreenshotExpiredError(ProblemError):
-    """The answer is past the provider's 7 days: its page can no longer be photographed."""
+    """The answer is past the provider's window, or it no longer holds the task: its page can no
+    longer be photographed."""
 
     status, code, title = 410, "screenshot_expired", "The screenshot can no longer be captured"
 

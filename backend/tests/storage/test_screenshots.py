@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 from uuid import UUID
 
+import pytest
+
+from idraft.storage.raw import compress as compress_bytes
+from idraft.storage.raw import decompress as decompress_bytes
 from idraft.storage.screenshots import get_screenshot, put_screenshot, screenshot_key
 
 WORKSPACE = UUID("11111111-1111-1111-1111-111111111111")
@@ -35,3 +40,24 @@ async def test_what_is_stored_comes_back_unchanged() -> None:
     assert key in store.objects
     assert store.objects[key] != png  # compressed
     assert await get_screenshot(store, key) == png
+
+
+async def test_compression_runs_off_the_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    loop_thread = threading.get_ident()
+    seen: list[int] = []
+
+    def compress(data: bytes) -> bytes:
+        seen.append(threading.get_ident())
+        return compress_bytes(data)
+
+    def decompress(data: bytes) -> bytes:
+        seen.append(threading.get_ident())
+        return decompress_bytes(data)
+
+    monkeypatch.setattr("idraft.storage.screenshots.compress", compress)
+    monkeypatch.setattr("idraft.storage.screenshots.decompress", decompress)
+    store = MemoryStore()
+    key = await put_screenshot(store, WORKSPACE, PROJECT, 1, b"\x89PNG" + b"x" * 100)
+    await get_screenshot(store, key)
+    assert len(seen) == 2
+    assert loop_thread not in seen

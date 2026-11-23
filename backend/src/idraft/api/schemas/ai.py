@@ -855,7 +855,7 @@ class LatestAnswer(BaseModel):
     )
     screenshot_state: ScreenshotState = Field(
         description="`available`: a stored image. `capturable`: none yet and the provider can "
-        "still make one (within 7 days of the answer). `expired`: none, and too late. "
+        "still make one (within 6 days 20 hours of the answer). `expired`: none, and too late. "
         "`unsupported`: the engine has no platform page."
     )
 
