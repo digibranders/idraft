@@ -12,7 +12,7 @@ import { cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
-import { drawnSeries } from '@/test/weekly-card-kit';
+import { drawnSeries, tooltipText } from '@/test/weekly-card-kit';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 vi.mock('@/components/app/chart/echart', async () => (await import('@/test/weekly-card-kit')).echartStandIn);
@@ -157,6 +157,85 @@ describe('the trend card', () => {
     await screen.findByRole('heading', { level: 2, name: 'Mention rate over time' });
     await user.click(screen.getByRole('radio', { name: 'Share of voice' }));
     expect(updates.at(-1)?.searchParams.get('metric')).toBe('sov');
+  });
+
+  describe('with the same period last year (cmp=year)', () => {
+    const LAST_YEAR_WEEKS = ['2025-10-20', '2025-10-27', '2025-11-03'];
+    /** Last year's window ends on 12 November 2025: the read of the same dates a year earlier. */
+    const LAST_YEAR_TO = '2025-11-12';
+
+    const lastYearPlatform = (code: string, rates: readonly number[]): EngineSummary =>
+      engine(code, {
+        mentioned: cell(4, 10),
+        series: LAST_YEAR_WEEKS.map((weekStart, index) => point(weekStart, rates[index] ?? 0, 10)),
+      });
+
+    function serveBoth(now: EngineSummary[], before: EngineSummary[]): void {
+      const summary = (engines: EngineSummary[]): PromptsSummary =>
+        summaryOf({ total: engines, prompts: [promptRow(1, engines)] });
+      server.use(
+        http.get(SUMMARY, ({ request }) =>
+          HttpResponse.json({
+            data: summary(new URL(request.url).searchParams.get('to') === LAST_YEAR_TO ? before : now),
+          }),
+        ),
+      );
+    }
+
+    it('draws last year as one dashed line under the current weeks, not before them, named in the legend and the footnote', async () => {
+      serveBoth(
+        [platform('chatgpt_web', [4, 5, 6]), platform('gemini_web', [2, 3, 4])],
+        [lastYearPlatform('chatgpt_web', [1, 2, 3]), lastYearPlatform('gemini_web', [3, 4, 5])],
+      );
+      renderCard('cmp=year&metric=mention');
+      const legend = await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+      // The Average of last year's last week: (30% + 50%) / 2
+      expect(
+        within(legend)
+          .getAllByRole('listitem')
+          .map((item) => item.textContent),
+      ).toContain('Same period last year 40%');
+      const drawn = drawnSeries().find((entry) => entry.id === 'last-year');
+      expect(drawn?.name).toBe('Same period last year');
+      expect(drawn?.data).toHaveLength(3);
+      // No week of last year is put before the current ones, and no line marks a boundary between the two
+      expect(drawnSeries().some((entry) => entry.markLine !== undefined)).toBe(false);
+      expect(screen.getByText('The dashed line is the same period last year, week for week.')).toBeInTheDocument();
+    });
+
+    it('says the week of last year in the tooltip and writes last year to the Table view', async () => {
+      serveBoth(
+        [platform('chatgpt_web', [4, 5, 6]), platform('gemini_web', [2, 3, 4])],
+        [lastYearPlatform('chatgpt_web', [1, 2, 3]), lastYearPlatform('gemini_web', [3, 4, 5])],
+      );
+      const { user } = renderCard('cmp=year&metric=mention');
+      await screen.findByRole('list', { name: /Series in Mention rate over time/ });
+      expect(tooltipText(0)).toContain('Same period last year|Week of Oct 20, 2025: Average of 2 platforms');
+      await user.click(screen.getByRole('button', { name: 'Table' }));
+      const table = await screen.findByRole('table', { name: 'Mention rate over time' });
+      expect(within(table).getByRole('columnheader', { name: 'Same period last year' })).toBeInTheDocument();
+    });
+
+    it('draws no last year line, and says nothing of it, when last year has no rate', async () => {
+      // Three weeks with no valid answer: gaps, which are never drawn as a rate of 0%
+      const silent = engine('chatgpt_web', { series: LAST_YEAR_WEEKS.map((weekStart) => point(weekStart, 0, 0)) });
+      serveBoth([platform('chatgpt_web', [4, 5, 6])], [silent]);
+      renderCard('cmp=year&metric=mention&engine=chatgpt_web');
+      await screen.findByRole('heading', { level: 2, name: 'Mention rate over time' });
+      await screen.findByTestId('echart-canvas');
+      expect(drawnSeries().some((entry) => entry.id === 'last-year')).toBe(false);
+      expect(
+        screen.queryByText('The dashed line is the same period last year, week for week.'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps the previous period before the current weeks, with its boundary line, when cmp is left out', async () => {
+      serveBoth([platform('chatgpt_web', [4, 5, 6])], [platform('chatgpt_web', [1, 2, 3])]);
+      renderCard('metric=mention&engine=chatgpt_web');
+      await screen.findByRole('heading', { level: 2, name: 'Mention rate over time' });
+      await screen.findByTestId('echart-canvas');
+      expect(drawnSeries().some((entry) => entry.id === 'last-year')).toBe(false);
+    });
   });
 
   it('puts the weeks in a table as an alternative to the chart', async () => {

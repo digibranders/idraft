@@ -310,7 +310,12 @@ function TrendCard({
     meta: t('trend.meta'),
     info: {
       what: t('trend.info.what'),
-      how: t('trend.info.how', { days: scope.range.days, weeks: weeks.length, compare: String(scope.compare) }),
+      // The weeks of the window before are drawn only for the previous period, never for the same dates a year earlier
+      how: t('trend.info.how', {
+        days: scope.range.days,
+        weeks: weeks.length,
+        compare: String(scope.compare && scope.compareKind === 'previous_period'),
+      }),
     },
     height: 180 as const,
     summary: t('trend.label', { name: competitor.name, count: weeks.length }),
