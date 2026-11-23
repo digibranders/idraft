@@ -618,6 +618,11 @@ class Worklists(BaseModel):
     weak_outlinks: int = Field(description="T1 pages that mostly link to weak targets.")
     broken_and_redirected: int = Field(description="Links of every scope.")
     links_to_non_indexable: int = Field(description="Links of every scope.")
+    may_be_incomplete: bool = Field(
+        description="True when pages refused the crawler: the links of those pages were not read, "
+        "so under_linked_t1, orphans, editorial_orphans, deep_only_through_auto and "
+        "weak_outlinks may count pages that are linked from a page we could not see."
+    )
 
 
 class WorklistsResponse(BaseModel):

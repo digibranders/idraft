@@ -22636,11 +22636,17 @@
             ],
             "title": "Key",
             "type": "string"
+          },
+          "may_be_incomplete": {
+            "description": "Some pages refused the crawler, so this count may be incomplete.",
+            "title": "May Be Incomplete",
+            "type": "boolean"
           }
         },
         "required": [
           "key",
-          "count"
+          "count",
+          "may_be_incomplete"
         ],
         "title": "SummaryWorklist",
         "type": "object"
@@ -26606,6 +26612,11 @@
             "title": "Lost Links Top",
             "type": "integer"
           },
+          "may_be_incomplete": {
+            "description": "True when pages refused the crawler: the links of those pages were not read, so under_linked_t1, orphans, editorial_orphans, deep_only_through_auto and weak_outlinks may count pages that are linked from a page we could not see.",
+            "title": "May Be Incomplete",
+            "type": "boolean"
+          },
           "orphans": {
             "title": "Orphans",
             "type": "integer"
@@ -26634,7 +26645,8 @@
           "lost_links_top",
           "weak_outlinks",
           "broken_and_redirected",
-          "links_to_non_indexable"
+          "links_to_non_indexable",
+          "may_be_incomplete"
         ],
         "title": "Worklists",
         "type": "object"

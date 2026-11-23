@@ -39,3 +39,12 @@ Targeted serial tests only; one builder at a time. `backend/openapi/v1.json` is 
 ## Not in this plan
 
 No change to the crawl order, the paid crawl, the release, or the production database by hand. Task 7 runs only the existing enrich step for finished runs and only with the owner's go.
+
+## Built, with notes (2026-11-23)
+
+- Tasks 1 to 7 are built; Task 8 (web) is il-web's. `pages_blocked` is a stored column on `seo.crawl_runs` (migration 0030, null for a crawl not counted), written when ingest finishes. Migration 0031 recounts finished crawls that have refusals (`idraft.db.blocked_recount`); it runs with the next release, no manual database work.
+- A status class `blocked` joins `2xx` to `5xx` (4xx no longer holds 401, 403, 429); the row flag `blocked` replaces `broken` for those pages; the `broken_and_redirected` worklist and the edges target filter follow.
+- `Worklists.may_be_incomplete` and `SummaryWorklist.may_be_incomplete` (true for under_linked_t1, orphans, editorial_orphans, deep_only_through_auto and weak_outlinks when the crawl has refusals). `ClientSummary.pages_blocked` and `CrawlRun.pages_blocked` carry the coverage; the web builds "read x of y" from `pages_crawled` and `pages_blocked`.
+- The crawl diff leaves out the links of a page that refused the crawler in either crawl, so a refusal is no lost or added link and raises no alert. Known gap: a page linked only from a refused page still shows a lower editorial link count in the page-level changes ("moved pages"); not changed.
+- Crawls whose links were dropped by retention keep the broken counters they had; flags and filters read the status code, so they are right either way.
+- Not done: Task 7's check on the Eventus production crawl (before and after numbers) waits for the release and the owner's go.

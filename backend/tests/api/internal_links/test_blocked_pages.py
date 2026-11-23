@@ -75,6 +75,7 @@ async def test_the_broken_worklist_and_target_filter_leave_refusals_out(
     assert {row["target"]["path"] for row in worklist.json()["data"]} == {"/gone", "/boom"}
     assert {row["target"]["path"] for row in walled.json()["data"]} == {"/walled", "/limited"}
     assert counts.json()["data"]["broken_and_redirected"] == 2
+    assert counts.json()["data"]["may_be_incomplete"] is True
 
 
 async def test_a_crawl_says_how_many_pages_refused_it(
