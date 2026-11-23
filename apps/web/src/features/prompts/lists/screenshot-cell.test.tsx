@@ -17,17 +17,20 @@ const latest = (screenshot_url: string | null, screenshot_state: LatestAnswer['s
   screenshot_url,
   screenshot_state,
 });
+const cell = (over: Partial<ScreenshotCellProps> & Pick<ScreenshotCellProps, 'latest'>) => (
+  <ScreenshotCell
+    platform={{ code: 'chatgpt_web', name: 'ChatGPT' }}
+    promptText="Best SOC providers in India"
+    timeZone="Asia/Kolkata"
+    project={PROJECT}
+    canCapture
+    {...over}
+  />
+);
 const show = (over: Partial<ScreenshotCellProps> & Pick<ScreenshotCellProps, 'latest'>) =>
-  renderWithProviders(
-    <ScreenshotCell
-      platform={{ code: 'chatgpt_web', name: 'ChatGPT' }}
-      promptText="Best SOC providers in India"
-      timeZone="Asia/Kolkata"
-      project={PROJECT}
-      canCapture
-      {...over}
-    />,
-  );
+  renderWithProviders(cell(over));
+const refused = (status: number, code: string) =>
+  http.post(`*${SHOT_PATH}`, () => HttpResponse.json({ code, status }, { status }));
 
 const created = (over: { truncated?: boolean } = {}) =>
   HttpResponse.json(
@@ -166,14 +169,121 @@ describe('ScreenshotCell', () => {
     expect(attempts).toBe(2);
   });
 
-  it('turns to Expired when the provider says the answer is too old, with no button left', async () => {
-    server.use(
-      http.post(`*${SHOT_PATH}`, () => HttpResponse.json({ code: 'screenshot_expired', status: 410 }, { status: 410 })),
-    );
+  it('turns to Expired when the provider says the answer is too old, and nothing can be pressed any more', async () => {
+    server.use(refused(410, 'screenshot_expired'));
     const { user } = show({ latest: latest(null, 'capturable') });
     await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
-    expect(await screen.findByText('Expired')).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    const expired = await screen.findByRole('button', { name: 'Expired' });
+    expect(expired).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('button', { name: /Get a screenshot|Try again/ })).not.toBeInTheDocument();
+  });
+
+  it('says the platform has no page on a 409, with no retry', async () => {
+    server.use(refused(409, 'screenshot_unsupported'));
+    const { user } = show({ latest: latest(null, 'capturable') });
+    await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+    expect(await screen.findByRole('button', { name: 'n/a' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('button', { name: /Try again/ })).not.toBeInTheDocument();
+  });
+
+  it('says the budget is reached on a 422, with its own message and no retry', async () => {
+    server.use(refused(422, 'budget_exceeded'));
+    const { user } = show({ latest: latest(null, 'capturable') });
+    await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+    expect(await screen.findByRole('button', { name: 'Budget reached' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('button', { name: /Try again/ })).not.toBeInTheDocument();
+    const words = await screen.findAllByText('A spending limit is reached, so no screenshot was taken.');
+    expect(words.some((node) => node.getAttribute('role') === 'alert')).toBe(true);
+  });
+
+  it('says screenshots are not available on a 503, with its own message and no retry', async () => {
+    server.use(refused(503, 'screenshots_unavailable'));
+    const { user } = show({ latest: latest(null, 'capturable') });
+    await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+    expect(await screen.findByRole('button', { name: 'Not available' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('button', { name: /Try again/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps Try again for any other failure', async () => {
+    server.use(refused(500, 'internal_error'));
+    const { user } = show({ latest: latest(null, 'capturable') });
+    await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+    expect(await screen.findByRole('button', { name: /Try again to get a screenshot/ })).toBeEnabled();
+  });
+
+  it('forgets what it took for an answer when the row has a newer one: the old image never sits under the new date', async () => {
+    server.use(
+      http.post(`*${SHOT_PATH}`, () => created()),
+      answerWith([]),
+    );
+    const { user, rerender } = show({ latest: latest(null, 'capturable') });
+    await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+    await screen.findByRole('dialog', { name: 'Answer screenshot' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    rerender(
+      cell({ latest: { ...latest(null, 'capturable'), observation_id: '78', observed_at: '2026-11-24T10:00:00Z' } }),
+    );
+    expect(screen.getByRole('button', { name: /Get a screenshot/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Open the latest/ })).not.toBeInTheDocument();
+  });
+
+  it('forgets a refusal for an answer when the row has a newer one', async () => {
+    server.use(refused(410, 'screenshot_expired'));
+    const { user, rerender } = show({ latest: latest(null, 'capturable') });
+    await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+    await screen.findByRole('button', { name: 'Expired' });
+    rerender(
+      cell({ latest: { ...latest(null, 'capturable'), observation_id: '78', observed_at: '2026-11-24T10:00:00Z' } }),
+    );
+    expect(screen.getByRole('button', { name: /Get a screenshot/ })).toBeEnabled();
+  });
+
+  describe('focus', () => {
+    it('stays on the same control when the capture succeeds, and returns to it when the dialog closes', async () => {
+      server.use(
+        http.post(`*${SHOT_PATH}`, () => created()),
+        answerWith([]),
+      );
+      const { user } = show({ latest: latest(null, 'capturable') });
+      const trigger = screen.getByRole('button', { name: /Get a screenshot/ });
+      await user.click(trigger);
+      await screen.findByRole('dialog', { name: 'Answer screenshot' });
+      expect(trigger.isConnected).toBe(true);
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(trigger).toHaveAccessibleName(/Open the latest ChatGPT answer screenshot/);
+    });
+
+    it('stays on a live control when a refusal replaces the button', async () => {
+      server.use(refused(410, 'screenshot_expired'));
+      const { user } = show({ latest: latest(null, 'capturable') });
+      await user.click(screen.getByRole('button', { name: /Get a screenshot/ }));
+      const expired = await screen.findByRole('button', { name: 'Expired' });
+      expect(expired).toHaveFocus();
+      expect(expired.isConnected).toBe(true);
+    });
+
+    it('stays on the control through a failure and the retry', async () => {
+      let attempts = 0;
+      server.use(
+        http.post(`*${SHOT_PATH}`, () => {
+          attempts += 1;
+          return attempts === 1 ? HttpResponse.json({ code: 'internal_error' }, { status: 500 }) : created();
+        }),
+        answerWith([]),
+      );
+      const { user } = show({ latest: latest(null, 'capturable') });
+      const trigger = screen.getByRole('button', { name: /Get a screenshot/ });
+      await user.click(trigger);
+      await screen.findByRole('button', { name: /Try again to get a screenshot/ });
+      expect(trigger.isConnected).toBe(true);
+      expect(trigger).toHaveFocus();
+      await user.click(trigger);
+      await screen.findByRole('dialog', { name: 'Answer screenshot' });
+      expect(trigger.isConnected).toBe(true);
+    });
   });
 
   it('says Expired for an answer past the provider window, with no button to press', () => {
