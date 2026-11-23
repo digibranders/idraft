@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import io
+import struct
+import zlib
 
 import pytest
 from PIL import Image, ImageDraw
 
-from idraft.screenshots.trim import CaptureError, Trimmed, trim_capture
+from idraft.screenshots.trim import MAX_WIDTH, CaptureError, Trimmed, trim_capture
 
 WIDTH = 400
 BACKGROUND = (250, 250, 250)
@@ -78,3 +80,43 @@ def test_a_capture_with_no_content_is_an_error() -> None:
 def test_bytes_that_are_not_an_image_are_an_error() -> None:
     with pytest.raises(CaptureError, match="image"):
         trim_capture(b"not a png", requested_height=500)
+
+
+def _header_only_png(width: int, height: int) -> bytes:
+    """A PNG whose header claims `width` by `height` and holds no pixels: what a decompression
+    bomb is."""
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+        )
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(b""))
+        + chunk(b"IEND", b"")
+    )
+
+
+@pytest.mark.parametrize(("width", "height"), [(4001, 100), (1920, 10_001)])
+def test_a_capture_larger_than_any_real_one_is_refused_before_it_is_decoded(
+    width: int, height: int
+) -> None:
+    # The header alone says too large: the pixels are never read (this file holds none).
+    with pytest.raises(CaptureError, match="large"):
+        trim_capture(_header_only_png(width, height), requested_height=9999)
+
+
+def test_a_real_capture_at_the_limits_is_accepted() -> None:
+    image = Image.new("RGB", (MAX_WIDTH, 100), BACKGROUND)
+    out = io.BytesIO()
+    image.save(out, format="PNG")
+    with pytest.raises(CaptureError, match="blank"):
+        trim_capture(out.getvalue(), requested_height=100)
+
+
+def test_an_image_header_that_claims_a_bomb_is_a_capture_error_not_a_crash() -> None:
+    with pytest.raises(CaptureError):
+        trim_capture(_header_only_png(70_000, 70_000), requested_height=9999)
