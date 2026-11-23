@@ -36,14 +36,6 @@ const fade = (token, from, to, horizontal = false) =>
 /** The soft shadow under a mark that gives it depth. */
 const glow = (token, strength = 1) => ({ shadowColor: charts.token(token, 0.4), shadowBlur: 12 * strength, shadowOffsetY: 5 * strength });
 
-/** A token color mixed with black (amount below 0) or white (above 0), as an rgb string, for the faces of a column. */
-function shade(token, amount) {
-  const [r, g, b] = charts.token(token).match(/[\d.]+/g).slice(0, 3).map(Number);
-  const target = amount < 0 ? 0 : 255;
-  const mix = (channel) => Math.round(channel + (target - channel) * Math.abs(amount));
-  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
-}
-
 /** The popover of the shared tooltip anatomy, for charts whose tooltip names one mark instead of an axis position. */
 function itemTooltip(rowOf) {
   return {
@@ -282,64 +274,8 @@ export function stackedColumnsOption({ rows, segments }) {
   };
 }
 
-/** The three faces of a column (side, front, top) as polygons for a custom series; the side is darker and the top lighter than the front. */
-function cuboid({ left, right, top, base, depth, token, clickable = false }) {
-  // Under the pointer a face brightens; a column that opens something keeps the hand
-  const face = (points, fill, lit) => ({ type: 'polygon', shape: { points }, style: { fill }, emphasis: { style: { fill: lit } }, ...(clickable ? { cursor: 'pointer' } : {}) });
-  return [
-    face([[right, top], [right + depth, top - depth], [right + depth, base - depth], [right, base]], shade(token, -0.28), shade(token, -0.12)),
-    face([[left, top], [right, top], [right, base], [left, base]], fade(token, 1, 0.78), fade(token, 1, 1)),
-    face([[left, top], [left + depth, top - depth], [right + depth, top - depth], [right, top]], shade(token, 0.34), shade(token, 0.5)),
-  ];
-}
-
 /** The line that follows the pointer over a time chart: 2 px, bright at the top and fading out toward the axis. */
 const pointerFade = (token = 'chart-1') => ({ type: 'line', z: 0, lineStyle: { width: 2, type: 'solid', color: fade(token, 0.7, 0) } });
-
-/**
- * Columns with a front, a side and a top face (a pseudo 3D look drawn in 2D, so values stay readable). `items`:
- * `{ name, value, token, label? }`; values are ratios. The value is written above each column.
- */
-export function columns3dOption({ items }) {
-  const axes = charts.axisTheme();
-  const font = charts.fontFamily();
-  const wrapName = (name) => (name.length > 11 && name.includes(' ') ? name.replace(' ', '\n') : name);
-  const top = Math.max(...items.map((item) => item.value ?? 0), 0.25);
-  return {
-    ...motion(),
-    grid: { left: 44, right: 24, top: 38, bottom: 46, outerBoundsMode: 'none' },
-    xAxis: { type: 'category', data: items.map((item) => wrapName(item.name)), ...axes.x, axisLabel: { ...axes.x.axisLabel, hideOverlap: false, interval: 0, lineHeight: 15 } },
-    yAxis: { type: 'value', min: 0, max: Math.min(1, Math.ceil(top * 4) / 4), ...axes.y, axisLabel: { ...axes.y.axisLabel, formatter: pctAxis } },
-    tooltip: itemTooltip((param) => {
-      const item = items[param.dataIndex];
-      return { title: item.name, color: charts.token(item.token), name: 'Share of voice', value: item.label ?? pct0(item.value ?? 0), detail: item.detail };
-    }),
-    series: [
-      {
-        type: 'custom',
-        data: items.map((item, index) => [index, item.value ?? 0]),
-        encode: { x: 0, y: 1 },
-        renderItem: (params, api) => {
-          const item = items[params.dataIndex];
-          const [x, y] = api.coord([api.value(0), api.value(1)]);
-          const [, base] = api.coord([api.value(0), 0]);
-          const columnWidth = Math.min(api.size([1, 0])[0] * 0.5, 64);
-          const depth = Math.min(columnWidth * 0.4, 16);
-          const left = x - columnWidth / 2;
-          const right = x + columnWidth / 2;
-          const peak = Math.min(y, base - 3);
-          return {
-            type: 'group',
-            children: [
-              ...cuboid({ left, right, top: peak, base, depth, token: item.token, clickable: !item.strong }),
-              { type: 'text', silent: true, style: { x: x + depth / 2, y: peak - depth - 8, text: item.label ?? pct0(item.value ?? 0), textAlign: 'center', textVerticalAlign: 'bottom', fill: charts.token(item.strong ? 'foreground' : 'chart-label'), font: `${item.strong ? 600 : 400} 12px ${font}` } },
-            ],
-          };
-        },
-      },
-    ],
-  };
-}
 
 // -------------------------------------------------------------------------------------------------
 // A treemap with rounded, shaded tiles

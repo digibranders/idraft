@@ -1637,6 +1637,9 @@
   .bg-chart-bar-neutral {
     background-color: var(--chart-bar-neutral);
   }
+  .bg-chart-other {
+    background-color: var(--chart-other);
+  }
   .bg-foreground {
     background-color: var(--foreground);
   }
@@ -3679,6 +3682,24 @@ table thead th:not(.text-center, .text-right) {
 table thead th[data-keep-case], table thead th [data-keep-case] {
   text-transform: none;
   letter-spacing: normal;
+}
+.bar-cylinder {
+  height: 14px;
+  border-radius: 9999px;
+  background: linear-gradient( to bottom, var(--bar-color) 0%, var(--bar-color) 45%, var(--bar-color) 100% );
+  @supports (color: color-mix(in lab, red, red)) {
+    background: linear-gradient( to bottom, color-mix(in oklch, var(--bar-color) 55%, white) 0%, var(--bar-color) 45%, color-mix(in oklch, var(--bar-color) 70%, black) 100% );
+  }
+  box-shadow: 0 3px 6px var(--bar-color);
+  @supports (color: color-mix(in lab, red, red)) {
+    box-shadow: 0 3px 6px color-mix(in oklch, var(--bar-color) 35%, transparent);
+  }
+  transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-cylinder {
+    transition: none;
+  }
 }
 @property --tw-border-spacing-x {
   syntax: "<length>";

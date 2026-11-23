@@ -8,7 +8,7 @@
 import { formatInteger } from './vendor/format/number.js';
 import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovWeeks } from './aiov-data.js';
 import { chartHost, MARKER_PATHS, MARKER_SHAPES, mountChart } from './aiov-charts.js';
-import { chartWithTable, columns3dOption, ghostTrend, plain, richLineOption, richShareAreaOption, ringsOption, ringTable } from './aiov-rich.js';
+import { ghostTrend, plain, richLineOption, richShareAreaOption, ringsOption, ringTable } from './aiov-rich.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
 import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, valueText } from './aiov-parts.js';
@@ -363,30 +363,16 @@ function entityLabel(entity) {
 export function sovCard(ctx) {
   const entities = entitiesFor(ctx.model);
   if (entities[0].sov === null) return cardFrame({ key: 'ai.share_of_voice', title: 'Share of voice', body: emptyBody('No rate yet', 'Too few answers on this platform.') });
+  // Every tracked brand ranked, you in `chart-1` and the others in their own color (`chart-other` past the palette), as cylinders
   const rows = [...entities]
     .sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0))
-    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', note: ctx.scope.platform === 'all' ? undefined : `${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)}`, tip: ctx.scope.platform === 'all' ? `${entity.name}: ${pct0(entity.sov)}, average of ${entity.platforms} platforms, each counting once. Brand mentions: ${entity.platformCounts.map((entry) => `${engineName(entry.code)} ${formatInteger(entry.k)} of ${formatInteger(entry.n)}`).join(' and ')}` : `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
+    .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.token, note: ctx.scope.platform === 'all' ? undefined : `${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)}`, tip: ctx.scope.platform === 'all' ? `${entity.name}: ${pct0(entity.sov)}, average of ${entity.platforms} platforms, each counting once. Brand mentions: ${entity.platformCounts.map((entry) => `${engineName(entry.code)} ${formatInteger(entry.k)} of ${formatInteger(entry.n)}`).join(' and ')}` : `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
   const total = entities[0].answersOfTracked;
-  const ranked = [...entities].sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0));
-  const items = ranked.map((entity, index) => ({ name: entityLabel(entity), value: entity.sov, token: entity.token, strong: entity.own, label: entity.sov === null ? 'n/a' : pct0(entity.sov), detail: rows[index].tip }));
-  // The columns are the picture; the Table view is the list of competitor buttons, which also opens the drawer from the keyboard
-  const { body, toggle } = chartWithTable({
-    drawChart: (node) => {
-      const host = chartHost(252, `Share of voice: ${items.map((item) => `${item.name} ${item.label}`).join(', ')}`);
-      node.append(host);
-      return mountChart(host, () => columns3dOption({ items }), {
-        redrawOnResize: true,
-        onChart: (chart) => chart.on('click', (param) => { if (!ranked[param.dataIndex].own) ctx.openCompetitor?.(ranked[param.dataIndex].name.toLowerCase(), host); }),
-      });
-    },
-    drawTable: (node) => node.append(barList(rows)),
-  });
   return cardFrame({
     key: 'ai.share_of_voice',
     title: 'Share of voice',
     meta: ctx.scope.platform === 'all' ? `average of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
-    tools: [toggle],
-    body,
+    body: barList(rows, { cylinder: true, always: true }),
   });
 }
 
@@ -418,7 +404,14 @@ export function sovOverTimeCard(ctx) {
   const all = ctx.scope.platform === 'all';
   // The tooltip and the Table view say each brand's x of y brand mentions beside its share, the same words
   const textOf = (week, index) => sovWeekText(week, index, week.shares[index], all);
-  const layers = entities.map((entity, index) => ({ name: entityLabel(entity), token: entity.token, values: weeks.map((week) => week.shares[index]), alpha: entity.own ? 0.95 : 0.55, notes: weeks.map((week) => textOf(week, index)) }));
+  // At most six layers (15-data-visualization.md section 4.1): you and the next five brands, and the rest together as Other
+  const MAX_LAYERS = 6;
+  const layers = entities.slice(0, MAX_LAYERS).map((entity, index) => ({ name: entityLabel(entity), token: entity.token, values: weeks.map((week) => week.shares[index]), alpha: entity.own ? 0.95 : 0.55, notes: weeks.map((week) => textOf(week, index)) }));
+  if (entities.length > MAX_LAYERS) {
+    const rest = entities.slice(MAX_LAYERS).map((_, at) => at + MAX_LAYERS);
+    const other = weeks.map((week) => (rest.every((index) => week.shares[index] === null) ? null : rest.reduce((sum, index) => sum + (week.shares[index] ?? 0), 0)));
+    layers.push({ name: `Other (${rest.length} brands)`, token: 'chart-other', values: other, alpha: 0.4, notes: other.map((value) => ({ text: value === null ? 'n/a' : `${(value * 100).toFixed(1)}%`, detail: null })) });
+  }
   const state = { view: 'chart' };
   const body = el('div', 'flex flex-col');
   let dispose = null;
@@ -446,11 +439,11 @@ export function sovOverTimeCard(ctx) {
     const host = chartHost(240, `Share of voice of ${entities.map((entity) => entity.name).join(', ')} over the last 8 weekly runs`);
     dispose = mountChart(host, () => richShareAreaOption({ labels: WEEK_LABELS, layers }));
     const legend = el('div', 'mt-3 flex flex-wrap gap-x-4 gap-y-1');
-    entities.forEach((entity) => {
+    layers.forEach((layer) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta');
       const dot = el('span', 'size-2 rounded-full');
-      dot.style.background = `var(--${entity.token})`;
-      item.append(dot, entity.name);
+      dot.style.background = `var(--${layer.token})`;
+      item.append(dot, layer.name);
       legend.append(item);
     });
     body.append(host, legend);

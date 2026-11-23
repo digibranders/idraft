@@ -273,7 +273,7 @@ export function sparkline(points, { token = 'chart-1', height = 28, label } = {}
 // -------------------------------------------------------------------------------------------------
 // Bar list: one row per entity, the value as a bar
 
-export function barList(rows, { max, valueText: text = pct0, always = false } = {}) {
+export function barList(rows, { max, valueText: text = pct0, always = false, cylinder = false } = {}) {
   const top = max ?? Math.max(...rows.map((row) => row.value ?? 0), 0.0001);
   const table = el('table', 'w-full');
   const body = el('tbody');
@@ -299,10 +299,14 @@ export function barList(rows, { max, valueText: text = pct0, always = false } = 
     if (row.badge) name.append(row.badge);
     label.append(name);
     const barCell = el('td', `w-full pr-2 ${always ? '' : 'hidden @sm:table-cell'}`);
-    const bar = el('div', 'h-5 rounded-2xs');
+    // A cylinder lying down: lit along its top edge, shaded underneath, rounded at both ends, in the brand's color
+    const bar = el('div', cylinder ? 'bar-cylinder' : 'h-5 rounded-2xs');
     bar.setAttribute('aria-hidden', 'true');
     bar.style.width = `${Math.max(1, Math.round(((row.value ?? 0) / top) * 100))}%`;
-    bar.style.background = row.value === null ? 'transparent' : `var(--${row.barToken ?? (row.strong ? 'chart-1' : 'chart-bar-neutral')})`;
+    const color = `var(--${row.barToken ?? (row.strong ? 'chart-1' : 'chart-bar-neutral')})`;
+    if (row.value === null) bar.style.background = 'transparent';
+    else if (cylinder) bar.style.setProperty('--bar-color', color);
+    else bar.style.background = color;
     barCell.append(bar);
     const value = el('td', 'w-24 text-right type-label num whitespace-nowrap');
     value.append(row.value === null ? el('span', 'text-foreground-tertiary', 'n/a') : el('span', '', text(row.value)));
