@@ -100,6 +100,41 @@ def test_an_error_page_keeps_what_it_gets_and_passes_nothing() -> None:
     assert sum(equity.shares.values()) == pytest.approx(1.0)
 
 
+def test_a_page_that_refused_the_crawler_loses_nothing() -> None:
+    graph = [_link(1, 2), _link(1, 3), _link(2, 1), _link(3, 1)]
+    refused = pagerank(_nodes((1, 200), (2, 200), (3, 403)), graph)
+    dead = pagerank(_nodes((1, 200), (2, 200), (3, 404)), graph)
+
+    assert refused.lost_to_errors == 0.0
+    assert dead.lost_to_errors > 0.0
+    assert sum(refused.shares.values()) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    ("status", "blocked", "error"),
+    [
+        (None, False, False),
+        (200, False, False),
+        (301, False, False),
+        (399, False, False),
+        (400, False, True),
+        (401, True, False),
+        (403, True, False),
+        (404, False, True),
+        (410, False, True),
+        (429, True, False),
+        (500, False, True),
+        (503, False, True),
+    ],
+)
+def test_a_refusal_is_blocked_and_every_other_status_from_400_is_an_error(
+    status: int | None, blocked: bool, error: bool
+) -> None:
+    node = Node(1, status)
+
+    assert (node.is_blocked, node.is_error) == (blocked, error)
+
+
 def test_a_page_with_no_links_out_spreads_its_value() -> None:
     equity = pagerank(_nodes((1, 200), (2, 200)), [_link(1, 2)])
 
