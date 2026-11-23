@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSourcePages } from './source-reads';
 import { OverviewProvider } from '../../../overview-context';
-import { pagePage, pageRow } from '../model/page-fixtures';
+import { pagePage, pageRow } from '../model/page.test-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';

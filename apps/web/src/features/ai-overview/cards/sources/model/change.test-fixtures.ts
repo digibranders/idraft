@@ -1,4 +1,4 @@
-import { PREVIOUS_WINDOW, WINDOW } from './source-fixtures';
+import { PREVIOUS_WINDOW, WINDOW } from './source.test-fixtures';
 import type {
   DomainRole,
   EngineCode,

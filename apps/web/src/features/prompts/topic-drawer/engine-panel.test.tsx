@@ -2,7 +2,13 @@ import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EnginePanel } from './engine-panel';
-import { cell, engine, topicRow, weighted, type EngineCells } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import {
+  cell,
+  engine,
+  topicRow,
+  weighted,
+  type EngineCells,
+} from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineSummary } from '@/lib/api/types';
 import { DRAWER_TOPIC_ID, READY_COUNTS, renderDrawerPart, summaryOf } from '@/test/topic-drawer-harness';
 

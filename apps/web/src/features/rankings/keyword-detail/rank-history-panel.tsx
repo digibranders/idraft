@@ -10,7 +10,7 @@ import { detailStateOf, type DetailKind } from './detail-state';
 import { MAX_CHART_COMPETITORS, useDetailUrlState, type ChartLayer } from './detail-url-state';
 import { daysBetween } from './detail-window';
 import { RankHistoryControls, WindowSelect, type CompetitorChoice } from './rank-history-controls';
-import { projectEntitiesQuery, type KeywordDetail, type KeywordScope } from '../keyword-inspector/inspector-queries';
+import type { KeywordDetail, KeywordScope } from '../keyword-inspector/inspector-queries';
 import { SectionError } from '../keyword-inspector/section-error';
 import { isHiddenDeepCheck } from '../rank-history/rank-history-model';
 import { rankStats } from '../rank-history/rank-stats';
@@ -19,6 +19,7 @@ import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { formatDecimal, formatInteger } from '@/lib/format';
 import { WEEKDAYS } from '@/lib/projects/fields';
 

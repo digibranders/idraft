@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useCompetitorsReads, type CompetitorsReadsInput } from './use-competitors-reads';
-import { competitorsBody, HUBSPOT_ID, OWN_ID, ZOHO_ID } from '../model/competitors-fixtures';
+import { competitorsBody, HUBSPOT_ID, OWN_ID, ZOHO_ID } from '../model/competitors.test-fixtures';
 import { parseScope } from '../scope/scope-model';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { mswPath } from '@/mocks/respond';

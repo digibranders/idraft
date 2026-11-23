@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineCells, promptRow, type Counts } from './engines-fixtures';
+import { engineCells, promptRow, type Counts } from './engines.test-fixtures';
 import { pairPrompts } from './prompt-pairs';
 import {
   buildWaterfall,

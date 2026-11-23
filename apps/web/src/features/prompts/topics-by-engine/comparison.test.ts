@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cell, engine, weighted } from './cells-fixtures';
+import { cell, engine, weighted } from './cells.test-fixtures';
 import { compareEngines } from './comparison';
 import { engineValue, type EngineValue } from './engine-values';
 import type { MetricCell } from '@/lib/api/types';

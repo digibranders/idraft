@@ -12,7 +12,7 @@ import { InspectorStrip } from '../inspector-strip';
 import { PromptsStrip } from '../prompts-strip';
 import { useRateColumns } from '../rate-columns';
 import { TopicInspector } from '../topic-inspector';
-import { promptRow, topicRow } from '../topics-by-engine/cells-fixtures';
+import { promptRow, topicRow } from '../topics-by-engine/cells.test-fixtures';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import type { StripPrompt } from '@/lib/rates/strip-model';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';

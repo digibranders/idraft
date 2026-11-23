@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { day, quiet, twoWeeks } from './daily-fixtures';
+import { day, quiet, twoWeeks } from './daily.test-fixtures';
 import { dayCounts, engineDays, engineTabs, isRunDay, STATUSES } from './status-model';
 
 describe('the status model of a collection day', () => {

@@ -11,6 +11,7 @@ import {
   type OverviewEngines,
   type OverviewReadInput,
   type OverviewSourcesMeta,
+  type SummaryReadOptions,
 } from '../../data/use-overview-reads';
 import { useOverview, type OverviewProject } from '../../overview-context';
 import type { OverviewScope } from '../../scope/scope-model';
@@ -28,7 +29,7 @@ export interface CardDataOptions {
   /** Read the citation units by role, which the own citation share of each engine is made from. */
   sources?: boolean;
   /** The card shows share of voice: also read the brand mention counts it is made from (`SummaryReadOptions.counts`). */
-  counts?: boolean;
+  counts?: SummaryReadOptions['counts'];
   /**
    * The card passes the `live` of its `CardProps`. While `false` (customize mode) no read of the card asks anything:
    * it shows what it already has for the scope, and a card with nothing yet stays `loading`, as it is not "no engine".

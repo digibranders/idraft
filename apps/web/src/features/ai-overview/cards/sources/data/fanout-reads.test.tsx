@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MIN_QUERY_ANSWERS, useFanoutRows } from './fanout-reads';
 import { OverviewProvider, useOverviewFanout } from '../../../overview-context';
-import { fanoutPage, fanoutRow } from '../model/fanout-fixtures';
+import { fanoutPage, fanoutRow } from '../model/fanout.test-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';

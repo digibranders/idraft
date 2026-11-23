@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { promptRow, term, topicRow } from './cells-fixtures';
+import { promptRow, term, topicRow } from './cells.test-fixtures';
 import { topicHeads, type TopicHeadsArgs } from './topic-rows';
 import { topicDescendants, topicsBelow } from '@/features/prompts/prompt-model';
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { TopicNode } from './model-types';
 import { moversModel, type MoverRow } from './movers-model';
 import { NO_TOPIC } from './topic-nodes';
-import { engine, promptRow, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, promptRow, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptSummaryRow } from '@/lib/api/types';
 
 const CODE = 'chatgpt_web';

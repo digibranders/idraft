@@ -12,7 +12,7 @@ import { useCardExport } from './use-card-seams';
 import { useFrameState } from './use-frame-state';
 import { WEEKLY_SHARE_READ } from '../../data/overview-queries';
 import { useOverview } from '../../overview-context';
-import { SCOPE_METRICS, singlePlatform, type ScopeMetric } from '../../scope/scope-model';
+import { compareWord, SCOPE_METRICS, singlePlatform, type ScopeMetric } from '../../scope/scope-model';
 import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { ChartFrame, type ChartEmpty } from '@/components/app/chart/chart-frame';
 import { useRateTipWords } from '@/components/app/chart/use-rate-tip-words';
@@ -20,6 +20,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import type { CardProps } from '@/features/layouts';
 import type { EngineCode } from '@/lib/api/types';
 import type { CategorySeries, CategoryValue } from '@/lib/charts/category-chart';
+import type { CsvCell } from '@/lib/csv/csv-write';
 import { rateBandOption, type RateBandPoint } from '@/lib/charts/rate-band-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { formatBusinessDate, formatChartDate, formatDateRange, formatList, formatPercent } from '@/lib/format';
@@ -34,14 +35,32 @@ const KEY = {
 } as const satisfies Record<ScopeMetric, string>;
 
 const AVERAGE_ID = 'average';
+/** The dashed line of the same period last year, week for week under the current weeks. */
+const LAST_YEAR_ID = 'last-year';
 /** The axis fits the data in steps of 5 points, with 3 points of room (OV-TREND-04). */
 const STEP = 0.05;
 const ROOM = 0.03;
 
 type Translate = ReturnType<typeof useTranslations<'aiOverview.engines.platformTrend'>>;
 
-/** The lines of the chart as `ChartFrame` series: one for each platform and the dashed Average. */
-function seriesOf(trend: PlatformTrend, label: (code: EngineCode) => string, average: string): CategorySeries[] {
+/**
+ * The points of the one line of last year: for All platforms the Average of the platforms that had a rate, for one
+ * platform its own points. `null` when last year is not drawn.
+ */
+function lastYearValues(trend: PlatformTrend): (number | null)[] | null {
+  const last = trend.lastYear;
+  if (last === null) return null;
+  return last.average?.map((point) => point.value) ?? last.platforms[0]?.points.map((point) => point.value) ?? null;
+}
+
+/** The lines of the chart as `ChartFrame` series: one for each platform, the dashed Average and the dashed last year. */
+function seriesOf(
+  trend: PlatformTrend,
+  label: (code: EngineCode) => string,
+  average: string,
+  lastYear: string,
+): CategorySeries[] {
+  const last = lastYearValues(trend);
   return [
     ...trend.platforms.map((entry): CategorySeries => ({
       id: entry.code,
@@ -59,6 +78,9 @@ function seriesOf(trend: PlatformTrend, label: (code: EngineCode) => string, ave
             values: trend.average.map((point) => point.value),
           },
         ]),
+    ...(last === null
+      ? []
+      : [{ id: LAST_YEAR_ID, name: lastYear, role: { kind: 'reference' } as const, values: last }]),
   ];
 }
 
@@ -113,7 +135,39 @@ function pointsOf(
             ),
           ],
         ];
-  return Object.fromEntries([...platforms, ...average]);
+  const last = lastYearTips(trend, words, metric, t, label);
+  const lastYear: [string, (RateBandPoint | null)[]][] = last === null ? [] : [[LAST_YEAR_ID, last]];
+  return Object.fromEntries([...platforms, ...average, ...lastYear]);
+}
+
+/** The tooltip words of the last year line: each point says the week of last year it is of, then its own counts. */
+function lastYearTips(
+  trend: PlatformTrend,
+  words: TrendWords,
+  metric: WeekMetric,
+  t: Translate,
+  label: (code: EngineCode) => string,
+): (RateBandPoint | null)[] | null {
+  const last = trend.lastYear;
+  if (last === null) return null;
+  const said = (index: number, tip: string): string => {
+    const weekStart = last.weekStarts[index];
+    return weekStart == null ? tip : t('lastYearTip', { date: formatBusinessDate(weekStart), tip });
+  };
+  if (last.average !== null) {
+    return last.average.map((point, index) =>
+      point.value === null
+        ? null
+        : { value: point.value, band: null, thin: false, tip: said(index, averageTip(point, metric, t, label)) },
+    );
+  }
+  return (
+    last.platforms[0]?.points.map((point, index) =>
+      point.n === 0
+        ? null
+        : { value: point.value, band: null, thin: point.thin, tip: said(index, tipOf(point, metric, words)) },
+    ) ?? null
+  );
 }
 
 /** The axis from the lowest to the highest value (and band) on 5 point steps, never outside 0 to 100%. */
@@ -130,6 +184,7 @@ function axisOf(trend: PlatformTrend, banded: boolean): { min: number; max: numb
       ]),
     ),
     ...(trend.average ?? []).map((point) => point.value),
+    ...(lastYearValues(trend) ?? []),
   ].filter((value): value is number => typeof value === 'number');
   if (values.length === 0) return { min: 0, max: 1 };
   return {
@@ -175,8 +230,10 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   );
 
   const currentData = data.current.data;
-  // The weeks of last year are not drawn before this year's: one line would join two seasons a year apart as if adjacent
-  const previousData = scope.compareKind === 'previous_year' ? null : (data.previous?.data ?? null);
+  // The weeks of last year are not put before this year's (one line would join two seasons a year apart as if adjacent):
+  // they are drawn under the current weeks, week for week, as one dashed line
+  const previousData = data.previous?.data ?? null;
+  const lastYear = scope.compareKind === 'previous_year';
   const trend = useMemo(
     () =>
       currentData === undefined || data.asked.length === 0
@@ -184,15 +241,19 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         : buildPlatformTrend({
             current: currentData,
             previous: previousData,
+            lastYear,
             codes: data.asked,
             metric: weekMetric,
             range: scope.range,
             previousRange: scope.previous,
             average: !single,
           }),
-    [currentData, previousData, data.asked, weekMetric, scope.range, scope.previous, single],
+    [currentData, previousData, lastYear, data.asked, weekMetric, scope.range, scope.previous, single],
   );
-  const series = useMemo(() => (trend === null ? [] : seriesOf(trend, label, t('average'))), [trend, label, t]);
+  const series = useMemo(
+    () => (trend === null ? [] : seriesOf(trend, label, t('average'), t('lastYear'))),
+    [trend, label, t],
+  );
   const points = useMemo(
     () => (trend === null ? {} : pointsOf(trend, words, weekMetric, t, label, single)),
     [trend, words, weekMetric, t, label, single],
@@ -267,7 +328,15 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
   const extendOption = useCallback(
     (base: Record<string, unknown>, tokens: ChartTokens): Record<string, unknown> => {
       const axis = axisOf(
-        trend ?? { metric: weekMetric, weeks: [], boundary: null, platforms: [], average: null, collected: true },
+        trend ?? {
+          metric: weekMetric,
+          weeks: [],
+          boundary: null,
+          platforms: [],
+          average: null,
+          lastYear: null,
+          collected: true,
+        },
         single,
       );
       // The theme is a class of the page, read each time the chart is built so a switch of theme redraws the band
@@ -310,6 +379,24 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
 
   useCardExport(item.id, () => {
     if (trend === null || !ready || !trend.collected) return null;
+    const rowOf = (weekStart: string, period: string, code: EngineCode, point: TrendPoint | undefined): CsvCell[] => {
+      const shown = point !== undefined && point.n > 0 && !point.thin && point.value !== null;
+      return [
+        weekStart,
+        period,
+        label(code),
+        shown ? percentNumber(point.value ?? 0) : null,
+        point?.k ?? null,
+        point?.n ?? 0,
+        point?.prompts ?? null,
+        point?.band == null ? null : percentNumber(point.band.low),
+        point?.band == null ? null : percentNumber(point.band.high),
+        // The days a pooled point holds, as the API's `pool` says them (Share of voice: the total's own points)
+        point?.pooledRange == null ? null : `${point.pooledRange.from} to ${point.pooledRange.to}`,
+        point === undefined || point.n === 0 ? 'no_answers' : point.thin ? 'insufficient' : 'ok',
+      ];
+    };
+    const last = trend.lastYear;
     return {
       id: item.id,
       header: [
@@ -325,26 +412,26 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         'weeks_held',
         'status',
       ],
-      rows: trend.weeks.flatMap((entry, index) =>
-        trend.platforms.map((line) => {
-          const point = line.points[index];
-          const shown = point !== undefined && point.n > 0 && !point.thin && point.value !== null;
-          return [
-            entry.weekStart,
-            t(entry.period === 'previous' ? 'exportPrevious' : 'exportCurrent'),
-            label(line.code),
-            shown ? percentNumber(point.value ?? 0) : null,
-            point?.k ?? null,
-            point?.n ?? 0,
-            point?.prompts ?? null,
-            point?.band == null ? null : percentNumber(point.band.low),
-            point?.band == null ? null : percentNumber(point.band.high),
-            // The days a pooled point holds, as the API's `pool` says them (Share of voice: the total's own points)
-            point?.pooledRange == null ? null : `${point.pooledRange.from} to ${point.pooledRange.to}`,
-            point === undefined || point.n === 0 ? 'no_answers' : point.thin ? 'insufficient' : 'ok',
-          ];
-        }),
-      ),
+      rows: [
+        ...trend.weeks.flatMap((entry, index) =>
+          trend.platforms.map((line) =>
+            rowOf(
+              entry.weekStart,
+              t(entry.period === 'previous' ? 'exportPrevious' : 'exportCurrent'),
+              line.code,
+              line.points[index],
+            ),
+          ),
+        ),
+        // The weeks of the same period last year, each platform's own points (the Average is not a platform)
+        ...(last === null
+          ? []
+          : last.platforms.flatMap((line) =>
+              last.weekStarts.flatMap((weekStart, index) =>
+                weekStart === null ? [] : [rowOf(weekStart, t('exportLastYear'), line.code, line.points[index])],
+              ),
+            )),
+      ],
     };
   });
 
@@ -388,6 +475,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
         <p>{trendWords(scope.metric === 'sov' ? 'footnoteNoBand' : 'footnoteBand')}</p>
         <p>{trendWords('footnoteThin')}</p>
         {trend.boundary === null ? null : <p>{t('footnoteBoundary')}</p>}
+        {trend.lastYear === null ? null : <p>{t('footnoteLastYear')}</p>}
       </>
     );
 
@@ -398,7 +486,7 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       variant="panel"
       title={title}
       meta={meta}
-      info={{ what: t('info.what'), how: t('info.how', { days: scope.range.days }) }}
+      info={{ what: t('info.what'), how: t('info.how', { days: scope.range.days, kind: compareWord(scope) }) }}
       footnote={footnote}
       controls={controls}
       height={280}

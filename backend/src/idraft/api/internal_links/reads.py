@@ -24,11 +24,13 @@ from sqlalchemy import (
     BigInteger,
     ColumnElement,
     FromClause,
+    Integer,
     Row,
     Text,
     and_,
     any_,
     case,
+    cast,
     distinct,
     exists,
     false,
@@ -53,12 +55,13 @@ from idraft.api.internal_links.extras import (
     citations_of,
     empty_anchors,
     gsc_of,
+    gsc_window,
     keyword_rows,
     keywords_of,
     summarize_keywords,
 )
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
-from idraft.api.internal_links.page_sort import extra_sort
+from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
@@ -208,6 +211,10 @@ def _sort_column(name: str, view: LinkScope) -> ColumnElement[Any]:
         return func.coalesce(crawl_pages.c.equity_share, -1.0)
     if key == "change":
         return func.coalesce(crawl_page_changes.c.editorial_in_delta, 0)
+    if key == "indexable":
+        return cast(crawl_pages.c.is_indexable, Integer)
+    if key == "in_sitemap":
+        return cast(crawl_pages.c.in_sitemap, Integer)
     return func.coalesce(crawl_pages.c.status_code, 0)
 
 
@@ -221,8 +228,13 @@ class _Sorter:
     source: FromClause
 
 
-def _sorter(scope: PageScope, view: LinkScope, sort: str) -> _Sorter:
-    extra = extra_sort(scope, sort)
+async def _sorter(db: AsyncSession, scope: PageScope, view: LinkScope, sort: str) -> _Sorter:
+    gsc: GscWindow | None = None
+    if sort.lstrip("-") == "clicks":
+        state = await gsc_window(db, scope)
+        if state.integration_id is not None and state.window is not None:
+            gsc = (state.integration_id, state.window)
+    extra = extra_sort(scope, sort, gsc=gsc)
     if extra is None:
         return _Sorter(sort, _sort_column(sort, view), page_rows(scope))
     return _Sorter(sort, extra.column, extra.join(page_rows(scope)))
@@ -240,7 +252,7 @@ def _cursor_value(name: str, raw: str) -> object:
     anything it holds that the column could not take is `400 invalid_cursor`, never a 500."""
     key = name.lstrip("-")
     try:
-        if key in ("path", "anchor"):
+        if key in ("path", "anchor", "title"):
             return raw
         if key == "equity_share":
             number = float(raw)
@@ -953,7 +965,7 @@ class LinkReadService:
                     select(func.count()).select_from(page_rows(scope)).where(*conditions)
                 )
             ).scalar_one()
-            sorter = _sorter(scope, view, sort)
+            sorter = await _sorter(db, scope, view, sort)
             column = sorter.column
             descending = sort.startswith("-")
             cursor_scope = {
@@ -1001,7 +1013,7 @@ class LinkReadService:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
-            sorter = _sorter(scope, view, sort)
+            sorter = await _sorter(db, scope, view, sort)
             rows = (
                 await db.execute(
                     _page_select(view, sorter)
@@ -1064,7 +1076,7 @@ class LinkReadService:
             tiers = await load_tiers(db, access.workspace_id)
             rows = (
                 await db.execute(
-                    _page_select(view, _sorter(scope, view, "path")).where(
+                    _page_select(view, await _sorter(db, scope, view, "path")).where(
                         crawl_pages.c.workspace_id == scope.workspace_id,
                         crawl_pages.c.run_id == scope.run_id,
                         crawl_pages.c.url_id == url_id,

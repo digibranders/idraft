@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { engine, head, projectEngine, weighted } from './cells-fixtures';
+import { engine, head, projectEngine, weighted } from './cells.test-fixtures';
 import { TopicHeatmap, type TopicHeatmapProps } from './topic-heatmap';
 import type { TopicHead } from './topic-rows';
 import { renderWithProviders } from '@/test/render';

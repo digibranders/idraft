@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { pageRows } from './page-rows';
-import { pageRow, pagePage } from './page-fixtures';
-import { at } from './source-fixtures';
+import { pageRow, pagePage } from './page.test-fixtures';
+import { at } from './source.test-fixtures';
 
 const PRICING = pageRow({
   url: 'https://fynix.com/pricing?utm_source=x',

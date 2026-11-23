@@ -21,6 +21,7 @@ import {
   type WaterfallModel,
 } from './waterfall-model';
 import type { ExportBlock } from '../../export/export-model';
+import { compareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
@@ -122,7 +123,7 @@ export default function ChangeWaterfallCard({ item, options, live }: CardProps):
   const rows =
     model.state === 'ok'
       ? bars.map((bar): WaterfallRow => {
-          const label = t(BAR_WORDS[bar.id]);
+          const label = t(BAR_WORDS[bar.id], { kind: compareWord(scope) });
           const detail = detailText(bar, model, t);
           const largest = largestText(bar, t);
           return {

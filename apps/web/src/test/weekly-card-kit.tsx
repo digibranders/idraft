@@ -14,7 +14,7 @@ import {
   summaryOf,
   week,
   weighted,
-} from '@/features/ai-overview/cards/competitors/model/summary-fixtures';
+} from '@/features/ai-overview/cards/competitors/model/summary.test-fixtures';
 import type { ExportBlock } from '@/features/ai-overview/export/export-model';
 import { ExportProvider, useExportBlocks } from '@/features/ai-overview/export/export-registry';
 import type { CardProps } from '@/features/layouts';

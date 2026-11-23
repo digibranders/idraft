@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useRef, useState, type ReactNode } from 'react';
 
-import { refreshEntities, wordAlias, type Alias, type AliasInput, type ProjectScope } from './entity-queries';
+import { refreshEntities, type Alias, type AliasInput, type ProjectScope } from './entity-queries';
 import { MODE_KEY } from './labels';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
-import { foldName, MAX_ALIAS_LENGTH } from '@/lib/entities/aliases';
+import { foldName, MAX_ALIAS_LENGTH, wordAlias } from '@/lib/entities/aliases';
 import { textLength } from '@/lib/text/length';
 
 const ADD = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities/{entity_id}/aliases');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { competitor, id, own, projectEntity, summaryOf } from './summary-fixtures';
+import { competitor, id, own, projectEntity, summaryOf } from './summary.test-fixtures';
 import { colorSlots, trackedSetNote, trackedSetOf, weekOf } from './tracked-set';
 
 const ROWS = [

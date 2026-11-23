@@ -6,15 +6,12 @@ import type { ReactElement, ReactNode } from 'react';
 import { withMarkers, type MarkedPiece, type MarkerAnchor } from './answer-markers';
 import type { AnswerSegment } from './answer-segments';
 import { CitationMarker } from '@/components/app/evidence/citation-marker';
-import { EvidenceHighlight, type EntityColorIndex } from '@/components/app/evidence/evidence-highlight';
+import { EvidenceHighlight } from '@/components/app/evidence/evidence-highlight';
+import { entityColorOf } from '@/lib/entities/colors';
 import type { ObservationAnswer } from './prompt-queries';
 
 /** A mention as the answer read gives it (its spans are lists of numbers, which `answerSegments` reads warily). */
 type AnswerMention = ObservationAnswer['mentions'][number];
-
-/** An entity's color as the mark draws it: 1 to 6, or `null` past the sixth (and for a color not read yet). */
-export const entityColorOf = (value: number | null | undefined): EntityColorIndex | null =>
-  value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null;
 
 export interface MarkedAnswerProps {
   /** The answer cut at its mentions (`answerSegments`), or the start of it (`clipSegments`). */

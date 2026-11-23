@@ -12,7 +12,7 @@ import {
   type NumbersNotes,
   type NumbersTable,
 } from './export-model';
-import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, EngineSummary, MetricCell, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
 import { toCsv, type CsvCell } from '@/lib/csv/csv-write';
 import { NUMBER_TYPES } from '@/lib/layouts/catalog';

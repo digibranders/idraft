@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EngineFilteredPrompts } from './engine-filter';
 import { useInspector } from '@/components/app/inspector/use-inspector';
-import { cell, engine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, promptRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import { DRAWER_ENTRY_KEYS } from '@/features/prompts/topics-by-engine/drill';
 import type { PromptSummaryRow } from '@/lib/api/types';
 import { DRAWER_TOPIC_ID, renderDrawerPart } from '@/test/topic-drawer-harness';

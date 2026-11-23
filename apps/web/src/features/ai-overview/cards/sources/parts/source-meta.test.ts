@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { engineNames, footnoteLines, metaLine } from './source-meta';
 import messages from '../../../../../../messages/en.json';
 import type { Say } from '../../say';
-import { sourcesMeta } from '../model/source-fixtures';
+import { sourcesMeta } from '../model/source.test-fixtures';
 import { formatList } from '@/lib/format';
 
 const translate = createTranslator({ locale: 'en', messages, namespace: 'aiOverview.sources.common' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engine, head, weighted } from './cells-fixtures';
+import { engine, head, weighted } from './cells.test-fixtures';
 import { heatInput, heatOrder, heatOrderText, parseHeatOrder, showsAverage } from './heat-model';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];

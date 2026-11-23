@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { BrandRowView } from './brand-row';
-import { atTrackedLimit, sameBrand } from './competitor-model';
+import { atTrackedLimit } from './competitor-model';
 import { ListPopover } from './list-popover';
 import { MarkedList, PresenceMark } from './presence-mark';
 import { useAddedBrands } from './use-added-brands';
@@ -17,6 +17,7 @@ import {
   type TrackedEntity,
 } from '../facts';
 import type { PromptScope } from '../prompt-queries';
+import { sameBrand } from '@/lib/entities/project-entities';
 import { canWriteEntities, useMembership } from '@/lib/permissions';
 
 /** How many names the cell shows before "+N". */

@@ -10,7 +10,6 @@ import {
   competitorCandidates,
   effectiveCompetitorIds,
   overridesFor,
-  projectEntitiesQuery,
   refreshAfterWrite,
   type KeywordDetail,
   type KeywordScope,
@@ -27,6 +26,7 @@ import { Fieldset } from '@/components/ui/field';
 import { FormAlert } from '@/components/ui/form-alert';
 import { announce } from '@/lib/a11y/announcer';
 import { apiMutation } from '@/lib/api/query';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { formatList } from '@/lib/format';
 
 /**

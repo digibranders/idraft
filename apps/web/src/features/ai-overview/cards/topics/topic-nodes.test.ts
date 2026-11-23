@@ -11,7 +11,7 @@ import {
   topicsBelow,
   type BuildTopicNodesArgs,
 } from './topic-nodes';
-import { promptRow, term, topicRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { promptRow, term, topicRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 // SEO has Technical SEO and Local SEO under it; Crawling is under Technical SEO (a third level); Paid Search stands alone
 const TREE = [

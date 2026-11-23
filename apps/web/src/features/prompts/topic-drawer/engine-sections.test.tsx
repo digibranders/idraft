@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TopicEngineSections } from './engine-sections';
 import { NO_TOPIC } from '@/features/prompts/prompt-model';
-import { engine, topicRow, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, topicRow, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import { mswPath } from '@/mocks/respond';
 import { server } from '@/test/msw';
 import { DRAWER_TOPIC_ID, renderDrawerPart, summaryOf } from '@/test/topic-drawer-harness';

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { diversityEngine, diversityRead, diversityWeek } from './change-fixtures';
+import { diversityEngine, diversityRead, diversityWeek } from './change.test-fixtures';
 import { diversityModel, valueOf } from './diversity-model';
-import { at } from './source-fixtures';
+import { at } from './source.test-fixtures';
 
 const WEEKS = ['2026-10-19', '2026-10-26', '2026-11-02'] as const;
 

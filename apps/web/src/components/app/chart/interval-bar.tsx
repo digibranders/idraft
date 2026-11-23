@@ -88,6 +88,8 @@ export type IntervalBarProps =
       /** `[0, ceiling]`: the next tenth above the highest rate, at least 0.1 (DS 15 section 6). */
       rateDomain: ChangeDomain;
       changeDomain: ChangeDomain;
+      /** The header of the previous column in the Table view; `chart.intervalBar.previous` when left out. */
+      previousHeader?: string | undefined;
     });
 
 export interface IntervalCsvWords {
@@ -496,7 +498,7 @@ export function IntervalBarTable(props: IntervalBarProps): ReactElement {
     label,
     {
       id: 'previous',
-      header: t('intervalBar.previous'),
+      header: props.previousHeader ?? t('intervalBar.previous'),
       cell: (row) => (row.previous === null ? '' : row.previousText),
     },
     {

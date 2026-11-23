@@ -4,7 +4,7 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FanoutTopCard from './fanout-top-card';
-import { fanoutMeta, fanoutPage, fanoutRow } from './model/fanout-fixtures';
+import { fanoutMeta, fanoutPage, fanoutRow } from './model/fanout.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';

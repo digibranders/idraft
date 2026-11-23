@@ -4,11 +4,11 @@ import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import KeyChangesCard from './key-changes-card';
-import { run, schedule } from './model/activity-fixtures';
-import { dailyResponse, day } from './model/daily-fixtures';
-import { engineCells, promptRow, summaryOf } from '../engines/engines-fixtures';
-import { changePage, changeRow } from '../sources/model/change-fixtures';
-import { domainPage, sourcesMeta } from '../sources/model/source-fixtures';
+import { run, schedule } from './model/activity.test-fixtures';
+import { dailyResponse, day } from './model/daily.test-fixtures';
+import { engineCells, promptRow, summaryOf } from '../engines/engines.test-fixtures';
+import { changePage, changeRow } from '../sources/model/change.test-fixtures';
+import { domainPage, sourcesMeta } from '../sources/model/source.test-fixtures';
 import type { CardDrill } from '../engines/use-card-seams';
 import { announce } from '@/lib/a11y/announcer';
 import type { PromptsSummary, Run } from '@/lib/api/types';

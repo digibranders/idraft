@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ByEngineCard from './by-engine-card';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary } from '@/lib/api/types';

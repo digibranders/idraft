@@ -41,7 +41,6 @@ const OBSERVATION = `${OBSERVATIONS}/{observation_id}` as const;
 const RAW = `${OBSERVATION}/raw` as const;
 const SUMMARY = `${P}/ai/prompts-summary` as const;
 type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
-const ENTITIES = `${P}/entities` as const;
 
 type PromptPage = ApiResponse<'get', typeof PROMPTS>;
 export type LintAnswer = ApiResponse<'post', typeof LINT>;
@@ -298,10 +297,6 @@ export function fetchRawAnswer(scope: PromptScope, observationId: string, observ
     }),
   );
 }
-
-/** The project's entities with their colors, for the marks of an answer. */
-export const projectEntitiesQuery = (scope: PromptScope): ApiQueryOptions<typeof ENTITIES> =>
-  apiQuery(ENTITIES, { params: { path: pathOf(scope) } });
 
 /**
  * `POST {P}/prompts/lint` for the texts of a list: nothing is stored. `engineCodes` are the project's enabled

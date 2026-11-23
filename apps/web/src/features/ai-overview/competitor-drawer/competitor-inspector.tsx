@@ -11,7 +11,6 @@ import type { PromptView } from './model/prompt-lists';
 import { OverviewTab } from './overview-tab';
 import { PromptsTab } from './prompts-tab';
 import { SourcesTab } from './sources-tab';
-import { trackedSetQuery } from '../cards/competitors/data/tracked-set-query';
 import type { TrackedEntity } from '../cards/competitors/model/types';
 import { useOverview } from '../overview-context';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -19,6 +18,7 @@ import { InspectorBody, InspectorPanel, InspectorTabs } from '@/components/app/i
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { announce } from '@/lib/a11y/announcer';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { formatInteger } from '@/lib/format';
 import { Scale } from 'lucide-react';
 
@@ -60,7 +60,7 @@ export function CompetitorInspector({
   const { workspaceId, project } = useOverview();
   const read = useCompetitorRead();
   const scope = useScopeParts();
-  const entities = useQuery(trackedSetQuery({ workspaceId, projectId: project.id }));
+  const entities = useQuery(projectEntitiesQuery({ workspaceId, projectId: project.id }));
   const competitor: TrackedEntity | undefined = competitorOf(read.set, id);
   const domain = entities.data?.data
     .find((row) => row.entity.entity_id === id)

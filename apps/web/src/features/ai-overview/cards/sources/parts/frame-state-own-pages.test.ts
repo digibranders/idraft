@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { mapReadToFrame, type FrameContext, type FrameInput, type FrameWords } from './frame-state';
 import messages from '../../../../../../messages/en.json';
 import { drillHref } from '../../../drilldown/drill-links';
-import { scopeOf } from '../model/source-fixtures';
+import { scopeOf } from '../model/source.test-fixtures';
 import type { Say } from '../../say';
 
 const translator = (namespace: string): Say => {

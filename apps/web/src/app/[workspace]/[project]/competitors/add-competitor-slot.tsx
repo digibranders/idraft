@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
 import { EntityDialog } from '@/features/entities/entity-dialog';
-import { projectEntitiesQuery } from '@/features/entities/entity-queries';
 import { useAddCompetitorControl } from '@/features/competitors';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 
 export interface AddCompetitorSlotProps {
   workspaceId: string;

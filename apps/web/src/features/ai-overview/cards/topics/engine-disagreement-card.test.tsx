@@ -15,7 +15,7 @@ import {
 } from './topic-card-test-kit';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 import { mswPath } from '@/mocks/respond';
 import { CARD_ID, cardInOverview } from '@/test/ai-overview-harness';

@@ -10,7 +10,7 @@ import {
   summaryOf,
   week,
   weighted,
-} from '../../cards/competitors/model/summary-fixtures';
+} from '../../cards/competitors/model/summary.test-fixtures';
 import { trackedSetOf } from '../../cards/competitors/model/tracked-set';
 import type { WeekCells } from '@/lib/api/types';
 

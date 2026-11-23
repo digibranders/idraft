@@ -17,7 +17,7 @@ import {
   share,
   summaryOf,
   weighted,
-} from './model/summary-fixtures';
+} from './model/summary.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';
 import type { CardProps } from '@/features/layouts';

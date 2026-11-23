@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LostToCard from './lost-to-card';
-import { cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './model/summary-fixtures';
+import { cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './model/summary.test-fixtures';
 import { OpenCompetitorContext, type OpenCompetitor } from '../../competitor-drawer/open-competitor';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';

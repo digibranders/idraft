@@ -1,4 +1,4 @@
-import { WINDOW } from './source-fixtures';
+import { WINDOW } from './source.test-fixtures';
 import type { EngineCode, Schemas } from '@/lib/api/types';
 
 /**

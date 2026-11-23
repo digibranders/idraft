@@ -9,7 +9,7 @@ import {
   own,
   topicRow,
   weighted,
-} from '@/features/prompts/topics-by-engine/cells-fixtures';
+} from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineSummary } from '@/lib/api/types';
 
 const CODES = ['chatgpt_web', 'gemini_web'] as const;

@@ -14,7 +14,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Final
+from uuid import UUID
 
 from sqlalchemy import ColumnElement, FromClause, and_, func, literal, select, text
 from sqlalchemy.dialects.postgresql import distinct_on
@@ -27,14 +29,22 @@ from idraft.db.tables import (
     ai_observations,
     crawl_links,
     crawl_pages,
+    gsc_page_daily,
+    page_tier_levels,
+    project_pages,
     tracked_keyword_state,
     tracked_keywords,
 )
 
-EXTRA_SORTS: Final = frozenset({"rank", "citations", "anchor"})
+EXTRA_SORTS: Final = frozenset({"rank", "citations", "anchor", "tier", "clicks", "title"})
+# Tiers are at most 8, so a page with none sorts after T8 (or before T1 when descending).
+TIER_LAST: Final = 99
 # `current_rank` is a smallint: past it, and below any real value, a null still sorts last.
 RANK_LAST: Final = 32_768
 CITATION_DAYS: Final = 28
+
+
+type GscWindow = tuple[UUID, tuple[date, date]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,8 +160,52 @@ def _anchor(scope: PageScope, *, descending: bool) -> ExtraSort:
     )
 
 
-def extra_sort(scope: PageScope, sort: str) -> ExtraSort | None:
-    """The sort for `rank`, `citations` or `anchor` (`-` first for descending), else None."""
+def _tier(scope: PageScope, *, descending: bool) -> ExtraSort:
+    return ExtraSort(
+        func.coalesce(page_tier_levels.c.position, -1 if descending else TIER_LAST),
+        lambda rows: rows.outerjoin(
+            page_tier_levels,
+            and_(
+                page_tier_levels.c.id == project_pages.c.tier_id,
+                page_tier_levels.c.workspace_id == scope.workspace_id,
+            ),
+        ),
+    )
+
+
+def _clicks(scope: PageScope, gsc: GscWindow | None) -> ExtraSort:
+    """Google's clicks of the window; without a property or stored page days every page is 0,
+    as the column shows nothing for it."""
+    if gsc is None:
+        return ExtraSort(literal(0), lambda rows: rows)
+    integration_id, (start, end) = gsc
+    totals = (
+        select(gsc_page_daily.c.url_id, func.sum(gsc_page_daily.c.clicks).label("clicks"))
+        .where(
+            gsc_page_daily.c.workspace_id == scope.workspace_id,
+            gsc_page_daily.c.project_id == scope.project_id,
+            gsc_page_daily.c.integration_id == integration_id,
+            gsc_page_daily.c.metric_date.between(start, end),
+        )
+        .group_by(gsc_page_daily.c.url_id)
+        .subquery("page_clicks")
+    )
+    return ExtraSort(
+        func.coalesce(totals.c.clicks, 0),
+        lambda rows: rows.outerjoin(totals, totals.c.url_id == crawl_pages.c.url_id),
+    )
+
+
+def _title(*, descending: bool) -> ExtraSort:
+    """Case-insensitive, in byte order; a page without a title sorts last."""
+    sentinel = literal("" if descending else "\U0010ffff")
+    key = func.coalesce(func.nullif(func.lower(crawl_pages.c.title), ""), sentinel)
+    return ExtraSort(expression.collate(key, "C"), lambda rows: rows)
+
+
+def extra_sort(scope: PageScope, sort: str, *, gsc: GscWindow | None = None) -> ExtraSort | None:
+    """The sort for a key of `EXTRA_SORTS` (`-` first for descending), else None. `gsc` is the
+    property and window the clicks are summed over, None when there are none to sum."""
     key = sort.lstrip("-")
     descending = sort.startswith("-")
     if key == "rank":
@@ -160,4 +214,10 @@ def extra_sort(scope: PageScope, sort: str) -> ExtraSort | None:
         return _citations(scope)
     if key == "anchor":
         return _anchor(scope, descending=descending)
+    if key == "tier":
+        return _tier(scope, descending=descending)
+    if key == "clicks":
+        return _clicks(scope, gsc)
+    if key == "title":
+        return _title(descending=descending)
     return None

@@ -5,13 +5,9 @@ import { useMemo } from 'react';
 
 import { chartCompetitors, pageRankHistoryQuery } from './detail-queries';
 import type { DetailWindow } from './detail-window';
-import {
-  projectEntitiesQuery,
-  type KeywordDetail,
-  type KeywordScope,
-  type ProjectEntity,
-} from '../keyword-inspector/inspector-queries';
+import type { KeywordDetail, KeywordScope, ProjectEntity } from '../keyword-inspector/inspector-queries';
 import type { RankHistory } from '@/lib/api/types';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 
 export interface PageRankHistory {
   /** The project's entities: the history asks for the keyword's competitors among them, so it waits for them. */

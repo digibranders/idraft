@@ -9,16 +9,9 @@ import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode }
 import { answerCompareQuery } from './answer-compare-query';
 import { markerAnchors } from './answer-markers';
 import { answerSegments, type AnswerSegment } from './answer-segments';
-import { entityColorOf, MarkedAnswer } from './marked-answer';
+import { MarkedAnswer } from './marked-answer';
 import { failedReasonKey, outcomeKey } from './prompt-model';
-import {
-  aiKey,
-  fetchRawAnswer,
-  observationQuery,
-  projectEntitiesQuery,
-  type ObservationAnswer,
-  type PromptScope,
-} from './prompt-queries';
+import { aiKey, fetchRawAnswer, observationQuery, type ObservationAnswer, type PromptScope } from './prompt-queries';
 import { AnswerComparePanel, type AnswerCompareState } from '@/components/app/evidence/answer-compare-panel';
 import { AnswerViewMode, type AnswerView } from '@/components/app/evidence/answer-view-mode';
 import { CitationList, citationItemId, type CitationListItem } from '@/components/app/evidence/citation-list';
@@ -44,6 +37,8 @@ import { isApiProblem } from '@/lib/api/problem';
 import type { ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { downloadUrl } from '@/lib/dom/download';
+import { entityColorOf } from '@/lib/entities/colors';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { EMPTY_VALUE, formatDetailDateTime, formatInteger, formatTableDateTime, webHref } from '@/lib/format';
 import { useCan } from '@/lib/permissions';
 

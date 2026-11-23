@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { projectEntity, summaryOf } from '../model/summary-fixtures';
+import { projectEntity, summaryOf } from '../model/summary.test-fixtures';
 import { trackedSetOf } from '../model/tracked-set';
 import { TrackedFootnote } from './tracked-footnote';
 import { renderWithProviders } from '@/test/render';

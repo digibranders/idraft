@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { run } from './activity-fixtures';
+import { run } from './activity.test-fixtures';
 import { collectionStatus, nextRunOf } from './collection-status';
 
 describe('collectionStatus', () => {

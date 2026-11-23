@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf } from '../engines/engines-fixtures';
+import { engineCells, promptRow, summaryOf } from '../engines/engines.test-fixtures';
 import HeadlineCard from './headline-card';
 import { axe } from '@/test/axe';
 import { cardInOverview } from '@/test/ai-overview-harness';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { agreementOf } from './agreement-model';
-import { engineCells, promptRow } from './engines-fixtures';
+import { engineCells, promptRow } from './engines.test-fixtures';
 import type { EngineCode } from '@/lib/api/types';
 
 const CODES: readonly EngineCode[] = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];

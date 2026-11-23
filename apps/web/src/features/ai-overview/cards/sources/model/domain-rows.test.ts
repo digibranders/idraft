@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { domainRows } from './domain-rows';
-import { at, domainPage, domainRow, sourcesMeta } from './source-fixtures';
+import { at, domainPage, domainRow, sourcesMeta } from './source.test-fixtures';
 import { shareChange, unitShare } from '@/lib/citations/share-model';
 
 describe('domainRows', () => {

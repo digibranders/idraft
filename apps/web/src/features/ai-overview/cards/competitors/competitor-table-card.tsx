@@ -14,6 +14,7 @@ import { loadingBodyHeight } from './skeletons';
 import { useCardDrill, useCardExport } from '../engines/use-card-seams';
 import { askedEngines } from '../../data/overview-queries';
 import { useOverview } from '../../overview-context';
+import { compareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { EntitySwatch } from '@/components/app/entity/entity-swatch';
 import { DeltaCell } from '@/components/app/metric/delta-cell';
@@ -351,7 +352,7 @@ export default function CompetitorTableCard({ item, options, live }: CardProps):
     t('engineHeader'),
     t('valueHeader', { metric }),
     t('countHeader'),
-    t('changeHeader'),
+    t('changeHeader', { kind: compareWord(scope) }),
     t('statusHeader'),
   ];
   const csvRows: CsvCell[][] = longRows.map((row) => {

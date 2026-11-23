@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cell, competitor, engine, entityCells, own, weighted } from './cells-fixtures';
+import { cell, competitor, engine, entityCells, own, weighted } from './cells.test-fixtures';
 import { leaderOn, topCompetitors, topCompetitorsAcross } from './leaders';
 import type { EngineSummary, EntityCells } from '@/lib/api/types';
 

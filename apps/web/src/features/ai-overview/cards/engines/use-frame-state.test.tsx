@@ -75,6 +75,13 @@ describe('useFrameState', () => {
     expect(stateOf({ phase: 'refetching', stale: true }).notice?.kind).toBe('stale');
   });
 
+  it('names the same period last year in the partial notice when the scope compares with it', () => {
+    expect(stateOf({ partialPrevious: true, scope: { compareKind: 'previous_year' } }).notice).toEqual({
+      kind: 'partial',
+      text: 'Partial data: the same period last year could not be read',
+    });
+  });
+
   it('says stale before partial when both hold, and no notice on a state that shows no figures', () => {
     expect(stateOf({ stale: true, partialPrevious: true }).notice?.kind).toBe('stale');
     expect(stateOf({ phase: 'loading', stale: true }).notice).toBeUndefined();

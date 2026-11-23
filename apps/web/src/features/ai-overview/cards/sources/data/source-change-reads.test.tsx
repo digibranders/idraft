@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSourceChanges, useSourceDiversity } from './source-reads';
 import { OverviewProvider } from '../../../overview-context';
-import { changePage, changeRow, diversityEngine, diversityRead, diversityWeek } from '../model/change-fixtures';
-import { domainPage, PREVIOUS_WINDOW, sourcesMeta } from '../model/source-fixtures';
+import { changePage, changeRow, diversityEngine, diversityRead, diversityWeek } from '../model/change.test-fixtures';
+import { domainPage, PREVIOUS_WINDOW, sourcesMeta } from '../model/source.test-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';

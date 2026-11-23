@@ -13,6 +13,7 @@ import { useCardData } from './use-card-data';
 import { useCardDensity } from './use-card-density';
 import { useCardDrill, useCardExport } from './use-card-seams';
 import type { ExportBlock } from '../../export/export-model';
+import { compareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import {
   IntervalBar,
@@ -212,7 +213,7 @@ export default function PromptMoversCard({ item, options, live }: CardProps): Re
         answers: null,
         branded: scope.branded,
       })}
-      footnote={[t('footnote'), leftOut > 0 ? t('leftOut', { count: leftOut }) : null]
+      footnote={[t('footnote', { kind: compareWord(scope) }), leftOut > 0 ? t('leftOut', { count: leftOut }) : null]
         .filter((part): part is string => part !== null)
         .join(' ')}
       height={240}

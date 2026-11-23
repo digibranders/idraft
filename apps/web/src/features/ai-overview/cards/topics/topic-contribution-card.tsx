@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
 import { useOverview } from '../../overview-context';
+import { compareWord } from '../../scope/scope-model';
 import { TopicCardFrame, useTopicEmpty, type TopicEmpty } from './card-frame';
 import { gateComparison } from './compare-gate';
 import {
@@ -129,8 +130,8 @@ export default function TopicContributionCard({ item, options, live }: CardProps
     if (level?.state === 'none') return empties.noAnswers([engineLabel], scope.range.days);
     if (change?.state === 'none') {
       return {
-        title: t('noPreviousTitle', { days: scope.range.days }),
-        reason: t('noPreviousReason'),
+        title: t('noPreviousTitle', { days: scope.range.days, kind: compareWord(scope) }),
+        reason: t('noPreviousReason', { kind: compareWord(scope) }),
         action: openTopics,
       };
     }

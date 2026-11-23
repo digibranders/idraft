@@ -16,7 +16,6 @@ import {
   isObservationId,
   observationQuery,
   observationsQuery,
-  projectEntitiesQuery,
   PUT_ENGINE,
   promptQuery,
   promptsKey,
@@ -34,6 +33,7 @@ import { projectKey } from '@/lib/api/keys';
 import { ApiProblem } from '@/lib/api/problem';
 import { makeQueryClient } from '@/lib/api/query-client';
 import type { EngineCode } from '@/lib/api/types';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { FIXTURE_PROMPTS, PROMPT_QUOTA } from '@/mocks/prompt-fixtures';
