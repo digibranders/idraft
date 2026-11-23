@@ -70,6 +70,8 @@ from idraft.api.internal_links.opportunity_routes import router as opportunity_r
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.path_routes import router as path_routes_router
+from idraft.api.internal_links.public_summary import PublicSummaryService
+from idraft.api.internal_links.public_summary_routes import router as public_summary_router
 from idraft.api.internal_links.read_routes import router as read_routes_router
 from idraft.api.internal_links.reads import LinkReadService
 from idraft.api.internal_links.route_finder import RouteFinder
@@ -219,6 +221,8 @@ def create_app(
                 sender=settings.email_from,
             )
             throttle = LoginThrottle(redis)
+            link_reads = LinkReadService(sessions=sessions)
+            link_changes = ChangeService(sessions=sessions)
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
             )
@@ -281,8 +285,11 @@ def create_app(
                 ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
-                link_reads=LinkReadService(sessions=sessions),
-                link_changes=ChangeService(sessions=sessions),
+                link_reads=link_reads,
+                link_changes=link_changes,
+                public_summary=PublicSummaryService(
+                    sessions=sessions, reads=link_reads, changes=link_changes, throttle=throttle
+                ),
                 link_opportunities=OpportunityService(sessions=sessions),
                 tier_suggestions=SuggestionService(sessions=sessions, page_tiers=page_tiers),
                 route_finder=RouteFinder(sessions=sessions),
@@ -376,6 +383,7 @@ def create_app(
     app.include_router(suggestion_routes_router)
     app.include_router(path_routes_router)
     app.include_router(share_routes_router)
+    app.include_router(public_summary_router)
     app.include_router(crawl_routes_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
