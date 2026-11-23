@@ -1,3 +1,15 @@
+import type { AliasInput } from '@/lib/api/types';
+
+/** A plain alias as the API's defaults make it: matched on word boundaries, in any case, any language. */
+export const wordAlias = (alias: string): AliasInput => ({
+  alias,
+  match_mode: 'word_boundary',
+  case_sensitive: false,
+  language_code: null,
+  is_negative: false,
+  requires_context: false,
+});
+
 /** The longest alias the API stores (19 section 3.4). */
 export const MAX_ALIAS_LENGTH = 200;
 

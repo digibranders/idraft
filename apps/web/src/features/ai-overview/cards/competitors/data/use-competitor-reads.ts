@@ -3,13 +3,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { trackedSetQuery } from './tracked-set-query';
 import { WEEKLY_SHARE_READ, type SummaryOptions } from '../../../data/overview-queries';
 import type { OverviewPeriods, ReadOptions } from '../../../data/use-overview-reads';
 import { useOverview, useOverviewPeriods } from '../../../overview-context';
 import { trackedSetOf } from '../model/tracked-set';
 import type { TrackedSet } from '../model/types';
 import type { PromptsSummary } from '@/lib/api/types';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 
 /**
  * The reads of the competitors family (WP-35 plan section 3.1, D-12). Four request shapes cover the eight cards;
@@ -46,7 +46,7 @@ export function useCompetitorReads(shape: ReadShape, options: ReadOptions = {}):
  */
 export function useTrackedSet(summary: PromptsSummary | undefined): TrackedSet | null {
   const { workspaceId, project } = useOverview();
-  const entities = useQuery(trackedSetQuery({ workspaceId, projectId: project.id }));
+  const entities = useQuery(projectEntitiesQuery({ workspaceId, projectId: project.id }));
   const rows = entities.data?.data ?? null;
   return useMemo(() => (summary === undefined ? null : trackedSetOf(summary, rows)), [summary, rows]);
 }

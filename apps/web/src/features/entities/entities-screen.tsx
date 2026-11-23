@@ -9,7 +9,6 @@ import { useRef, useState, type ReactNode } from 'react';
 import { EntityDialog } from './entity-dialog';
 import {
   COMPETITOR_LIMIT,
-  projectEntitiesQuery,
   refreshEntities,
   seoCompetitors,
   type ProjectEntity,
@@ -29,12 +28,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TextLink } from '@/components/ui/text-link';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
-import { apiMutation } from '@/lib/api/query';
+import { detachEntityMutation, projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { formatDetailDateTime, formatTableDate } from '@/lib/format';
 import { canWriteEntities, useMembership } from '@/lib/permissions';
 import { projectPath } from '@/lib/routes/paths';
 
-const REMOVE = apiMutation('delete', '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities/{entity_id}');
 const SKELETON_ROWS = 2;
 const ROLE_ORDER: readonly ProjectRole[] = ['own', 'competitor', 'watch'];
 /** The domains a row shows before "+2". */
@@ -68,7 +66,7 @@ export function EntitiesScreen({
   const canWrite = canWriteEntities(useMembership());
   const queryClient = useQueryClient();
   const entities = useQuery(projectEntitiesQuery(scope));
-  const remove = useMutation(REMOVE);
+  const remove = useMutation(detachEntityMutation);
   const [adding, setAdding] = useState<Exclude<ProjectRole, 'own'> | null>(null);
   const [tracking, setTracking] = useState<ProjectEntity | null>(null);
   const [removing, setRemoving] = useState<ProjectEntity | null>(null);

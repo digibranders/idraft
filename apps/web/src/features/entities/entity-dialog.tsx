@@ -6,13 +6,11 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 
 import {
   COMPETITOR_LIMIT,
-  nextCompetitorColor,
   refreshEntities,
   seoCompetitors,
   type ProjectEntity,
   type ProjectRole,
   type ProjectScope,
-  wordAlias,
 } from './entity-queries';
 import { DomainInput } from '@/components/app/forms/domain-input';
 import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
@@ -26,13 +24,12 @@ import { Input } from '@/components/ui/input';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
-import { apiMutation, apiQuery } from '@/lib/api/query';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
-import { otherNames } from '@/lib/entities/aliases';
+import { otherNames, wordAlias } from '@/lib/entities/aliases';
+import { nextCompetitorColor } from '@/lib/entities/colors';
+import { attachEntityMutation, createEntityMutation, findBrandId } from '@/lib/entities/project-entities';
 import { textLength } from '@/lib/text/length';
 
-const CREATE = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities');
-const ATTACH = apiMutation('post', '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities');
 /** The API's limit on a canonical name. */
 const MAX_NAME_LENGTH = 200;
 
@@ -76,8 +73,8 @@ function EntityForm({
   const common = useTranslations('common');
   const discard = useTranslations('account.discard');
   const queryClient = useQueryClient();
-  const create = useMutation(CREATE);
-  const attach = useMutation(ATTACH);
+  const create = useMutation(createEntityMutation);
+  const attach = useMutation(attachEntityMutation);
   const domainInput = useRef<HTMLInputElement>(null);
   const trackErrorId = useId();
   const nameInput = useRef<HTMLInputElement>(null);
@@ -124,20 +121,7 @@ function EntityForm({
   /** The id of the workspace entity with this name, found ignoring case, or `null`. */
   const findEntity = async (name: string): Promise<string | null> => {
     try {
-      const found = await queryClient.fetchQuery({
-        ...apiQuery('/api/v1/workspaces/{workspace_id}/entities', {
-          params: { path: { workspace_id: scope.workspaceId }, query: { 'filter[q]': name } },
-        }),
-        // An entity created a moment ago, perhaps in another tab, has to be found
-        staleTime: 0,
-      });
-      const lowered = name.toLocaleLowerCase();
-      // Names are unique per type, so the one to offer is the brand of this name
-      return (
-        found.data.find(
-          (entity) => entity.entity_type === 'brand' && entity.canonical_name.toLocaleLowerCase() === lowered,
-        )?.entity_id ?? null
-      );
+      return await findBrandId(queryClient, scope.workspaceId, name);
     } catch {
       return null;
     }

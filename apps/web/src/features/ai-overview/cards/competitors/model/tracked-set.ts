@@ -2,9 +2,7 @@ import { TZDate } from '@date-fns/tz';
 
 import type { AddedEntity, SetBoundary, TrackedEntity, TrackedSet } from './types';
 import type { ProjectEntity, PromptsSummary } from '@/lib/api/types';
-
-/** The palette has six slots (`chart-1` to `chart-6`); own is slot 1 (DS 15 rule 12). */
-const SLOTS = 6;
+import { placeCompetitorColors, type ColorCandidate } from '@/lib/entities/colors';
 
 const pad = (value: number): string => String(value).padStart(2, '0');
 
@@ -96,28 +94,12 @@ export function trackedSetNote(set: TrackedSet): { competitors: number; changed:
  */
 export function colorSlots(set: TrackedSet): ReadonlyMap<string, number> {
   const slots = new Map<string, number>();
-  const taken = new Set<number>([1]);
-  const unplaced: TrackedEntity[] = [];
+  const competitors: (ColorCandidate & { name: string })[] = [];
   for (const entity of set.entities) {
-    if (entity.role === 'own') {
-      slots.set(entity.entityId, 1);
-      continue;
-    }
-    const wanted = entity.colorIndex;
-    if (wanted !== null && Number.isInteger(wanted) && wanted > 1 && wanted <= SLOTS && !taken.has(wanted)) {
-      taken.add(wanted);
-      slots.set(entity.entityId, wanted);
-    } else {
-      unplaced.push(entity);
-    }
+    if (entity.role === 'own') slots.set(entity.entityId, 1);
+    else competitors.push({ id: entity.entityId, stored: entity.colorIndex, name: entity.name });
   }
-  unplaced.sort((a, b) => a.name.localeCompare(b.name));
-  let next = 2;
-  for (const entity of unplaced) {
-    while (taken.has(next)) next += 1;
-    if (next > SLOTS) break;
-    taken.add(next);
-    slots.set(entity.entityId, next);
-  }
+  for (const [id, slot] of placeCompetitorColors(competitors, (a, b) => a.name.localeCompare(b.name)))
+    slots.set(id, slot);
   return new Map([...slots.entries()].sort((a, b) => a[1] - b[1]));
 }

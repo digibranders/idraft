@@ -40,7 +40,7 @@ import {
   useKeywordScope,
 } from './keyword-scope';
 import { KeywordInspector, type InspectorEditState } from './keyword-inspector/keyword-inspector';
-import { isProjectCompetitor, projectEntitiesQuery } from './keyword-inspector/inspector-queries';
+import { isProjectCompetitor } from './keyword-inspector/inspector-queries';
 import {
   PAGE_SIZE_CHOICES,
   hasPendingCheck,
@@ -82,6 +82,7 @@ import { buildCsv, buildWorkbook, fileName, type ExportFormat } from '@/lib/expo
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { EntityRef, TrackedKeywordRow } from '@/lib/api/types';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { formatInteger, formatList, formatRelative } from '@/lib/format';
 import { useLeaveGuard } from '@/lib/navigation/use-leave-guard';
 import { useCan } from '@/lib/permissions';
