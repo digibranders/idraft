@@ -11,6 +11,7 @@ import { CrawlNotFound } from './crawl-not-found';
 import { CrawlPicker } from './crawl-picker';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
+import { useClientSummary } from './export/use-client-summary';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
@@ -189,6 +190,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
             });
         };
 
+  const summary = useClientSummary({ scope, view: inView, host, timeZone: project.timeZone });
+
   // Only someone who may crawl can have pressed Crawl now, so only they are told crawls are not switched on yet
   // It is a child of the page's own column (`gap-3`) or of the tabs' (`gap-3`), so its spacing comes from the layout
   const notice =
@@ -336,6 +339,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           onCrawlNow={() => crawl.start()}
           onExport={ready ? onExport : null}
           exporting={exporting}
+          onSummary={ready && inView.crawl !== null && !crawlNotFound ? summary.run : null}
+          summaryPreparing={summary.preparing}
           extraItems={ruleItems}
           settingsHref={settingsHref}
           tiersHref={tiersHref}

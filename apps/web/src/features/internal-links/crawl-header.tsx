@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { Download, FileText, MoreHorizontal, RefreshCw } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -34,6 +34,10 @@ export interface CrawlHeaderProps {
   onExport: (() => void) | null;
   /** A download is being made: Export waits for it, and says so. */
   exporting?: boolean | undefined;
+  /** Builds the client summary of the crawl in view; `null` while there is no crawl to summarise. */
+  onSummary?: (() => void) | null | undefined;
+  /** The summary is being made: its entry waits for it, and says so. */
+  summaryPreparing?: boolean | undefined;
   /** Items of the screen (Tier rules, Import tiers from CSV) before the settings links. */
   extraItems?: readonly MenuItemDef[] | undefined;
   settingsHref: Route;
@@ -60,6 +64,8 @@ export function CrawlHeader({
   onCrawlNow,
   onExport,
   exporting = false,
+  onSummary = null,
+  summaryPreparing = false,
   extraItems = [],
   settingsHref,
   tiersHref,
@@ -86,6 +92,16 @@ export function CrawlHeader({
         ? { disabledReason: t('exportRunning') }
         : { onSelect: onExport }),
   };
+  const summaryItem: MenuItemDef = {
+    id: 'export-summary',
+    label: summaryPreparing ? t('summaryRunning') : t('summary'),
+    icon: FileText,
+    ...(onSummary === null
+      ? { disabledReason: t('summaryNone') }
+      : summaryPreparing
+        ? { disabledReason: t('summaryRunning') }
+        : { onSelect: onSummary }),
+  };
   const moreItems: MenuItemDef[] = [
     ...extraItems,
     { id: 'crawl-settings', kind: 'link', label: t('crawlSettings'), link: <Link href={settingsHref} /> },
@@ -100,7 +116,7 @@ export function CrawlHeader({
           },
         ]
       : []),
-    ...(wide ? [] : [{ ...exportItem, group: t('export') }]),
+    ...(wide ? [] : [exportItem, summaryItem].map((item) => ({ ...item, group: t('export') }))),
   ];
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -127,7 +143,7 @@ export function CrawlHeader({
                 {t('export')}
               </Button>
             }
-            items={[exportItem]}
+            items={[exportItem, summaryItem]}
           />
           <Menu
             align="end"

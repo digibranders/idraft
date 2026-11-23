@@ -2,10 +2,17 @@ import { formatDecimal, formatInteger, formatPercent } from '@/lib/format';
 
 import { alertTierText, type TierRangeWords } from './changes-format';
 
+/** Why the lost links section has no table: the earlier crawl's links are not stored, or there is no crawl to compare. */
+export type LostReason = 'dropped' | 'no-comparison';
+
 /** Everything the client summary says, from the message catalog, so no copy lives in this module. */
 export interface ClientSummaryWords extends TierRangeWords {
   title: (host: string) => string;
-  crawlLine: (when: string, pages: string) => string;
+  crawlLine: (when: string, pages: number) => string;
+  /** Said once on a summary of a crawl that is not the latest. */
+  olderNote: string;
+  /** Stands in for the lost links section when it could not be read: the links are not stored, or nothing to compare. */
+  lostUnavailable: (reason: LostReason) => string;
   tiersHeading: string;
   tiersHead: readonly [string, string, string, string];
   flowHeading: string;
@@ -33,7 +40,13 @@ export interface ClientSummaryInput {
   /** `matrix[from][to]` in the order of `tiers`. */
   matrix: number[][];
   worklists: { label: string; count: number }[];
-  lost: { from: string; to: string; anchor: string }[];
+  /** The lost links read; `null` when they could not be (see `lostReason`). */
+  lost: { from: string; to: string; anchor: string }[] | null;
+  lostReason?: LostReason;
+  /** Links the API holds in all, when more than the ones read: "Plus N more" counts the difference. */
+  lostTotal?: number;
+  /** The crawl is not the latest one. */
+  older?: boolean;
   /** The deepest tier position counted as important (2 is "T1 and T2"). */
   importantMaxPosition: number;
   /** Language of the page, as the catalog locale; English when absent. */
@@ -88,20 +101,25 @@ export function clientSummaryHtml(input: ClientSummaryInput, words: ClientSummar
     ...input.tiers.map((_, to) => formatInteger(input.matrix[from]?.[to] ?? 0)),
   ]);
   const open = input.worklists.filter((list) => list.count > 0).map((list) => [list.label, formatInteger(list.count)]);
-  const lost = input.lost.slice(0, MAX_LOST_LINKS).map((link) => [link.from, link.to, link.anchor]);
-  const more = input.lost.length - lost.length;
+  const lostLinks = input.lost ?? [];
+  const lost = lostLinks.slice(0, MAX_LOST_LINKS).map((link) => [link.from, link.to, link.anchor]);
+  const more = Math.max(input.lostTotal ?? 0, lostLinks.length) - lost.length;
+  const lostBody =
+    input.lost === null
+      ? `<p style="${MUTED}">${esc(words.lostUnavailable(input.lostReason ?? 'no-comparison'))}</p>`
+      : `${lost.length > 0 ? table(words.lostHead, lost) : `<p style="${MUTED}">${esc(words.lostNone(important))}</p>`}${more > 0 ? `<p style="${MUTED}">${esc(words.lostMore(formatInteger(more)))}</p>` : ''}`;
 
   return `<!doctype html><html lang="${esc(input.locale ?? 'en')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head>
 <body style="font-family:system-ui,sans-serif;color:${TEXT};max-width:880px;margin:32px auto;padding:0 16px;line-height:1.5">
 <h1 style="font-size:24px;margin:0 0 4px;${WRAP}">${esc(title)}</h1>
-${note(words.crawlLine(input.crawledOn, formatInteger(input.pages)))}
+${note(words.crawlLine(input.crawledOn, input.pages))}${input.older === true ? note(words.olderNote) : ''}
 ${heading(words.tiersHeading)}${table(words.tiersHead, tierRows)}
 ${heading(words.flowHeading)}${note(words.flowNote)}${table(
     [words.flowFrom, ...input.tiers.map((tier) => words.flowTo(tier.code))],
     matrixRows,
   )}
 ${heading(words.worklistsHeading)}${open.length > 0 ? table(words.worklistsHead, open) : `<p style="${MUTED}">${esc(words.worklistsNone)}</p>`}
-${heading(words.lostHeading(important))}${lost.length > 0 ? table(words.lostHead, lost) : `<p style="${MUTED}">${esc(words.lostNone(important))}</p>`}${more > 0 ? `<p style="${MUTED}">${esc(words.lostMore(formatInteger(more)))}</p>` : ''}
+${heading(words.lostHeading(important))}${lostBody}
 <p style="margin:32px 0 0;padding-top:12px;border-top:1px solid ${RULE};${MUTED};font-size:13px">${esc(words.footer)}</p>
 </body></html>`;
 }

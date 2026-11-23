@@ -28,6 +28,7 @@ export type LinksKey =
   | 'tab'
   | 'run'
   | 'cs'
+  | 'ls'
   | 'os'
   | 'ot'
   | 'oq'
@@ -51,6 +52,8 @@ export type LinksKey =
   // The inspector's own keys: a write that leaves the page's list (Open in journey) closes the inspector with it
   | 'inspect'
   | 'itab';
+export type LinkStatus = 'active' | 'lost' | 'all';
+const LINK_STATUSES: readonly LinkStatus[] = ['active', 'lost', 'all'];
 export type LinksSearch = Readonly<Partial<Record<LinksKey, string | null | undefined>>>;
 
 const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'];
@@ -113,6 +116,8 @@ export interface LinksState {
   run: string | null;
   /** The Changes tab's lost links scope (`cs`). */
   changesScope: ChangeScope;
+  /** The Links tab's status (`ls`): the links the crawl has, the ones it lost since the crawl before, or both. */
+  linkStatus: LinkStatus;
   /** The Opportunities tab's filters: status (`os`), target tier position or `none` (`ot`) and search (`oq`). */
   oppStatus: OpportunityStatus | null;
   oppTier: string | null;
@@ -189,6 +194,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     invalid: { src: src.invalid, tgt: tgt.invalid, focus: focus.invalid, run: run.invalid },
     run: run.id,
     changesScope: search.cs === 'all' ? 'all' : 'editorial',
+    linkStatus: LINK_STATUSES.find((status) => status === search.ls) ?? 'active',
     oppStatus: OPPORTUNITY_STATUSES.find((status) => status === search.os) ?? null,
     oppTier: OPPORTUNITY_TIERS.find((tier) => tier === search.ot) ?? null,
     oppQuery: text(search.oq),
@@ -207,6 +213,7 @@ const PARSERS = {
   tab: parseAsString,
   run: parseAsString,
   cs: parseAsString,
+  ls: parseAsString,
   os: parseAsString,
   ot: parseAsString,
   oq: parseAsString,

@@ -34,7 +34,7 @@ const PRIORITY_KEY = { lost_to_t1: 'lostToT1', lost_to_t2: 'lostToT2', lower: 'l
 const PAGE_SIZES = [100, 200] as const;
 
 /** The answer as a page of changed links (its generated type is `unknown`, see `isChangeLinkPage`). */
-function readLinks(data: unknown): ChangeLinkPage {
+export function readChangeLinks(data: unknown): ChangeLinkPage {
   if (isChangeLinkPage(data)) return data;
   throw new Error('The changes answer is not a page of links');
 }
@@ -51,6 +51,11 @@ export interface ChangeLinksPanelProps {
   tiers: string;
   /** "7 Nov", or "none" when the previous crawl has no date. */
   date: string;
+  /**
+   * The Links tab's Lost view: only the lost links list, with no Lost and Added switch, no scope menu and no tier
+   * switch (the tab has its own), and a "Lost on" column that holds this crawl's date.
+   */
+  listOnly?: { lostOn: string } | undefined;
 }
 
 /**
@@ -67,6 +72,7 @@ export function ChangeLinksPanel({
   onOnlyChange,
   tiers,
   date,
+  listOnly,
 }: ChangeLinksPanelProps): ReactElement {
   const t = useTranslations('internalLinks');
   const c = useTranslations('internalLinks.changes');
@@ -82,7 +88,7 @@ export function ChangeLinksPanel({
       chosenRun,
     ),
     placeholderData: keepPreviousData,
-    select: readLinks,
+    select: readChangeLinks,
   });
   const rows = read.data?.data ?? [];
   const total = read.data?.meta.total ?? 0;
@@ -124,6 +130,7 @@ export function ChangeLinksPanel({
         ),
     },
     { id: 'linkType', header: c('columns.linkType'), cell: (row) => placement(row.placement) },
+    ...(listOnly === undefined ? [] : [{ id: 'lostOn', header: c('columns.lostOn'), cell: () => listOnly.lostOn }]),
     ...(lost
       ? [
           {
@@ -181,51 +188,53 @@ export function ChangeLinksPanel({
       title={title}
       meta={lost ? c('lostMeta', { kind, date }) : c('addedMeta', { kind, date })}
       controls={
-        <>
-          <SegmentedControl
-            semantics="view"
-            size="sm"
-            label={c('changeLabel')}
-            value={change}
-            onValueChange={onChange}
-            items={[
-              { value: 'lost', label: c('lost') },
-              { value: 'added', label: c('added') },
-            ]}
-          />
-          <Menu
-            trigger={
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label={t('scope.menuName', { scope: t(linkScope === 'all' ? 'scope.all' : 'scope.editorial') })}
-              >
-                {t('scope.chip', { scope: t(linkScope === 'all' ? 'scope.all' : 'scope.editorial') })}
-                <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
-              </Button>
-            }
-            items={SCOPES.map((value) => ({
-              id: value,
-              kind: 'radio' as const,
-              label: t(value === 'all' ? 'scope.all' : 'scope.editorial'),
-              checked: value === linkScope,
-              closeOnClick: true,
-              onSelect: () => context.setSearch({ cs: value === 'editorial' ? null : value }),
-            }))}
-          />
-          {lost ? (
-            <span className="flex items-center gap-2">
-              <Switch
-                aria-labelledby={switchId}
-                checked={only === 'top'}
-                onCheckedChange={(checked) => onOnlyChange(checked ? 'top' : 'all')}
-              />
-              <span id={switchId} className="type-body">
-                {c('onlyTop', { tiers })}
+        listOnly !== undefined ? undefined : (
+          <>
+            <SegmentedControl
+              semantics="view"
+              size="sm"
+              label={c('changeLabel')}
+              value={change}
+              onValueChange={onChange}
+              items={[
+                { value: 'lost', label: c('lost') },
+                { value: 'added', label: c('added') },
+              ]}
+            />
+            <Menu
+              trigger={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label={t('scope.menuName', { scope: t(linkScope === 'all' ? 'scope.all' : 'scope.editorial') })}
+                >
+                  {t('scope.chip', { scope: t(linkScope === 'all' ? 'scope.all' : 'scope.editorial') })}
+                  <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
+                </Button>
+              }
+              items={SCOPES.map((value) => ({
+                id: value,
+                kind: 'radio' as const,
+                label: t(value === 'all' ? 'scope.all' : 'scope.editorial'),
+                checked: value === linkScope,
+                closeOnClick: true,
+                onSelect: () => context.setSearch({ cs: value === 'editorial' ? null : value }),
+              }))}
+            />
+            {lost ? (
+              <span className="flex items-center gap-2">
+                <Switch
+                  aria-labelledby={switchId}
+                  checked={only === 'top'}
+                  onCheckedChange={(checked) => onOnlyChange(checked ? 'top' : 'all')}
+                />
+                <span id={switchId} className="type-body">
+                  {c('onlyTop', { tiers })}
+                </span>
               </span>
-            </span>
-          ) : null}
-        </>
+            ) : null}
+          </>
+        )
       }
     >
       {dropped ? (
