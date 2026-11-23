@@ -111,3 +111,21 @@ describe('Client summary (HTML) in the Export menu', () => {
     expect(screen.getByText('There is no crawl to summarise yet.')).toBeInTheDocument();
   });
 });
+
+describe('Share link in the Export menu', () => {
+  it('opens the dialog for an editor, who can create a link', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await openExport(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Share link' }));
+    expect(await screen.findByRole('dialog', { name: 'Share link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create link' })).toBeInTheDocument();
+  });
+
+  it('opens it for a viewer too, without the create button', async () => {
+    const { user } = renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    await openExport(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Share link' }));
+    expect(await screen.findByRole('dialog', { name: 'Share link' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create link' })).not.toBeInTheDocument();
+  });
+});
