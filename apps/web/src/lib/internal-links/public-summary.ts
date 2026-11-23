@@ -44,7 +44,7 @@ export function summaryInputOf(summary: ClientSummary, options: PublicSummaryOpt
     sums.set(key, (sums.get(key) ?? 0) + cell.links);
   }
   const codes = summary.tiers.map((tier) => keyOf(tier.code));
-  const counts = new Map(summary.worklists.map((list) => [list.key, list.count]));
+  const lists = new Map(summary.worklists.map((list) => [list.key, list]));
   const { lost } = summary;
   const available = lost.state === 'available';
   return {
@@ -58,7 +58,12 @@ export function summaryInputOf(summary: ClientSummary, options: PublicSummaryOpt
       depth: tier.average_depth,
     })),
     matrix: codes.map((from) => codes.map((to) => sums.get(`${from}>${to}`) ?? 0)),
-    worklists: SUMMARY_WORKLIST_KEYS.map((key) => ({ label: labels.worklist(key), count: counts.get(key) ?? 0 })),
+    worklists: SUMMARY_WORKLIST_KEYS.map((key) => ({
+      label: labels.worklist(key),
+      count: lists.get(key)?.count ?? 0,
+      incomplete: lists.get(key)?.may_be_incomplete === true,
+    })),
+    pagesBlocked: summary.pages_blocked,
     lost: available
       ? lost.links.map((link) => ({ from: link.from_path, to: link.to_path, anchor: link.anchor }))
       : null,

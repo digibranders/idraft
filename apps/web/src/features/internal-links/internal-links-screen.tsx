@@ -282,6 +282,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           {notice}
           <CrawlBanners
             latest={view.latest}
+            shown={inView.crawl}
             active={view.active}
             failed={view.failed}
             host={host}

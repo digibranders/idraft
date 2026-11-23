@@ -12,8 +12,9 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { LinkButton } from '@/components/ui/link-button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatRelative, formatTableDate } from '@/lib/format';
+import { formatInteger, formatRelative, formatTableDate } from '@/lib/format';
 import { failedText } from '@/lib/internal-links/crawl-failure';
+import { readPages } from '@/lib/internal-links/status';
 import type { CrawlRun } from '@/lib/internal-links/types';
 
 /**
@@ -138,6 +139,27 @@ export function SkeletonRows(): ReactElement {
   );
 }
 
+/**
+ * "Read 940 of 1,000 pages; 60 refused our crawler, so numbers may be incomplete." Shown when the crawl in view was
+ * refused by some pages (401, 403, 429). Neutral blue, never an error, and it asks nothing of the customer (plan 08).
+ */
+export function CoverageNote({ run }: { run: CrawlRun | null }): ReactElement | null {
+  const t = useTranslations('internalLinks.coverage');
+  const pages = run === null ? null : readPages(run.pages_crawled, run.pages_blocked);
+  if (run === null || pages === null || run.pages_blocked === null) return null;
+  return (
+    <Banner
+      tone="info"
+      placement="region"
+      message={t('blocked', {
+        read: formatInteger(pages.read),
+        crawled: formatInteger(pages.crawled),
+        blocked: formatInteger(run.pages_blocked),
+      })}
+    />
+  );
+}
+
 /** The banners above the tabs while a crawl runs, after one failed, when one stopped at its ceiling, or found few pages (spec 9). */
 export function CrawlBanners({
   latest,
@@ -149,7 +171,10 @@ export function CrawlBanners({
   onRetry,
   onHigherLimit,
   canCrawl,
+  shown: viewed = null,
 }: {
+  /** The crawl on screen, whose refused pages the coverage note counts; `null` for none. */
+  shown?: CrawlRun | null | undefined;
   latest: CrawlRun;
   active: CrawlRun | null;
   failed: CrawlRun | null;
@@ -164,6 +189,7 @@ export function CrawlBanners({
   const shown = formatTableDate(latest.finished_at ?? latest.created_at, timeZone);
   return (
     <>
+      <CoverageNote run={viewed} />
       {active === null ? null : (
         <Banner
           tone="info"

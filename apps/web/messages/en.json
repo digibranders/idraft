@@ -8384,6 +8384,14 @@
   },
   "internalLinks": {
     "title": "Internal links",
+    "status": {
+      "blocked": "Blocked",
+      "blockedTip": "The site answered {status} to our crawler. The page may be fine for a visitor."
+    },
+    "coverage": {
+      "blocked": "Read {read} of {crawled} pages; {blocked} refused our crawler, so numbers may be incomplete.",
+      "incomplete": "May be incomplete"
+    },
     "rules": {
       "open": "Tier rules",
       "title": "Tier rules",
@@ -8572,6 +8580,7 @@
       "noFlags": "No flags. This page has no linking problems.",
       "flagText": {
         "errorPage": "The page answers with an error. Links to it lead visitors and crawlers nowhere.",
+        "blocked": "The site refused our crawler, so this page was not read. It may be fine for a visitor.",
         "redirect": "The page redirects to another URL. Link to the final page instead.",
         "nonIndexable": "Search engines are told not to index this page, so it cannot rank.",
         "orphan": "No page links here, so crawlers can only find it through the sitemap or Search Console.",
@@ -8711,6 +8720,7 @@
       "untiered": "Untiered",
       "tag": "Tag",
       "status": "Status",
+      "blocked": "Blocked",
       "indexable": "Indexable",
       "yes": "Yes",
       "no": "No",
@@ -8785,6 +8795,7 @@
     },
     "flags": {
       "errorPage": "Error page",
+      "blocked": "Blocked",
       "redirect": "Redirect",
       "nonIndexable": "Not indexable",
       "orphan": "Orphan",
@@ -8895,6 +8906,7 @@
       "in": "Links in",
       "editorialIn": "{count, plural, one {# editorial link} other {# editorial links}} in.",
       "notFoundNote": "Not found: this page has no links out.",
+      "blockedNote": "Blocked: our crawler was refused, so its links out are not known.",
       "redirectNote": "Redirect: it passes visitors to its target.",
       "orphanNote": "Orphan: no page links here.",
       "editorialOrphanNote": "Editorial orphan: no editorial links in.",
@@ -9273,6 +9285,8 @@
       "title": "Internal links summary for {host}",
       "crawlLine": "Crawl of {when}, {pages, plural, one {# page} other {# pages}}.",
       "olderNote": "This summary is of an older crawl, not the latest one.",
+      "coverage": "Read {read} of {crawled} pages; {blocked} refused our crawler, so numbers may be incomplete.",
+      "incompleteNote": "may be incomplete",
       "lostDropped": "The links of the previous crawl are not stored, so the links lost since then cannot be listed.",
       "lostNoComparison": "There is no earlier crawl to compare with, so no lost links are listed.",
       "tiersHeading": "Pages by tier",

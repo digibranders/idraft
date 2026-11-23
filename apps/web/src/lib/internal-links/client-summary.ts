@@ -1,6 +1,7 @@
 import { formatDecimal, formatInteger, formatPercent } from '@/lib/format';
 
 import { alertTierText, type TierRangeWords } from './changes-format';
+import { readPages } from './status';
 
 /** Why the lost links section has no table: the earlier crawl's links are not stored, or there is no crawl to compare. */
 export type LostReason = 'dropped' | 'no-comparison';
@@ -11,6 +12,10 @@ export interface ClientSummaryWords extends TierRangeWords {
   crawlLine: (when: string, pages: number) => string;
   /** Said once on a summary of a crawl that is not the latest. */
   olderNote: string;
+  /** "Read 940 of 1,000 pages; 60 refused our crawler, so numbers may be incomplete." */
+  coverage: (read: string, crawled: string, blocked: string) => string;
+  /** Follows the name of a worklist whose count may be short of pages that refused the crawler. */
+  incompleteNote: string;
   /** Stands in for the lost links section when it could not be read: the links are not stored, or nothing to compare. */
   lostUnavailable: (reason: LostReason) => string;
   tiersHeading: string;
@@ -39,7 +44,9 @@ export interface ClientSummaryInput {
   tiers: { label: string; code: string; pages: number; depth: number | null }[];
   /** `matrix[from][to]` in the order of `tiers`. */
   matrix: number[][];
-  worklists: { label: string; count: number }[];
+  worklists: { label: string; count: number; incomplete?: boolean }[];
+  /** Pages the crawl reached that refused it (401, 403, 429); the page says so when above 0. */
+  pagesBlocked?: number | null;
   /** The lost links read; `null` when they could not be (see `lostReason`). */
   lost: { from: string; to: string; anchor: string }[] | null;
   lostReason?: LostReason;
@@ -100,7 +107,23 @@ export function clientSummaryHtml(input: ClientSummaryInput, words: ClientSummar
     tier.code,
     ...input.tiers.map((_, to) => formatInteger(input.matrix[from]?.[to] ?? 0)),
   ]);
-  const open = input.worklists.filter((list) => list.count > 0).map((list) => [list.label, formatInteger(list.count)]);
+  const open = input.worklists
+    .filter((list) => list.count > 0)
+    .map((list) => [
+      list.incomplete === true ? `${list.label} (${words.incompleteNote})` : list.label,
+      formatInteger(list.count),
+    ]);
+  const covered = readPages(input.pages, input.pagesBlocked ?? null);
+  const coverage =
+    covered === null || input.pagesBlocked == null
+      ? ''
+      : note(
+          words.coverage(
+            formatInteger(covered.read),
+            formatInteger(covered.crawled),
+            formatInteger(input.pagesBlocked),
+          ),
+        );
   const lostLinks = input.lost ?? [];
   const lost = lostLinks.slice(0, MAX_LOST_LINKS).map((link) => [link.from, link.to, link.anchor]);
   const more = Math.max(input.lostTotal ?? 0, lostLinks.length) - lost.length;
@@ -112,7 +135,7 @@ export function clientSummaryHtml(input: ClientSummaryInput, words: ClientSummar
   return `<!doctype html><html lang="${esc(input.locale ?? 'en')}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head>
 <body style="font-family:system-ui,sans-serif;color:${TEXT};max-width:880px;margin:32px auto;padding:0 16px;line-height:1.5">
 <h1 style="font-size:24px;margin:0 0 4px;${WRAP}">${esc(title)}</h1>
-${note(words.crawlLine(input.crawledOn, input.pages))}${input.older === true ? note(words.olderNote) : ''}
+${note(words.crawlLine(input.crawledOn, input.pages))}${input.older === true ? note(words.olderNote) : ''}${coverage}
 ${heading(words.tiersHeading)}${table(words.tiersHead, tierRows)}
 ${heading(words.flowHeading)}${note(words.flowNote)}${table(
     [words.flowFrom, ...input.tiers.map((tier) => words.flowTo(tier.code))],

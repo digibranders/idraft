@@ -58,6 +58,7 @@ vi.mock('next/navigation', () => ({
 const CRAWLS = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls');
 
 const run = (over: Partial<CrawlRun>): CrawlRun => ({
+  pages_blocked: null,
   run_id: MOCK_RUN_ID,
   trigger: 'schedule',
   state: 'ready',

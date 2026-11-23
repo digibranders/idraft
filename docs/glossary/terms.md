@@ -158,6 +158,9 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | S5 | Not collected yet | No run has collected this yet. Waiting fixes it. | Not a failure. | No data, Pending, Empty | Cells, cards, new projects | Safe | D9 |
 | S6 | n/a (lower case, with a tooltip "Not available for this platform" or the fitting reason) | The measure cannot exist here, for example fan-out queries on a platform that does not show them. | Not "not enough data". A blank cell is never used. | N/A, Not applicable (as the cell text) | Table cells only | Use the local short form; spell it out in the tooltip | D9 |
 | S7 | Sample data (badge) | Invented numbers shown until the real feature or connection exists. | Not an estimate. | Demo data, Mock, Placeholder, Example | A badge on the card, never inside an info text | Safe | Firm |
+| S9 | Blocked (page status chip, flag, filter) | A page that answered 401, 403 or 429 to the crawler, so its content and links out are unknown. Neutral grey, never red. | Not an error page. Not a broken link. | Error page (for these), Forbidden, Denied, Broken | Internal links: Pages status and flag, Links target status, journey | Safe | Firm |
+| S10 | Coverage sentence | "Read {read} of {crawled} pages; {blocked} refused our crawler, so numbers may be incomplete." Shown above the tabs and in the client summary when a crawl had refused pages. Asks nothing of the customer. | Not a failure of the crawl. | Warning, Crawl failed | Internal links banner, client summary | Safe | Firm |
+| S11 | May be incomplete | A small note on a count that reads pages the crawler could not open. | Not "wrong". | Inaccurate, Unreliable | Internal links worklist counts, client summary | Safe | Firm |
 | S8 | Estimate (badge or suffix "est.") | A number a data provider supplies as an estimate: search volume, CPC, keyword difficulty. | Not sample data. | Approx., Projected | Keywords | Safe | Firm |
 
 ## 9. Abbreviations
