@@ -74,9 +74,41 @@ async def test_a_task_the_provider_does_not_hold_is_an_expired_task(
         await DataForSeoScreenshots(client).screenshot("old-task")
 
 
+PNG = b"\x89PNG\r\n\x1a\n" + b"x" * 100
+
+
 async def test_the_download_returns_the_bytes() -> None:
-    async with _images(b"\x89PNG", "image/png") as http:
-        assert await download_image(http, IMAGE_URL) == b"\x89PNG"
+    async with _images(PNG, "image/png") as http:
+        assert await download_image(http, IMAGE_URL) == PNG
+
+
+async def test_a_subdomain_of_the_provider_is_allowed() -> None:
+    async with _images(PNG, "image/png") as http:
+        assert await download_image(http, "https://image.dataforseo.com/a.png") == PNG
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://api.dataforseo.com/shot.png",
+        "https://evil.example/shot.png",
+        "https://dataforseo.com.evil.example/shot.png",
+        "https://evildataforseo.com/shot.png",
+        "https://user@api.dataforseo.com/shot.png",
+        "https://127.0.0.1/shot.png",
+    ],
+)
+async def test_a_link_that_is_not_the_providers_is_refused_without_a_request(url: str) -> None:
+    asked: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(str(request.url))
+        return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(ValueError, match="link"):
+            await download_image(http, url)
+    assert asked == []
 
 
 async def test_a_download_that_is_not_an_image_is_refused() -> None:
@@ -85,7 +117,37 @@ async def test_a_download_that_is_not_an_image_is_refused() -> None:
             await download_image(http, IMAGE_URL)
 
 
-async def test_a_download_that_is_too_large_is_refused() -> None:
-    async with _images(b"x" * (IMAGE_MAX + 1), "image/png") as http:
+async def test_a_body_that_is_not_a_png_is_refused_whatever_it_claims() -> None:
+    async with _images(b"<html>" + b"x" * 100, "image/png") as http:
+        with pytest.raises(ValueError, match="image"):
+            await download_image(http, IMAGE_URL)
+
+
+async def test_a_body_larger_than_the_limit_is_cut_off_while_streaming() -> None:
+    chunk = 1024 * 1024
+    produced: list[int] = []
+
+    async def body() -> AsyncIterator[bytes]:
+        yield PNG
+        while True:
+            produced.append(chunk)
+            yield b"x" * chunk
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, content=body(), headers={"content-type": "image/png"})
+    )
+    async with httpx.AsyncClient(transport=transport) as http:
         with pytest.raises(ValueError, match="large"):
+            await download_image(http, IMAGE_URL)
+    # The limit is 8 MB: the reading stopped a chunk or two after it, not at the end of a body
+    # that never ends.
+    assert len(produced) <= IMAGE_MAX // chunk + 2
+
+
+async def test_a_redirect_is_not_followed() -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(302, headers={"location": "https://evil.example/x.png"})
+    )
+    async with httpx.AsyncClient(transport=transport) as http:
+        with pytest.raises(httpx.HTTPStatusError):
             await download_image(http, IMAGE_URL)
