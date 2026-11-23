@@ -57,7 +57,13 @@ export function DrawerTable({
       <tbody>{children}</tbody>
     </table>
   );
-  return wide ? <div className="overflow-x-auto">{table}</div> : table;
+  return wide ? (
+    <div role="region" aria-label={caption} tabIndex={0} className="overflow-x-auto focus-visible:focus-ring">
+      {table}
+    </div>
+  ) : (
+    table
+  );
 }
 
 export const DRAWER_ROW = 'h-row-compact border-t border-border-subtle';
