@@ -184,7 +184,12 @@ export function extraColumns(
         if (keywords === undefined || keywords === null) return null;
         return keywords.average_rank === null ? muted(EMPTY_VALUE) : numeric(formatDecimal(keywords.average_rank, 1));
       },
-      { ...hidden, headerTooltip: todayTip(t, t('columns.rankTip'), context), width: 128 },
+      {
+        ...hidden,
+        headerTooltip: todayTip(t, t('columns.rankTip'), context),
+        width: 128,
+        sortValue: (row) => row.extras?.keywords?.average_rank ?? null,
+      },
     ),
     custom(
       'citations',
@@ -195,6 +200,7 @@ export function extraColumns(
         ...hidden,
         headerTooltip: todayTip(t, t('columns.citationsTip'), context),
         width: 120,
+        sortValue: (row) => row.extras?.citations?.total ?? null,
         cellTip: (row) => {
           const citations = row.extras?.citations;
           return citations === undefined || citations === null
@@ -213,6 +219,7 @@ export function extraColumns(
       ...hidden,
       headerTooltip: t('columns.anchorsTip'),
       width: 192,
+      sortValue: (row) => row.extras?.anchors?.distinct ?? null,
       cellTip: (row) =>
         asked(row) && !anchorsStored(row, context) ? { content: t('columns.notStoredTip') } : undefined,
     }),

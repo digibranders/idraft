@@ -235,9 +235,25 @@ const SORTS: Readonly<Record<string, (row: PageRow) => string | number>> = {
 };
 
 /** `change` sorts by the change of links in since the previous crawl (a page with none has 0). */
-function sortRows(rows: PageRow[], sort: string, deltaOf: (row: PageRow) => number): PageRow[] {
+function sortRows(
+  rows: PageRow[],
+  sort: string,
+  deltaOf: (row: PageRow) => number,
+  extraOf: (row: PageRow, key: 'rank' | 'citations' | 'anchor') => number | null,
+): PageRow[] {
   const desc = sort.startsWith('-');
   const key = desc ? sort.slice(1) : sort;
+  if (key === 'rank' || key === 'citations' || key === 'anchor') {
+    // Like the server: rank and anchor put pages without a value last in both directions; citations count 0
+    const value = (row: PageRow): number | null => extraOf(row, key) ?? (key === 'citations' ? 0 : null);
+    return [...rows].sort((a, b) => {
+      const left = value(a);
+      const right = value(b);
+      if (left === null || right === null)
+        return left === right ? a.path.localeCompare(b.path) : left === null ? 1 : -1;
+      return (desc ? right - left : left - right) || a.path.localeCompare(b.path);
+    });
+  }
   const read = key === 'change' ? deltaOf : (SORTS[key] ?? SORTS.path);
   if (read === undefined) return rows;
   return [...rows].sort((a, b) => {
@@ -712,6 +728,18 @@ export const internalLinkHandlers: HttpHandler[] = [
       (row) => {
         const page = crawledPage(row.url_id);
         return page === undefined ? 0 : pageDelta(run, page);
+      },
+      (row, key) => {
+        const page = crawledPage(row.url_id);
+        if (page === undefined) return null;
+        const extras = pageExtras(run, page, [
+          key === 'rank' ? 'keywords' : key === 'citations' ? 'citations' : 'anchors',
+        ]);
+        return key === 'rank'
+          ? (extras.keywords?.average_rank ?? null)
+          : key === 'citations'
+            ? (extras.citations?.total ?? null)
+            : (extras.anchors?.distinct ?? null);
       },
     );
     if (caller.url.searchParams.get('format') === 'csv') {

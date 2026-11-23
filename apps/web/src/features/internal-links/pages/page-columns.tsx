@@ -28,6 +28,9 @@ export const SORT_FIELD: Readonly<Record<string, string>> = {
   linking: 'linking_pages',
   outlinks: 'outlinks',
   change: 'change',
+  rank: 'rank',
+  citations: 'citations',
+  anchors: 'anchor',
 };
 
 /** The sort the table's first key asks for, or `null` for a column the server cannot sort. */

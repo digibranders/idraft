@@ -82,6 +82,12 @@ export const PAGE_SORTS: readonly PageSort[] = [
   '-outlinks',
   'change',
   '-change',
+  'rank',
+  '-rank',
+  'citations',
+  '-citations',
+  'anchor',
+  '-anchor',
 ];
 export const DEFAULT_SORT: PageSort = '-linking_pages';
 /** The longest search text the API takes (1 to 200 characters). */

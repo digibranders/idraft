@@ -29,19 +29,25 @@ describe('the sort of the Pages table (decision W5)', () => {
     expect(keysOfSort('-linking_pages')).toEqual([{ id: 'linking', desc: true }]);
   });
 
-  it('sorts only the six columns the API sorts, and never by equity', () => {
+  it('sorts only the nine columns the API sorts, and never by equity', () => {
     expect(Object.values(SORT_FIELD).sort()).toEqual([
+      'anchor',
       'change',
+      'citations',
       'click_depth',
       'linking_pages',
       'outlinks',
       'path',
+      'rank',
       'status_code',
     ]);
     const sortable = columns.filter((column) => column.sortValue !== undefined).map((column) => column.id);
     expect(sortable.sort()).toEqual(Object.keys(SORT_FIELD).sort());
     expect(sortOfKeys([{ id: 'change', desc: true }])).toBe('-change');
-    for (const id of ['rank', 'citations', 'anchors', 'keywords', 'clicks']) {
+    expect(sortOfKeys([{ id: 'rank', desc: true }])).toBe('-rank');
+    expect(sortOfKeys([{ id: 'citations', desc: false }])).toBe('citations');
+    expect(sortOfKeys([{ id: 'anchors', desc: true }])).toBe('-anchor');
+    for (const id of ['keywords', 'clicks']) {
       expect(sortOfKeys([{ id, desc: false }])).toBeNull();
     }
   });

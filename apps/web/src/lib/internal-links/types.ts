@@ -95,4 +95,10 @@ export type PageSort =
   | 'outlinks'
   | '-outlinks'
   | 'change'
-  | '-change';
+  | '-change'
+  | 'rank'
+  | '-rank'
+  | 'citations'
+  | '-citations'
+  | 'anchor'
+  | '-anchor';
