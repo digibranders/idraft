@@ -496,6 +496,9 @@
   .mr-1 {
     margin-right: var(--spacing);
   }
+  .mr-1\.5 {
+    margin-right: calc(var(--spacing) * 1.5);
+  }
   .mr-3 {
     margin-right: calc(var(--spacing) * 3);
   }
@@ -672,9 +675,6 @@
   }
   .h-2 {
     height: calc(var(--spacing) * 2);
-  }
-  .h-2\.5 {
-    height: calc(var(--spacing) * 2.5);
   }
   .h-3 {
     height: calc(var(--spacing) * 3);
@@ -993,6 +993,9 @@
   }
   .w-\[28rem\] {
     width: 28rem;
+  }
+  .w-\[30\%\] {
+    width: 30%;
   }
   .w-command {
     width: var(--size-command);
@@ -1555,6 +1558,9 @@
   .border-primary-hover {
     border-color: var(--primary-hover);
   }
+  .border-surface {
+    border-color: var(--surface);
+  }
   .border-transparent {
     border-color: transparent;
   }
@@ -1850,6 +1856,9 @@
   .pt-6 {
     padding-top: calc(var(--spacing) * 6);
   }
+  .pt-8 {
+    padding-top: calc(var(--spacing) * 8);
+  }
   .pr-0\.5 {
     padding-right: calc(var(--spacing) * 0.5);
   }
@@ -1942,6 +1951,9 @@
   }
   .text-right {
     text-align: right;
+  }
+  .align-bottom {
+    vertical-align: bottom;
   }
   .align-middle {
     vertical-align: middle;
@@ -2208,6 +2220,10 @@
   }
   .shadow-switch-knob {
     --tw-shadow: var(--shadow-switch-knob);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  .ring {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
     box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
   }
   .ring-1 {
@@ -3302,6 +3318,15 @@
   --seq-5: oklch(0.62 0.150 262);
   --seq-6: oklch(0.51 0.170 262);
   --seq-7: oklch(0.40 0.150 262);
+  --tier-1: oklch(0.38 0.150 262);
+  --tier-2: oklch(0.43 0.155 262);
+  --tier-3: oklch(0.48 0.160 262);
+  --tier-4: oklch(0.52 0.150 262);
+  --tier-5: oklch(0.56 0.135 262);
+  --tier-6: oklch(0.59 0.115 262);
+  --tier-7: oklch(0.62 0.095 262);
+  --tier-8: oklch(0.630 0.075 262);
+  --tier-none: oklch(0.600 0.010 256);
   --div-neg-3: oklch(0.52 0.18 28);
   --div-neg-2: oklch(0.70 0.12 28);
   --div-neg-1: oklch(0.87 0.05 28);
@@ -3417,6 +3442,15 @@
   --seq-5: oklch(0.61 0.15 262);
   --seq-6: oklch(0.69 0.14 262);
   --seq-7: oklch(0.80 0.10 262);
+  --tier-1: oklch(0.85 0.065 262);
+  --tier-2: oklch(0.80 0.085 262);
+  --tier-3: oklch(0.76 0.120 262);
+  --tier-4: oklch(0.72 0.135 262);
+  --tier-5: oklch(0.68 0.140 262);
+  --tier-6: oklch(0.64 0.130 262);
+  --tier-7: oklch(0.60 0.115 262);
+  --tier-8: oklch(0.565 0.095 262);
+  --tier-none: oklch(0.600 0.010 256);
   --div-neg-3: oklch(0.70 0.16 28);
   --div-neg-2: oklch(0.50 0.13 28);
   --div-neg-1: oklch(0.32 0.07 28);

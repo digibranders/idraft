@@ -7,10 +7,11 @@
  */
 import { formatInteger } from './vendor/format/number.js';
 import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovWeeks } from './aiov-data.js';
-import { chartHost, lineOption, MARKER_PATHS, MARKER_SHAPES, mountChart, shareAreaOption } from './aiov-charts.js';
+import { chartHost, MARKER_PATHS, MARKER_SHAPES, mountChart } from './aiov-charts.js';
+import { chartWithTable, columns3dOption, ghostTrend, plain, richLineOption, richShareAreaOption, ringsOption, ringTable } from './aiov-rich.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
-import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, stackedRows, valueText } from './aiov-parts.js';
+import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -100,26 +101,20 @@ function tileNode({ label, info, cell, ctx, series, plain, measure }) {
   return node;
 }
 
-/** The four outcomes of an answer as one bar, with each share beside its name. The counts are in the tooltips. */
-function splitBar(shares, counts) {
-  const wrap = el('div', 'flex flex-col gap-2');
-  if (shares === null) {
-    wrap.append(insufficient('Too few answers'));
-    return wrap;
-  }
-  const bar = el('div', 'h-2.5 flex gap-0.5 overflow-hidden rounded-xs');
-  bar.setAttribute('role', 'img');
-  bar.setAttribute('aria-label', OUTCOME_SEGMENTS.map((segment, index) => `${segment.label} ${pct0(shares[index])}`).join(', '));
-  const total = counts ? counts.reduce((a, b) => a + b, 0) : 0;
-  const legend = el('div', 'grid grid-cols-2 gap-x-4 gap-y-1');
+/**
+ * The four outcomes of an answer as one ring with the visibility rate in its middle, and each share beside its name. The
+ * counts are in the ring's tooltips; `detail` (what stands behind the number) goes to screen readers and the hover of the ring.
+ */
+function visibilityRing({ shares, counts, visibility, detail, projectLine }) {
+  if (shares === null) return insufficient('Too few answers');
+  const wrap = el('div', 'flex items-center gap-4 min-w-0');
+  const label = `AI visibility rate ${valueText(visibility)}: ${OUTCOME_SEGMENTS.map((segment, index) => `${segment.label} ${pct0(shares[index])}`).join(', ')}`;
+  const host = chartHost(132, label);
+  host.className = 'w-32 shrink-0';
+  host.dataset.tip = detail;
+  mountChart(host, () => ringsOption({ rows: [{ label: 'AI visibility rate', shares, counts, center: valueText(visibility) }], segments: OUTCOME_SEGMENTS, width: host.clientWidth, height: 132, names: false }), { redrawOnResize: true });
+  const legend = el('div', 'flex-1 min-w-0 flex flex-col gap-1');
   OUTCOME_SEGMENTS.forEach((segment, index) => {
-    if (shares[index] > 0) {
-      const part = el('div', 'h-full min-w-0');
-      part.style.width = `${shares[index] * 100}%`;
-      part.style.background = `var(--${segment.token})`;
-      part.dataset.tip = `${segment.label}: ${pct0(shares[index])}${total ? `, ${formatInteger(counts[index])} of ${formatInteger(total)} answers` : ''}`;
-      bar.append(part);
-    }
     const item = el('span', 'flex items-center gap-1.5 min-w-0 type-table');
     const dot = el('span', 'size-2 shrink-0 rounded-2xs');
     dot.style.background = `var(--${segment.token})`;
@@ -127,7 +122,9 @@ function splitBar(shares, counts) {
     item.append(dot, el('span', 'truncate text-foreground-secondary', segment.label), el('span', 'ml-auto num text-foreground', pct0(shares[index])));
     legend.append(item);
   });
-  wrap.append(bar, legend);
+  // The project value of a chosen group has a line of its own, kept (empty) for all groups, so the card never changes height
+  legend.append(el('span', 'block min-h-4 type-micro text-foreground-tertiary num', projectLine));
+  wrap.append(host, legend);
   return wrap;
 }
 
@@ -145,29 +142,18 @@ export function headlineRow(ctx) {
   const title = el('h2', 'type-section-title', MEASURES.visibility.label);
   // The prompts that contribute: on one platform only those with a valid answer there (one denominator, R12)
   const contributing = ctx.scope.platform === 'all' ? model.prompts.length : aggregateFor(model, ctx.scope.platform).prompts;
-  const top = el('div', 'flex items-center justify-between gap-4');
-  const value = el('div', 'min-w-0');
-  const number = el('span', `type-metric num ${visibility.state === 'ok' ? 'text-foreground' : 'text-foreground-tertiary'}`, valueText(visibility));
   const detail = visibility.state === 'ok' ? `${detailOf(visibility, ctx)}. ${plural(contributing, 'prompt')}, each counted once` : 'Too few answers for a rate';
-  number.dataset.tip = detail;
-  number.append(el('span', 'sr-only', `, ${detail}`));
-  value.append(number);
-  // The project value of a chosen group has a line of its own, kept (empty) for all groups, so the card never changes height
   const projectValue = ctx.baseline?.shown('visibility');
-  value.append(el('span', 'block min-h-4 type-micro text-foreground-tertiary num', projectValue?.state === 'ok' ? `All groups ${valueText(projectValue)}` : ''));
-  top.append(value);
-  const spark = seriesFor(model, 'visibility', ctx.scope.platform);
-  if (spark.some((point) => point !== null)) {
-    const trend = el('div', 'w-28 shrink-0');
-    trend.append(sparkline(spark, { token: 'chart-1', height: 32, label: `AI visibility rate over the last 8 weekly runs, latest ${valueText(visibility)}` }));
-    top.append(trend);
-  }
   const outcomes = outcomesFor(model);
   const shares = ctx.scope.platform === 'all' ? averageShares(outcomes) : outcomes[0]?.shares ?? null;
   // The explanation sits behind an info button, as on every card and tile
   const heading = el('div', 'flex items-center justify-between gap-2 -my-1');
   heading.append(title, infoButton(MEASURES.visibility.label, CARD_INFO['ai.visibility_split']));
-  hero.append(heading, top, splitBar(shares, ctx.scope.platform === 'all' ? null : outcomes[0]?.counts));
+  hero.append(
+    heading,
+    visibilityRing({ shares, counts: ctx.scope.platform === 'all' ? null : outcomes[0]?.counts, visibility, detail, projectLine: projectValue?.state === 'ok' ? `All groups ${valueText(projectValue)}` : '' }),
+    el('span', 'sr-only', detail),
+  );
 
   // The tiles share hairlines: a grid with a 1 px gap on the border color
   const strip = el('section', 'xl:col-span-8 min-w-0 border border-border rounded-lg overflow-hidden bg-border grid grid-cols-2 md:grid-cols-4 gap-px');
@@ -269,7 +255,7 @@ export function trendCard(ctx) {
     dispose?.();
     dispose = null;
     body.replaceChildren();
-    if (lines.length === 0) return body.append(emptyBody('No rate yet', 'These prompts have fewer than 4 valid answers on this platform.'));
+    if (lines.length === 0) return body.append(ghostTrend({ title: 'No rate yet', text: 'These prompts have fewer than 4 valid answers on this platform. The line appears when they have.', height: 284 }));
     if (state.view === 'table') {
       const table = el('table', 'w-full type-table');
       const head = el('thead');
@@ -292,7 +278,7 @@ export function trendCard(ctx) {
       const words = notes[param.seriesName]?.[param.dataIndex];
       return { color: param.color, name: param.seriesName, value: param.value === null ? 'n/a' : words?.text ?? `${(param.value * 100).toFixed(1)}%`, detail: words?.detail };
     });
-    dispose = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined, markers: true, tooltipRows }));
+    dispose = mountChart(host, () => richLineOption({ labels: WEEK_LABELS, lines, band, boundary: ctx.compare ? WEEK_LABELS[4] : undefined, tooltipRows }));
     const legend = el('div', 'flex flex-wrap gap-x-4 gap-y-1');
     lines.forEach((line, position) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');
@@ -351,10 +337,14 @@ export function outcomeCard(ctx) {
   const { model } = ctx;
   const rows = outcomesFor(model);
   if (rows.length === 0) return cardFrame({ key: 'ai.outcome_mix', title: 'Outcome split by platform', body: emptyBody('No rate yet', 'These prompts have too few valid answers.') });
-  const body = stackedRows({
-    segments: OUTCOME_SEGMENTS,
-    rows: rows.map((row) => ({ label: platformLabel(row.code), shares: row.shares, counts: row.counts, note: `${formatInteger(row.observations)} answers` })),
-  });
+  // One ring per platform with its visibility rate (mentioned or cited, 100% minus "neither") in the middle; the table under
+  // the rings is the legend and the exact shares, because a color never carries a number alone
+  const neither = OUTCOME_SEGMENTS.findIndex((segment) => segment.key === 'neither');
+  const rings = rows.map((row) => ({ label: plain(platformLabel(row.code)), shares: row.shares, counts: row.counts, center: pct0(1 - row.shares[neither]) }));
+  const host = chartHost(176, `Outcome split by platform: ${rings.map((ring) => `${ring.label} ${ring.center} visible`).join(', ')}`);
+  mountChart(host, () => ringsOption({ rows: rings, segments: OUTCOME_SEGMENTS, width: host.clientWidth, height: 176 }), { redrawOnResize: true });
+  const body = el('div', 'flex flex-col gap-3');
+  body.append(host, ringTable({ rows: rings, segments: OUTCOME_SEGMENTS }));
   return cardFrame({
     key: 'ai.outcome_mix',
     title: 'Outcome split by platform',
@@ -377,11 +367,26 @@ export function sovCard(ctx) {
     .sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0))
     .map((entity) => ({ label: entityLabel(entity), onClick: entity.own ? undefined : (opener) => ctx.openCompetitor?.(entity.name.toLowerCase(), opener), value: entity.sov, strong: entity.own, token: entity.token, barToken: entity.own ? 'chart-1' : 'chart-bar-neutral', note: ctx.scope.platform === 'all' ? undefined : `${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)}`, tip: ctx.scope.platform === 'all' ? `${entity.name}: ${pct0(entity.sov)}, average of ${entity.platforms} platforms, each counting once. Brand mentions: ${entity.platformCounts.map((entry) => `${engineName(entry.code)} ${formatInteger(entry.k)} of ${formatInteger(entry.n)}`).join(' and ')}` : `${entity.name}: ${formatInteger(entity.answers)} of ${formatInteger(entity.answersOfTracked)} brand mentions` }));
   const total = entities[0].answersOfTracked;
+  const ranked = [...entities].sort((a, b) => (b.sov ?? 0) - (a.sov ?? 0));
+  const items = ranked.map((entity, index) => ({ name: entityLabel(entity), value: entity.sov, token: entity.token, strong: entity.own, label: entity.sov === null ? 'n/a' : pct0(entity.sov), detail: rows[index].tip }));
+  // The columns are the picture; the Table view is the list of competitor buttons, which also opens the drawer from the keyboard
+  const { body, toggle } = chartWithTable({
+    drawChart: (node) => {
+      const host = chartHost(252, `Share of voice: ${items.map((item) => `${item.name} ${item.label}`).join(', ')}`);
+      node.append(host);
+      return mountChart(host, () => columns3dOption({ items }), {
+        redrawOnResize: true,
+        onChart: (chart) => chart.on('click', (param) => { if (!ranked[param.dataIndex].own) ctx.openCompetitor?.(ranked[param.dataIndex].name.toLowerCase(), host); }),
+      });
+    },
+    drawTable: (node) => node.append(barList(rows)),
+  });
   return cardFrame({
     key: 'ai.share_of_voice',
     title: 'Share of voice',
     meta: ctx.scope.platform === 'all' ? `average of ${entities[0].platforms} platforms` : `of ${formatInteger(total)} brand mentions`,
-    body: barList(rows),
+    tools: [toggle],
+    body,
   });
 }
 
@@ -439,7 +444,7 @@ export function sovOverTimeCard(ctx) {
       return body.append(scroller);
     }
     const host = chartHost(240, `Share of voice of ${entities.map((entity) => entity.name).join(', ')} over the last 8 weekly runs`);
-    dispose = mountChart(host, () => shareAreaOption({ labels: WEEK_LABELS, layers }));
+    dispose = mountChart(host, () => richShareAreaOption({ labels: WEEK_LABELS, layers }));
     const legend = el('div', 'mt-3 flex flex-wrap gap-x-4 gap-y-1');
     entities.forEach((entity) => {
       const item = el('span', 'inline-flex items-center gap-1.5 type-meta');
