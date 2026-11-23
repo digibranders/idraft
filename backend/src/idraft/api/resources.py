@@ -13,6 +13,7 @@ from idraft.api.ai.citation_board import CitationBoardService
 from idraft.api.ai.engine_service import EngineService
 from idraft.api.ai.observations import ObservationService
 from idraft.api.ai.prompt_service import PromptService
+from idraft.api.ai.screenshots import ScreenshotService
 from idraft.api.ai.sources import SourceService
 from idraft.api.ai.summary import SummaryService
 from idraft.api.auth.service import AuthService
@@ -85,6 +86,7 @@ class Resources:
     ai_engines: EngineService
     prompts: PromptService
     ai_observations: ObservationService
+    ai_screenshots: ScreenshotService
     ai_summary: SummaryService
     ai_sources: SourceService
     ai_citation_board: CitationBoardService

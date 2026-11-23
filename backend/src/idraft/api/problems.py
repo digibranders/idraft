@@ -262,6 +262,36 @@ class RawUnavailableError(ProblemError):
     status, code, title = 503, "raw_unavailable", "The raw answer is not available now"
 
 
+class ScreenshotExpiredError(ProblemError):
+    """The answer is past the provider's 7 days: its page can no longer be photographed."""
+
+    status, code, title = 410, "screenshot_expired", "The screenshot can no longer be captured"
+
+
+class ScreenshotUnsupportedError(ProblemError):
+    """The engine's answer has no platform page to photograph."""
+
+    status, code, title = 409, "screenshot_unsupported", "The engine has no page to capture"
+
+
+class NoScreenshotError(ProblemError):
+    """No screenshot was captured for the answer."""
+
+    status, code, title = 404, "no_screenshot", "No screenshot for this answer"
+
+
+class ScreenshotFailedError(ProblemError):
+    """The provider or the image could not be used; nothing was stored. Asking again is safe."""
+
+    status, code, title = 502, "screenshot_failed", "The screenshot could not be captured"
+
+
+class ScreenshotsUnavailableError(ProblemError):
+    """This installation has no DataForSEO account or no object storage, so nothing is captured."""
+
+    status, code, title = 503, "screenshots_unavailable", "Screenshots are not set up"
+
+
 class LastOwnerError(ProblemError):
     status, code, title = 409, "last_owner", "A workspace needs an owner"
 

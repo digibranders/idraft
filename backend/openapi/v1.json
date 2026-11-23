@@ -19971,6 +19971,65 @@
         "title": "ScopeCount",
         "type": "object"
       },
+      "ScreenshotData": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "created",
+          "truncated",
+          "width",
+          "height",
+          "url"
+        ],
+        "title": "ScreenshotData",
+        "type": "object"
+      },
+      "ScreenshotResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ScreenshotData"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ScreenshotResponse",
+        "type": "object"
+      },
       "Seasonality": {
         "properties": {
           "index_by_month": {
@@ -34711,6 +34770,168 @@
           }
         },
         "summary": "The provider's answer for an AI observation, as received",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/screenshot": {
+      "get": {
+        "description": "`data:read`. The PNG, or `404 no_screenshot` when none was captured.",
+        "operationId": "screenshot_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__screenshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The stored screenshot of an AI answer",
+        "tags": [
+          "ai"
+        ]
+      },
+      "post": {
+        "description": "`runs:trigger`. One DataForSEO call ($0.004) the first time; later calls return the stored image and cost nothing (`200` instead of `201`). `410 screenshot_expired` once the answer is past the provider's 7 days, `409 screenshot_unsupported` for an engine with no platform page, `502 screenshot_failed` when the provider or the image could not be used, `503 screenshots_unavailable` when this installation has no DataForSEO account or no object storage.",
+        "operationId": "capture_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__screenshot_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "observation_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Observation Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "A hint to find the month.",
+            "in": "query",
+            "name": "observed_at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint to find the month.",
+              "title": "Observed At"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenshotResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Capture the screenshot of an AI answer",
         "tags": [
           "ai"
         ]

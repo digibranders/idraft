@@ -382,7 +382,8 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         ),
     ),
     "ops.raw_payloads": (NONE, access("SELECT, INSERT", UPDATE=("expires_at",))),
-    "ops.provider_cost_events": (READ, access("SELECT, INSERT")),
+    # Migration 0032: the API records the cost of a screenshot a person captured.
+    "ops.provider_cost_events": (access("SELECT, INSERT"), access("SELECT, INSERT")),
     "ops.cost_daily": (
         READ,
         access("SELECT, INSERT", UPDATE=("request_count", "cost_usd", "subjects")),
