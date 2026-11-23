@@ -1,4 +1,4 @@
-"""The table of stored screenshots: one per AI observation, private to its workspace (0031)."""
+"""The table of stored screenshots: one per AI observation, private to its workspace (0033)."""
 
 from __future__ import annotations
 

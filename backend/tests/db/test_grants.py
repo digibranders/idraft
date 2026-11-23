@@ -382,7 +382,7 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         ),
     ),
     "ops.raw_payloads": (NONE, access("SELECT, INSERT", UPDATE=("expires_at",))),
-    # Migration 0032: the API records the cost of a screenshot a person captured.
+    # Migration 0034: the API records the cost of a screenshot a person captured.
     "ops.provider_cost_events": (access("SELECT, INSERT"), access("SELECT, INSERT")),
     "ops.cost_daily": (
         READ,
@@ -452,7 +452,7 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ai.citations": (READ, access("SELECT, INSERT")),
     "ai.entity_mentions": (READ, access("SELECT, INSERT")),
     "ai.observation_facts": (READ, access("SELECT, INSERT")),
-    # Migration 0031: the API stores a screenshot a person asked for; it is never replaced.
+    # Migration 0033: the API stores a screenshot a person asked for; it is never replaced.
     "ai.observation_screenshots": (access("SELECT, INSERT"), NONE),
     "core.page_tier_levels": (
         access("SELECT, INSERT, DELETE", UPDATE=("position", "name", "description", "updated_at")),

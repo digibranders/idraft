@@ -4,8 +4,8 @@ A person asks for the screenshot of an AI answer in the API, which makes the pro
 pays for it, so the API (and not only the worker) writes the cost event. It may add events and
 read them, as the worker does, and never change or delete one.
 
-Revision ID: 0032
-Revises: 0031
+Revision ID: 0034
+Revises: 0033
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ from alembic import op
 
 from idraft.db.ddl import grants
 
-revision: str = "0032"
-down_revision: str | None = "0031"
+revision: str = "0034"
+down_revision: str | None = "0033"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 

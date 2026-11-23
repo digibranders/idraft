@@ -5,8 +5,8 @@ where it is, how big it is, whether the capture was cut off, and what it cost. D
 makes a screenshot for 7 days after a task, so a screenshot that was not captured then cannot
 be made later: a missing row is "never captured", not "pending".
 
-Revision ID: 0031
-Revises: 0030
+Revision ID: 0033
+Revises: 0032
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from alembic import op
 
 from idraft.db.ddl import grants, statements, tenant_isolation
 
-revision: str = "0031"
-down_revision: str | None = "0030"
+revision: str = "0033"
+down_revision: str | None = "0032"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 
