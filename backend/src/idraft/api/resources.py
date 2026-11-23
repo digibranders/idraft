@@ -27,6 +27,7 @@ from idraft.api.internal_links.opportunities import OpportunityService
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.reads import LinkReadService
 from idraft.api.internal_links.route_finder import RouteFinder
+from idraft.api.internal_links.shares import ShareService
 from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_levels import TierLevelService
 from idraft.api.keywords.group_service import GroupService
@@ -91,6 +92,7 @@ class Resources:
     link_opportunities: OpportunityService
     tier_suggestions: SuggestionService
     route_finder: RouteFinder
+    link_shares: ShareService
     crawls: CrawlService
 
 
