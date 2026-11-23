@@ -33,6 +33,8 @@ export function useSummaryWords(): SummaryWords {
         title: (name) => t('title', { host: name }),
         crawlLine: (when, pages) => t('crawlLine', { when, pages }),
         olderNote: t('olderNote'),
+        coverage: (read, crawled, blocked) => t('coverage', { read, crawled, blocked }),
+        incompleteNote: t('incompleteNote'),
         lostUnavailable: (reason) => t(reason === 'dropped' ? 'lostDropped' : 'lostNoComparison'),
         tiersHeading: t('tiersHeading'),
         tiersHead: [t('tierColumn'), t('pagesColumn'), t('shareColumn'), t('depthColumn')],

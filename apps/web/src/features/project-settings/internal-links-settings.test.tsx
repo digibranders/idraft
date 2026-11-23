@@ -252,7 +252,7 @@ describe('Project settings > Internal links', () => {
     renderWithProviders(screenAs('editor'));
     const table = await screen.findByRole('table', { name: 'Latest 10 crawls' });
     expect(await within(table).findByText('Failed')).toBeInTheDocument();
-    expect(within(table).getByText(/refuses our crawler/)).toBeInTheDocument();
+    expect(within(table).getByText(/refused our crawler/)).toBeInTheDocument();
     expect(screen.queryByText(/RAW PROVIDER TEXT/)).toBeNull();
   });
 

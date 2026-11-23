@@ -28,7 +28,7 @@ describe('ProjectSwitcher marks', () => {
     const { container } = switcher({ current: WITH_DOMAIN, projects: [WITH_DOMAIN, CLEANSTART] });
     const button = screen.getByRole('combobox', { name: 'Project: Fynix' });
     expect(button).toHaveTextContent('Fynixfynix.com');
-    // No favicon service is asked (owner decision 6): the mark is the first letter until the app has an icon route
+    // Outside a workspace page there is no icon route to ask, and no favicon service is ever asked (owner decision 6): the mark is the first letter
     expect(container.querySelector('img')).toBeNull();
   });
 

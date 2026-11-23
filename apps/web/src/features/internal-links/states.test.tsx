@@ -35,6 +35,7 @@ const NOT_AN_ID = 'abc';
 const SYSTEM_TEXT = 'Cancelled by the system: the project was paused';
 
 const run = (over: Partial<CrawlRun>): CrawlRun => ({
+  pages_blocked: null,
   run_id: MOCK_RUN_ID,
   trigger: 'schedule',
   state: 'ready',
@@ -270,7 +271,7 @@ describe('the crawl states of the page, in both themes', () => {
         run({ state: 'failed', error_code: 'site_blocked', error_message: 'RAW PROVIDER TEXT', finished_at: null }),
       ]);
       const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-      expect(await screen.findByText(/refuses our crawler/)).toBeInTheDocument();
+      expect(await screen.findByText(/refused our crawler/)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
       expect(screen.queryByText(/RAW PROVIDER TEXT/)).toBeNull();
       expect(await axe(container)).toHaveNoViolations();

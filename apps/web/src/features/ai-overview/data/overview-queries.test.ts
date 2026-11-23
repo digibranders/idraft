@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   askedEngines,
@@ -132,6 +132,28 @@ describe('overviewSummaryQuery', () => {
     ];
     expect(new Set(keys).size).toBe(keys.length);
     expect(keyOf({})).toBe(keyOf({ compare: false }));
+  });
+});
+
+describe('the facts of the cards', () => {
+  it('are not asked while the API builds no position or sentiment: the cards read what they read before the screenshot feature', () => {
+    // Only the latest answer is built; asking for it would cost a query and a key, and the cards would still say not collected
+    const options = overviewSummaryQuery(PROJECT, readOf(), { include: ['facts'] });
+    expect(queryOf(options)).not.toHaveProperty('include');
+    const mixed = overviewSummaryQuery(PROJECT, readOf(), { include: ['series', 'facts'] });
+    expect(queryOf(mixed)).toMatchObject({ include: ['series'] });
+  });
+
+  it('are asked by the mocks, which build them', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/env/public', async (importOriginal) => {
+      const original = await importOriginal<typeof import('@/lib/env/public')>();
+      return { publicEnv: { ...original.publicEnv, NEXT_PUBLIC_API_MOCKING: 'all' } };
+    });
+    const { overviewSummaryQuery: mocked } = await import('./overview-queries');
+    expect(queryOf(mocked(PROJECT, readOf(), { include: ['facts'] }))).toMatchObject({ include: ['facts'] });
+    vi.doUnmock('@/lib/env/public');
+    vi.resetModules();
   });
 });
 

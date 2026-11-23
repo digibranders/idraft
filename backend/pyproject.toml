@@ -17,6 +17,7 @@ dependencies = [
     "idna==3.20",
     # Pinned: its bundled Public Suffix List is part of the URL canonicalizer version.
     "numpy>=2.3",
+    "pillow>=11",
     "publicsuffixlist==1.0.2.20260925",
     "pyahocorasick==2.3.1",
     "pydantic>=2.13.5",
@@ -188,7 +189,7 @@ type = "forbidden"
 source_modules = [
   "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.crawl", "idraft.db",
   "idraft.domain", "idraft.extraction", "idraft.keywords", "idraft.providers",
-  "idraft.ranks", "idraft.storage", "idraft.vault", "idraft.worker",
+  "idraft.ranks", "idraft.screenshots", "idraft.storage", "idraft.vault", "idraft.worker",
 ]
 forbidden_modules = ["idraft.devseed"]
 

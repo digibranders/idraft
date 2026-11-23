@@ -174,8 +174,8 @@ export interface SummaryScope {
   /**
    * Blocks to add. `series` gives each engine a point for each week the window touches (Monday start, in the
    * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity;
-   * `facts` adds the per-platform facts of the Prompts columns (position, sentiment, brands, links, volume), which
-   * the generated client does not know yet, so only a mocked read asks for it (`factsRequested`).
+   * `facts` adds the per-platform facts of the Prompts columns: the API builds `latest` so far, the mocks build the
+   * rest (`factsRequested`).
    */
   include?: readonly ('series' | 'entities' | 'facts')[];
   /** Ask for the previous period (`compare=previous_period`): each engine of each row then carries `previous`. */
@@ -322,6 +322,15 @@ export function usePromptLint(
     staleTime: 0,
   });
 }
+
+/**
+ * `POST {P}/ai/observations/{observation_id}/screenshot` (`runs:trigger`): takes the screenshot of an answer, one
+ * provider call the first time (`201`) and the stored image after it (`200`, `created` false). A refusal rejects with an
+ * `ApiProblem`: `410 screenshot_expired` (the answer is past the provider's window), `409 screenshot_unsupported`,
+ * `422 budget_exceeded`, `502 screenshot_failed` and `503 screenshots_unavailable`. `observed_at` is the `observed_at`
+ * of the answer, as for `observationQuery`.
+ */
+export const CAPTURE_SCREENSHOT = apiMutation('post', `${OBSERVATION}/screenshot`);
 
 /** `POST {P}/prompts/bulk-create`. */
 export const BULK_CREATE_PROMPTS = apiMutation('post', `${PROMPTS}/bulk-create`);

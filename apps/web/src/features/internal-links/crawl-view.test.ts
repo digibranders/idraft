@@ -4,6 +4,7 @@ import { crawlView } from './crawl-reads';
 import type { CrawlRun } from '@/lib/internal-links/types';
 
 const run = (over: Partial<CrawlRun>): CrawlRun => ({
+  pages_blocked: null,
   run_id: 'r',
   trigger: 'schedule',
   state: 'ready',

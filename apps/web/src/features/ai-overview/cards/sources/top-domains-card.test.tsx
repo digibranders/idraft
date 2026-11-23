@@ -132,11 +132,11 @@ describe('the top cited domains card', () => {
     for (const index of [0, 2, 3]) expect(at(fills, index)).not.toContain('bg-chart-1');
   });
 
-  it('names the role of each domain in text, beside the domain', async () => {
+  it('badges your site and a competitor beside the domain and leaves a third party bare', async () => {
     serve(page());
     renderCard();
     const items = within(await barList()).getAllByRole('row');
-    expect(within(at(items, 0)).getByText('Third party')).toBeInTheDocument();
+    expect(within(at(items, 0)).queryByText('Third party')).not.toBeInTheDocument();
     expect(within(at(items, 1)).getByText('Your site')).toBeInTheDocument();
     expect(within(at(items, 3)).getByText('Competitor')).toBeInTheDocument();
   });

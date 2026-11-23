@@ -6,14 +6,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { DomainCell, DomainRoleBadge, splitHost } from './domain-cell';
 import { HOSTILE_HOSTS, MARKER } from './xss-fixtures';
 import { visibleUrlText } from './visible-text';
-import { FAVICON_MIN_WIDTH, faviconUrl } from '@/lib/favicon';
+import { FAVICON_MIN_WIDTH } from '@/lib/favicon';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
-// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+// These tests stand in the workspace's icon route to exercise the image path; lib/favicon.test.ts and favicon-hook.test.tsx cover the route's address
+const iconFor = (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`;
+
 vi.mock('@/lib/favicon', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/favicon')>()),
-  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+  useFaviconUrl: (host: string | null): string | null => (host === null ? null : iconFor(host)),
 }));
 
 const HREF = '/x?inspect=domain:hubspot.com' as Route;
@@ -139,7 +141,7 @@ describe('DomainCell favicon', () => {
       <DomainCell host="hubspot.com" registrable="hubspot.com" favicon="show" />,
     );
     const image = icon(container);
-    expect(image).toHaveAttribute('src', faviconUrl('hubspot.com'));
+    expect(image).toHaveAttribute('src', iconFor('hubspot.com'));
     expect(image).toHaveAttribute('alt', '');
     expect(image).toHaveAttribute('loading', 'lazy');
     expect(image).toHaveAttribute('referrerpolicy', 'no-referrer');
@@ -209,7 +211,7 @@ describe('DomainCell favicon', () => {
   ])('sends only the bare domain of %s to the service', (host, domain) => {
     const { container } = renderWithProviders(<DomainCell host={host} registrable="a.com" favicon="show" />);
     const src = icon(container)?.getAttribute('src');
-    expect(src).toBe(faviconUrl(domain));
+    expect(src).toBe(iconFor(domain));
     for (const leak of ['secret', 'token', 'frag', 'private', '8080', '%2F', '%3A']) {
       expect(src).not.toContain(leak);
     }
@@ -224,7 +226,7 @@ describe('DomainCell favicon', () => {
     loaded(first, 64);
     expect(placeholder(container)).toBeNull();
     rerender(<DomainCell host="zapier.com" registrable="zapier.com" favicon="show" />);
-    expect(icon(container)).toHaveAttribute('src', faviconUrl('zapier.com'));
+    expect(icon(container)).toHaveAttribute('src', iconFor('zapier.com'));
     expect(icon(container)).toHaveClass('opacity-0');
     expect(placeholder(container)).not.toBeNull();
   });

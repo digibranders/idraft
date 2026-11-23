@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from idraft.providers.contract import CanonicalRequest, Contract
-from idraft.providers.dataforseo.serp import SerpOrganicParams, task_body
+from idraft.providers.dataforseo.serp import SerpOrganicParams, live_body, task_body
 
 RUN = uuid.UUID("0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11")
 TAG = "i:test:t:z:a:1:r:0192f0a13c447e108a512b7d9c0e4f11"
@@ -46,6 +46,7 @@ def test_a_task_asks_for_what_the_rules_say() -> None:
         "load_async_ai_overview": True,
         "group_organic_results": True,
         "calculate_rectangles": False,
+        "resolve_poisoned_results": True,
         "tag": TAG,
     }
 
@@ -67,6 +68,19 @@ def test_no_callback_is_asked_for() -> None:
     body = task_body(_request(_params()), TAG)
 
     assert not {"pingback_url", "postback_url", "postback_data"} & body.keys()
+
+
+@pytest.mark.parametrize("queue", ["standard", "priority"])
+def test_a_queued_task_resolves_poisoned_results_on_either_queue(queue: str) -> None:
+    body = task_body(_request(_params(queue=queue)), TAG)
+
+    assert body["resolve_poisoned_results"] is True
+
+
+def test_a_live_call_does_not_pay_for_the_resolving_pass() -> None:
+    # A live answer is kept as a diagnostic and never becomes a rank
+    # (collectors/seo_rank_ingest.py), so the extra unit would buy nothing.
+    assert "resolve_poisoned_results" not in live_body(_request(_params(queue="live")))
 
 
 def test_the_priority_queue_is_the_workloads_choice_not_the_dispatchers() -> None:

@@ -82,6 +82,11 @@ def task_body(request: CanonicalRequest, tag: str) -> dict[str, object]:
         "load_async_ai_overview": True,
         "group_organic_results": True,
         "calculate_rectangles": False,
+        # Google serves automated requests other organic results than people see; this
+        # cross-checks them against Google Web mode and swaps the poisoned ones. One extra
+        # SERP unit a task at any depth. Measured 2026-11-23: the site found on page one in 28
+        # of 30 runs against 10 of 30 without it.
+        "resolve_poisoned_results": True,
         "tag": tag,
     }
     if params.people_also_ask_click_depth:
@@ -94,10 +99,11 @@ def task_body(request: CanonicalRequest, tag: str) -> dict[str, object]:
 
 
 def live_body(request: CanonicalRequest) -> dict[str, object]:
-    """The body of a live call: a task body without the queue and the tag, which only
-    `task_post` takes."""
+    """The body of a live call: a task body without the queue, the tag and the resolving pass.
+    The first two only `task_post` takes; the last would cost a live page more for an answer
+    that is kept as a diagnostic and never becomes a rank."""
     body = task_body(request, tag="")
-    del body["tag"], body["priority"]
+    del body["tag"], body["priority"], body["resolve_poisoned_results"]
     return body
 
 

@@ -1352,6 +1352,31 @@ async def test_the_flip_checks_the_state_and_the_phase_itself(
     assert (await _state(migrated, task.run_id)) == expected
 
 
+async def test_a_page_that_refused_the_crawler_is_not_a_broken_link_nor_lost_strength(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """Plan 08 task 2: 401, 403 and 429 targets are unknown, not broken; a 400 still is."""
+    on_page = synthetic_site()
+    for path, status in (("/bad", 400), ("/walled", 403), ("/limited", 429), ("/locked", 401)):
+        on_page.page_items.append(page_item(path, status))
+    on_page.html[f"{SITE}/privacy"] = page_html(
+        '<div class="legal"><a href="/bad">Bad</a> <a href="/walled">W</a> '
+        '<a href="/limited">L</a> <a href="/locked">K</a></div>'
+    )
+    task = (await _crawled(migrated, worker_db, on_page)).task
+
+    await _ingest(worker_db, on_page, None, task)
+
+    pages = await _pages(migrated, task.run_id)
+    assert pages["/privacy"]["broken_outlinks"] == 1
+    assert pages["/privacy"]["outlinks_all"] >= 4
+    shares = {path: page["equity_share"] for path, page in pages.items()}
+    run = await fetchrow(
+        migrated, "SELECT equity_lost_to_errors FROM seo.crawl_runs WHERE id = $1", task.run_id
+    )
+    assert run["equity_lost_to_errors"] == pytest.approx(shares["/gone"] + shares["/bad"])
+
+
 async def test_the_details_of_a_crawl_are_stored_as_the_spec_says(
     migrated: PostgresServer, worker_db: Sessions
 ) -> None:

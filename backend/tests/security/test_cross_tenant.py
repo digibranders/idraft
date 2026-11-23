@@ -110,6 +110,10 @@ WORDS = {
     "token": "a-link-token",
 }
 
+# Answers an image, not data of the tenant: the site's icon is the same for every workspace, and
+# the access to it is tested in tests/api/favicons/test_service.py.
+IMAGE_ROUTES = {"/api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}"}
+
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
 # Routes that also name something inside the workspace: a project, a member, an invitation. A
 # word (`WORDS`) names nothing, so a path whose only other parameter is a word is no child.
@@ -123,7 +127,7 @@ CHILD_ROUTES = [
 LIST_ROUTES = [
     (method, path)
     for method, path in WORKSPACE_ROUTES
-    if method == "GET" and (method, path) not in CHILD_ROUTES
+    if method == "GET" and (method, path) not in CHILD_ROUTES and path not in IMAGE_ROUTES
 ] + [("GET", "/api/v1/me"), ("GET", "/api/v1/workspaces")]
 
 # A body each mutating route accepts, so a request that is let through would change something.
@@ -184,6 +188,8 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "prompt_ids": ["{prompt_id}"],
         "engine_codes": ["chatgpt_web"],
     },
+    # Takes no body: the observation in the path is what it would spend money on.
+    ("POST", _W + "/projects/{project_id}/ai/observations/{observation_id}/screenshot"): {},
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
         "set": {"priority": 1},
@@ -368,6 +374,18 @@ EVERY_PROJECT_ONLY = {
 # Routes a tenant's own project answers `409 crawl_in_progress` for, as the tenant has a queued
 # crawl (it is what the cancel route is exercised on).
 CRAWL_UNDER_WAY = {("POST", _W + "/projects/{project_id}/link-crawls")}
+# What a member inside their own scope is answered for an observation of their own: the test
+# installation has no DataForSEO account, so no screenshot is taken, and none is stored.
+SCREENSHOT_ROUTES = {
+    ("POST", _W + "/projects/{project_id}/ai/observations/{observation_id}/screenshot"): (
+        503,
+        "screenshots_unavailable",
+    ),
+    ("GET", _W + "/projects/{project_id}/ai/observations/{observation_id}/screenshot"): (
+        404,
+        "no_screenshot",
+    ),
+}
 # Routes that take a file instead of JSON.
 UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
 # Query parameters a route requires, so that it answers for its path and not for a missing
@@ -1634,6 +1652,8 @@ async def test_a_project_outside_the_members_scope_is_not_found(
     elif (method, path) in CRAWL_UNDER_WAY:
         # The scope let the member in; the project's queued crawl is why nothing is started.
         assert _problem(inside) == (409, "crawl_in_progress")
+    elif (method, path) in SCREENSHOT_ROUTES:
+        assert _problem(inside) == SCREENSHOT_ROUTES[(method, path)]
     elif (method, path) in NOT_BUILT:
         # Inside the member's scope a published contract answers that its body is not built.
         assert _problem(inside) == (501, "not_implemented")

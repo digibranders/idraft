@@ -8,7 +8,7 @@ import { edgeParams, type EdgeQuery } from '@/lib/internal-links/queries';
 import { PLACEMENT_KEY, PLACEMENTS, type Placement } from '@/lib/internal-links/scopes';
 import type { PageTier, StatusClass } from '@/lib/internal-links/types';
 
-const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx'];
+const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx', 'blocked'];
 
 /** The Links filter bar (spec 7.3): source and target tier, placement, target status, tag, source page contains. */
 export function edgeFilterFields(
@@ -50,7 +50,7 @@ export function edgeFilterFields(
       kind: 'enum',
       multi: true,
       label: t('links.targetStatus'),
-      options: STATUSES.map((value) => ({ value, label: value })),
+      options: STATUSES.map((value) => ({ value, label: value === 'blocked' ? t('status.blocked') : value })),
     },
     {
       id: 'tag',

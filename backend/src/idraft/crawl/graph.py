@@ -9,7 +9,9 @@ PageRank: damping 0.85, until the largest change is under 1e-9 or for 200 rounds
 (source, target) pairs. A source's out-degree counts every distinct target, followed or not, and
 a nofollow pair's share is dropped. A redirect passes everything to its target. An error page
 (4xx, 5xx) passes nothing and keeps what it gets: that is the equity lost to errors. A 200 page
-with no link out spreads its value over every node. Shares are values over their sum.
+with no link out spreads its value over every node, and so does a page that refused the crawler
+(401, 403, 429): its links were never read, so nothing of it is known to be lost. Shares are
+values over their sum.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from idraft.crawl.scopes import LinkScope
+from idraft.crawl.status import is_blocked, is_error
 
 DAMPING: Final = 0.85
 TOLERANCE: Final = 1e-9
@@ -41,7 +44,11 @@ class Node:
 
     @property
     def is_error(self) -> bool:
-        return self.status_code is not None and self.status_code >= 400
+        return is_error(self.status_code)
+
+    @property
+    def is_blocked(self) -> bool:
+        return is_blocked(self.status_code)
 
 
 @dataclass(frozen=True, slots=True)

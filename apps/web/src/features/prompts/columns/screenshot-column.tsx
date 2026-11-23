@@ -2,15 +2,16 @@ import type { ReactElement } from 'react';
 
 import type { FactsRow, LatestAnswer } from '../facts';
 import { engineOf } from '../facts/engine-rows';
-import { ScreenshotCell } from '../lists/screenshot-cell';
+import { ScreenshotCell, screenshotViewOf } from '../lists/screenshot-cell';
 import { PlatformMark } from '../platform-mark';
+import type { PromptScope } from '../prompt-queries';
 import type { Translate } from '../seams/shared';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { EMPTY_VALUE } from '@/lib/format';
 
-/** The column's width in the preview: the image icon and a short date. */
-export const SCREENSHOT_WIDTH = 120;
+/** The column's width: the image icon with a short date, or with "Get screenshot". */
+export const SCREENSHOT_WIDTH = 144;
 
 export interface ScreenshotColumnOptions<TRow> {
   id?: string;
@@ -22,20 +23,23 @@ export interface ScreenshotColumnOptions<TRow> {
   /** The one platform in view and its name. */
   platform: { code: string; name: string };
   timeZone: string;
+  /** The workspace and project, for the screenshot the cell takes and the cited pages it lists. */
+  project: PromptScope;
+  /** The person may spend on a screenshot (`runs:trigger`). */
+  canCapture: boolean;
   t: Translate;
 }
 
-type Shown =
-  { kind: 'button'; latest: LatestAnswer & { screenshot_url: string } } | { kind: 'text'; text: string; tip: string };
+type Shown = { kind: 'cell'; latest: LatestAnswer } | { kind: 'text'; text: string; tip: string };
 
 /**
  * What a row's cell shows. `latest` absent is a backend that does not send it (`n/a`, not collected yet); `null` or no
- * row is no answer in the period; an answer with no stored image has nothing to open, which is `n/a` too, never an
- * invented picture.
+ * row is no answer in the period; an answer with a latest is the cell's own to draw: the stored image, the Get
+ * screenshot button, or a word that `tipOf` explains. Never an invented picture.
  */
 function shownOf<TRow>(row: TRow, options: ScreenshotColumnOptions<TRow>): Shown {
   const { t, loaded, platform } = options;
-  const unknown = (key: 'notCollectedTip' | 'shot.notCollectedTip'): Shown => ({
+  const unknown = (key: 'notCollectedTip'): Shown => ({
     kind: 'text',
     text: EMPTY_VALUE,
     tip: t(`prompts.lists.${key}`),
@@ -55,18 +59,31 @@ function shownOf<TRow>(row: TRow, options: ScreenshotColumnOptions<TRow>): Shown
   if (latest === null) {
     return { kind: 'text', text: t('prompts.lists.shot.noAnswer'), tip: t('prompts.lists.shot.noAnswerTip') };
   }
-  return latest.screenshot_url === null
-    ? unknown('shot.notCollectedTip')
-    : { kind: 'button', latest: { ...latest, screenshot_url: latest.screenshot_url } };
+  return { kind: 'cell', latest };
+}
+
+/** Why the cell says a word instead of offering the image or the button; `undefined` when it offers one. */
+function tipOf(latest: LatestAnswer, canCapture: boolean, t: Translate): string | undefined {
+  switch (screenshotViewOf(latest, canCapture)) {
+    case 'expired':
+      return t('prompts.lists.shot.expiredTip');
+    case 'unsupported':
+      return t('prompts.lists.shot.unsupportedTip');
+    case 'readOnly':
+      return t('prompts.lists.shot.notCollectedTip');
+    case 'open':
+    case 'get':
+      return undefined;
+  }
 }
 
 /**
  * The Screenshot column of one platform, generic over the row: the day of the platform's latest answer on a button that
- * opens the stored image. A plain column (no order), 120 px, with the platform's mark in its header. It exists only while
- * one platform is in view.
+ * opens the stored image, or a Get screenshot button while none is stored. A plain column (no order), with the
+ * platform's mark in its header. It exists only while one platform is in view.
  */
 export function screenshotColumn<TRow>(options: ScreenshotColumnOptions<TRow>): DataTableColumn<TRow> {
-  const { t, platform, promptTextOf, timeZone } = options;
+  const { t, platform, promptTextOf, timeZone, project, canCapture } = options;
   return col.aiOverview<TRow>(options.id ?? 'screenshot', () => null, {
     header: t('prompts.lists.columns.screenshot'),
     headerTooltip: t('prompts.lists.headers.screenshotTip'),
@@ -81,12 +98,21 @@ export function screenshotColumn<TRow>(options: ScreenshotColumnOptions<TRow>): 
       return shown.kind === 'text' ? (
         <span className="text-foreground-tertiary">{shown.text}</span>
       ) : (
-        <ScreenshotCell latest={shown.latest} platform={platform} promptText={promptTextOf(row)} timeZone={timeZone} />
+        <ScreenshotCell
+          latest={shown.latest}
+          platform={platform}
+          promptText={promptTextOf(row)}
+          timeZone={timeZone}
+          project={project}
+          canCapture={canCapture}
+        />
       );
     },
     cellTip: (row) => {
       const shown = shownOf(row, options);
-      return shown.kind === 'text' ? { content: shown.tip } : undefined;
+      if (shown.kind === 'text') return { content: shown.tip };
+      const tip = tipOf(shown.latest, canCapture, t);
+      return tip === undefined ? undefined : { content: tip };
     },
   });
 }

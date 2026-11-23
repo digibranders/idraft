@@ -60,14 +60,15 @@ prompts, and the cells are prompt weighted exactly as `mentioned` is (`pooled` h
 | `recommended`  | `MetricCell \| null`                                                                                              | The recommendation rate: valid answers that recommend the own brand over valid answers, as a normal cell (`numerator`, `denominator`, `n_observations`, `pooled` for topics). A recommendation is a kind of mention, so `numerator <= mentioned.numerator`. `null` where the engine is not classified. The generated model already has the key `ai.recommendation_rate` suppressed as `not_classified`; this is the same number on the summary.                                                                                                                                                     | Reuse the recommendation fact of stage 9 in a cell.                                                                                           | `api/ai/summary.py`                                           | WP-54.                                                                                                                                 |
 | `other_brands` | `{ name: string, mentioned: MetricCell }[] \| null`                                                               | Brands the answers named that are not tracked entities, with their Mentioned cell built like an entity cell. The list is complete for the engine: a brand that is not in it was named in none of the engine's answers. The tracked entities are not here (they are the `entities` cells of `include=entities`). At most 20 brands per engine, most named first. A brand that is later tracked leaves this list and appears in `entities`.                                                                                                                                                           | Aggregate the untracked brand candidates of the answers per prompt and engine.                                                                | extraction candidates, `api/ai/summary_repository.py`         | Entity candidates: WP-45 candidates API and WP-56 re-derive (the candidate store that holds brands the matcher saw but nobody tracks). |
 | `top_links`    | `{ url: string, domain: string, domain_role: "own" \| "competitor" \| "third_party", answers: number }[] \| null` | The pages cited by the engine's answers for the row, with how many answers cited each one (a page counts once per answer). `url` is the canonical URL, `domain` the host. At most 20, most cited first, then by `url`. The web cuts the list at 10. `[]` is a real result: valid answers with no source.                                                                                                                                                                                                                                                                                            | Group `ai.citations` by canonical URL per row and engine.                                                                                     | `api/ai/summary_repository.py` (citations are already stored) | WP-14 sources lane, WP-60 source intelligence.                                                                                         |
-| `latest`       | `{ observation_id: string, observed_at: string, screenshot_url: string \| null } \| null`                         | The newest valid answer of the engine for the row in the window. `observation_id` and `observed_at` open the answer (`GET .../ai/observations/{id}`). `screenshot_url` is a short-lived signed URL of an image of the answer, `null` when none was captured. `null` for `latest` when the row has no valid answer on the engine.                                                                                                                                                                                                                                                                    | Add the newest answer per row and engine. The screenshot needs the spike below.                                                               | `api/ai/summary_repository.py`, storage                       | Screenshot spike (below).                                                                                                              |
+| `latest`       | `{ observation_id: string, observed_at: string, screenshot_url: string \| null, screenshot_state: "stored" \| "capturable" \| "expired" \| "unsupported" } \| null` | The newest valid answer of the engine for the row in the window. `observation_id` and `observed_at` open the answer (`GET .../ai/observations/{id}`). `screenshot_url` is the API path of the stored image (`/api/v1/.../ai/observations/{id}/screenshot`), `null` until one is captured. `screenshot_state` says what the cell can do. `null` for `latest` when the row has no valid answer on the engine. Built (2026-11-23), asked for with `include=facts`. | Built. | `api/ai/summary.py`, `screenshots/service.py` | Decided: see Screenshot below. |
 
-### Screenshot spike
+### Screenshot (decided and built, 2026-11-23)
 
-The providers return the answer text and the sources, not an image. A screenshot needs one of: the provider's own screenshot
-or "check URL" render, a headless capture of the check URL the provider returns (`check_url` exists on answers today), or no
-screenshot at all. The web builds the column and the dialog for `screenshot_url` and shows "No screenshot" when it is null. Until
-the spike decides, return `null`. Do not return a placeholder image.
+DataForSEO `POST /v3/serp/screenshot` renders the platform page of a ChatGPT, Gemini or AI Mode answer, as a person saw it. It costs
+$0.004 a screenshot and only works within the provider's 7 days of the answer's task (we allow 6 days 20 hours). It is on demand:
+a person presses "Get screenshot" in the cell, the image is trimmed to the end of the answer (requested at 9,999 px) and stored
+once, and everyone in the workspace then sees it. `POST` and `GET .../ai/observations/{id}/screenshot` do the capture and serve the
+image. Runbook: `docs/ops/ai-answer-screenshots.md`.
 
 ## What stays as it is
 
@@ -141,15 +142,32 @@ below is shown in the web app until the backend sends it: no screen calls an end
 ## First-party favicon route (request 22, 2026-11-17)
 
 Owner decision 6: the web app no longer asks a third-party favicon service (`google.com/s2`) for the icon of a cited domain,
-because that sends every domain a person's answers cite to Google. Until the API has a route of its own, every domain cell draws
+because that sends every domain a person's answers cite to Google. Until the route below was built, every domain cell drew
 its neutral placeholder square and every project mark its first letter.
 
 | #   | What the web would call                                                                                                      | What the backend does                                                                                                                                                                                                                                                                                                              |
 | --- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 22  | `GET /api/v1/workspaces/{workspace_id}/favicons/{domain}`, an image (at least 32 px wide, or `404` when the site has no icon) | Fetches and caches the icon of the registrable domain on the server, so the person's browser and the web app never contact a third party and the cited domain list stays inside the product. Accepts only a public registrable domain (the same rule as the web's `normalizeDomain`), is rate limited, and sends `Cache-Control` for a long time. |
 
-The web side is one function, `faviconUrl(host)` in `apps/web/src/lib/favicon.ts`: it answers `null` today and returns this
-route's path when the route exists. No component changes. Until then the placeholder is the product's answer, not a fault.
+**Built (2026-11-23).** `GET /api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}` (any workspace member) answers a PNG of
+32 to 128 px, or `404 not_found`; `400` for a name that is not a public domain; `429` past 60 icons a minute per workspace that
+were not already kept. Code: `backend/src/idraft/api/favicons/`.
+
+- The fetch is guarded (`fetch.py`): every hop is resolved by the server and refused unless every address is public (no loopback,
+  private, link-local or metadata, shared or reserved range, or IPv6 form that wraps one); the request is sent to the checked
+  address with the name as `Host` and TLS name, so a second lookup cannot change it; at most 3 redirects, each hop checked again;
+  address literals, other schemes and other ports are refused; the body is capped (page 256 KB, image 512 KB) and the whole
+  search at 15 seconds; only `image/*` bodies are taken as icons.
+- The icon is found as usual (`icons.py`): the page's `link rel` icon and apple-touch entries, largest declared first (SVG is
+  skipped), then `/favicon.ico`, at most 4 candidates. The first that Pillow reads at 32 px or more is shrunk to at most 128 px and
+  stored as a PNG; smaller ones are skipped, and a site with none is a `404`.
+- Kept in Redis (which the server writes to disk): an icon for 7 days (`favicon:v1:<domain>`), a site without one for 6 hours, and
+  a site that could not be reached for 15 minutes (`favicon:v1:miss:<domain>`). The rate limit counts only fetches that go out.
+  The answer sends `Cache-Control: private, max-age=604800` (`21600` for the `404`).
+
+The web side is `faviconUrl(host, workspaceId)` and the `useFaviconUrl(host)` hook in `apps/web/src/lib/favicon.ts`; the workspace
+id comes from `WorkspaceProviders`, so the project mark, the project switcher and the domain and URL cells need no new prop. The
+placeholder letter or square stays where the route answers `404` or the image is under `FAVICON_MIN_WIDTH`.
 
 ## Comparison with last year on the sources routes (request 23, 2026-11-17)
 

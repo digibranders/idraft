@@ -482,7 +482,7 @@ async def test_a_check_now_selector_the_api_would_not_write_is_refused(
 # The estimate.
 
 
-async def test_the_estimate_is_pages_at_the_queues_price_and_the_async_ai_overview(
+async def test_the_estimate_is_pages_plus_the_ai_overview_and_the_resolving_pass(
     worker_db: Ledger, migrated: PostgresServer, world: World
 ) -> None:
     project = world.project
@@ -492,11 +492,13 @@ async def test_the_estimate_is_pages_at_the_queues_price_and_the_async_ai_overvi
     standard = await _plan(worker_db, _window(project, mode="standard_queue"))
     priority = await _plan(worker_db, _window(project, mode="priority_queue"))
 
-    # Standard: (10 + 10) pages at $0.0006 and two tasks at $0.0006 for the AI Overview.
-    assert standard.estimated_cost_usd == Decimal("0.0132")
-    # Priority: 20 pages at $0.0012 and, with no price row of its own, the surcharge at the
-    # queue's page price (the additive reading of doc 06 section 6.2).
-    assert priority.estimated_cost_usd == Decimal("0.0264")
+    # Standard: (10 + 10) pages at $0.0006, two tasks at $0.0006 for the AI Overview and two
+    # at $0.0006 for the resolving pass of poisoned results.
+    assert standard.estimated_cost_usd == Decimal("0.0144")
+    # Priority: 20 pages at $0.0012 and, with no price row of its own, each surcharge at the
+    # queue's page price (the additive reading of doc 06 section 6.2): two for the AI Overview
+    # and two for the resolving pass.
+    assert priority.estimated_cost_usd == Decimal("0.0288")
     assert standard.config_snapshot["queue"] == "standard"
     assert priority.config_snapshot["queue"] == "priority"
     assert standard.config_snapshot["selector"] == {"all": True}

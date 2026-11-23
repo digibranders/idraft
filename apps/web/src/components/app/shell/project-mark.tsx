@@ -2,7 +2,7 @@
 
 import { useState, type ReactElement } from 'react';
 
-import { FAVICON_MIN_WIDTH, faviconUrl } from '@/lib/favicon';
+import { FAVICON_MIN_WIDTH, useFaviconUrl } from '@/lib/favicon';
 import { cn } from '@/lib/utils';
 
 const TILE = { sm: 'size-7 rounded-md', md: 'size-8 rounded-lg' } as const;
@@ -18,14 +18,13 @@ export interface ProjectMarkProps {
 
 /**
  * The project's mark (11-navigation.md section 8, 07-icons.md section 5): the icon of its website on a light
- * tile, found from the primary domain with no one uploading anything (there is no first-party icon route yet, so
- * for now every mark is the letter), or its first letter on the near-black tile where the site has no icon or it
+ * tile, found from the primary domain with no one uploading anything (the API's own icon route, `faviconUrl`), or its first letter on the near-black tile where the site has no icon or it
  * has not loaded. The project's name is always beside it or in a
  * tooltip, so the mark is decorative.
  */
 export function ProjectMark({ name, domain = null, size = 'sm' }: ProjectMarkProps): ReactElement {
-  const src = domain === null ? null : faviconUrl(domain);
-  // A new icon starts again from the letter; with no icon address (none yet) the letter is all there is
+  const src = useFaviconUrl(domain);
+  // A new icon starts again from the letter; with no icon address (outside a workspace) the letter is all there is
   return src === null ? (
     <Letter name={name} size={size} />
   ) : (

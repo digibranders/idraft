@@ -81,8 +81,10 @@ Summaries = Annotated[SummaryService, Depends(get_summary_service)]
     "rows, `total` and `by_country`: Cited among the answers with citations, the own share of "
     "the citation units, First mention (the own brand named before any other tracked entity, "
     "of the answers that name it) and the fan-out presence and mean (null on an engine that "
-    "does not expose fan-out), over the window alone, with `metric_context.detail`. Blocks not "
-    "asked for are left out. "
+    "does not expose fan-out), over the window alone, with `metric_context.detail`. "
+    "`include=facts` adds `latest` to every engine of the prompt rows: the newest valid answer "
+    "in the window and the state of its screenshot (the other facts of the page contract come "
+    "with their own requests). Blocks not asked for are left out. "
     "`filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, "
     "on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: "
     "`named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, "
@@ -123,7 +125,10 @@ async def prompts_summary(
     include: Annotated[
         list[SummaryInclude] | None,
         Commas,
-        Query(description="Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`."),
+        Query(
+            description="Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, "
+            "`facts`."
+        ),
     ] = None,
     compare: Annotated[
         SummaryCompare,

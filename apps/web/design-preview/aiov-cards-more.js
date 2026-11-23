@@ -261,7 +261,7 @@ export function domainsCard(ctx) {
   const domains = domainsFor(ctx.model);
   if (domains.rows.length === 0) return cardFrame({ key: 'sources.top_domains', title: 'Top cited domains', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
   const rows = domains.rows.slice(0, 8).map((row) => {
-    const badge = el('span', ROLE_BADGE[row.role], row.role);
+    const badge = row.role === 'Third party' ? undefined : el('span', ROLE_BADGE[row.role], row.role);
     return { label: row.domain, value: row.share, strong: row.role === 'Your site', badge, barToken: row.role === 'Your site' ? 'chart-1' : 'chart-bar-neutral', valueText: (v) => `${(v * 100).toFixed(1)}%` };
   });
   return cardFrame({

@@ -65,6 +65,7 @@ class CrawlRecord:
     pages_found: int
     pages_crawled: int
     sitemap_pages: int | None
+    pages_blocked: int | None
     render_javascript: bool
     estimated_cost_usd: Decimal | None
     cost_usd: Decimal | None
@@ -112,6 +113,7 @@ def _record(row: Row[tuple[object, ...]]) -> CrawlRecord:
         pages_found=row.pages_found,
         pages_crawled=row.pages_crawled,
         sitemap_pages=row.sitemap_pages,
+        pages_blocked=row.pages_blocked,
         render_javascript=bool(row.settings.get("render_javascript")),
         estimated_cost_usd=row.estimated_cost_usd,
         cost_usd=row.cost_usd,

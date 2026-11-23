@@ -144,7 +144,14 @@ async def get_observation(
     """An observation of a live project. `observed_at` is a hint; one so far from any answer that
     the slack leaves the calendar finds nothing."""
     statement = (
-        select(*_SUMMARY, _O.answer_text, _O.answer_hash, _O.error_code, _O.provider_extras)
+        select(
+            *_SUMMARY,
+            _O.answer_text,
+            _O.answer_hash,
+            _O.error_code,
+            _O.provider_extras,
+            _O.provider_task_id,
+        )
         .select_from(
             _source().join(
                 projects,

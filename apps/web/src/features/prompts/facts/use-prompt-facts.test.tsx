@@ -77,8 +77,9 @@ describe('usePromptFacts', () => {
     expect(result.current.data).toBe(first);
   });
 
-  it('does not ask a backend that has not built the include: that is for the mocks only', () => {
-    expect(factsRequested()).toBe(false);
+  it('asks for the facts include by default, with the entities and no weekly series', () => {
+    expect(factsRequested()).toBe(true);
+    expect(promptFactsQuery(scope, RANGE, true).queryKey.at(-1)).toMatchObject({ include: ['entities', 'facts'] });
   });
 
   it('keys the two reads apart so one never serves the other', () => {

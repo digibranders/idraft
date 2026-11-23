@@ -104,6 +104,7 @@ export function publicSummary(projectId: string): ClientSummary | null {
       })
     : null;
   return {
+    pages_blocked: view.run.pages_blocked,
     crawled_at: view.run.finished_at,
     generated_at: new Date().toISOString(),
     host: new URL(HOST).host,
@@ -121,13 +122,13 @@ export function publicSummary(projectId: string): ClientSummary | null {
       links: cell.links,
     })),
     worklists: [
-      { key: 'under_linked_t1', count: counts.under_linked_t1 },
-      { key: 'orphans', count: counts.orphans },
-      { key: 'editorial_orphans', count: counts.editorial_orphans },
-      { key: 'deep_only_through_auto', count: counts.deep_only_through_auto },
-      { key: 'broken_and_redirected', count: counts.broken_and_redirected },
-      { key: 'links_to_non_indexable', count: counts.links_to_non_indexable },
-      { key: 'weak_outlinks', count: counts.weak_outlinks },
+      { key: 'under_linked_t1', count: counts.under_linked_t1, may_be_incomplete: false },
+      { key: 'orphans', count: counts.orphans, may_be_incomplete: false },
+      { key: 'editorial_orphans', count: counts.editorial_orphans, may_be_incomplete: false },
+      { key: 'deep_only_through_auto', count: counts.deep_only_through_auto, may_be_incomplete: false },
+      { key: 'broken_and_redirected', count: counts.broken_and_redirected, may_be_incomplete: false },
+      { key: 'links_to_non_indexable', count: counts.links_to_non_indexable, may_be_incomplete: false },
+      { key: 'weak_outlinks', count: counts.weak_outlinks, may_be_incomplete: false },
     ],
     lost:
       lost === null

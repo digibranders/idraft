@@ -385,9 +385,11 @@ async def estimate(
     db: AsyncSession, subjects: Sequence[Subject], *, queue: str, on: date
 ) -> Decimal | None:
     """What the subjects cost by the price book: the pages of each depth at the queue's price,
-    and the asynchronous AI Overview each task adds (its own price row, else the queue's price of
-    a page: the additive reading of doc 06 section 6.2). None, and an error in the log, when the
-    book has no page price: a run is never planned on a guess of zero."""
+    and what each queued task adds: the asynchronous AI Overview (its own price row, else the
+    queue's price of a page: the additive reading of doc 06 section 6.2) and the pass that
+    resolves poisoned results (one more page at the queue's price, whatever the depth, measured
+    2026-11-23). None, and an error in the log, when the book has no page price: a run is never
+    planned on a guess of zero."""
     if not subjects:
         return Decimal(0)
     p = provider_price_book.c
@@ -416,8 +418,8 @@ async def estimate(
         return None
     total = sum((pages(s.depth) for s in subjects), 0) * page
     if queue == "live":
-        return total  # a live answer carries the AI Overview with it
-    return total + len(subjects) * (page if surcharge is None else surcharge)
+        return total  # a live answer carries the AI Overview with it, and sends no resolving pass
+    return total + len(subjects) * ((page if surcharge is None else surcharge) + page)
 
 
 def _due(window: ScheduleWindow, subject: Subject) -> datetime:

@@ -15,6 +15,7 @@ export interface FlaggedPage {
 
 export type FlagKey =
   | 'errorPage'
+  | 'blocked'
   | 'redirect'
   | 'nonIndexable'
   | 'orphan'
@@ -34,6 +35,7 @@ export interface DisplayFlag {
 /** The API's row flags, in the mock's order, with their key and tone. */
 const ROW_FLAGS: readonly (readonly [string, DisplayFlag])[] = [
   ['broken', { key: 'errorPage', tone: 'negative' }],
+  ['blocked', { key: 'blocked', tone: 'neutral' }],
   ['redirect', { key: 'redirect', tone: 'warning' }],
   ['non_indexable', { key: 'nonIndexable', tone: 'warning' }],
   ['orphan', { key: 'orphan', tone: 'negative' }],

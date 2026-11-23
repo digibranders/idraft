@@ -53,9 +53,9 @@ TargetTiers = Annotated[
     TierList, Commas, Query(alias="filter[target_tier]", min_length=1, max_length=9)
 ]
 Tags = Annotated[list[UUID] | None, Commas, Query(alias="filter[tag]", max_length=50)]
-Statuses = Annotated[list[StatusClass] | None, Commas, Query(alias="filter[status]", max_length=4)]
+Statuses = Annotated[list[StatusClass] | None, Commas, Query(alias="filter[status]", max_length=5)]
 TargetStatuses = Annotated[
-    list[StatusClass] | None, Commas, Query(alias="filter[target_status]", max_length=4)
+    list[StatusClass] | None, Commas, Query(alias="filter[target_status]", max_length=5)
 ]
 Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=6)]
 Placements = Annotated[

@@ -31,7 +31,12 @@ const FACTS = z.object({
     .nullable()
     .optional(),
   latest: z
-    .object({ observation_id: z.string(), observed_at: z.string(), screenshot_url: z.string().nullable() })
+    .object({
+      observation_id: z.string(),
+      observed_at: z.string(),
+      screenshot_url: z.string().nullable(),
+      screenshot_state: z.enum(['available', 'capturable', 'expired', 'unsupported']),
+    })
     .nullable()
     .optional(),
 });
@@ -109,7 +114,7 @@ describe('include=facts of the prompts summary', () => {
     }
   });
 
-  it('classifies sentiment on ChatGPT and Gemini only, and screenshots only the consumer apps', async () => {
+  it('classifies sentiment on ChatGPT and Gemini only, and has no screenshot stored before one is captured', async () => {
     const summary = await summaryOf('?include=entities,facts');
     const engines = summary.prompts.flatMap((row) => row.engines);
     expect(engines.length).toBeGreaterThan(0);
@@ -118,7 +123,8 @@ describe('include=facts of the prompts summary', () => {
       expect(engine.sentiment === null).toBe(!classified);
       expect(engine.recommended === null).toBe(!classified);
       if (engine.latest !== null && engine.latest !== undefined) {
-        expect(engine.latest.screenshot_url === null).toBe(!classified);
+        expect(engine.latest.screenshot_url).toBeNull();
+        expect(engine.latest.screenshot_state).toBe('capturable');
       }
     }
   });
