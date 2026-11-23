@@ -65,6 +65,8 @@ class ShareService:
                         project_id=project_id,
                         token_hash=hash_token(token),
                         created_by=access.user_id,
+                        # Both from one clock, so the link lasts exactly the days that were offered
+                        created_at=now,
                         expires_at=expires_at,
                     )
                     .returning(client_summary_shares.c.id, client_summary_shares.c.created_at)
