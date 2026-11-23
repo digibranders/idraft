@@ -461,6 +461,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/internal-links/summary/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The client summary of a shared link
+         * @description Read only, no sign-in. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached.
+         */
+        get: operations["public_summary_api_v1_public_internal_links_summary__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces": {
         parameters: {
             query?: never;
@@ -1872,7 +1892,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Pages whose editorial links in, equity or depth moved most */
+        /** Pages whose editorial links in, link strength or depth moved most */
         get: operations["changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get"];
         put?: never;
         post?: never;
@@ -1928,7 +1948,7 @@ export interface paths {
         };
         /**
          * One journey step, links out or links in
-         * @description The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then equity share, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.
+         * @description The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then link strength, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.
          */
         get: operations["neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get"];
         put?: never;
@@ -2022,6 +2042,47 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The client summary links of the project, newest first, without their tokens */
+        get: operations["list_shares_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares_get"];
+        put?: never;
+        /**
+         * Make a read-only link to the client summary that anyone holding it can open
+         * @description The token in the answer is shown once and is not stored; only its hash is. The link stops working at `expires_at` (7, 30 or 90 days, default 30) or when revoked.
+         */
+        post: operations["create_share_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares/{share_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a client summary link
+         * @description Revoking a link that is already revoked changes nothing.
+         */
+        delete: operations["revoke_share_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares__share_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5033,6 +5094,11 @@ export interface components {
             ai_mode: number;
             /** Chatgpt */
             chatgpt: number;
+            /**
+             * Citations As Of
+             * @description The day of the project's newest AI answer behind these counts (today's numbers, not the crawl's day); null when there is none.
+             */
+            citations_as_of: string | null;
             /** Gemini */
             gemini: number;
             /** Total */
@@ -5362,6 +5428,39 @@ export interface components {
              * @description Answers citing it that name the entity.
              */
             observations: number;
+        };
+        /** ClientSummary */
+        ClientSummary: {
+            /** Crawled At */
+            crawled_at: string | null;
+            /** Flow */
+            flow: components["schemas"]["SummaryFlowCell"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Host
+             * @description The project's website host.
+             */
+            host: string | null;
+            /**
+             * Important Max Position
+             * @description Tiers T1 to this one count as important.
+             */
+            important_max_position: number | null;
+            lost: components["schemas"]["SummaryLost"];
+            /** Pages */
+            pages: number;
+            /** Tiers */
+            tiers: components["schemas"]["SummaryTier"][];
+            /** Worklists */
+            worklists: components["schemas"]["SummaryWorklist"][];
+        };
+        /** ClientSummaryResponse */
+        ClientSummaryResponse: {
+            data: components["schemas"]["ClientSummary"];
         };
         /** CoMentionPair */
         CoMentionPair: {
@@ -5857,6 +5956,41 @@ export interface components {
         /** CrawlRunResponse */
         CrawlRunResponse: {
             data: components["schemas"]["CrawlRun"];
+        };
+        /** CreatedShare */
+        CreatedShare: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            state: components["schemas"]["ShareState"];
+            /**
+             * Token
+             * @description The secret of the link, shown this once. The public page is `/api/v1/public/internal-links/summary/{token}` and the web builds its own address.
+             */
+            token: string;
+        };
+        /** CreatedShareResponse */
+        CreatedShareResponse: {
+            data: components["schemas"]["CreatedShare"];
         };
         /**
          * CursorPageInfo
@@ -6520,6 +6654,8 @@ export interface components {
             /** Parent Entity Id */
             parent_entity_id?: string | null;
         };
+        /** @enum {integer} */
+        ExpiryDays: 7 | 30 | 90;
         /** FanoutCitedDomain */
         FanoutCitedDomain: {
             /** Citation Units */
@@ -7695,6 +7831,11 @@ export interface components {
             keyword: string;
             /** Rank */
             rank: number | null;
+            /**
+             * Rank As Of
+             * @description The day of the check that gave `rank`; null when it was never checked.
+             */
+            rank_as_of: string | null;
             /** Volume */
             volume: number | null;
         };
@@ -7704,6 +7845,11 @@ export interface components {
             average_rank: number | null;
             /** Best Volume */
             best_volume: number | null;
+            /**
+             * Rank As Of
+             * @description The day of the newest check behind these ranks (today's numbers, not the crawl's day); null when none was checked.
+             */
+            rank_as_of: string | null;
             /** Ranking */
             ranking: number;
             /** Tracked */
@@ -8244,7 +8390,10 @@ export interface components {
             editorial_in: number;
             /** Editorial In Delta */
             editorial_in_delta: number | null;
-            /** Equity Points */
+            /**
+             * Equity Points
+             * @description Link strength change in points since the previous crawl.
+             */
             equity_points: number | null;
             page: components["schemas"]["ChangePage"];
         };
@@ -8270,7 +8419,10 @@ export interface components {
             anchor: string | null;
             /** Click Depth */
             click_depth: number | null;
-            /** Equity Share */
+            /**
+             * Equity Share
+             * @description Link strength: the page's share of the whole site's, 0 to 1.
+             */
             equity_share: number | null;
             /** Has Children */
             has_children: boolean;
@@ -8686,7 +8838,10 @@ export interface components {
             /** Phrase */
             phrase: string;
             source: components["schemas"]["ChangePage"];
-            /** Source Equity Share */
+            /**
+             * Source Equity Share
+             * @description Link strength of the page that would carry the link: its share of the whole site's, 0 to 1.
+             */
             source_equity_share: number | null;
             /**
              * Status
@@ -8851,7 +9006,10 @@ export interface components {
             depth_state: ("lost" | "found") | null;
             /** Editorial In Delta */
             editorial_in_delta: number | null;
-            /** Equity Points */
+            /**
+             * Equity Points
+             * @description Link strength change in points since the previous crawl.
+             */
             equity_points: number | null;
             /** Is New */
             is_new: boolean;
@@ -8931,7 +9089,10 @@ export interface components {
             click_depth: number | null;
             /** Depth Without Auto */
             depth_without_auto: number | null;
-            /** Equity Share */
+            /**
+             * Equity Share
+             * @description Link strength: the page's share of the whole site's, 0 to 1. Show the change in points, never this share.
+             */
             equity_share: number | null;
             /** @description Set when the list was asked for `include`. */
             extras?: components["schemas"]["PageExtras"] | null;
@@ -11379,6 +11540,54 @@ export interface components {
             /** Data */
             data: components["schemas"]["SessionItem"][];
         };
+        /**
+         * Share
+         * @description A link as listed. The token is never here: it is shown once, when the link is made.
+         */
+        Share: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            state: components["schemas"]["ShareState"];
+        };
+        /** ShareCreate */
+        ShareCreate: {
+            /**
+             * @description Days until the link stops working.
+             * @default 30
+             */
+            expires_in_days: components["schemas"]["ExpiryDays"];
+        };
+        /** ShareList */
+        ShareList: {
+            /** Data */
+            data: components["schemas"]["Share"][];
+        };
+        /** ShareResponse */
+        ShareResponse: {
+            data: components["schemas"]["Share"];
+        };
+        /** @enum {string} */
+        ShareState: "active" | "expired" | "revoked";
         /** SignInRequest */
         SignInRequest: {
             /** Email */
@@ -11856,6 +12065,40 @@ export interface components {
              */
             role: "own" | "competitor";
         };
+        /** SummaryFlowCell */
+        SummaryFlowCell: {
+            /** From Code */
+            from_code: string | null;
+            /** Links */
+            links: number;
+            /** To Code */
+            to_code: string | null;
+        };
+        /** SummaryLost */
+        SummaryLost: {
+            /** Links */
+            links: components["schemas"]["SummaryLostLink"][];
+            /**
+             * State
+             * @description `no_comparison` for a first crawl, `dropped` when the links of either crawl are no longer stored.
+             * @enum {string}
+             */
+            state: "available" | "no_comparison" | "dropped";
+            /**
+             * Total
+             * @description Lost links to the important tiers; null unless available.
+             */
+            total: number | null;
+        };
+        /** SummaryLostLink */
+        SummaryLostLink: {
+            /** Anchor */
+            anchor: string;
+            /** From Path */
+            from_path: string;
+            /** To Path */
+            to_path: string;
+        };
         /** SummaryMetricContext */
         SummaryMetricContext: {
             cited: components["schemas"]["MetricContext"];
@@ -11864,6 +12107,20 @@ export interface components {
             mentioned: components["schemas"]["MetricContext"];
             outcomes: components["schemas"]["MetricContext"];
             share_of_voice: components["schemas"]["MetricContext"];
+        };
+        /** SummaryTier */
+        SummaryTier: {
+            /** Average Depth */
+            average_depth: number | null;
+            /**
+             * Code
+             * @description T1, T2 and so on; null for the pages with no tier.
+             */
+            code: string | null;
+            /** Name */
+            name: string | null;
+            /** Pages */
+            pages: number;
         };
         /**
          * SummaryTotal
@@ -11887,6 +12144,16 @@ export interface components {
              * @description The prompts in scope, whatever the engines shown.
              */
             prompt_count: number;
+        };
+        /** SummaryWorklist */
+        SummaryWorklist: {
+            /** Count */
+            count: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "broken_and_redirected" | "links_to_non_indexable" | "weak_outlinks";
         };
         /** TagChangeResponse */
         TagChangeResponse: {
@@ -12298,7 +12565,10 @@ export interface components {
         TierStat: {
             /** Average Depth */
             average_depth: number | null;
-            /** Equity Share */
+            /**
+             * Equity Share
+             * @description Link strength of the tier: its pages' share of the whole site's, 0 to 1.
+             */
             equity_share: number;
             /** Pages */
             pages: number;
@@ -14157,6 +14427,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_summary_api_v1_public_internal_links_summary__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientSummaryResponse"];
+                };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
             default: {
@@ -17913,7 +18214,7 @@ export interface operations {
                 "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors")[] | null;
                 "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
                 q?: string | null;
-                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change";
+                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change" | "rank" | "-rank" | "citations" | "-citations" | "anchor" | "-anchor" | "tier" | "-tier" | "clicks" | "-clicks" | "title" | "-title" | "indexable" | "-indexable" | "in_sitemap" | "-in_sitemap";
                 /** @description Parts to add to each row as `extras`. */
                 include?: ("changes" | "keywords" | "citations" | "anchors" | "gsc")[] | null;
                 format?: "json" | "csv";
@@ -18011,6 +18312,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoutesResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_shares_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_share_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedShareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_share_api_v1_workspaces__workspace_id__projects__project_id__internal_links_shares__share_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                share_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -21477,7 +21879,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPage
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change", "rank", "-rank", "citations", "-citations", "anchor", "-anchor", "tier", "-tier", "clicks", "-clicks", "title", "-title", "indexable", "-indexable", "in_sitemap", "-in_sitemap"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
@@ -21580,6 +21982,7 @@ export const entityProjectRoleRoleValues: ReadonlyArray<FlattenedDeepRequired<co
 export const entityRefEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
 export const entityRefRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityRef"]["role"]> = ["own", "competitor", "watch"];
 export const entityUpdateEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EntityUpdate"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
+export const expiryDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ExpiryDays"]> = [7, 30, 90];
 export const fanoutCitedDomainDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FanoutCitedDomain"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const filterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__absent____present_not_cited____present_cited____not_loaded____unknown___"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const filterList_Literal__informational____navigational____commercial____transactional____local____unknown___Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["FilterList_Literal__informational____navigational____commercial____transactional____local____unknown___"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
@@ -21718,6 +22121,7 @@ export const seoSettingsPatchVisibility_weight_schemeValues: ReadonlyArray<Flatt
 export const serpSnapshotDetailAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["titles_source"]> = ["domain_rank_observations", "serp_current_results", "unavailable"];
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
+export const shareStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ShareState"]> = ["active", "expired", "revoked"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
 export const sourceChangeRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourceChangeRow"]["domain_role"]> = ["own", "competitor", "third_party"];
@@ -21728,6 +22132,8 @@ export const sourcePageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const suggestionReasonKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SuggestionReason"]["kind"]> = ["clicks", "rank"];
 export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
+export const summaryLostStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryLost"]["state"]> = ["available", "no_comparison", "dropped"];
+export const summaryWorklistKeyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryWorklist"]["key"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "broken_and_redirected", "links_to_non_indexable", "weak_outlinks"];
 export const termSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Term"]["source"]> = ["manual", "import", "auto_cluster", "ai_suggestion"];
 export const termAssignmentOpValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["op"]> = ["add", "remove", "replace"];
 export const termAssignmentSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TermAssignment"]["subject_type"]> = ["tracked_keyword", "prompt"];

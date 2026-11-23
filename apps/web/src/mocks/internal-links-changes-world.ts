@@ -396,6 +396,7 @@ function keywordSummary(page: FixturePage): NonNullable<PageExtras['keywords']> 
     average_rank:
       ranks.length === 0 ? null : Math.round((ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length) * 10) / 10,
     best_volume: volumes.length === 0 ? null : Math.max(...volumes),
+    rank_as_of: null,
   };
 }
 
@@ -410,7 +411,7 @@ const CITATIONS: Readonly<Record<string, readonly [chatgpt: number, gemini: numb
 
 function citationsOf(page: FixturePage): NonNullable<PageExtras['citations']> {
   const [chatgpt, gemini, aiMode] = CITATIONS[page.path] ?? [0, 0, 0];
-  return { chatgpt, gemini, ai_mode: aiMode, total: chatgpt + gemini + aiMode };
+  return { chatgpt, gemini, ai_mode: aiMode, total: chatgpt + gemini + aiMode, citations_as_of: null };
 }
 
 /** Search Console clicks and impressions over the 28 days before the latest crawl, by path. */
@@ -574,6 +575,7 @@ export function pageDetailExtras(view: RunView, page: FixturePage): PageDetailEx
     change: pageChangeOf(view, page),
     citations: citationsOf(page),
     gsc: gscOf(page),
-    keywords: keywordsOf(page),
+    // The mock has no collection dates: the as-of date is not known
+    keywords: keywordsOf(page).map((fact) => ({ ...fact, rank_as_of: null })),
   };
 }

@@ -137,14 +137,17 @@ describe('the Change column', () => {
 
 describe('the rank, citation, anchor and Google columns', () => {
   it('shows tracked keywords and the average rank with one decimal, n/a without a rank', () => {
-    const keywords = { tracked: 4, ranking: 2, average_rank: 6, best_volume: 900 };
+    const keywords = { tracked: 4, ranking: 2, average_rank: 6, best_volume: 900, rank_as_of: null };
     expect(cellOf('keywords', withExtras({ keywords })).text).toBe('4');
     expect(cellOf('rank', withExtras({ keywords })).text).toBe('6.0');
     expect(cellOf('rank', withExtras({ keywords: { ...keywords, average_rank: null } })).text).toBe('n/a');
   });
 
   it('shows AI citations with the engines and the window in the tooltip', () => {
-    const cell = cellOf('citations', withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29 } }));
+    const cell = cellOf(
+      'citations',
+      withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29, citations_as_of: null } }),
+    );
     expect(cell.text).toBe('29');
     expect(cell.tip).toContain('ChatGPT 14, Gemini 9, AI Mode 6, last 28 days');
   });

@@ -20,12 +20,12 @@ const BASE: PageDetailExtras = {
     ],
   },
   change: { is_new: false, editorial_in_delta: 2, equity_points: 3.5, depth_state: null, depth_delta: 1 },
-  citations: { chatgpt: 5, gemini: 3, ai_mode: 2, total: 10 },
+  citations: { chatgpt: 5, gemini: 3, ai_mode: 2, total: 10, citations_as_of: null },
   gsc: { state: 'ok', clicks: 1320, impressions: 28400, window_start: '2026-10-18', window_end: '2026-11-14' },
   keywords: [
-    { keyword: 'soc as a service', rank: 4, change: 2, volume: 1900 },
-    { keyword: 'managed soc', rank: 12, change: -3, volume: 880 },
-    { keyword: 'soc pricing', rank: null, change: null, volume: null },
+    { keyword: 'soc as a service', rank: 4, change: 2, volume: 1900, rank_as_of: null },
+    { keyword: 'managed soc', rank: 12, change: -3, volume: 880, rank_as_of: null },
+    { keyword: 'soc pricing', rank: null, change: null, volume: null, rank_as_of: null },
   ],
 };
 
@@ -116,7 +116,7 @@ describe('tracked keywords', () => {
   });
 
   it('lets a long keyword break inside the narrow inspector', () => {
-    show({ keywords: [{ keyword: 'a'.repeat(120), rank: 1, change: 0, volume: 10 }] });
+    show({ keywords: [{ keyword: 'a'.repeat(120), rank: 1, change: 0, volume: 10, rank_as_of: null }] });
     const cell = within(card('Tracked keywords')).getByRole('rowheader');
     expect(cell).toHaveClass('break-words', 'min-w-0');
   });
@@ -139,7 +139,7 @@ describe('AI citations', () => {
   });
 
   it('says Cited in 0 answers when every count is zero', () => {
-    show({ citations: { chatgpt: 0, gemini: 0, ai_mode: 0, total: 0 } });
+    show({ citations: { chatgpt: 0, gemini: 0, ai_mode: 0, total: 0, citations_as_of: null } });
     expect(card('AI citations')).toHaveTextContent('Cited in 0 answers');
   });
 });
