@@ -46,6 +46,7 @@ from idraft.crawl.mentions import (
     visible_blocks,
     visible_text,
 )
+from idraft.crawl.status import BLOCKED_STATUSES
 from idraft.db.tables import (
     crawl_alerts,
     crawl_link_changes,
@@ -202,13 +203,21 @@ _PAGE_CHANGES = text(
                      * 1000)::numeric) <> 0)
     """
 )
-# One representative link per source and target pair in a scope: the first by scope order.
+# One representative link per source and target pair in a scope: the first by scope order. A
+# source that refused the crawler in either crawl is left out of both sides: its links were not
+# read, so their absence is no change (plan 08 task 4).
 _PAIRS = """
     SELECT DISTINCT ON (source_url_id, target_url_id)
            source_url_id, target_url_id, placement, anchor
     FROM seo.crawl_links
     WHERE run_id = CAST(:{run} AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
       AND source_url_id <> target_url_id {scope}
+      AND NOT EXISTS (
+          SELECT 1 FROM seo.crawl_pages refused
+          WHERE refused.workspace_id = CAST(:workspace_id AS uuid)
+            AND refused.run_id IN (CAST(:run_id AS uuid), CAST(:previous_id AS uuid))
+            AND refused.url_id = source_url_id
+            AND refused.status_code = ANY(CAST(:blocked AS integer[])))
     ORDER BY source_url_id, target_url_id,
              CASE scope WHEN 'editorial' THEN 0 WHEN 'auto_generated' THEN 1 ELSE 2 END, id
 """
@@ -359,7 +368,13 @@ async def _changes(
             if compared:
                 for scope in ("editorial", "all"):
                     await db.execute(
-                        _link_change_statement(scope), {**both, "scope": scope, "cap": CHANGES_MAX}
+                        _link_change_statement(scope),
+                        {
+                            **both,
+                            "scope": scope,
+                            "cap": CHANGES_MAX,
+                            "blocked": sorted(BLOCKED_STATUSES),
+                        },
                     )
                 # Retention may have dropped a partition while the diff read it: a missing
                 # side would read as every link lost or added.
