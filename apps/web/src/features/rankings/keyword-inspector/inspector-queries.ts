@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { applyKeywordWrite } from '../keyword-cache';
 import { keywordsKey, refreshKeywords, type ProjectScope } from '../rankings-queries';
 import { apiQuery, type ApiQueryOptions, type ApiResponse } from '@/lib/api/query';
+import type { ProjectEntity } from '@/lib/api/types';
 
 /**
  * What the keyword inspector reads: the tracked keyword with its groups, terms and competitor overrides,
@@ -19,7 +20,6 @@ const RANK_HISTORY =
 export const COMPETITORS =
   '/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords/{tracked_keyword_id}/competitors';
 const METRICS_HISTORY = '/api/v1/workspaces/{workspace_id}/keywords/{keyword_id}/metrics-history';
-const PROJECT_ENTITIES = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities';
 export const GROUP_MEMBERS =
   '/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups/{group_id}/members';
 export const GROUP_MEMBERS_REMOVE =
@@ -29,7 +29,7 @@ export const TERM_ASSIGNMENTS = '/api/v1/workspaces/{workspace_id}/projects/{pro
 export type KeywordDetail = ApiResponse<'get', typeof DETAIL>['data'];
 export type ConfigVersion = ApiResponse<'get', typeof CONFIG_HISTORY>['data'][number];
 export type MetricsHistory = ApiResponse<'get', typeof METRICS_HISTORY>['data'];
-export type ProjectEntity = ApiResponse<'get', typeof PROJECT_ENTITIES>['data'][number];
+export type { ProjectEntity };
 export type EntityRef = ProjectEntity['entity'];
 export type CompetitorOverride = KeywordDetail['competitor_overrides'][number];
 
@@ -106,10 +106,6 @@ export const metricsHistoryQuery = (
       query: { location_id: keyword.location_id, language_code: keyword.language_code },
     },
   });
-
-/** The project's entities with their roles: the same request, and so the same cache, as the entities screen's. */
-export const projectEntitiesQuery = (scope: ProjectScope): ApiQueryOptions<typeof PROJECT_ENTITIES> =>
-  apiQuery(PROJECT_ENTITIES, { params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } } });
 
 /** An entity the project tracks in SEO as a competitor: the default competitor set of every keyword. */
 export const isProjectCompetitor = (entity: ProjectEntity): boolean =>

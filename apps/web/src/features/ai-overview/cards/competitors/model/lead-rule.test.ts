@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { LEAD_MARGIN, leadsOf } from './lead-rule';
-import { at, cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './summary-fixtures';
+import { at, cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 
 const HUBSPOT = competitor(2, 'HubSpot');

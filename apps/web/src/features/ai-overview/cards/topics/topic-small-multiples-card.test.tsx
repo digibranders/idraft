@@ -15,7 +15,7 @@ import {
 import TopicSmallMultiplesCard from './topic-small-multiples-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptsSummary } from '@/lib/api/types';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { mswPath } from '@/mocks/respond';

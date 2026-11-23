@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompetitorsScreen, type CompetitorsProject } from './competitors-screen';
 import { useAddCompetitorControl } from './add-competitor-control';
-import { competitorsBody, competitorRow, OWN_ID } from './model/competitors-fixtures';
+import { competitorsBody, competitorRow, OWN_ID } from './model/competitors.test-fixtures';
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';

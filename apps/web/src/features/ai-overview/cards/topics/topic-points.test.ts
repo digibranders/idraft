@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { averagePoints, enginePoints, poolNote, type TopicPoint } from './topic-points';
-import { cell, engine, pool, week, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, pool, week, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 /** The points of an engine whose series is `weeks`. */
 const pointsOf = (...weeks: ReturnType<typeof week>[]): TopicPoint[] => {

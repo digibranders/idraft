@@ -4,7 +4,7 @@ import { CELL_OF_MEASURE, forMeasure, groupCoverage, groupRows, isCountedMeasure
 import { engineCells, promptRow, topicRow } from './topic-card-test-kit';
 import { buildTopicNodes, groupsOf, topicDescendants } from './topic-nodes';
 import type { PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
-import { term } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { term } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 // SEO has Technical SEO and Local SEO under it; Paid Search stands alone
 const TREE = [

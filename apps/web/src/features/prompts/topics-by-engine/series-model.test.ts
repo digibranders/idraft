@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cell, competitor, engine, entityCells, own, pool, week, weighted } from './cells-fixtures';
+import { cell, competitor, engine, entityCells, own, pool, week, weighted } from './cells.test-fixtures';
 import {
   averageEntityLines,
   averagePoints,

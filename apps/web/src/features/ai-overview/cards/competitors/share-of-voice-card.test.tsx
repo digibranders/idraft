@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { competitor, engine, entityCells, own, share, summaryOf, weighted } from './model/summary-fixtures';
+import { competitor, engine, entityCells, own, share, summaryOf, weighted } from './model/summary.test-fixtures';
 import ShareOfVoiceCard from './share-of-voice-card';
 import { OpenCompetitorContext, type OpenCompetitor } from '../../competitor-drawer/open-competitor';
 import type { CardProps } from '@/features/layouts';
@@ -65,6 +65,12 @@ describe('the share of voice card follows the page scope', () => {
       expect.stringContaining('Zoho'),
     ]);
     expect(screen.getByText('of 100 brand mentions')).toBeInTheDocument();
+    // The count behind each percent sits beside it (D17)
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('50%50 of 100'),
+      expect.stringContaining('25%25 of 100'),
+      expect.stringContaining('25%25 of 100'),
+    ]);
   });
 
   it('is the equal-weight average of the platforms for All platforms, labelled average of N, not a pooled ratio', async () => {
@@ -75,6 +81,9 @@ describe('the share of voice card follows the page scope', () => {
     // (40% + 50%) / 2 = 45% for you; pooled it would be 50 of 120
     expect(within(await list()).getByText('45%')).toBeInTheDocument();
     expect(within(await list()).getByText('40%')).toBeInTheDocument();
+    // An average has no pooled count to show beside it; each platform's is in the tooltip
+    expect((await list()).textContent).not.toMatch(/%\d[\d,]* of \d/);
+    expect((await list()).textContent).toContain('ChatGPT 40 of 100 and Gemini 10 of 20');
   });
 
   it('does not read a leftover engine option of an older layout', async () => {

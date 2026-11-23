@@ -79,6 +79,7 @@ describe('the address of Internal links (URL state table)', () => {
       invalid: { src: null, tgt: null, focus: null, run: null },
       run: null,
       changesScope: 'editorial',
+      linkStatus: 'active',
       oppStatus: null,
       oppTier: null,
       oppQuery: null,
@@ -180,5 +181,14 @@ describe('the address of Internal links (URL state table)', () => {
       source: '9223372036854775807',
       target: '12',
     });
+  });
+});
+
+describe('the status of the Links tab (ls)', () => {
+  it('reads active unless the address names lost or all', () => {
+    expect(parseLinksSearch({}).linkStatus).toBe('active');
+    expect(parseLinksSearch({ ls: 'lost' }).linkStatus).toBe('lost');
+    expect(parseLinksSearch({ ls: 'all' }).linkStatus).toBe('all');
+    expect(parseLinksSearch({ ls: 'gone' }).linkStatus).toBe('active');
   });
 });

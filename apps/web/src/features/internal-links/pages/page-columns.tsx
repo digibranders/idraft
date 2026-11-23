@@ -28,6 +28,13 @@ export const SORT_FIELD: Readonly<Record<string, string>> = {
   linking: 'linking_pages',
   outlinks: 'outlinks',
   change: 'change',
+  rank: 'rank',
+  citations: 'citations',
+  anchors: 'anchor',
+  tier: 'tier',
+  clicks: 'clicks',
+  reason: 'indexable',
+  sitemap: 'in_sitemap',
 };
 
 /** The sort the table's first key asks for, or `null` for a column the server cannot sort. */
@@ -86,6 +93,7 @@ export function pageColumns(
     openJourney,
     comparison,
     linksAvailable,
+    olderCrawlDate = null,
   }: {
     tiers: readonly PageTier[];
     scope: LinkScope;
@@ -94,9 +102,11 @@ export function pageColumns(
     comparison: Comparison;
     /** False for a crawl whose links were dropped: its anchors are not stored. */
     linksAvailable: boolean;
+    /** The date of the crawl in view when it is not the latest: the Today columns say it differs from them. */
+    olderCrawlDate?: string | null;
   },
 ): Column[] {
-  const extras = extraColumns(t, { comparison, linksAvailable }, custom);
+  const extras = extraColumns(t, { comparison, linksAvailable, olderCrawlDate }, custom);
   const segments = [
     ...tiers.map((tier) => ({
       id: tier.tier_id,
@@ -127,7 +137,10 @@ export function pageColumns(
         />
       ),
     }),
-    custom('tier', 'badge', t('columns.tier'), (row) => <TierBadge tier={row.tier} />, { width: 96 }),
+    custom('tier', 'badge', t('columns.tier'), (row) => <TierBadge tier={row.tier} />, {
+      width: 96,
+      sortValue: (row) => tierPosition(row.tier),
+    }),
     custom(
       'status',
       'status',

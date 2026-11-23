@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { distinctPrompts, groupChoices, groupCoverage, groupsOfSummary, searchGroups, type Group } from './group-model';
 import { topicDescendants } from './prompt-model';
-import { engine, promptRow, term, topicRow, weighted } from './topics-by-engine/cells-fixtures';
+import { engine, promptRow, term, topicRow, weighted } from './topics-by-engine/cells.test-fixtures';
 
 const TREE = [
   term('seo', 'SEO'),

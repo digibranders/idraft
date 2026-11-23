@@ -9,9 +9,10 @@ import { RateLinesFrame, type RateFrameState, type RateLine } from './rate-lines
 import { useTopicTrend } from './topic-trend-query';
 import { Select } from '@/components/ui/select';
 import { NO_TOPIC } from '@/features/prompts/prompt-model';
-import { projectEntitiesQuery } from '@/features/prompts/prompt-queries';
 import { averageEntityLines, entityLines, type EntityLine } from '@/features/prompts/topics-by-engine/series-model';
 import { useErrorId } from '@/lib/api/use-error-id';
+import { placeCompetitorColors } from '@/lib/entities/colors';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import type { SeriesRole } from '@/lib/charts/category-chart';
 
 /** The competitors drawn against the own brand (N3). */
@@ -19,11 +20,6 @@ const TOP_COMPETITORS = 3;
 
 /** The engine choice that averages the engines with equal weight. */
 const AVERAGE = 'average';
-
-type PaletteIndex = 2 | 3 | 4 | 5 | 6;
-const PALETTE: readonly PaletteIndex[] = [2, 3, 4, 5, 6];
-const isPalette = (index: number | null | undefined): index is PaletteIndex =>
-  PALETTE.some((candidate) => candidate === index);
 
 /**
  * The chart colour of each line (F15): the own brand is chart 1, a competitor keeps the colour stored for it in the
@@ -34,23 +30,18 @@ export function rivalRoles(
   entities: readonly { entityId: string; role: 'own' | 'competitor' }[],
   stored: ReadonlyMap<string, number | null>,
 ): Map<string, SeriesRole> {
-  const roles = new Map<string, SeriesRole>();
-  const held = new Set<number>();
-  for (const { entityId, role } of entities) {
-    const index = stored.get(entityId);
-    if (role === 'own') roles.set(entityId, { kind: 'brand' });
-    else if (isPalette(index) && !held.has(index)) {
-      roles.set(entityId, { kind: 'palette', index });
-      held.add(index);
-    }
-  }
-  for (const { entityId, role } of entities) {
-    if (role === 'own' || roles.has(entityId)) continue;
-    const free = PALETTE.find((index) => !held.has(index));
-    roles.set(entityId, free === undefined ? { kind: 'other' } : { kind: 'palette', index: free });
-    if (free !== undefined) held.add(free);
-  }
-  return roles;
+  const placed = placeCompetitorColors(
+    entities
+      .filter((entity) => entity.role !== 'own')
+      .map((entity) => ({ id: entity.entityId, stored: stored.get(entity.entityId) })),
+  );
+  return new Map(
+    entities.map(({ entityId, role }): [string, SeriesRole] => {
+      const index = placed.get(entityId);
+      if (role === 'own') return [entityId, { kind: 'brand' }];
+      return [entityId, index === undefined ? { kind: 'other' } : { kind: 'palette', index }];
+    }),
+  );
 }
 
 /**

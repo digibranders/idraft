@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, type Counts } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, type Counts } from './engines.test-fixtures';
 import PromptMoversCard from './prompt-movers-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';

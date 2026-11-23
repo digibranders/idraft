@@ -24,24 +24,37 @@ describe('the sort of the Pages table (decision W5)', () => {
   });
 
   it('has no sort for a column the server cannot sort, nor for an empty choice', () => {
-    expect(sortOfKeys([{ id: 'tier', desc: false }])).toBeNull();
+    expect(sortOfKeys([{ id: 'tags', desc: false }])).toBeNull();
     expect(sortOfKeys([])).toBeNull();
     expect(keysOfSort('-linking_pages')).toEqual([{ id: 'linking', desc: true }]);
   });
 
-  it('sorts only the six columns the API sorts, and never by equity', () => {
+  it('sorts only the thirteen columns the API sorts, and never by equity', () => {
     expect(Object.values(SORT_FIELD).sort()).toEqual([
+      'anchor',
       'change',
+      'citations',
       'click_depth',
+      'clicks',
+      'in_sitemap',
+      'indexable',
       'linking_pages',
       'outlinks',
       'path',
+      'rank',
       'status_code',
+      'tier',
     ]);
     const sortable = columns.filter((column) => column.sortValue !== undefined).map((column) => column.id);
     expect(sortable.sort()).toEqual(Object.keys(SORT_FIELD).sort());
     expect(sortOfKeys([{ id: 'change', desc: true }])).toBe('-change');
-    for (const id of ['rank', 'citations', 'anchors', 'keywords', 'clicks']) {
+    expect(sortOfKeys([{ id: 'rank', desc: true }])).toBe('-rank');
+    expect(sortOfKeys([{ id: 'citations', desc: false }])).toBe('citations');
+    expect(sortOfKeys([{ id: 'anchors', desc: true }])).toBe('-anchor');
+    expect(sortOfKeys([{ id: 'sitemap', desc: true }])).toBe('-in_sitemap');
+    expect(sortOfKeys([{ id: 'tier', desc: false }])).toBe('tier');
+    expect(sortOfKeys([{ id: 'clicks', desc: true }])).toBe('-clicks');
+    for (const id of ['keywords', 'impressions']) {
       expect(sortOfKeys([{ id, desc: false }])).toBeNull();
     }
   });
@@ -137,14 +150,36 @@ describe('the Change column', () => {
 
 describe('the rank, citation, anchor and Google columns', () => {
   it('shows tracked keywords and the average rank with one decimal, n/a without a rank', () => {
-    const keywords = { tracked: 4, ranking: 2, average_rank: 6, best_volume: 900 };
+    const keywords = { tracked: 4, ranking: 2, average_rank: 6, best_volume: 900, rank_as_of: '2026-11-18' };
     expect(cellOf('keywords', withExtras({ keywords })).text).toBe('4');
     expect(cellOf('rank', withExtras({ keywords })).text).toBe('6.0');
     expect(cellOf('rank', withExtras({ keywords: { ...keywords, average_rank: null } })).text).toBe('n/a');
   });
 
+  it('labels rank and citations as today’s numbers, and beside an older crawl names that crawl’s date', () => {
+    const header = (id: string, olderCrawlDate: string | null): { text: string; tip: string | undefined } => {
+      const column = pageColumns(t, {
+        tiers: [],
+        scope: 'editorial',
+        openJourney: () => undefined,
+        comparison: 'ready',
+        linksAvailable: true,
+        olderCrawlDate,
+      }).find((candidate) => candidate.id === id);
+      return { text: String(column?.header), tip: column?.headerTooltip };
+    };
+    expect(header('rank', null).text).toBe('Average rank today');
+    expect(header('citations', null).text).toBe('AI citations today');
+    expect(header('rank', null).tip).not.toContain('This crawl is from');
+    expect(header('rank', 'Nov 4, 2026').tip).toContain('This crawl is from Nov 4, 2026');
+    expect(header('citations', 'Nov 4, 2026').tip).toContain('today’s numbers, not the numbers of that day');
+  });
+
   it('shows AI citations with the engines and the window in the tooltip', () => {
-    const cell = cellOf('citations', withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29 } }));
+    const cell = cellOf(
+      'citations',
+      withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29, citations_as_of: '2026-11-18' } }),
+    );
     expect(cell.text).toBe('29');
     expect(cell.tip).toContain('ChatGPT 14, Gemini 9, AI Mode 6, last 28 days');
   });

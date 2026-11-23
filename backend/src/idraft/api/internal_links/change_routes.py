@@ -93,7 +93,7 @@ async def changes_links(
 
 @router.get(
     "/pages",
-    summary="Pages whose editorial links in, equity or depth moved most",
+    summary="Pages whose editorial links in, link strength or depth moved most",
     response_model=MovedPageList,
 )
 async def changes_pages(

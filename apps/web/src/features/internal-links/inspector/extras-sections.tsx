@@ -48,22 +48,30 @@ function ChangesBody({
   t,
   extras,
   comparison,
+  linksCompared,
 }: {
   t: Translate;
   extras: PageDetailExtras;
   comparison: Comparison;
+  linksCompared: boolean;
 }): ReactElement {
   // A crawl with a comparison in hand but no change for the page reads as not available, never as zero
   if (extras.change === null) return muted(comparison === 'updating' ? t('updating') : t('unavailable'));
   const parts = changeParts(extras.change);
   if (parts.kind === 'new') return <Badge tone="neutral">{t('newPage')}</Badge>;
-  if (parts.kind === 'none') return muted(t('noChange'));
+  // Links that were not compared have a zero change that was not measured: it never reads as "no change"
+  if (parts.kind === 'none') return muted(linksCompared ? t('noChange') : t('linksNotCompared'));
   return (
     <dl className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
         <dt className="type-table text-foreground-secondary">{t('editorialIn')}</dt>
-        <dd className={cn('num type-table', parts.links === null ? TONE_CLASS.neutral : TONE_CLASS[parts.links.tone])}>
-          {parts.links === null ? t('unchangedValue') : parts.links.text}
+        <dd
+          className={cn(
+            'num type-table',
+            parts.links === null || !linksCompared ? TONE_CLASS.neutral : TONE_CLASS[parts.links.tone],
+          )}
+        >
+          {!linksCompared ? t('notComparedValue') : parts.links === null ? t('unchangedValue') : parts.links.text}
         </dd>
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -236,21 +244,28 @@ export interface ExtrasSectionsProps {
    * comparison that is not known yet (`null`: the summary is pending or failed), so the card never flashes.
    */
   comparison: Comparison | null;
-  /** False for a crawl past the last four: its anchors are not stored. */
+  /** False for a crawl past the last four: its anchors are not stored (`PageDetail.links_available`). */
   linksAvailable: boolean;
+  /** False when the link changes were not worked out (`ChangesSummary.links_compared`). */
+  linksCompared: boolean;
 }
 
 /**
  * The inspector's sections that read the page's `extras` (spec 7.4, mock `il-drawer.js`): changes since the last
  * crawl, tracked keywords, AI citations, anchor text and Google data. No section shows link strength or equity.
  */
-export function ExtrasSections({ extras, comparison, linksAvailable }: ExtrasSectionsProps): ReactElement {
+export function ExtrasSections({
+  extras,
+  comparison,
+  linksAvailable,
+  linksCompared,
+}: ExtrasSectionsProps): ReactElement {
   const t = useTranslations('internalLinks.inspectorExtras');
   return (
     <>
       {comparison === null || comparison === 'first_crawl' ? null : (
         <InspectorSection title={t('changes')} icon={History} status="ready">
-          <ChangesBody t={t} extras={extras} comparison={comparison} />
+          <ChangesBody t={t} extras={extras} comparison={comparison} linksCompared={linksCompared} />
         </InspectorSection>
       )}
       <InspectorSection title={t('keywords')} icon={Search} status="ready">

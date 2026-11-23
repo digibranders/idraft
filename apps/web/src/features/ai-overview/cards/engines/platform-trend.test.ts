@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildPlatformTrend, weekMetricOf } from './platform-trend';
 import { weeklyShareNote } from './trend-model';
-import { at, cell, engine, share, summaryOf, week } from '../competitors/model/summary-fixtures';
+import { at, cell, engine, share, summaryOf, week } from '../competitors/model/summary.test-fixtures';
 import type { EngineCode, MetricCell, PromptsSummary, WeekCells } from '@/lib/api/types';
 
 const CURRENT = { from: '2026-10-19', to: '2026-11-15' };
@@ -101,6 +101,37 @@ describe('buildPlatformTrend', () => {
     ]);
     expect(trend.boundary).toBe(2);
     expect(at(at(trend.platforms, 0).points, 0).value).toBeCloseTo(0.2);
+  });
+
+  it('lays last year under the current weeks by their order, never before them, and has no boundary', () => {
+    const current = summaryOfSeries({
+      chatgpt_web: [point('2026-10-19', 4, 10), point('2026-10-26', 5, 10)],
+      gemini_web: [point('2026-10-19', 2, 10), point('2026-10-26', 3, 10)],
+    });
+    const lastYear = summaryOfSeries({
+      chatgpt_web: [point('2025-10-20', 1, 10), point('2025-10-27', 2, 10)],
+      gemini_web: [point('2025-10-20', 3, 10), point('2025-10-27', 4, 10)],
+    });
+    const trend = buildPlatformTrend(input(current, { previous: lastYear, lastYear: true }));
+    expect(trend.weeks.map((entry) => entry.weekStart)).toEqual(['2026-10-19', '2026-10-26']);
+    expect(trend.boundary).toBeNull();
+    expect(trend.lastYear?.weekStarts).toEqual(['2025-10-20', '2025-10-27']);
+    // The Average of the platforms of last year, week by week: (10% + 30%) / 2 and (20% + 40%) / 2
+    expect(trend.lastYear?.average?.map((entry) => entry.value)).toEqual([expect.closeTo(0.2), expect.closeTo(0.3)]);
+  });
+
+  it('leaves a current week with no week of last year under it as a gap, and draws nothing when last year has no rate', () => {
+    const current = summaryOfSeries({
+      chatgpt_web: [point('2026-10-19', 4, 10), point('2026-10-26', 5, 10)],
+    });
+    const short = summaryOfSeries({ chatgpt_web: [point('2025-10-20', 1, 10)] });
+    const trend = buildPlatformTrend(
+      input(current, { previous: short, lastYear: true, codes: ['chatgpt_web'], average: false }),
+    );
+    expect(trend.lastYear?.weekStarts).toEqual(['2025-10-20', null]);
+    expect(trend.lastYear?.platforms[0]?.points.map((entry) => entry.value)).toEqual([expect.closeTo(0.1), null]);
+    const silent = summaryOfSeries({ chatgpt_web: [point('2025-10-20', 0, 0), point('2025-10-27', 0, 0)] });
+    expect(buildPlatformTrend(input(current, { previous: silent, lastYear: true })).lastYear).toBeNull();
   });
 
   it('keeps the current point when a window starts mid-week and both reads hold that Monday', () => {

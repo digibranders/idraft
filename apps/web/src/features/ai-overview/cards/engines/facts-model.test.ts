@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import messages from '../../../../../messages/en.json';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { buildFacts, factNumbers, limitFacts, type Comparison, type Fact, type FactsInput } from './facts-model';
 import { pairPrompts } from './prompt-pairs';
 import { buildAggregates, type OverviewAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
 
 const ALL: readonly EngineCode[] = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];

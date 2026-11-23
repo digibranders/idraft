@@ -3,10 +3,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useEffect, useMemo, type ReactElement } from 'react';
+import { useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { edgeColumns } from './edge-columns';
 import { edgeExportQuery, edgeFilterFields, edgeQueryOf } from './edge-filters';
+import { ADDED_READ_LIMIT, pairOf, useAddedMarks, useLinkComparison, type LinkComparison } from './link-comparison';
+import { changesScopeOf, LostLinksTable } from './lost-links-table';
+import { StatusMenu } from './status-menu';
+import { SkeletonRows } from '../crawl-states';
 import { pageRange, useCursorPaging } from '../pages/cursor-paging';
 import { capTags, MAX_TAGS } from '../pages/page-filters';
 import { useSearchDraft } from '../pages/search-draft';
@@ -15,6 +19,7 @@ import { LinksDropped } from '../links-dropped';
 import type { LinksTabContext } from '../tabs';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableProps } from '@/components/app/data-table/types';
+import { Banner } from '@/components/app/status/banner';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -27,7 +32,15 @@ import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { isLinksDropped } from '@/lib/internal-links/contract-states';
-import { edgesPath, edgesQuery, isEdgeRowPage, withRun } from '@/lib/internal-links/queries';
+import {
+  CHANGE_LIMIT,
+  changeLinksExportQuery,
+  changeLinksPath,
+  edgesPath,
+  edgesQuery,
+  isEdgeRowPage,
+  withRun,
+} from '@/lib/internal-links/queries';
 import type { EdgeRow, EdgeRowPage } from '@/lib/internal-links/types';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
@@ -36,6 +49,7 @@ const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
 const NO_EDGES: readonly EdgeRow[] = [];
 const REQUIRED_COLUMNS = ['source'];
 const EXPORT_NAME = 'internal-links-links.csv';
+const LOST_EXPORT_NAME = 'internal-links-lost-links.csv';
 /** The request waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
 
@@ -69,10 +83,84 @@ export function LinksTab({ context }: { context: LinksTabContext }): ReactElemen
   }
   // A crawl past the last four answers 410 to every links read: nothing is asked
   if (!context.crawl.linksAvailable) return <LinksDropped />;
-  return <LinksList context={context} />;
+  return <LinksByStatus context={context} />;
 }
 
-function LinksList({ context }: { context: LinksTabContext }): ReactElement {
+/**
+ * The Status menu of the Links tab (Active, Lost since last crawl, All) exists only for a crawl with an earlier crawl
+ * to compare with; for any other the address's `ls` reads as Active, and the Added column is not drawn.
+ */
+function LinksByStatus({ context }: { context: LinksTabContext }): ReactElement {
+  const comparison = useLinkComparison(context);
+  const { setSearch } = context;
+  const compares = comparison.state === 'compares';
+  const status = compares ? context.state.linkStatus : 'active';
+  // A lost or all address waits for the answer that says whether it can be shown
+  if (comparison.state === 'loading' && context.state.linkStatus !== 'active') return <SkeletonRows />;
+  const statusMenu = compares ? (
+    <StatusMenu status={status} onChange={(next) => setSearch({ ls: next === 'active' ? null : next })} />
+  ) : null;
+  if (status === 'lost') {
+    return <LostView context={context} comparison={comparison} statusMenu={statusMenu} />;
+  }
+  return <LinksList context={context} comparison={comparison} statusMenu={statusMenu} showLost={status === 'all'} />;
+}
+
+/** The lost links of the crawl, or the neutral note when the earlier crawl kept no links to compare with. */
+function LostSection({ context, comparison }: { context: LinksTabContext; comparison: LinkComparison }): ReactElement {
+  const t = useTranslations('internalLinks.links');
+  if (!comparison.linksCompared) {
+    return <Banner tone="neutral" placement="region" message={t('previousDropped')} />;
+  }
+  return <LostLinksTable context={context} previousDate={comparison.previousDate} />;
+}
+
+function LostView({
+  context,
+  comparison,
+  statusMenu,
+}: {
+  context: LinksTabContext;
+  comparison: LinkComparison;
+  statusMenu: ReactNode;
+}): ReactElement {
+  const { scope, state, crawl, setSearch, registerExport } = context;
+  const readable = comparison.linksCompared;
+  // The page's Export downloads the lost links as the table shows them, every row (decision W13)
+  useEffect(() => {
+    if (!readable) return undefined;
+    const query = changeLinksExportQuery(
+      { change: 'lost', linkScope: changesScopeOf(state.scope), only: 'all', offset: 0, limit: CHANGE_LIMIT },
+      crawl.run,
+    );
+    registerExport(() => downloadApiFile(changeLinksPath(scope), query, LOST_EXPORT_NAME));
+    return () => registerExport(null);
+  }, [readable, registerExport, scope, state.scope, crawl.run]);
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {statusMenu}
+        <ScopeMenu
+          scope={state.scope}
+          onChange={(next) => setSearch({ scope: next === 'editorial' && state.edgeWorklist === null ? null : next })}
+        />
+      </div>
+      <LostSection context={context} comparison={comparison} />
+    </div>
+  );
+}
+
+function LinksList({
+  context,
+  comparison,
+  statusMenu,
+  showLost,
+}: {
+  context: LinksTabContext;
+  comparison: LinkComparison;
+  statusMenu: ReactNode;
+  showLost: boolean;
+}): ReactElement {
   const t = useTranslations('internalLinks');
   const common = useTranslations('common');
   const { scope, state, setSearch, tiers, registerExport } = context;
@@ -135,7 +223,28 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
   }, [run, noteRun]);
 
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
-  const columns = useMemo(() => edgeColumns(t), [t]);
+  // The edge rows carry no added flag: the added links read (the first 200) marks them. With no earlier links to
+  // compare with, no row could be marked, so the column is not drawn
+  const showAdded = comparison.state === 'compares' && comparison.linksCompared;
+  const marks = useAddedMarks(context, showAdded);
+  const addedNote = marks.failed
+    ? t('links.addedFailed')
+    : marks.capped
+      ? t('links.addedCapped', { read: formatInteger(ADDED_READ_LIMIT), total: formatInteger(marks.total) })
+      : null;
+  const columns = useMemo(
+    () =>
+      edgeColumns(
+        t,
+        showAdded
+          ? {
+              isAdded: (row) => marks.pairs.has(pairOf(row.source.url_id, row.target.url_id)),
+              note: addedNote,
+            }
+          : undefined,
+      ),
+    [t, showAdded, marks.pairs, addedNote],
+  );
   const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
 
   // The page's Export downloads the same filter as the server's CSV (decision W13)
@@ -182,6 +291,7 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <FilterBar fields={fields} values={values} onChange={setValues} />
+        {statusMenu}
         <ScopeMenu
           scope={state.scope}
           // With a worklist on, no scope key reads All links, so Editorial must be written out
@@ -196,6 +306,7 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
           />
         ))}
       </div>
+      {showLost ? <h2 className="type-subsection-title">{t('links.activeHeading')}</h2> : null}
       <DataTable<EdgeRow>
         caption={t('links.caption')}
         itemNoun={{ one: t('links.one'), other: t('links.other') }}
@@ -271,6 +382,7 @@ function LinksList({ context }: { context: LinksTabContext }): ReactElement {
           />
         }
       />
+      {showLost ? <LostSection context={context} comparison={comparison} /> : null}
     </div>
   );
 }

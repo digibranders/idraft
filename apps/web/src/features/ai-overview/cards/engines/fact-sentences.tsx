@@ -7,6 +7,8 @@ import { useCallback, type ReactElement, type ReactNode } from 'react';
 import { engineLabel } from './engine-role';
 import { factNumbers, type Fact } from './facts-model';
 import { useCardDrill } from './use-card-seams';
+import { useOverview } from '../../overview-context';
+import { compareWord } from '../../scope/scope-model';
 import { Button } from '@/components/ui/button';
 import { Popover } from '@/components/ui/popover';
 import { TextLink } from '@/components/ui/text-link';
@@ -81,12 +83,14 @@ export function FactSentence({ fact }: { fact: Fact }): ReactElement {
   const t = useTranslations('aiOverview.engines.changeSummary');
   const common = useTranslations('aiOverview.engines.common');
   const drill = useCardDrill();
+  const { scope } = useOverview();
   const href = fact.link === null ? null : drill(fact.link.destination, { engine: fact.link.engine });
   const engineName = (code: string): string => engineLabel(code) ?? common('unknownEngine');
   return (
     <>
       {t.rich(fact.kind, {
         ...sentenceValues(fact, engineName),
+        kind: compareWord(scope),
         figure: (chunks: ReactNode): ReactElement =>
           href === null ? (
             <span className="num">{chunks}</span>
@@ -108,16 +112,22 @@ export function useFactText(): {
 } {
   const t = useTranslations('aiOverview.engines.changeSummary');
   const common = useTranslations('aiOverview.engines.common');
+  const { scope } = useOverview();
+  const kind = compareWord(scope);
   const engineName = useCallback((code: string): string => engineLabel(code) ?? common('unknownEngine'), [common]);
   const sentence = useCallback(
     (fact: Fact): string =>
       t.markup(fact.kind, {
         ...sentenceValues(fact, engineName),
+        kind,
         figure: (chunks: string): string => chunks,
       }),
-    [t, engineName],
+    [t, engineName, kind],
   );
-  const numbers = useCallback((fact: Fact): string => t(NUMBERS_KEY[fact.kind], numbersValues(fact)), [t]);
+  const numbers = useCallback(
+    (fact: Fact): string => t(NUMBERS_KEY[fact.kind], { ...numbersValues(fact), kind }),
+    [t, kind],
+  );
   const engine = useCallback(
     (fact: Fact): string => ('engine' in fact.params ? engineName(fact.params.engine) : t('tableAllEngines')),
     [t, engineName],
@@ -130,6 +140,7 @@ const RULES = ['rulesOrder', 'rulesChange', 'rulesGained', 'rulesSources', 'rule
 /** The "How this is written" button and the popover that lists the rules of the facts in plain words. */
 export function HowThisIsWritten(): ReactElement {
   const t = useTranslations('aiOverview.engines.changeSummary');
+  const { scope } = useOverview();
   return (
     <Popover
       trigger={
@@ -143,7 +154,7 @@ export function HowThisIsWritten(): ReactElement {
       <p className="type-body text-foreground-secondary">{t('rulesIntro')}</p>
       <ul className="flex list-disc flex-col gap-2 pl-4 type-body text-foreground">
         {RULES.map((key) => (
-          <li key={key}>{t(key)}</li>
+          <li key={key}>{t(key, { kind: compareWord(scope) })}</li>
         ))}
       </ul>
     </Popover>

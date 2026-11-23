@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { budgetStatus, FIXTURE_PROJECT_ID } from './activity-fixtures';
+import { budgetStatus, FIXTURE_PROJECT_ID } from './activity.test-fixtures';
 import { chooseSpend } from './spend-model';
 
 const OTHER_PROJECT = '99999999-0000-4000-8000-000000000001';

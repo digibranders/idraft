@@ -3,7 +3,7 @@ import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AnswerCalendarCard from './answer-calendar-card';
-import { dailyResponse, day, quiet, twoWeeks, type CollectionDaily } from './model/daily-fixtures';
+import { dailyResponse, day, quiet, twoWeeks, type CollectionDaily } from './model/daily.test-fixtures';
 import { sequentialBin } from '@/components/app/chart/heat-bins';
 import { setAiSeeded } from '@/mocks/ai-seed';
 import { mockUser } from '@/mocks/fixtures';

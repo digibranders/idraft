@@ -62,6 +62,7 @@ const EMPTY_READY: ChangesSummary = {
   previous_run_id: OLDEST ?? '',
   previous_finished_at: '2026-10-17T03:12:00Z',
   state: 'ready',
+  links_compared: false,
   editorial_lost: 0,
   editorial_added: 0,
   all_lost: 0,
@@ -77,6 +78,7 @@ const EMPTY_READY: ChangesSummary = {
 const SOME_LOST: ChangesSummary = {
   ...EMPTY_READY,
   previous_run_id: HISTORY_RUN_IDS[1] ?? '',
+  links_compared: true,
   editorial_lost: 3,
   editorial_added: 1,
   all_lost: 3,
@@ -471,14 +473,29 @@ describe('the Changes tab (spec 7.10)', () => {
     expect(screen.queryByText(/counts editorial links only/)).not.toBeInTheDocument();
   });
 
-  it('says the comparison may have no link data when the previous crawl is not in the list', async () => {
+  it('takes links_compared as the answer, not the crawl list, and shows no link count as zero', async () => {
+    // The previous crawl is one that kept its links, so only the summary can say the links were not compared
+    server.use(
+      http.get(SUMMARY, () => HttpResponse.json({ data: { ...SOME_LOST, links_compared: false, lost_to_top: 0 } })),
+    );
+    open();
+    expect(await screen.findByText(/The links of the previous crawl are not stored/)).toBeInTheDocument();
+    const strip = await screen.findByRole('group', { name: 'Changes since the last crawl' });
+    expect(within(strip).getByText('Editorial links lost').closest('div')).toHaveTextContent('n/a');
+    expect(within(strip).getByText('Pages added').closest('div')).toHaveTextContent('1');
+  });
+
+  it('shows no note when the links were compared and none changed', async () => {
     server.use(
       http.get(SUMMARY, () =>
-        HttpResponse.json({ data: { ...EMPTY_READY, previous_run_id: '0192e4a0-1000-7000-8000-0000000000aa' } }),
+        HttpResponse.json({
+          data: { ...EMPTY_READY, links_compared: true, previous_run_id: HISTORY_RUN_IDS[1] ?? '' },
+        }),
       ),
     );
     open();
-    expect(await screen.findByText(/may not have link data/)).toBeInTheDocument();
+    const strip = await screen.findByRole('group', { name: 'Changes since the last crawl' });
+    expect(within(strip).getByText('Editorial links lost').closest('div')).toHaveTextContent('0');
     expect(screen.queryByText(/The links of the previous crawl are not stored/)).not.toBeInTheDocument();
   });
 

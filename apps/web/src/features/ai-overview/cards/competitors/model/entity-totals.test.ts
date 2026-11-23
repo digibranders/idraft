@@ -12,7 +12,7 @@ import {
   share,
   summaryOf,
   weighted,
-} from './summary-fixtures';
+} from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 import type { EngineEntityTotals } from './types';
 

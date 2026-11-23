@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MAX_RELATED, otherGroups } from './related-model';
 import { topicDescendants } from '@/features/prompts/prompt-model';
-import { engine, term, topicRow, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, term, topicRow, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { TopicSummaryRow } from '@/lib/api/types';
 
 /** Compliance above RBI and SEBI; Pricing and Cloud stand alone: the groups are RBI, SEBI, Pricing and Cloud. */

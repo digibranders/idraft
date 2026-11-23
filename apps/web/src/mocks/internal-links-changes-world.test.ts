@@ -93,6 +93,18 @@ describe('what the latest crawl changed', () => {
     expect(changesSummary(P, viewAt(4), T0).state).toBe('first_crawl');
   });
 
+  it('says the links were not compared when the previous crawl, or this one, lost its links', () => {
+    expect([0, 1, 2, 3, 4].map((rank) => changesSummary(P, viewAt(rank), T0).links_compared)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+    ]);
+    setLinksScenario({ latestLinksDropped: true });
+    expect(changesSummary(P, viewAt(0), T0).links_compared).toBe(false);
+  });
+
   it('has fewer changes on the crawl before, and none when the switch says so', () => {
     expect(changesSummary(P, viewAt(1), T0)).toMatchObject({ state: 'ready', editorial_lost: 2, editorial_added: 1 });
     expect(changesSummary(P, viewAt(2), T0)).toMatchObject({ state: 'ready', editorial_lost: 0, alert: null });
@@ -195,14 +207,26 @@ describe('page extras', () => {
   it('adds only the parts asked for', () => {
     const extras = pageExtras(viewAt(0), page('/services/soc-as-a-service'), ['keywords', 'citations']);
     expect(Object.keys(extras).sort()).toEqual(['citations', 'keywords']);
-    expect(extras.keywords).toEqual({ tracked: 3, ranking: 2, average_rank: 6.5, best_volume: 1900 });
-    expect(extras.citations).toEqual({ chatgpt: 5, gemini: 3, ai_mode: 2, total: 10 });
+    expect(extras.keywords).toEqual({
+      tracked: 3,
+      ranking: 2,
+      average_rank: 6.5,
+      best_volume: 1900,
+      rank_as_of: '2026-11-18',
+    });
+    expect(extras.citations).toEqual({ chatgpt: 5, gemini: 3, ai_mode: 2, total: 10, citations_as_of: '2026-11-18' });
   });
 
   it('counts a page with no keyword or citation as zeros, never nothing', () => {
     const extras = pageExtras(viewAt(0), page('/about'), ['keywords', 'citations']);
-    expect(extras.keywords).toEqual({ tracked: 0, ranking: 0, average_rank: null, best_volume: null });
-    expect(extras.citations).toEqual({ chatgpt: 0, gemini: 0, ai_mode: 0, total: 0 });
+    expect(extras.keywords).toEqual({
+      tracked: 0,
+      ranking: 0,
+      average_rank: null,
+      best_volume: null,
+      rank_as_of: null,
+    });
+    expect(extras.citations).toEqual({ chatgpt: 0, gemini: 0, ai_mode: 0, total: 0, citations_as_of: '2026-11-18' });
   });
 
   it('counts anchors from the editorial links in, with the generic ones and the keyword match', () => {

@@ -4,7 +4,7 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CardInfoProvider } from '@/components/app/chart/card-info';
-import { at, domainPage, domainRow, sourcesMeta } from './model/source-fixtures';
+import { at, domainPage, domainRow, sourcesMeta } from './model/source.test-fixtures';
 import TopDomainsCard from './top-domains-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';

@@ -15,7 +15,7 @@ import {
   stopRecording,
 } from '@/test/ai-activity-kit';
 import CollectionStatusCard from './collection-status-card';
-import { run, schedule } from './model/activity-fixtures';
+import { run, schedule } from './model/activity.test-fixtures';
 import type { CardDrill } from '../engines/use-card-seams';
 import type { Run, Schedule } from '@/lib/api/types';
 import { setAiSeeded } from '@/mocks/ai-seed';

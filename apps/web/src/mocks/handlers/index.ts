@@ -7,6 +7,7 @@ import { integrationHandlers } from './integrations';
 import { internalLinkHandlers } from './internal-links';
 import { internalLinkChangeHandlers } from './internal-links-changes';
 import { internalLinkOpportunityHandlers } from './internal-links-opportunities';
+import { internalLinkShareHandlers } from './internal-links-shares';
 import { invitationHandlers } from './invitations';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
@@ -209,6 +210,7 @@ export const handlers: readonly HttpHandler[] = [
   ...internalLinkHandlers,
   ...internalLinkChangeHandlers,
   ...internalLinkOpportunityHandlers,
+  ...internalLinkShareHandlers,
   ...pendingHandlers,
 ];
 

@@ -7,7 +7,7 @@ import {
   type CountryGroup,
   type CountryRead,
 } from './country-model';
-import { engineCells, promptRow } from './engines-fixtures';
+import { engineCells, promptRow } from './engines.test-fixtures';
 import type { EngineCode, PromptSummaryRow } from '@/lib/api/types';
 
 const ASKED: readonly EngineCode[] = ['chatgpt_web', 'gemini_web'];

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { fanoutFigures, fanoutStanding } from './fanout-model';
-import { fanoutMeta, fanoutPage, fanoutRow } from './fanout-fixtures';
-import { at } from './source-fixtures';
+import { fanoutMeta, fanoutPage, fanoutRow } from './fanout.test-fixtures';
+import { at } from './source.test-fixtures';
 
 describe('fanoutFigures', () => {
   it('takes the share of a query over meta.answers, never over the answers that issued any query', () => {

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import AnswerFunnelCard from './answer-funnel-card';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import type { CardProps } from '@/features/layouts';
 import * as csvWrite from '@/lib/csv/csv-write';
 import { axe } from '@/test/axe';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { promptsBehindCell } from './prompts-behind';
-import { cell, engine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, promptRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 const CHATGPT_ANSWERED = (k: number, n: number) => engine('chatgpt_web', { mentioned: cell(k, n), cited: cell(1, n) });
 const GEMINI_ONLY = engine('gemini_web', { mentioned: cell(2, 4) });

@@ -211,6 +211,66 @@ async def test_the_start_page_is_a_route_of_one_step_and_a_foreign_page_is_not_f
     assert problem(foreign) == (404, "not_found")
 
 
+_TEMPLATE_SITE = [
+    SeedLink("/a", "/menu", "navigation", "Menu"),
+    SeedLink("/b", "/menu", "navigation", "Menu"),
+    SeedLink("/deep", "/menu", "navigation", "Menu"),
+    SeedLink("/menu", "/deep", "content", "Deep"),
+]
+
+
+async def test_a_crawl_without_a_start_page_is_walked_from_its_template_roots(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    _, ids = await seed_crawl(
+        migrated,
+        workspace,
+        project,
+        [("/a", 200), ("/b", 200), ("/menu", 200), ("/deep", 200)],
+        _TEMPLATE_SITE,
+    )
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "paths"),
+        params={"url_id": ids["/deep"]},
+        headers=viewer.headers,
+    )
+
+    data = response.json()["data"]
+    # Every page carries the menu, so it stands in for the start page: the route begins there.
+    assert [step["page"]["path"] for step in data["any"]["steps"]] == ["/menu", "/deep"]
+    assert [step["page"]["path"] for step in data["editorial"]["steps"]] == ["/menu", "/deep"]
+
+
+async def test_an_unreadable_start_page_leads_to_the_template_roots(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    run, ids = await seed_crawl(
+        migrated,
+        workspace,
+        project,
+        [("/", 403), ("/a", 200), ("/b", 200), ("/menu", 200), ("/deep", 200)],
+        _TEMPLATE_SITE,
+    )
+    await start_at(migrated, run, ids["/"])
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "paths"),
+        params={"url_id": ids["/deep"]},
+        headers=viewer.headers,
+    )
+
+    steps = response.json()["data"]["any"]["steps"]
+    assert [step["page"]["path"] for step in steps] == ["/", "/menu", "/deep"]
+    assert steps[1]["scope"] == "template"
+
+
 async def test_a_crawl_without_links_answers_410_and_unknown_parameters_422(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

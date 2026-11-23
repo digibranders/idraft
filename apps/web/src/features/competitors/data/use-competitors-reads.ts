@@ -5,7 +5,6 @@ import { useMemo } from 'react';
 
 import {
   competitorsQuery,
-  entitiesQuery,
   lostPromptsQuery,
   readScopeOf,
   sourcesQuery,
@@ -17,6 +16,7 @@ import { useRead, type Gate, type Read } from './read-state';
 import type { CompetitorsScope } from '../scope/scope-model';
 import type { ApiResponse } from '@/lib/api/query';
 import type { EngineCode } from '@/lib/api/types';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 
 /**
  * The reads of the Competitors page (WP-39 plan section 3.3), each asked only where a surface needs it: the sections
@@ -143,7 +143,7 @@ export function useCompetitorsReads({
 
   // The dates of the entities do not depend on the engines
   const entitiesGate: Gate = tab === 'ai' || inspecting ? 'run' : 'idle';
-  const entitiesQ = useQuery({ ...entitiesQuery(project), enabled: entitiesGate === 'run' });
+  const entitiesQ = useQuery({ ...projectEntitiesQuery(project), enabled: entitiesGate === 'run' });
   const entities = useRead(entitiesQ, entitiesGate);
 
   return { competitors, lost, topics, series, entities, sources };

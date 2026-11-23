@@ -4,7 +4,7 @@ import { engineValue } from './engine-values';
 import type { TopicNode } from './model-types';
 import { exportCells, orderRows, topicEngineRows } from './topic-rows';
 import { NO_TOPIC } from './topic-nodes';
-import { engine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
 

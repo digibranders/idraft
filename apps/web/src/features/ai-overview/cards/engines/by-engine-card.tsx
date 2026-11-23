@@ -19,6 +19,7 @@ import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
 import { useCardDrill, useCardExport } from './use-card-seams';
 import { useFrameState } from './use-frame-state';
+import { compareWord, type CompareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { SmallSampleMarker } from '@/components/app/chart/small-sample-marker';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
@@ -73,7 +74,18 @@ function figureText(cell: RateCell, kind: RateKind, t: Translate): string {
     : t('figure', { value, k: cell.successes, n: cell.answers });
 }
 
-function RateCellView({ cell, kind, t }: { cell: RateCell; kind: RateKind; t: Translate }): ReactElement {
+function RateCellView({
+  cell,
+  kind,
+  t,
+  compare,
+}: {
+  cell: RateCell;
+  kind: RateKind;
+  t: Translate;
+  /** What the previous figure of the tooltip is of: the period before or the same period last year. */
+  compare: CompareWord;
+}): ReactElement {
   if (cell.state === 'insufficient') {
     return kind === 'shareOfVoice' ? (
       <span className="type-meta text-foreground-tertiary">{t('thinShare', { count: cell.answers })}</span>
@@ -89,6 +101,7 @@ function RateCellView({ cell, kind, t }: { cell: RateCell; kind: RateKind; t: Tr
     before === null || before.value === null || before.successes === null
       ? undefined
       : t(kind === 'shareOfVoice' ? 'previousShare' : 'previousText', {
+          kind: compare,
           value: formatPercent(before.value),
           k: before.successes,
           n: before.answers,
@@ -205,6 +218,7 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
   const drill = useCardDrill();
   const data = useCardData({ previous: 'optional', sources: true, counts: true, subscribed: live });
   const { scope, aggregates } = data;
+  const compare = compareWord(scope);
 
   // The sources of the last scope are not read for this one: the citation column says "not read" until they arrive
   const sourcesRead = data.sources;
@@ -283,19 +297,19 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
       id: 'mention',
       header: t('mention'),
       wrap: true,
-      cell: (row) => <RateCellView cell={row.mention} kind="mention" t={t} />,
+      cell: (row) => <RateCellView cell={row.mention} kind="mention" t={t} compare={compare} />,
     },
     {
       id: 'citation',
       header: t('citation'),
       wrap: true,
-      cell: (row) => <RateCellView cell={row.citation} kind="citation" t={t} />,
+      cell: (row) => <RateCellView cell={row.citation} kind="citation" t={t} compare={compare} />,
     },
     {
       id: 'shareOfVoice',
       header: t('shareOfVoice'),
       wrap: true,
-      cell: (row) => <RateCellView cell={row.shareOfVoice} kind="shareOfVoice" t={t} />,
+      cell: (row) => <RateCellView cell={row.shareOfVoice} kind="shareOfVoice" t={t} compare={compare} />,
     },
     {
       id: 'ownCitation',

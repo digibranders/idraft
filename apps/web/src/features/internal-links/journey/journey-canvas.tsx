@@ -180,6 +180,7 @@ export function JourneyCanvas({
       <ViewedCanvas
         held={held}
         layout={layout}
+        host={context.host}
         focus={{
           urlId: page.url_id,
           path: page.path,

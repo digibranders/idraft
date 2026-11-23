@@ -101,7 +101,9 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const shell = useTranslations('aiOverview.shell');
   const { workspaceId, project, scope, enabledEngines } = useOverview();
-  const data = useCardData({ previous: 'none', include: ['facts', 'series'], counts: true, subscribed: live });
+  // The tiles are read from the prompt rows and their facts; the weekly lines and the share of voice counts come from the
+  // lean weekly read of the total (the one the weekly cards share), so the rows carry no weekly points of their own
+  const data = useCardData({ previous: 'none', include: ['facts'], counts: 'weekly', subscribed: live });
   const infoOf = useInfoOf();
   const unavailable = useScopeUnavailable(t('label'));
   const { tree } = useTopicTree();

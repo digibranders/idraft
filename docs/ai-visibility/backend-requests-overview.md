@@ -1,5 +1,7 @@
 # Backend requests for the redesigned AI visibility Overview
 
+Open requests 10 to 24 of this file and of the Prompts page file, with their status, are collected in `docs/ai-visibility/backend-requests-open.md`.
+
 Date: 2026-11-16. Written by the web package W0-overview (plan `docs/superpowers/plans/2026-11-16-real-app-port-overview-and-prompts.md`).
 Source of the design: `docs/superpowers/specs/2026-11-16-ai-overview-redesign-design.md`.
 

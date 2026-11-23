@@ -9,6 +9,7 @@ import type { CardEngine } from './card-engine';
 import { useOverview } from '../../../overview-context';
 import type { Read } from '../../../data/read-state';
 import type { Say } from '../../say';
+import { compareWord, type CompareWord } from '../../../scope/scope-model';
 import type { ChartEmpty, ChartError, ChartNotice } from '@/components/app/chart/chart-frame';
 import { TextLink } from '@/components/ui/text-link';
 import { formatInteger } from '@/lib/format';
@@ -75,6 +76,8 @@ export interface FrameContext {
   canEditEntities: boolean;
   /** The days of the window, for "No valid answers on ChatGPT in these 28 days". */
   days: number;
+  /** What the comparison is with, for the notice of a comparison that is partial; left out it is the period before. */
+  kind?: CompareWord | undefined;
 }
 
 const link = (href: Route, label: string): ReactNode => <TextLink render={<Link href={href} />}>{label}</TextLink>;
@@ -137,10 +140,10 @@ function errorOf(input: FrameInput, words: FrameWords): ChartError {
 }
 
 /** The qualifier of ready data: the last figures read win over a missing comparison. */
-function noticeOf(input: FrameInput, say: Say): ChartNotice | undefined {
+function noticeOf(input: FrameInput, say: Say, kind: CompareWord): ChartNotice | undefined {
   if (input.read.stale) return { kind: 'stale', text: say('stale') };
-  if (input.previous?.status === 'error') return { kind: 'partial', text: say('partial') };
-  if (input.previous !== null && input.previousEmpty) return { kind: 'partial', text: say('previousEmpty') };
+  if (input.previous?.status === 'error') return { kind: 'partial', text: say('partial', { kind }) };
+  if (input.previous !== null && input.previousEmpty) return { kind: 'partial', text: say('previousEmpty', { kind }) };
   return undefined;
 }
 
@@ -160,7 +163,7 @@ export function mapReadToFrame(input: FrameInput, words: FrameWords, ctx: FrameC
   if (situation.kind !== 'ready') {
     return { status: 'empty', empty: situationEmpty(situation, engine, words, ctx) };
   }
-  return { status: read.status, notice: noticeOf(input, words.say) };
+  return { status: read.status, notice: noticeOf(input, words.say, ctx.kind ?? 'previous') };
 }
 
 /**
@@ -179,6 +182,7 @@ export function useFrameState(input: FrameInput): FrameState {
   const common = useTranslations('common');
   const { workspaceSlug, project, scope, canManageEngines } = useOverview();
   const canEditEntities = useCan('entities:write');
+  const kind = compareWord(scope);
   const words = useMemo(
     (): FrameWords => ({
       say,
@@ -196,8 +200,9 @@ export function useFrameState(input: FrameInput): FrameState {
       canManageEngines,
       canEditEntities,
       days: scope.range.days,
+      kind,
     }),
-    [workspaceSlug, project.slug, canManageEngines, canEditEntities, scope.range.days],
+    [workspaceSlug, project.slug, canManageEngines, canEditEntities, scope.range.days, kind],
   );
   return mapReadToFrame(input, words, ctx);
 }

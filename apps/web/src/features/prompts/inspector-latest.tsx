@@ -9,13 +9,7 @@ import { answerSegments, clipSegments } from './answer-segments';
 import { mentionOrderKey } from './latest-model';
 import { MarkedAnswer } from './marked-answer';
 import { failedReasonKey, trailingRange, WIDEST_WINDOW, type DateRange } from './prompt-model';
-import {
-  newestAnswerQuery,
-  observationQuery,
-  projectEntitiesQuery,
-  type ObservationAnswer,
-  type PromptScope,
-} from './prompt-queries';
+import { newestAnswerQuery, observationQuery, type ObservationAnswer, type PromptScope } from './prompt-queries';
 import { DomainChipList, type DomainChipProps } from '@/components/app/cells/domain-chip';
 import { hasHash, HashCopy } from '@/components/app/evidence/facts-footer';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
@@ -27,6 +21,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import type { ObservationFactsWithExtra } from '@/lib/api/prompt-facts';
 import type { CitationOut, ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { formatDetailDateTime, formatTableDateTime } from '@/lib/format';
 import { displayDomain } from '@/lib/format/url';
 

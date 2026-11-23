@@ -31,8 +31,8 @@ import {
   type CitedPagesMeta,
   type PageListParams,
 } from '@/lib/citations/board-queries';
-import { entitiesQuery } from '@/lib/citations/entities-query';
 import type { SourceScope } from '@/lib/citations/types';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 
 /**
@@ -108,7 +108,7 @@ export function useTracked(project: SourceScope): {
   ownName: string | null;
   read: BoardRead<unknown>;
 } {
-  const query = useQuery(entitiesQuery(project));
+  const query = useQuery(projectEntitiesQuery(project));
   const read = useRead(query);
   // Memoized on the answer alone, so `tracked` keeps its identity between renders (the URL state depends on it)
   const lists = useMemo(() => {

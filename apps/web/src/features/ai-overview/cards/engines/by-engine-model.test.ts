@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildByEngine, longRows } from './by-engine-model';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { buildAggregates, type OverviewAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptsSummary, Schemas } from '@/lib/api/types';
 import { engineRates } from '@/lib/rates/strip-model';
 import { isDetectableChange } from '@/lib/stats';

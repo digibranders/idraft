@@ -20,6 +20,7 @@ import {
 import { useTopicPeriods } from './use-topic-reads';
 import { useTopicWords } from './use-topic-words';
 import { useOverview } from '../../overview-context';
+import { compareWord } from '../../scope/scope-model';
 import { BarList, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
@@ -227,7 +228,7 @@ export default function TopPromptsCard({ item, options, live }: CardProps): Reac
       cardKey="ai.top_prompts"
       title={t('title')}
       meta={words.window(scope.range)}
-      summary={t('summary', { show, engines: formatList(labels) })}
+      summary={t('summary', { show, engines: formatList(labels), kind: compareWord(scope) })}
       data={data}
       empty={empty}
       partialEngines={answeredAny ? model.unanswered.map(nameOf) : []}

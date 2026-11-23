@@ -130,6 +130,15 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
             }),
       };
     });
+  const notes = new Map<string, string>();
+  if (read !== null && !platforms.average) {
+    for (const entry of read.entities) {
+      const counts = entry.counts[0];
+      if (entry.value !== null && counts !== undefined) {
+        notes.set(entry.entity.entityId, t('noteOf', { k: counts.k, n: counts.n }));
+      }
+    }
+  }
   const limit = rowsOf(options.rows);
   const shown = tableRows.filter((row, index) => index < limit || row.own);
   const bars: CompetitorBarRow[] = shown.map((row) => ({
@@ -138,6 +147,8 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
     own: row.own,
     value: row.value.kind === 'value' ? row.value.value : null,
     valueText: row.value.kind === 'value' ? row.value.valueText : t('unknownValue'),
+    // "29 of 65" beside the percent for one platform; the meta line above says what the 65 is. An average has none
+    note: notes.get(row.id) ?? null,
     slot: slots?.get(row.id) ?? null,
     tip: row.tip ?? row.accessibleText,
     openLabel: t('open', { name: row.label }),

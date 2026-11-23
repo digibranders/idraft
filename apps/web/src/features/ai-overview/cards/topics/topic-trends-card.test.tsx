@@ -16,7 +16,7 @@ import TopicTrendsCard from './topic-trends-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { OverviewProvider } from '../../overview-context';
 import type { CardProps } from '@/features/layouts';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptsSummary } from '@/lib/api/types';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { PermissionProvider } from '@/lib/permissions';

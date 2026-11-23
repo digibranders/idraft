@@ -244,7 +244,7 @@ async def list_edges(
     "/neighbors",
     summary="One journey step, links out or links in",
     description="The pages on one side of `url_id` in the scope in view, 8 at a time "
-    "(`offset` for more), sorted by tier then equity share, with the link between, "
+    "(`offset` for more), sorted by tier then link strength, with the link between, "
     "`has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other "
     "scopes for the group cards. A redirect's one child, links out, is its target. The canvas "
     "decides new pages, back links and pages seen elsewhere itself.",

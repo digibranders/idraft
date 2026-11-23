@@ -15,6 +15,14 @@ export interface ExtrasContext {
   comparison: Comparison;
   /** False for a crawl past the last four: its anchors are not stored. */
   linksAvailable: boolean;
+  /** The date of the crawl in view when it is not the latest, for the note under the Today columns; otherwise `null`. */
+  olderCrawlDate?: string | null;
+}
+
+/** The header tip of a Today column: what it measures, and when the crawl in view is older, that its date differs. */
+function todayTip(t: LinksTranslate, tip: string, context: ExtrasContext): string {
+  const date = context.olderCrawlDate ?? null;
+  return date === null ? tip : `${tip} ${t('columns.olderCrawlNote', { date })}`;
 }
 
 /** More than half of the editorial anchors generic reads as a warning, as the flag does. */
@@ -176,7 +184,12 @@ export function extraColumns(
         if (keywords === undefined || keywords === null) return null;
         return keywords.average_rank === null ? muted(EMPTY_VALUE) : numeric(formatDecimal(keywords.average_rank, 1));
       },
-      { ...hidden, headerTooltip: t('columns.rankTip'), width: 128 },
+      {
+        ...hidden,
+        headerTooltip: todayTip(t, t('columns.rankTip'), context),
+        width: 128,
+        sortValue: (row) => row.extras?.keywords?.average_rank ?? null,
+      },
     ),
     custom(
       'citations',
@@ -185,8 +198,9 @@ export function extraColumns(
       (row) => (row.extras?.citations ? numeric(formatInteger(row.extras.citations.total)) : null),
       {
         ...hidden,
-        headerTooltip: t('columns.citationsTip'),
+        headerTooltip: todayTip(t, t('columns.citationsTip'), context),
         width: 120,
+        sortValue: (row) => row.extras?.citations?.total ?? null,
         cellTip: (row) => {
           const citations = row.extras?.citations;
           return citations === undefined || citations === null
@@ -205,6 +219,7 @@ export function extraColumns(
       ...hidden,
       headerTooltip: t('columns.anchorsTip'),
       width: 192,
+      sortValue: (row) => row.extras?.anchors?.distinct ?? null,
       cellTip: (row) =>
         asked(row) && !anchorsStored(row, context) ? { content: t('columns.notStoredTip') } : undefined,
     }),
@@ -217,6 +232,7 @@ export function extraColumns(
       ...hidden,
       headerTooltip: googleTip,
       width: 120,
+      sortValue: (row) => row.extras?.gsc?.clicks ?? null,
       cellTip: (row) => gscTip(t, row),
     }),
     custom('impressions', 'count', t('columns.impressions'), (row) => gscCell(t, row, 'impressions'), {

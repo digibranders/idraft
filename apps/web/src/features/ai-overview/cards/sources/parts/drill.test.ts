@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { citationsLink } from './drill';
 import { drillHref } from '../../../drilldown/drill-links';
-import { scopeOf } from '../model/source-fixtures';
+import { scopeOf } from '../model/source.test-fixtures';
 import { parseBoard, type BoardSearch } from '@/features/citations/board-state';
 import { parseInspectTarget } from '@/lib/inspector/placement';
 

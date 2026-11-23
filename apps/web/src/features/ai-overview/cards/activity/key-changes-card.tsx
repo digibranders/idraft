@@ -19,6 +19,7 @@ import { useAiRuns, useCollectionDaily } from './data/activity-reads';
 import { buildFeed, type FeedEntry, type FeedLink } from './model/feed-model';
 import { useErrorState, useStaleNotice } from './parts/frame-state';
 import { comparisonWindow } from '../../data/overview-queries';
+import { compareWord } from '../../scope/scope-model';
 import type { Comparison } from '../engines/facts-model';
 import { engineLabel } from '../engines/engine-role';
 import { useCardData } from '../engines/use-card-data';
@@ -147,7 +148,8 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
   );
 
   const unchecked: string[] = [];
-  if (comparison === 'unread' || (data.phase === 'error' && !failed)) unchecked.push(t('partComparison'));
+  if (comparison === 'unread' || (data.phase === 'error' && !failed))
+    unchecked.push(t('partComparison', { kind: compareWord(scope) }));
   if (!canViewRuns) unchecked.push(t('partRunsNoAccess'));
   else if (runs.status === 'error') unchecked.push(t('partRuns'));
   // A full page whose oldest run is inside the window: older runs of the window may exist and were not read
@@ -180,7 +182,7 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
     feed.hold === 'off'
       ? t('holdOff')
       : feed.hold === 'noPrevious'
-        ? t('holdNoPrevious')
+        ? t('holdNoPrevious', { kind: compareWord(scope) })
         : asked.length === 0 && data.engines.data !== undefined
           ? t('holdNoEngine')
           : undefined;
@@ -302,7 +304,7 @@ export default function KeyChangesCard({ item, options, live }: CardProps): Reac
         notice={notice}
         refetching={state.status === 'refetching'}
         emptyTitle={t(title)}
-        reason={t(reason)}
+        reason={t(reason, { kind: compareWord(scope) })}
         details={collectionClear ? t('emptyCollectionClear', { window: windowText }) : undefined}
       />
     );

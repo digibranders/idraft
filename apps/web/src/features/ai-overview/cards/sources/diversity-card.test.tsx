@@ -3,7 +3,7 @@ import { http, HttpResponse, delay } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { diversityEngine, diversityRead, diversityWeek } from './model/change-fixtures';
+import { diversityEngine, diversityRead, diversityWeek } from './model/change.test-fixtures';
 import DiversityCard from './diversity-card';
 import { OverviewProvider } from '../../overview-context';
 import type { CardProps } from '@/features/layouts';

@@ -13,7 +13,7 @@ import {
   promptRow,
   term,
   topicRow,
-} from '@/features/prompts/topics-by-engine/cells-fixtures';
+} from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptSummaryRow, TopicSummaryRow } from '@/lib/api/types';
 import { DRAWER_TOPIC_ID, drawerExtras, renderDrawerPart } from '@/test/topic-drawer-harness';
 

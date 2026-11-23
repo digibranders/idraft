@@ -12,6 +12,7 @@ import { useCardData } from './use-card-data';
 import { useCardDensity } from './use-card-density';
 import { useCardExport } from './use-card-seams';
 import type { ExportBlock } from '../../export/export-model';
+import { compareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import {
   IntervalBar,
@@ -91,7 +92,8 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
     () => (aggregates === null ? [] : buildComparison({ aggregates, metric })),
     [aggregates, metric],
   );
-  const title = t('title');
+  const kind = compareWord(scope);
+  const title = t('title', { kind });
   const frame = useChangeFrame(data, title, (key, values) => t(key, values), null);
   const { rate, change: changeAxis } = comparisonDomains(comparison);
 
@@ -169,6 +171,7 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
         test: row.detectable === true ? 'detectable' : row.detectable === false ? 'within' : 'other',
         before: common.previousText,
         now: common.currentText,
+        kind,
       }),
       tip: t('tip', {
         before: formatPercent(row.before.value),
@@ -196,6 +199,7 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
     rows: comparison.map(rowOf),
     rateDomain: rate,
     changeDomain: changeAxis,
+    previousHeader: chart(kind === 'year' ? 'intervalBar.previousYear' : 'intervalBar.previous'),
     density,
   };
 
@@ -247,6 +251,7 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
           metric: t(METRIC_KEY[metric]),
           engines: formatList(comparison.map((row) => row.label)),
           parts: formatList(parts),
+          kind,
         });
 
   return (
@@ -261,7 +266,7 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
         branded: scope.branded,
         promptWeighted: true,
       })}
-      footnote={t('footnote', { period: formatDateRange(scope.previous.from, scope.previous.to) })}
+      footnote={t('footnote', { kind, period: formatDateRange(scope.previous.from, scope.previous.to) })}
       height={180}
       summary={summary}
       body={<IntervalBar {...bar} />}
@@ -271,7 +276,7 @@ export default function PeriodComparisonCard({ item, options, live }: CardProps)
         csv: intervalBarCsv(bar, {
           change: chart('intervalBar.change'),
           interval: chart('intervalBar.interval'),
-          previous: chart('intervalBar.previous'),
+          previous: chart(kind === 'year' ? 'intervalBar.previousYear' : 'intervalBar.previous'),
           current: chart('intervalBar.current'),
           thin: chart('intervalBar.thin'),
           noValue: chart('noValue'),

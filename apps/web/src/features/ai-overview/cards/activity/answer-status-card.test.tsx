@@ -3,7 +3,7 @@ import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AnswerStatusCard from './answer-status-card';
-import { dailyResponse, day, quiet, twoWeeks, type CollectionDaily } from './model/daily-fixtures';
+import { dailyResponse, day, quiet, twoWeeks, type CollectionDaily } from './model/daily.test-fixtures';
 import { setAiSeeded } from '@/mocks/ai-seed';
 import {
   DASHES,

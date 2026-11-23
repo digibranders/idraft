@@ -65,8 +65,11 @@ export function ContextLine({
           linksAdded: summary.all_added,
           linksLost: summary.all_lost,
         };
-        // A previous crawl whose links were dropped has no link changes to report: zero would read as "none"
-        return summary.all_added + summary.all_lost > 0 ? t('changesReadyLinks', counts) : t('changesReady', counts);
+        // Links that were not compared (the previous crawl's links were dropped) have no counts to report: zero would
+        // read as "none", so the line then says nothing of links
+        return summary.links_compared && summary.all_added + summary.all_lost > 0
+          ? t('changesReadyLinks', counts)
+          : t('changesReady', counts);
       }
     }
   })();

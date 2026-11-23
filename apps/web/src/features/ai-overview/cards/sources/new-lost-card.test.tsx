@@ -4,8 +4,8 @@ import { http, HttpResponse, delay } from 'msw';
 import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { changePage, changeRow, diversityEngine, diversityRead } from './model/change-fixtures';
-import { at, domainPage, sourcesMeta } from './model/source-fixtures';
+import { changePage, changeRow, diversityEngine, diversityRead } from './model/change.test-fixtures';
+import { at, domainPage, sourcesMeta } from './model/source.test-fixtures';
 import NewLostCard from './new-lost-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { OverviewProvider } from '../../overview-context';

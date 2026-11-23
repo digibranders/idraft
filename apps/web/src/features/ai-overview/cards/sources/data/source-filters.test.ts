@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { canAskSources, sourceFilters, sourcesAskable } from './source-filters';
 import { overviewSourcesQuery } from '../../../data/overview-queries';
-import { scopeOf, ENGINES_ALL } from '../model/source-fixtures';
+import { scopeOf, ENGINES_ALL } from '../model/source.test-fixtures';
 import type { EngineCode } from '@/lib/api/types';
 import { filterParams, flagParams, sourceDomainsQuery } from '@/lib/citations/source-queries';
 

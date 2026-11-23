@@ -60,6 +60,12 @@ async def test_links_of_a_dropped_crawl_are_gone_but_its_pages_are_not(
     assert pages.json()["meta"]["links_available"] is False
     assert problem(edges) == (410, "links_dropped")
     assert problem(neighbors) == (410, "links_dropped")
+
+    detail = await api.get(
+        f"{base}/pages/{ids['/']}", params={"run": str(older)}, headers=viewer.headers
+    )
+    assert detail.status_code == 200
+    assert detail.json()["data"]["links_available"] is False
     # Its tier flow cannot be recomputed: the stored rows come back marked stale.
     flow = await api.get(f"{base}/tier-flow", params={"run": str(older)}, headers=viewer.headers)
     assert flow.status_code == 200

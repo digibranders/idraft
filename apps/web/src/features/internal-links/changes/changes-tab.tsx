@@ -23,8 +23,6 @@ import {
   changeLinksExportQuery,
   changeLinksPath,
   changesSummaryQuery,
-  crawlsQuery,
-  CRAWL_SCREEN_LIMIT,
 } from '@/lib/internal-links/queries';
 import type { ChangeKind, ChangeOnly, ChangesSummary } from '@/lib/internal-links/types';
 
@@ -40,8 +38,6 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
   const common = useTranslations('common');
   const { scope, crawl, timeZone, state, registerExport } = context;
   const summary = useQuery(changesSummaryQuery(scope, crawl.run));
-  // The crawl list is the screen's own read, so it is one request
-  const crawls = useQuery(crawlsQuery(scope, CRAWL_SCREEN_LIMIT));
   const [change, setChange] = useState<ChangeKind>('lost');
   // The person's choice belongs to the crawl it was made in: another crawl derives its own default again
   const [chosenOnly, setChosenOnly] = useState<ChangeOnly | null>(null);
@@ -89,10 +85,10 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
   }
   if (data === undefined) return <SkeletonRows />;
   if (data.state === 'first_crawl') {
-    return <EmptyState icon={History} title={c('firstTitle')} reason={c('firstText')} headingLevel={3} />;
+    return <EmptyState icon={History} title={c('firstTitle')} reason={c('firstText')} headingLevel={2} />;
   }
   if (data.state === 'unavailable') {
-    return <EmptyState icon={History} title={c('unavailableTitle')} reason={c('unavailableText')} headingLevel={3} />;
+    return <EmptyState icon={History} title={c('unavailableTitle')} reason={c('unavailableText')} headingLevel={2} />;
   }
 
   const tierWords = {
@@ -103,20 +99,8 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
   const date = sinceText(data.previous_finished_at, timeZone) ?? 'none';
   const since = c('since', { date });
   const alert = ready?.alert ?? null;
-  // A previous crawl whose links were dropped has no link changes to compare: zero would read as "no changes"
-  // The crawl list says whether the previous crawl kept its links; until it answers, zeros are not shown as counts
-  const noLinkChanges =
-    ready !== null && ready.editorial_lost + ready.editorial_added + ready.all_lost + ready.all_added === 0;
-  const previous = crawls.data?.data.find((run) => run.run_id === ready?.previous_run_id);
-  const undecided = noLinkChanges && crawls.isPending;
-  const previousNote =
-    !noLinkChanges || undecided
-      ? null
-      : previous === undefined
-        ? 'previousUnknown'
-        : previous.links_available
-          ? null
-          : 'previousDropped';
+  // The link changes were not worked out (the previous crawl's links were dropped): zero would read as "no changes"
+  const notCompared = ready !== null && !ready.links_compared;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -140,10 +124,10 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
       )}
       {data.state === 'pending' ? (
         <Banner tone="neutral" placement="region" lead={c('pendingTitle')} message={c('pendingText')} />
-      ) : undecided ? null : (
+      ) : (
         <ChangesStrip summary={data} since={since} tiers={tiers} linkScope={state.changesScope} />
       )}
-      {previousNote === null ? null : <Banner tone="neutral" placement="region" message={c(previousNote)} />}
+      {notCompared ? <Banner tone="neutral" placement="region" message={c('previousDropped')} /> : null}
       {crawl.linksAvailable ? (
         <ChangeLinksPanel
           context={context}
@@ -156,7 +140,7 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
           date={date}
         />
       ) : (
-        <LinksDropped />
+        <LinksDropped headingLevel={2} />
       )}
       <MovedPagesPanel context={context} since={since} />
     </div>

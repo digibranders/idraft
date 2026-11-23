@@ -15,6 +15,11 @@ export async function downloadApiFile(path: `/api/v1/${string}`, query: Download
   downloadBlob(await fetchApiBlob(path, query), name);
 }
 
+/** Saves a page the browser built itself (the client summary) as an HTML file. */
+export function downloadHtml(html: string, name: string): void {
+  downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), name);
+}
+
 /** Reads a file the API answers without saving it, for a screen that looks at it first (the planned fixes). */
 export async function fetchApiBlob(path: `/api/v1/${string}`, query: DownloadQuery): Promise<Blob> {
   const search = Object.entries(query)

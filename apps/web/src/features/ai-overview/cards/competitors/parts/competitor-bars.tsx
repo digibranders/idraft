@@ -35,6 +35,8 @@ export interface CompetitorBarRow {
   /** 0 to 1; `null` is a brand with no share, drawn as no bar and no number (never 0). */
   value: number | null;
   valueText: string;
+  /** What the share is of, in small type after it ("29 of 65 brand mentions"); `null` when there is no count to say. */
+  note?: string | null;
   /** The palette slot of the brand; `null` when it has none. */
   slot: number | null;
   /** The sentence of the hover: the figure and what it is of. */
@@ -57,6 +59,8 @@ export interface CompetitorBarsProps {
  */
 export function CompetitorBars({ rows, caption, onOpen }: CompetitorBarsProps): ReactElement {
   const top = Math.max(0.0001, ...rows.map((row) => row.value ?? 0));
+  // One note column for the whole list, so the shares keep their place whichever rows have a count
+  const hasNotes = rows.some((row) => row.note !== undefined && row.note !== null);
   return (
     <ul aria-label={caption} className="@container flex flex-col">
       {rows.map((row) => {
@@ -91,11 +95,17 @@ export function CompetitorBars({ rows, caption, onOpen }: CompetitorBarsProps): 
                 </div>
                 <span
                   className={cn(
-                    'ml-auto w-24 shrink-0 text-right num type-label whitespace-nowrap',
+                    'ml-auto shrink-0 text-right num type-label whitespace-nowrap',
+                    hasNotes ? 'flex items-baseline gap-1.5' : 'w-24',
                     row.value === null && 'text-foreground-tertiary',
                   )}
                 >
-                  {row.valueText}
+                  <span className={cn(hasNotes && 'w-10 text-right')}>{row.valueText}</span>
+                  {hasNotes ? (
+                    <span className="w-28 text-left type-meta font-normal text-foreground-tertiary">
+                      {row.note ?? ''}
+                    </span>
+                  ) : null}
                 </span>
               </div>
             </Tooltip>

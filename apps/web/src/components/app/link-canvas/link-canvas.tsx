@@ -28,6 +28,7 @@ import { Minimap, type MinimapCard } from './minimap';
 import { SelectionBar } from './selection-bar';
 import { useGrowth, type GrowthHandle } from './use-growth';
 import { ViewControls } from './view-controls';
+import { pageHref } from './visit-link';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -108,6 +109,8 @@ export interface LinkCanvasHandle {
 
 export interface LinkCanvasProps<N extends JourneyNeighbor> {
   layout: JourneyLayout<N>;
+  /** The site's host: a card's Visit link opens `https://host` and the page's path. Without it no card has one. */
+  host?: string | undefined;
   focus: CanvasFocus;
   /** Lines under the focus card: "18 editorial links in.", the orphan and redirect notes. */
   focusNote?: ReactNode;
@@ -416,6 +419,7 @@ function statusBadge(status: number | null, notCrawled: string): LinkCardPagePro
  */
 export function LinkCanvas<N extends JourneyNeighbor>({
   layout,
+  host = '',
   focus,
   focusNote,
   view,
@@ -1169,6 +1173,10 @@ export function LinkCanvas<N extends JourneyNeighbor>({
     announce(t('positionsReset'));
   };
 
+  const visitOf = (path: string): LinkCardPageProps['tools']['visit'] => {
+    const href = pageHref(host, path);
+    return href === null ? null : { href, label: t('visit', { path }), text: t('visitPage') };
+  };
   const linkedAs = (node: N): string => {
     if (node.anchor === null) return node.title ?? '';
     if (node.scope === null || node.scope === 'editorial') return node.anchor;
@@ -1412,6 +1420,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           onFocusPage: toolRefocus,
           detailsLabel: t('details', { path: node.path }),
           onDetails: toolDetails,
+          visit: visitOf(node.path),
         }}
         back={
           backCount === 0
@@ -1526,6 +1535,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
           onFocusPage: none,
           detailsLabel: t('details', { path: focus.path }),
           onDetails: toolDetails,
+          visit: visitOf(focus.path),
         }}
         back={null}
         tabStop={FOCUS_KEY === tabKey}

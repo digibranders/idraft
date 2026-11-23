@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PositionDistributionCard from './position-card';
 import SentimentCard from './sentiment-card';
-import { cell, engine, promptRow, summaryOf } from '../competitors/model/summary-fixtures';
+import { cell, engine, promptRow, summaryOf } from '../competitors/model/summary.test-fixtures';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';
 import type { EngineSummaryWithFacts, PositionCounts, SentimentCounts } from '@/lib/prompt-facts';

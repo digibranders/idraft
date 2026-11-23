@@ -77,6 +77,8 @@ RUN_WORKER_UPDATE = (
     "enrich_phase",
     "enrich_failures",
     "enrich_offset",
+    # Migration 0028: whether the link diff ran.
+    "links_compared",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",
@@ -483,6 +485,11 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         NONE,
     ),
     "core.tier_suggestion_dismissals": (access("SELECT, INSERT, DELETE"), NONE),
+    # Migration 0029: the API makes and revokes shares; a revoke is the only update.
+    "core.client_summary_shares": (
+        access("SELECT, INSERT", UPDATE=("revoked_at", "revoked_by")),
+        NONE,
+    ),
     # Page totals from Search Console, replaced by the worker a day at a time.
     "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
 }
@@ -597,6 +604,7 @@ FUNCTIONS: dict[str, frozenset[str]] = {
     "auth.current_workspace_id()": frozenset(ROLES),
     "auth.current_user_id()": frozenset(ROLES),
     "auth.invitation_by_token(bytea)": frozenset({"app_api"}),
+    "core.client_summary_share_by_token(bytea)": frozenset({"app_api"}),
     # The raw payload of a snapshot of the current workspace (review log F8).
     "seo.serp_snapshot_raw(bigint)": frozenset({"app_api"}),
     # The raw payload of an answer of the current workspace (migration 0018).

@@ -3,7 +3,7 @@ import type { ComponentProps, ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { EnginePanel } from './engine-panel';
-import { cell, engine, topicRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, topicRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import { DRAWER_TOPIC_ID, renderDrawerPart, summaryOf } from '@/test/topic-drawer-harness';
 
 vi.mock('next/navigation', () => ({

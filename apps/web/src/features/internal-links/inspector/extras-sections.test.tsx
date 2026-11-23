@@ -20,12 +20,12 @@ const BASE: PageDetailExtras = {
     ],
   },
   change: { is_new: false, editorial_in_delta: 2, equity_points: 3.5, depth_state: null, depth_delta: 1 },
-  citations: { chatgpt: 5, gemini: 3, ai_mode: 2, total: 10 },
+  citations: { chatgpt: 5, gemini: 3, ai_mode: 2, total: 10, citations_as_of: '2026-11-18' },
   gsc: { state: 'ok', clicks: 1320, impressions: 28400, window_start: '2026-10-18', window_end: '2026-11-14' },
   keywords: [
-    { keyword: 'soc as a service', rank: 4, change: 2, volume: 1900 },
-    { keyword: 'managed soc', rank: 12, change: -3, volume: 880 },
-    { keyword: 'soc pricing', rank: null, change: null, volume: null },
+    { keyword: 'soc as a service', rank: 4, change: 2, volume: 1900, rank_as_of: '2026-11-18' },
+    { keyword: 'managed soc', rank: 12, change: -3, volume: 880, rank_as_of: '2026-11-18' },
+    { keyword: 'soc pricing', rank: null, change: null, volume: null, rank_as_of: null },
   ],
 };
 
@@ -33,9 +33,15 @@ function show(
   patch: Partial<PageDetailExtras> = {},
   comparison: Comparison | null = 'ready',
   linksAvailable = true,
+  linksCompared = true,
 ): ReturnType<typeof renderWithProviders> {
   return renderWithProviders(
-    <ExtrasSections extras={{ ...BASE, ...patch }} comparison={comparison} linksAvailable={linksAvailable} />,
+    <ExtrasSections
+      extras={{ ...BASE, ...patch }}
+      comparison={comparison}
+      linksAvailable={linksAvailable}
+      linksCompared={linksCompared}
+    />,
   );
 }
 const card = (name: string): HTMLElement => screen.getByRole('heading', { name }).closest('section') as HTMLElement;
@@ -110,7 +116,7 @@ describe('tracked keywords', () => {
   });
 
   it('lets a long keyword break inside the narrow inspector', () => {
-    show({ keywords: [{ keyword: 'a'.repeat(120), rank: 1, change: 0, volume: 10 }] });
+    show({ keywords: [{ keyword: 'a'.repeat(120), rank: 1, change: 0, volume: 10, rank_as_of: '2026-11-18' }] });
     const cell = within(card('Tracked keywords')).getByRole('rowheader');
     expect(cell).toHaveClass('break-words', 'min-w-0');
   });
@@ -133,7 +139,7 @@ describe('AI citations', () => {
   });
 
   it('says Cited in 0 answers when every count is zero', () => {
-    show({ citations: { chatgpt: 0, gemini: 0, ai_mode: 0, total: 0 } });
+    show({ citations: { chatgpt: 0, gemini: 0, ai_mode: 0, total: 0, citations_as_of: null } });
     expect(card('AI citations')).toHaveTextContent('Cited in 0 answers');
   });
 });
@@ -163,6 +169,21 @@ describe('anchor text pointing here', () => {
   it('says there are no anchors when no editorial link points here', () => {
     show({ anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] } });
     expect(card('Anchor text pointing here')).toHaveTextContent('No editorial links point here');
+  });
+
+  it('never reads a link change that was not compared as zero', () => {
+    const moved = show({}, 'ready', true, false);
+    expect(card('Changes since the last crawl')).toHaveTextContent('Not compared');
+    expect(card('Changes since the last crawl')).not.toHaveTextContent('+2');
+    moved.unmount();
+    show(
+      { change: { is_new: false, editorial_in_delta: 0, equity_points: null, depth_state: null, depth_delta: 0 } },
+      'ready',
+      true,
+      false,
+    );
+    expect(card('Changes since the last crawl')).toHaveTextContent('Links were not compared with the last crawl');
+    expect(card('Changes since the last crawl')).not.toHaveTextContent('No change');
   });
 
   it('says Not stored when the crawl no longer holds its links', () => {

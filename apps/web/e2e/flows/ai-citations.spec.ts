@@ -356,8 +356,8 @@ test.describe('The Citations page (WP-77)', () => {
     await openCitations(page, 1440, 'tab=domains&role=third_party&win=7d&cmp=off');
     await expect(page).toHaveURL(/\/ai\/citations\?owner=third$/);
     await expect(ownersOf(page).getByRole('button', { name: /^Third-party/ })).toHaveAttribute('aria-pressed', 'true');
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Topics & Prompts' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Topics & Prompts' })).toBeAttached();
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Prompts' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Prompts' })).toBeAttached();
     await expect(page).not.toHaveURL(/owner=third/);
   });
 

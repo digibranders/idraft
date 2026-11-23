@@ -183,6 +183,7 @@ sentences move to the Sample data badge. The same text is used for the card, its
 **ai.rate_trend_by_engine: Rate by platform over time**
 - What it shows: How the chosen rate changes from week to week.
 - How it is counted: One point for each weekly run, one line for each platform, with their average dashed. For a single platform the shaded band is the 95% range the true rate likely sits in. With Compare on, a dashed vertical line separates the previous 28 days from the current 28 days.
+- How it is counted, with "vs same period last year": the same text, ending: With Compare on, a second dashed line shows the same period last year, week for week.
 
 **ai.outcome_mix: Outcome split by platform**
 - What it shows: What happens to your brand in each platform's answers.
@@ -381,3 +382,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-17 | Overview name (A3) | Navigation item "Overview", page title "AI visibility" | Navigation item and breadcrumb "AI visibility"; page title (h1 and tab title) "AI visibility overview" | Owner decision on the port review: the item names the area it opens, the title says what the page is |
 | 2026-11-17 | Card titles (section 10.1) | Preview "Trend over time", "Answer outcomes", "Top and bottom groups", "Headline numbers", "Competitor gap"; catalog "Rates by platform over time", "Mentioned and cited" | The glossary titles everywhere (catalog, card heading, customize toolbar, Add card, aria labels, preview): "Rate by platform over time", "Outcome split by platform", "Strongest and weakest groups", "AI visibility rate (headline)", "Lost to competitor", "Run calendar" | Owner decision on the port review: one title for a card on every surface |
 | 2026-11-17 | Compare with (P15) | "vs previous period" and "No comparison" | Adds "vs same period last year" and the words that follow each mode | The real Prompts screen already offers the year back; the glossary now knows the words |
+| 2026-11-23 | Compare with (P15), Rate by platform over time, how it is counted | "With Compare on, a dashed vertical line separates the previous 28 days from the current 28 days" for every mode | The same text with the previous period; with "vs same period last year" the last sentence is "With Compare on, a second dashed line shows the same period last year, week for week." | The real card draws last year as a dashed line under the current weeks and has no boundary line for it; the preview does not draw it yet |

@@ -2,16 +2,18 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { nextCompetitorColor, sameBrand, type ProjectEntry } from './competitor-model';
-import { aiKey, projectEntitiesQuery, type PromptScope } from '../prompt-queries';
+import type { ProjectEntry } from './competitor-model';
+import { aiKey, type PromptScope } from '../prompt-queries';
 import { isApiProblem } from '@/lib/api/problem';
-import { apiMutation, apiQuery } from '@/lib/api/query';
-
-const WORKSPACE_ENTITIES = '/api/v1/workspaces/{workspace_id}/entities';
-const PROJECT_ENTITIES = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities';
-const CREATE = apiMutation('post', WORKSPACE_ENTITIES);
-const ATTACH = apiMutation('post', PROJECT_ENTITIES);
-const DETACH = apiMutation('delete', `${PROJECT_ENTITIES}/{entity_id}`);
+import { wordAlias } from '@/lib/entities/aliases';
+import { nextCompetitorColor } from '@/lib/entities/colors';
+import {
+  attachEntityMutation,
+  createEntityMutation,
+  detachEntityMutation,
+  findBrandId,
+  projectEntitiesQuery,
+} from '@/lib/entities/project-entities';
 
 /** A brand that is now a competitor of the project, with what is needed to take it off again. */
 export interface AddedCompetitor {
@@ -41,24 +43,10 @@ export interface Competitors {
 export function useCompetitors(project: PromptScope, enabled: boolean): Competitors {
   const queryClient = useQueryClient();
   const entities = useQuery({ ...projectEntitiesQuery(project), enabled });
-  const create = useMutation(CREATE);
-  const attach = useMutation(ATTACH);
-  const detach = useMutation(DETACH);
+  const create = useMutation(createEntityMutation);
+  const attach = useMutation(attachEntityMutation);
+  const detach = useMutation(detachEntityMutation);
   const entries = entities.data?.data ?? [];
-
-  const findBrand = async (name: string): Promise<string | null> => {
-    const found = await queryClient.fetchQuery({
-      ...apiQuery(WORKSPACE_ENTITIES, {
-        params: { path: { workspace_id: project.workspaceId }, query: { 'filter[q]': name } },
-      }),
-      // An entity created a moment ago, perhaps in another tab, has to be found
-      staleTime: 0,
-    });
-    return (
-      found.data.find((entity) => entity.entity_type === 'brand' && sameBrand(entity.canonical_name, name))
-        ?.entity_id ?? null
-    );
-  };
 
   const add = async (name: string): Promise<AddedCompetitor> => {
     let entityId: string | null;
@@ -71,16 +59,7 @@ export function useCompetitors(project: PromptScope, enabled: boolean): Competit
           entity_type: 'brand',
           is_ambiguous: false,
           canonical_name: brand,
-          aliases: [
-            {
-              alias: brand,
-              match_mode: 'word_boundary',
-              case_sensitive: false,
-              language_code: null,
-              is_negative: false,
-              requires_context: false,
-            },
-          ],
+          aliases: [wordAlias(brand)],
           domains: [],
         },
       });
@@ -88,7 +67,7 @@ export function useCompetitors(project: PromptScope, enabled: boolean): Competit
     } catch (error) {
       // The workspace has a brand of this name already, perhaps one another project follows: it is the one to give the role
       if (!isApiProblem(error, 'duplicate')) throw error;
-      entityId = await findBrand(name);
+      entityId = await findBrandId(queryClient, project.workspaceId, name);
       if (entityId === null) throw error;
     }
     const colorIndex = nextCompetitorColor(entries);

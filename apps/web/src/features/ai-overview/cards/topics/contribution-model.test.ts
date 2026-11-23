@@ -5,7 +5,7 @@ import type { TopicNode } from './model-types';
 import { NO_TOPIC } from './topic-nodes';
 import { engineCells, promptRow as summaryPrompt, summaryOf, topicRow } from './topic-card-test-kit';
 import { buildAggregates } from '../../data/aggregates';
-import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptSummaryRow } from '@/lib/api/types';
 
 const CODE = 'chatgpt_web';

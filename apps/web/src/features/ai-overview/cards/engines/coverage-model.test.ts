@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { coverageOf } from './coverage-model';
-import { engineCells, promptRow } from './engines-fixtures';
+import { engineCells, promptRow } from './engines.test-fixtures';
 import type { EngineCode, PromptSummaryRow } from '@/lib/api/types';
 
 /** A prompt with `valid` valid answers on each engine given (the mentioned cell is what holds them). */

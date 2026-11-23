@@ -19,7 +19,11 @@ import { routesQuery } from '@/lib/internal-links/queries';
 import { closerNote } from '@/lib/internal-links/route-format';
 import type { PageRow, Routes } from '@/lib/internal-links/types';
 
-/** The sentence under the chains, from how the two routes compare (spec 7.10). */
+/**
+ * The sentence under the chains, from how the two routes compare (spec 7.10). A null route means the page cannot be
+ * reached: a crawl without a start page makes the API start from the site's template-link roots, so it never means
+ * "no start page" and the one "cannot be reached" message covers it.
+ */
 function Note({ routes }: { routes: Routes }): ReactElement | null {
   const t = useTranslations('internalLinks.paths');
   const note = closerNote({ any: routes.any?.clicks ?? null, editorial: routes.editorial?.clicks ?? null });

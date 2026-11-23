@@ -39,6 +39,10 @@ class ChangesSummary(BaseModel):
         description="`pending` until the crawl's changes are worked out, `unavailable` when "
         "enrichment failed before that."
     )
+    links_compared: bool = Field(
+        description="False when the link counts were not worked out: the links of this crawl or "
+        "of the one before were dropped. The counts are then zero, not measured."
+    )
     editorial_lost: int
     editorial_added: int
     all_lost: int
@@ -84,7 +88,9 @@ class MovedPage(BaseModel):
     page: ChangePage
     editorial_in: int
     editorial_in_delta: int | None
-    equity_points: float | None
+    equity_points: float | None = Field(
+        description="Link strength change in points since the previous crawl."
+    )
     depth: int | None
     depth_state: Literal["lost", "found"] | None
     depth_delta: int | None
@@ -119,7 +125,10 @@ class Opportunity(BaseModel):
     phrase: str
     context: str
     anchor: str = Field(description="The words to link: the phrase as written in the text.")
-    source_equity_share: float | None
+    source_equity_share: float | None = Field(
+        description="Link strength of the page that would carry the link: its share of the "
+        "whole site's, 0 to 1."
+    )
     status: OpportunityStatus
     origin: Literal["keyword", "anchor"]
 

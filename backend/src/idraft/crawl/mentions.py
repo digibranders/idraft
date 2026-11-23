@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
@@ -30,6 +31,9 @@ type PhraseIndex = dict[str, list[tuple[int, Origin]]]
 # letters (some Indic scripts) split a word; a known limit, and spaceless scripts are too.
 _WORD = re.compile(r"[^\W_]+")
 _SENTENCE_END = re.compile(r"[.!?]\s")
+# `<!-->` and `<!--->` are empty comments in a browser, but the standard parser reads them as the
+# start of a comment that runs to the next `-->`, and so loses the rest of the page.
+_EMPTY_COMMENT = re.compile(r"<!---?>")
 # Text in these elements is not the page's own words about a topic.
 _SKIP = frozenset(
     {
@@ -89,8 +93,12 @@ class _Text(HTMLParser):
         self.skipping: list[str] = []
         self.main = 0
         self.has_main = False
-        self.chunks: list[str] = []
-        self.main_chunks: list[str] = []
+        # The text of the page, one entry per block (paragraph, list item, cell...), whole
+        # body and inside `main` or `article` apart; the open block is `*_open`.
+        self.blocks: list[str] = []
+        self.main_blocks: list[str] = []
+        self._open: list[str] = []
+        self._main_open: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in _VOID:
@@ -117,26 +125,58 @@ class _Text(HTMLParser):
 
     def _break(self, tag: str) -> None:
         if tag in _BLOCKS:
-            self.chunks.append(" ")
-            self.main_chunks.append(" ")
+            self.flush()
+
+    def flush(self) -> None:
+        for words, blocks in ((self._open, self.blocks), (self._main_open, self.main_blocks)):
+            block = _squash("".join(words))
+            if block:
+                blocks.append(block)
+            words.clear()
 
     def handle_data(self, data: str) -> None:
         if self.skipping:
             return
-        self.chunks.append(data)
+        self._open.append(data)
         if self.main:
-            self.main_chunks.append(data)
+            self._main_open.append(data)
 
 
-def visible_text(html: str) -> str:
-    """The body text of a page: the text of `main` or `article` when the page has one, else of
-    the whole body, without text inside links, scripts, menus, header, footer, aside and
-    forms. Whitespace is one space."""
+def _squash(text: str) -> str:
+    return unicodedata.normalize("NFC", re.sub(r"\s+", " ", text).strip())
+
+
+def visible_blocks(html: str, *, whole_body: bool = False) -> list[str]:
+    """The body text of a page, one string per block: the text of `main` or `article` when the
+    page has one (unless `whole_body`), else of the whole body, without text inside links,
+    scripts, menus, header, footer, aside and forms. Whitespace is one space."""
     parser = _Text()
-    parser.feed(html)
+    parser.feed(_EMPTY_COMMENT.sub("", html))
     parser.close()
-    chosen = parser.main_chunks if parser.has_main else parser.chunks
-    return unicodedata.normalize("NFC", re.sub(r"\s+", " ", "".join(chosen)).strip())
+    parser.flush()
+    return parser.main_blocks if parser.has_main and not whole_body else parser.blocks
+
+
+def visible_text(html: str, *, boilerplate: AbstractSet[str] = frozenset()) -> str:
+    """`visible_blocks` joined into one text, leaving out the blocks in `boilerplate`."""
+    return " ".join(block for block in visible_blocks(html) if block not in boilerplate)
+
+
+BOILERPLATE_MIN_PAGES: Final = 3
+
+
+def boilerplate_blocks(pages: Sequence[Sequence[str]]) -> frozenset[str]:
+    """The blocks of text that most of the given pages carry (more than half, on at least
+    `BOILERPLATE_MIN_PAGES`): a menu or a header button a site builds out of plain elements
+    reads as page text, but it is the template's words, not the page's."""
+    seen: Counter[str] = Counter()
+    for blocks in pages:
+        seen.update(set(blocks))
+    return frozenset(
+        block
+        for block, count in seen.items()
+        if count >= BOILERPLATE_MIN_PAGES and 2 * count > len(pages)
+    )
 
 
 def phrase_key(phrase: str) -> str | None:

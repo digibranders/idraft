@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engine, head, projectEngine, weighted } from './cells-fixtures';
+import { engine, head, projectEngine, weighted } from './cells.test-fixtures';
 import { topicListLines } from './list-lines';
 
 const ENGINES = [projectEngine('chatgpt_web'), projectEngine('gemini_web'), projectEngine('google_ai_mode')];

@@ -3,6 +3,7 @@
 import type { CardData } from './use-card-data';
 import { useFrameState, type FrameState } from './use-frame-state';
 import { comparisonWindow } from '../../data/overview-queries';
+import { compareWord, type CompareWord } from '../../scope/scope-model';
 import type { ChartEmpty } from '@/components/app/chart/chart-frame';
 import type { EngineCode } from '@/lib/api/types';
 import { ENGINES } from '@/lib/layouts/catalog';
@@ -28,7 +29,7 @@ export type ChangeWords = (
     | 'emptyOffReason'
     | 'emptyNoPreviousTitle'
     | 'emptyNoPreviousReason',
-  values?: { days: number },
+  values?: { days: number; kind: CompareWord },
 ) => string;
 
 /** What only the card can tell: its own empty state, or that its engine has nothing in the window before. */
@@ -45,7 +46,7 @@ export function useChangeFrame(data: CardData, name: string, words: ChangeWords,
     noPrompts: { title: words('emptyNoPromptsTitle'), reason: words('emptyNoPromptsReason') },
     off: { title: words('emptyOffTitle'), reason: words('emptyOffReason') },
     noPrevious: {
-      title: words('emptyNoPreviousTitle', { days: scope.range.days }),
+      title: words('emptyNoPreviousTitle', { days: scope.range.days, kind: compareWord(scope) }),
       reason: words('emptyNoPreviousReason'),
     },
   };

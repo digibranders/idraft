@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { ComparisonLine } from './comparison-line';
-import { engine, projectEngine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, projectEngine, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import { engineValue, type EngineValue } from '@/features/prompts/topics-by-engine/engine-values';
 import type { MetricCell } from '@/lib/api/types';
 import type { CellMetric } from '@/lib/rates/rate-model';

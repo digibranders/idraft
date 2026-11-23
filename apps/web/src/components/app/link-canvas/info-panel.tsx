@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, type ReactElement } from 'react';
 
+import { VisitLink } from './visit-link';
 import { IconButton } from '@/components/ui/icon-button';
 
 export interface InfoFacts {
@@ -22,6 +23,8 @@ export interface InfoFacts {
 export interface InfoPanelProps {
   label: string;
   facts: InfoFacts;
+  /** The live page in a new tab, under the facts; `null` leaves it out. */
+  visit?: { href: string; label: string; text: string } | null | undefined;
   /** `restoreFocus`: closed from the keyboard or the close button, so focus goes back to the button that opened it. */
   onClose: (restoreFocus: boolean) => void;
 }
@@ -34,7 +37,7 @@ export const INFO_TOGGLE_ATTRIBUTE = 'data-info-toggle';
  * and attribute. It opens from the card's Info button only, never on hover or focus (it covered the cards a person was
  * reading). It closes on the button again, a press elsewhere, Escape, or a pan or zoom (the canvas does the last).
  */
-export function InfoPanel({ label, facts, onClose }: InfoPanelProps): ReactElement {
+export function InfoPanel({ label, facts, visit = null, onClose }: InfoPanelProps): ReactElement {
   const t = useTranslations('linkCanvas.info');
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -89,6 +92,11 @@ export function InfoPanel({ label, facts, onClose }: InfoPanelProps): ReactEleme
           </div>
         ))}
       </dl>
+      {visit === null ? null : (
+        <div className="mt-2">
+          <VisitLink href={visit.href} label={visit.label} text={visit.text} />
+        </div>
+      )}
     </div>
   );
 }

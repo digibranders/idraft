@@ -40,6 +40,20 @@ const PAGES = z.object({
   meta: z.object({ run_id: z.string(), links_available: z.boolean(), total: z.number() }),
 });
 
+const SORTED = z.object({
+  data: z.array(
+    z.object({
+      extras: z
+        .object({
+          keywords: z.object({ average_rank: z.number().nullable() }).nullish(),
+          citations: z.object({ total: z.number() }).nullish(),
+          anchors: z.object({ distinct: z.number().nullable() }).nullish(),
+        })
+        .nullish(),
+    }),
+  ),
+});
+
 describe('the changes routes of the mock API', () => {
   it('answers the summary with the state and the alert for links lost to important pages', async () => {
     const answer = await mockBrowser('viewer').call('GET', `${L}/changes/summary`);
@@ -194,6 +208,28 @@ describe('the pages routes with the crawl history', () => {
     expect(falling.data[0]?.path).toBe('/blog/threat-report-2022');
   });
 
+  it('sorts by rank, citations and anchor, with pages that have no rank last in both directions', async () => {
+    const browser = mockBrowser('viewer');
+    const read = async (sort: string) =>
+      SORTED.parse(
+        (await browser.call('GET', `${L}/pages?include=keywords,citations,anchors&sort=${sort}&limit=100`)).body,
+      );
+    for (const sort of ['rank', '-rank']) {
+      const rows = (await read(sort)).data;
+      const ranks = rows.map((row) => row.extras?.keywords?.average_rank ?? null);
+      const firstEmpty = ranks.indexOf(null);
+      expect(firstEmpty).toBeGreaterThan(0);
+      expect(ranks.slice(firstEmpty).every((rank) => rank === null)).toBe(true);
+      const ranked = ranks.slice(0, firstEmpty).map(Number);
+      expect(ranked).toEqual([...ranked].sort((a, b) => (sort === 'rank' ? a - b : b - a)));
+    }
+    const cited = (await read('-citations')).data.map((row) => row.extras?.citations?.total ?? 0);
+    expect(cited).toEqual([...cited].sort((a, b) => b - a));
+    const anchors = (await read('anchor')).data.map((row) => row.extras?.anchors?.distinct ?? null);
+    const known = anchors.filter((value): value is number => value !== null);
+    expect(known).toEqual([...known].sort((a, b) => a - b));
+  });
+
   it('counts the two new worklists', async () => {
     const answer = await mockBrowser('viewer').call('GET', `${L}/worklists`);
     expect(answer.body.data).toMatchObject({ run_id: LATEST, lost_links_top: 5, weak_outlinks: 1 });
@@ -231,7 +267,12 @@ describe('the pages routes with the crawl history', () => {
     expect(pages.meta).toMatchObject({ run_id: OLDEST, links_available: false });
     expect(pages.data.every((row) => row.extras?.anchors === null)).toBe(true);
     const detail = await browser.call('GET', `${L}/pages/103?run=${OLDEST}`);
-    expect(detail.body.data).toMatchObject({ linking_pages: [], outlinks: [], linking_pages_total: 0 });
+    expect(detail.body.data).toMatchObject({
+      links_available: false,
+      linking_pages: [],
+      outlinks: [],
+      linking_pages_total: 0,
+    });
     const weak = await browser.call('GET', `${L}/pages?run=${OLDEST}&filter[worklist]=weak_outlinks`);
     expect([weak.status, weak.code]).toEqual([410, 'links_dropped']);
     expect((await browser.call('GET', `${L}/worklists?run=${OLDEST}`)).body.data).toMatchObject({ weak_outlinks: 0 });

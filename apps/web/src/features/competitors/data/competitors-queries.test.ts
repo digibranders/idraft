@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   competitorsQuery,
   enginesQuery,
-  entitiesQuery,
   lostPromptsQuery,
   sourcesQuery,
   sovSeriesQuery,
@@ -11,6 +10,7 @@ import {
   type ProjectRef,
   type ReadScope,
 } from './competitors-queries';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 
 const PROJECT: ProjectRef = { workspaceId: 'w1', projectId: 'p1' };
 const TOPIC = '3f2b8c1e-5a47-4d0e-9b6a-1c2d3e4f5a6b';
@@ -134,7 +134,7 @@ describe('the request shapes of the Competitors page', () => {
 
   it('engines and entities are the requests the other pages make, so the cache entry is shared', () => {
     expect(enginesQuery(PROJECT).queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'engines', {}]);
-    expect(entitiesQuery(PROJECT).queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'entities', {}]);
+    expect(projectEntitiesQuery(PROJECT).queryKey).toEqual(['ws', 'w1', 'p', 'p1', 'entities', {}]);
   });
 
   it('every analytic read sits under the ai prefix of the project, so a refresh of the project reaches it', () => {

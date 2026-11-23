@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { engine, head, projectEngine, weighted } from './cells-fixtures';
+import { engine, head, projectEngine, weighted } from './cells.test-fixtures';
 import { TopicsMobileList, type TopicsMobileListProps } from './topics-mobile-list';
 import type { TopicHead } from './topic-rows';
 import { renderWithProviders } from '@/test/render';

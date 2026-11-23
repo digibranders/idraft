@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineCells, promptRow } from './engines-fixtures';
+import { engineCells, promptRow } from './engines.test-fixtures';
 import { engineCounts, hasEnoughAnswers, pairPrompts, rateOf } from './prompt-pairs';
 
 const BOTH = ['chatgpt_web', 'gemini_web'] as const;

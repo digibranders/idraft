@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, withBrandMentions, type EngineCellsInput } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions, type EngineCellsInput } from './engines.test-fixtures';
 import PeriodComparisonCard from './period-comparison-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
@@ -260,6 +260,30 @@ describe('the period comparison card', () => {
     const text = await blob.text();
     expect(text).toContain('Platform,Previous,Current,Change,95% interval');
     expect(text).toContain('"37.5%, 6 of 16 answers"');
+  });
+
+  it('names the same period last year in its title, footnote, Table header and CSV when cmp=year', async () => {
+    const YEAR = 'This period vs the same period last year';
+    server.use(
+      http.get(SUMMARY, ({ request }) =>
+        HttpResponse.json({ data: new URL(request.url).searchParams.get('to') === '2025-11-12' ? BEFORE : NOW }),
+      ),
+    );
+    const { user } = renderCard(undefined, `${WINDOW}&cmp=year`);
+    await screen.findByRole('list', { name: YEAR });
+    expect(screen.getByText(/^Same period last year: .*2025/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const table = await screen.findByRole('table', { name: YEAR });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual(['Platform', 'Same period last year', 'Current', 'Change', '95% interval']);
+    await user.click(screen.getByRole('button', { name: `More actions for ${YEAR}` }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Download CSV' }));
+    const [blob] = vi.mocked(csvWrite.downloadBlob).mock.calls[0] ?? [];
+    if (!(blob instanceof Blob)) throw new Error('No file was downloaded');
+    expect(await blob.text()).toContain('Platform,Same period last year,Current,Change,95% interval');
   });
 
   it('registers an export block, one row per engine, an unknown value empty and a status that says why', async () => {

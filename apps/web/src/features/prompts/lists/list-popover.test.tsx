@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { useState, type ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { atTrackedLimit, nextCompetitorColor, sameBrand, TRACKED_LIMIT } from './competitor-model';
+import { atTrackedLimit, TRACKED_LIMIT } from './competitor-model';
 import { ListPopover, ListRow } from './list-popover';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -104,19 +104,8 @@ describe('the list popover', () => {
 });
 
 describe('the competitor model', () => {
-  it('gives a new competitor the first free color of 2 to 6, then the neutral one', () => {
-    expect(nextCompetitorColor([{ color_index: 1 }])).toBe(2);
-    expect(nextCompetitorColor([{ color_index: 1 }, { color_index: 2 }, { color_index: 4 }])).toBe(3);
-    expect(nextCompetitorColor([1, 2, 3, 4, 5, 6].map((color_index) => ({ color_index })))).toBeNull();
-  });
-
   it('stops at the number of entities the summary has cells for', () => {
     expect(atTrackedLimit(TRACKED_LIMIT - 1)).toBe(false);
     expect(atTrackedLimit(TRACKED_LIMIT)).toBe(true);
-  });
-
-  it('compares brand names ignoring case and the space around them', () => {
-    expect(sameBrand(' HubSpot ', 'hubspot')).toBe(true);
-    expect(sameBrand('HubSpot', 'Hub Spot')).toBe(false);
   });
 });

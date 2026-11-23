@@ -11,6 +11,8 @@ import { CrawlNotFound } from './crawl-not-found';
 import { CrawlPicker } from './crawl-picker';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
+import { ShareDialog } from './export/share-dialog';
+import { useClientSummary } from './export/use-client-summary';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
@@ -138,7 +140,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const [order, setOrder] = useState<readonly string[]>([]);
   const canWrite = useCan('projects:write');
   // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
-  const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | null>(null);
+  const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | 'share' | null>(null);
   const ruleItems: MenuItemDef[] = [
     { id: 'rules', label: t('rules.open'), icon: ListFilter, onSelect: () => setDialog('rules') },
     ...(canWrite ? [{ id: 'import', label: t('csv.open'), icon: Upload, onSelect: () => setDialog('import') }] : []),
@@ -188,6 +190,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
               setExporting(false);
             });
         };
+
+  const summary = useClientSummary({ scope, view: inView, host, timeZone: project.timeZone });
 
   // Only someone who may crawl can have pressed Crawl now, so only they are told crawls are not switched on yet
   // It is a child of the page's own column (`gap-3`) or of the tabs' (`gap-3`), so its spacing comes from the layout
@@ -336,6 +340,9 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           onCrawlNow={() => crawl.start()}
           onExport={ready ? onExport : null}
           exporting={exporting}
+          onSummary={ready && inView.crawl !== null && !crawlNotFound ? summary.run : null}
+          summaryPreparing={summary.preparing}
+          onShare={ready && inView.crawl !== null && !crawlNotFound ? () => setDialog('share') : null}
           extraItems={ruleItems}
           settingsHref={settingsHref}
           tiersHref={tiersHref}
@@ -428,6 +435,13 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         scope={scope}
         tiers={context.tiers}
         canWrite={canWrite}
+      />
+      <ShareDialog
+        open={dialog === 'share'}
+        onOpenChange={(next) => setDialog(next ? 'share' : null)}
+        scope={scope}
+        canWrite={canWrite}
+        timeZone={project.timeZone}
       />
       {canWrite ? (
         <AlertRulesDialog

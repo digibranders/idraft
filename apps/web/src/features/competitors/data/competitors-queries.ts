@@ -2,7 +2,6 @@ import type { Branded, CompetitorsScope } from '../scope/scope-model';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { EngineCode } from '@/lib/api/types';
 import { compareParams } from '@/lib/compare/compare-model';
-import { entitiesQuery as projectEntitiesQuery } from '@/lib/citations/entities-query';
 
 /**
  * The query factories of the Competitors page (WP-39 plan section 3.3): the only place that knows the parameter
@@ -106,10 +105,6 @@ function sharedQuery(
 /** `GET {P}/engines`: the same request and key as the other pages', so the engines are read once. */
 export const enginesQuery = (project: ProjectRef): ApiQueryOptions<typeof ENGINES> =>
   apiQuery(ENGINES, { params: { path: pathOf(project) } });
-
-/** `GET {P}/entities`: the same request as the Entities page's (dates added, domains), so one cache entry. */
-export const entitiesQuery = (project: ProjectRef): ReturnType<typeof projectEntitiesQuery> =>
-  projectEntitiesQuery(project);
 
 /**
  * R1, `GET {P}/ai/competitors`: the tracked set with its values per engine, and the previous period's while the

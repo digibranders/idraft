@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, vi } from 'vitest';
 
-import { schedule } from '@/features/ai-overview/cards/activity/model/activity-fixtures';
+import { schedule } from '@/features/ai-overview/cards/activity/model/activity.test-fixtures';
 import { PromptsScreen, type PromptsProject } from '@/features/prompts/prompts-screen';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';

@@ -96,3 +96,23 @@ async def test_the_served_document_is_never_cached(
     token, _ = await open_session(app.state.resources, user)
     response = await client.get(SERVED, headers=cookie(token))
     assert response.headers["cache-control"] == "no-store"
+
+
+def _texts(node: Any) -> list[str]:
+    """Every `summary` and `description` string of the document, whatever its depth."""
+    found: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in {"summary", "description"} and isinstance(value, str):
+                found.append(value)
+            else:
+                found.extend(_texts(value))
+    elif isinstance(node, list):
+        for item in node:
+            found.extend(_texts(item))
+    return found
+
+
+def test_no_description_calls_link_strength_equity() -> None:
+    # The field names `equity_*` stay for now; what a person reads says "link strength".
+    assert [text for text in _texts(build_openapi()) if "equity" in text.lower()] == []

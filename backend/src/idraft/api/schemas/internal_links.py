@@ -297,6 +297,22 @@ PageSort = Literal[
     "-status_code",
     "change",
     "-change",
+    "rank",
+    "-rank",
+    "citations",
+    "-citations",
+    "anchor",
+    "-anchor",
+    "tier",
+    "-tier",
+    "clicks",
+    "-clicks",
+    "title",
+    "-title",
+    "indexable",
+    "-indexable",
+    "in_sitemap",
+    "-in_sitemap",
 ]
 EdgeWorklist = Literal["broken_and_redirected", "links_to_non_indexable"]
 UrlIdText = Annotated[str, Field(description="A `core.urls` id: a 64-bit integer as a string.")]
@@ -315,7 +331,9 @@ class TierCount(BaseModel):
 class PageChange(BaseModel):
     is_new: bool
     editorial_in_delta: int | None
-    equity_points: float | None
+    equity_points: float | None = Field(
+        description="Link strength change in points since the previous crawl."
+    )
     depth_state: Literal["lost", "found"] | None
     depth_delta: int | None
 
@@ -325,6 +343,10 @@ class KeywordSummary(BaseModel):
     ranking: int
     average_rank: float | None
     best_volume: int | None
+    rank_as_of: date | None = Field(
+        description="The day of the newest check behind these ranks (today's numbers, not the "
+        "crawl's day); null when none was checked."
+    )
 
 
 class CitationCounts(BaseModel):
@@ -332,6 +354,10 @@ class CitationCounts(BaseModel):
     gemini: int
     ai_mode: int
     total: int
+    citations_as_of: date | None = Field(
+        description="The day of the project's newest AI answer behind these counts (today's "
+        "numbers, not the crawl's day); null when there is none."
+    )
 
 
 class AnchorSummary(BaseModel):
@@ -365,6 +391,9 @@ class KeywordRow(BaseModel):
     rank: int | None
     change: int | None = Field(description="Places moved since the last check; positive is up.")
     volume: int | None
+    rank_as_of: date | None = Field(
+        description="The day of the check that gave `rank`; null when it was never checked."
+    )
 
 
 class AnchorText(BaseModel):
@@ -399,7 +428,10 @@ class PageRow(BaseModel):
     in_sitemap: bool
     click_depth: int | None
     depth_without_auto: int | None
-    equity_share: float | None
+    equity_share: float | None = Field(
+        description="Link strength: the page's share of the whole site's, 0 to 1. Show the "
+        "change in points, never this share."
+    )
     linking_pages: int = Field(description="Unique pages linking here, in the scope in view.")
     linking_pages_all: int
     outlinks: int = Field(description="Unique pages linked from here, in the scope in view.")
@@ -449,7 +481,9 @@ class Neighbor(BaseModel):
     click_depth: int | None
     linking_pages: int
     linking_pages_all: int
-    equity_share: float | None
+    equity_share: float | None = Field(
+        description="Link strength: the page's share of the whole site's, 0 to 1."
+    )
     anchor: str | None
     placement: PlacementName | None
     scope: EdgeScopeName | None
@@ -506,6 +540,10 @@ class PageDetail(BaseModel):
     outlinks: list[Neighbor]
     linking_pages_total: int
     outlinks_total: int
+    links_available: bool = Field(
+        description="False when retention dropped the crawl's links: the link lists and "
+        "counts are then empty, not zero."
+    )
     extras: PageDetailExtras
 
 
@@ -551,7 +589,9 @@ class TierFlowCell(BaseModel):
 class TierStat(BaseModel):
     tier: TierRef | None
     pages: int
-    equity_share: float
+    equity_share: float = Field(
+        description="Link strength of the tier: its pages' share of the whole site's, 0 to 1."
+    )
     average_depth: float | None
 
 

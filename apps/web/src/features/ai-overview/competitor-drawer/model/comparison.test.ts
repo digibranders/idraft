@@ -11,7 +11,7 @@ import {
   promptRow,
   share,
   summaryOf,
-} from '../../cards/competitors/model/summary-fixtures';
+} from '../../cards/competitors/model/summary.test-fixtures';
 import { trackedSetOf } from '../../cards/competitors/model/tracked-set';
 
 const HUBSPOT = competitor(2, 'HubSpot');

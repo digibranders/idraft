@@ -80,6 +80,15 @@ export const previousYearWindow = (from: BusinessDate, to: BusinessDate): DateWi
   to: addMonths(to, -12),
 });
 
+/**
+ * What the words of a comparison say it is with: the `kind` value of the ICU messages that name the other window
+ * (`{kind, select, year {the same period last year} other {the previous period}}`, as the Prompts page's do).
+ */
+export type CompareWord = 'previous' | 'year';
+
+export const compareWord = (scope: Pick<OverviewScope, 'compareKind'>): CompareWord =>
+  scope.compareKind === 'previous_year' ? 'year' : 'previous';
+
 /** The window a comparison of `kind` reads. */
 export const comparedWindowOf = (kind: CompareKind, from: BusinessDate, to: BusinessDate): DateWindow =>
   kind === 'previous_year' ? previousYearWindow(from, to) : previousWindow(from, to);

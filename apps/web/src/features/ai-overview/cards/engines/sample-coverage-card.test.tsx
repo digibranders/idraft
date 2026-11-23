@@ -5,7 +5,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import SampleCoverageCard from './sample-coverage-card';
 import { overviewSummaryQuery } from '../../data/overview-queries';
 import { useOverview } from '../../overview-context';

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { OUTCOME_PARTS, outcomeFigures, outcomeMix } from './outcome-model';
 import { buildAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptSummaryRow } from '@/lib/api/types';
 
 type Parts = readonly [namedAndCited: number, namedOnly: number, citedOnly: number, neither: number];

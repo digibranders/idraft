@@ -95,4 +95,24 @@ export type PageSort =
   | 'outlinks'
   | '-outlinks'
   | 'change'
-  | '-change';
+  | '-change'
+  | 'rank'
+  | '-rank'
+  | 'citations'
+  | '-citations'
+  | 'anchor'
+  | '-anchor'
+  | 'tier'
+  | '-tier'
+  | 'clicks'
+  | '-clicks'
+  | 'indexable'
+  | '-indexable'
+  | 'in_sitemap'
+  | '-in_sitemap';
+
+export type Share = Schemas['Share'];
+export type CreatedShare = Schemas['CreatedShare'];
+export type ShareState = Schemas['ShareState'];
+export type ExpiryDays = Schemas['ExpiryDays'];
+export type ClientSummary = Schemas['ClientSummary'];

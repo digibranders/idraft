@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 
-import { downloadApiFile } from './download';
+import { downloadApiFile, downloadHtml } from './download';
 import { isApiProblem } from './problem';
 import { server } from '@/test/msw';
 
@@ -41,5 +41,16 @@ describe('downloadApiFile (decision W13)', () => {
     await expect(downloadApiFile('/api/v1/files/pages', {}, 'pages.csv')).rejects.toSatisfy((error) =>
       isApiProblem(error, 'no_crawl'),
     );
+  });
+});
+
+describe('downloadHtml', () => {
+  it('saves the text as an HTML file through the blob download', async () => {
+    const { downloadBlob } = await import('@/lib/csv/csv-write');
+    downloadHtml('<p>x</p>', 'a.html');
+    expect(downloadBlob).toHaveBeenLastCalledWith(expect.any(Blob), 'a.html');
+    const blob = vi.mocked(downloadBlob).mock.calls.at(-1)?.[0];
+    expect(blob?.type).toBe('text/html;charset=utf-8');
+    expect(await blob?.text()).toBe('<p>x</p>');
   });
 });

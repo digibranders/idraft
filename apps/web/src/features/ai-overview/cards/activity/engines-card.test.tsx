@@ -13,7 +13,7 @@ import {
   stopRecording,
 } from '@/test/ai-activity-kit';
 import EnginesCard from './engines-card';
-import { projectEngine, schedule } from './model/activity-fixtures';
+import { projectEngine, schedule } from './model/activity.test-fixtures';
 import type { ProjectEngine, Schedule } from '@/lib/api/types';
 import { setAiSeeded } from '@/mocks/ai-seed';
 import { mockUser } from '@/mocks/fixtures';

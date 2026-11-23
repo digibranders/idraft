@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { cell, engine, weighted } from './cells-fixtures';
+import { cell, engine, weighted } from './cells.test-fixtures';
 import { useByEngineColumns } from './engine-columns';
 import type { RateMetric } from '@/features/prompts/prompt-model';
 import type { DataTableColumn } from '@/components/app/data-table/types';

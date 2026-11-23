@@ -9,7 +9,7 @@ import { ALL_ENGINES, competitorCounts, type CompetitorRow } from './competitor-
 import { usePromptFacts } from './facts';
 import type { PromptAnswers, PromptCounts } from './inspector-reads';
 import type { DateRange } from './prompt-model';
-import { projectEntitiesQuery, type PromptScope } from './prompt-queries';
+import type { PromptScope } from './prompt-queries';
 import { EntitySwatch } from '@/components/app/entity/entity-swatch';
 import { InspectorSection, type InspectorSectionStatus } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -20,6 +20,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { LinkedKeywordVolume } from '@/lib/api/prompt-facts';
 import type { MetricCell, ProjectEngine } from '@/lib/api/types';
+import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { EMPTY_VALUE, formatPercent } from '@/lib/format';
 import { rateState } from '@/lib/stats';
 

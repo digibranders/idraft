@@ -12,7 +12,7 @@ import {
   share,
   summaryOf,
   type OutcomeCounts,
-} from './summary-fixtures';
+} from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 import type { LostToResult, OpportunityResult } from './types';
 

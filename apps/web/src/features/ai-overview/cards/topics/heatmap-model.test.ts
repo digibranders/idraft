@@ -5,7 +5,7 @@ import type { EngineValue } from './engine-values';
 import { heatFileName, heatRows, showsAverage, type HeatLinks, type HeatWords } from './heatmap-model';
 import { engineCells, topicRow } from './topic-card-test-kit';
 import { buildTopicNodes, topicDescendants } from './topic-nodes';
-import { term } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { term } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { TopicSummaryRow } from '@/lib/api/types';
 
 const TREE = [

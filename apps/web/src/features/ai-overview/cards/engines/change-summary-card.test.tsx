@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ChangeSummaryCard from './change-summary-card';
-import { engineCells, promptRow, summaryOf, type Counts } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, type Counts } from './engines.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary } from '@/lib/api/types';
@@ -214,6 +214,23 @@ describe('ChangeSummaryCard', () => {
     // Nothing about a change is made up, and no source count is written beside a window with no answers
     expect(items(ol).filter((text) => /mention rate|mentioned you|cited for the first time/.test(text))).toEqual([]);
     expect(screen.queryByText(/No prompts in this scope/)).toBeNull();
+  });
+
+  it('names the same period last year, not the previous days, when cmp=year (the kind of the scope reaches the words)', async () => {
+    const empty = summaryOf([promptRow('lost', [engineCells('chatgpt_web', {}), engineCells('gemini_web', {})])], {
+      codes: CODES,
+    });
+    server.use(
+      http.get(SUMMARY, ({ request }) =>
+        HttpResponse.json({ data: new URL(request.url).searchParams.get('to') === '2025-11-12' ? empty : NOW }),
+      ),
+    );
+    renderCard(`${WINDOW}&cmp=year`);
+    const ol = await list();
+    await waitFor(() => {
+      expect(items(ol)).toContain('There are no answers in the same period last year to compare with.');
+    });
+    expect(items(ol).join(' ')).not.toMatch(/previous/);
   });
 
   it('says the comparison is off, and nothing about change, when it is off', async () => {

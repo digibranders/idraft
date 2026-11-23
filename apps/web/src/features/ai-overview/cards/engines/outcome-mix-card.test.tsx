@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import OutcomeMixCard from './outcome-mix-card';
-import { cell, engine, promptRow, summaryOf } from '../competitors/model/summary-fixtures';
+import { cell, engine, promptRow, summaryOf } from '../competitors/model/summary.test-fixtures';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';
 import type { EngineSummary } from '@/lib/api/types';

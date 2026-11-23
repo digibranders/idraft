@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { promptEngineRows } from './prompt-rows';
-import { cell, engine, promptRow, term } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, promptRow, term } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
 const TREE = [term('seo', 'SEO'), term('tech', 'Technical SEO', 'seo', 'SEO / Technical SEO')];

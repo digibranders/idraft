@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { cell, engineCells, promptRow, summaryOf, week } from './engines-fixtures';
+import { cell, engineCells, promptRow, summaryOf, week } from './engines.test-fixtures';
 import { buildAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import { engineRates } from '@/lib/rates/strip-model';
 
 describe('engines fixtures', () => {

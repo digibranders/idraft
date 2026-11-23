@@ -1833,6 +1833,7 @@ crawl_runs = Table(
     Column("enrich_phase", Text),
     Column("enrich_failures", SmallInteger, nullable=False, server_default=FetchedValue()),
     Column("enrich_offset", BigInteger, nullable=False, server_default=FetchedValue()),
+    Column("links_compared", Boolean, nullable=False, server_default=FetchedValue()),
     Column("error_code", Text),
     Column("error_message", Text),
     Column("cancel_requested", Boolean, nullable=False, server_default=FetchedValue()),
@@ -2047,6 +2048,25 @@ link_opportunity_decisions = Table(
     Column("status", Text, nullable=False),
     Column("decided_by", Uuid, ForeignKey(users.c.id)),
     Column("decided_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
+client_summary_shares = Table(
+    "client_summary_shares",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("token_hash", LargeBinary, nullable=False),
+    Column("created_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    _created_at(),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True)),
+    Column("revoked_by", Uuid, ForeignKey(users.c.id)),
+    UniqueConstraint("token_hash", name="client_summary_shares_token_hash_key"),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
     ),

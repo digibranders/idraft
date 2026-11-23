@@ -84,14 +84,19 @@ export function competitorOf(set: TrackedSet | null, id: string): TrackedEntity 
 
 /**
  * The weekly read of the scope (entity cells per week) for the trend, and with Compare on the window before it, whose
- * weeks come first as on the page's own trend. The previous window counts only while it is of the same scope.
+ * weeks come first as on the page's own trend. The previous window counts only while it is of the same scope, and
+ * never when it is the same dates a year earlier: its weeks would join this year's as if a year apart were adjacent.
  */
 export function useWeeklyReads(subscribed: boolean): {
   current: Read<PromptsSummary>;
   previous: PromptsSummary | null;
 } {
+  const { scope } = useOverview();
   const periods = useOverviewPeriods({ ...SHAPE_OPTIONS.weekly, subscribed });
-  const previous = periods.paired && periods.previous?.data !== undefined ? periods.previous.data : null;
+  const previous =
+    scope.compareKind === 'previous_period' && periods.paired && periods.previous?.data !== undefined
+      ? periods.previous.data
+      : null;
   return { current: periods.current, previous };
 }
 

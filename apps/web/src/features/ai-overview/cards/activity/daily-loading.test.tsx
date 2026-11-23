@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AnswerCalendarCard from './answer-calendar-card';
 import AnswerStatusCard from './answer-status-card';
-import { twoWeeks } from './model/daily-fixtures';
+import { twoWeeks } from './model/daily.test-fixtures';
 import { PROJECT, renderActivityCard } from '@/test/ai-activity-kit';
 import type { CardProps } from '@/features/layouts';
 import { stubViewport } from '@/test/customize-harness';

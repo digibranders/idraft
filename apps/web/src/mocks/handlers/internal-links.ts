@@ -40,7 +40,7 @@ import { textLength } from '@/lib/text/length';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import { checkRuleValue, MAX_RULES } from '@/lib/internal-links/rule-value';
 import { MAX_BODY_BYTES, MAX_CSV_CHARS, parseTierCsv, requestBytes } from '@/lib/internal-links/tier-csv';
-import { MAX_TIERS } from '@/lib/internal-links/tiers';
+import { MAX_TIERS, tierPosition } from '@/lib/internal-links/tiers';
 import type { PageFilter, PageInclude, PageRow, TierImportResult } from '@/lib/internal-links/types';
 
 /**
@@ -232,12 +232,31 @@ const SORTS: Readonly<Record<string, (row: PageRow) => string | number>> = {
   click_depth: (row) => row.click_depth ?? 999,
   linking_pages: (row) => row.linking_pages,
   outlinks: (row) => row.outlinks,
+  tier: (row) => tierPosition(row.tier),
+  indexable: (row) => (row.is_indexable ? 1 : 0),
+  in_sitemap: (row) => (row.in_sitemap ? 1 : 0),
 };
 
 /** `change` sorts by the change of links in since the previous crawl (a page with none has 0). */
-function sortRows(rows: PageRow[], sort: string, deltaOf: (row: PageRow) => number): PageRow[] {
+function sortRows(
+  rows: PageRow[],
+  sort: string,
+  deltaOf: (row: PageRow) => number,
+  extraOf: (row: PageRow, key: 'rank' | 'citations' | 'anchor' | 'clicks') => number | null,
+): PageRow[] {
   const desc = sort.startsWith('-');
   const key = desc ? sort.slice(1) : sort;
+  if (key === 'rank' || key === 'citations' || key === 'anchor' || key === 'clicks') {
+    // Like the server: rank, anchor and clicks put pages without a value last in both directions; citations count 0
+    const value = (row: PageRow): number | null => extraOf(row, key) ?? (key === 'citations' ? 0 : null);
+    return [...rows].sort((a, b) => {
+      const left = value(a);
+      const right = value(b);
+      if (left === null || right === null)
+        return left === right ? a.path.localeCompare(b.path) : left === null ? 1 : -1;
+      return (desc ? right - left : left - right) || a.path.localeCompare(b.path);
+    });
+  }
   const read = key === 'change' ? deltaOf : (SORTS[key] ?? SORTS.path);
   if (read === undefined) return rows;
   return [...rows].sort((a, b) => {
@@ -713,6 +732,22 @@ export const internalLinkHandlers: HttpHandler[] = [
         const page = crawledPage(row.url_id);
         return page === undefined ? 0 : pageDelta(run, page);
       },
+      (row, key) => {
+        const page = crawledPage(row.url_id);
+        if (page === undefined) return null;
+        const part = { rank: 'keywords', citations: 'citations', anchor: 'anchors', clicks: 'gsc' } as const;
+        const extras = pageExtras(run, page, [part[key]]);
+        switch (key) {
+          case 'rank':
+            return extras.keywords?.average_rank ?? null;
+          case 'citations':
+            return extras.citations?.total ?? null;
+          case 'anchor':
+            return extras.anchors?.distinct ?? null;
+          case 'clicks':
+            return extras.gsc?.clicks ?? null;
+        }
+      },
     );
     if (caller.url.searchParams.get('format') === 'csv') {
       // The server's columns in the server's order (`_PAGE_CSV_HEADER` of reads.py); it has no equity column
@@ -781,6 +816,7 @@ export const internalLinkHandlers: HttpHandler[] = [
         linking_by_tier: row.linked_from_tiers,
         linking_by_placement: [...placements].map(([placement, pages]) => ({ placement, pages })),
         top_anchors: kept && row.top_anchor !== null ? [{ anchor: row.top_anchor, links: 1 }] : [],
+        links_available: kept,
         linking_pages: linking.slice(0, 25),
         outlinks: outlinks.slice(0, 25),
         linking_pages_total: linking.length,

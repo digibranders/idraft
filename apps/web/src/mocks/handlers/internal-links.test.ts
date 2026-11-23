@@ -43,6 +43,7 @@ describe('the internal links mock API', () => {
     );
     const detail = await browser.call('GET', `${P}/internal-links/pages/111?scope=editorial`);
     expect(detail.status).toBe(200);
+    expect(detail.body.data).toMatchObject({ links_available: true });
   });
 
   it('refuses a request id that is not a positive int64 digit string, as the API does', async () => {
