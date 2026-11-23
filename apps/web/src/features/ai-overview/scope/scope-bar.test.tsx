@@ -70,7 +70,8 @@ describe('the scope bar', () => {
       expect(screen.getByRole('combobox', { name })).toHaveClass('w-full', 'sm:w-60');
     }
     const compare = screen.getByRole('button', { name: 'Compare with: vs previous period' });
-    expect(compare).toHaveClass('type-body', 'w-full', 'sm:w-60');
+    // Wider than the other two: "Compare with: vs same period last year" has to show whole
+    expect(compare).toHaveClass('type-body', 'w-full', 'sm:w-80');
     expect(compare).not.toHaveClass('type-body-strong');
   });
 
