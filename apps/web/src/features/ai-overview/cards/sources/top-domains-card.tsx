@@ -97,12 +97,14 @@ export default function TopDomainsCard({ item, options, live }: CardProps): Reac
     const name = visibleUrlText(displayDomain(figure.domain));
     const role = roleWords(ROLE_KEY[figure.role]);
     const href = citations({ tab: 'pages', owner: figure.role }) ?? undefined;
-    const base = { id: figure.id, label: name, own: figure.own, href, badge: <DomainRoleBadge role={figure.role} /> };
+    // A third party is most rows, so it carries no badge; only your site and a competitor are named
+    const badge = figure.role === 'third_party' ? undefined : <DomainRoleBadge role={figure.role} />;
+    const base = { id: figure.id, label: name, own: figure.own, href, badge };
     const bar = (value: number | null, valueText: string, tip: string): DomainBarRow => ({
       id: figure.id,
       label: name,
       own: figure.own,
-      badge: base.badge,
+      badge,
       value,
       valueText,
       tip,
