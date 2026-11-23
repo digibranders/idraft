@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { useOverview } from '../../overview-context';
+import { compareWord } from '../../scope/scope-model';
 import { TopicCardFrame, useTopicEmpty, type TopicEmpty } from './card-frame';
 import { gateComparison } from './compare-gate';
 import { engineValue } from './engine-values';
@@ -104,8 +105,8 @@ export default function TopicMoversCard({ item, options, live }: CardProps): Rea
     if (!hasAnswers(leaves)) return empties.noAnswers(labels, scope.range.days);
     if (!hasAnswers(data.previousNodes?.values() ?? [])) {
       return {
-        title: t('noPreviousTitle', { days: scope.range.days }),
-        reason: t('noPreviousReason'),
+        title: t('noPreviousTitle', { days: scope.range.days, kind: compareWord(scope) }),
+        reason: t('noPreviousReason', { kind: compareWord(scope) }),
         action: openTopics,
       };
     }
@@ -191,7 +192,7 @@ export default function TopicMoversCard({ item, options, live }: CardProps): Rea
       cardKey="ai.topic_movers"
       title={t('title')}
       meta={words.window(scope.range)}
-      summary={t('summary', { metric: metricLabel, engines: formatList(labels) })}
+      summary={t('summary', { metric: metricLabel, engines: formatList(labels), kind: compareWord(scope) })}
       data={data}
       empty={empty}
       partialEngines={silent.map((engine) => engine.label)}

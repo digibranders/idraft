@@ -20,6 +20,7 @@ import {
   type TrendWords,
 } from './trend-model';
 import { useOverviewSchedule } from '../../overview-context';
+import { compareWord, type CompareWord } from '../../scope/scope-model';
 import type { ChartEmpty } from '@/components/app/chart/chart-frame';
 import { SmallMultiples } from '@/components/app/chart/small-multiples';
 import { useRateTipWords } from '@/components/app/chart/use-rate-tip-words';
@@ -70,6 +71,7 @@ function summaryOf(
   metric: TrendMetric,
   label: (code: EngineCode) => string,
   t: Translate,
+  kind: CompareWord,
 ): string {
   const sentences = items.map((item) => {
     const engine = label(item.engineCode);
@@ -80,6 +82,7 @@ function summaryOf(
         ? ''
         : t('summaryChange', {
             points: formatPointsDelta(item.change.delta),
+            kind,
             test:
               item.change.detectable === true ? 'detectable' : item.change.detectable === false ? 'within' : 'other',
           });
@@ -100,7 +103,7 @@ function summaryOf(
   return [intro, ...sentences].join(' ');
 }
 
-function footnoteOf(model: TrendModel, comparing: boolean, t: Translate): string {
+function footnoteOf(model: TrendModel, comparing: boolean, t: Translate, kind: CompareWord): string {
   const own =
     model.source === 'total' &&
     model.series.every((series) => series.points.every((point) => point.pooledWeeks === null));
@@ -111,7 +114,7 @@ function footnoteOf(model: TrendModel, comparing: boolean, t: Translate): string
   return [
     ...rate,
     t('footnoteThin'),
-    comparing ? t('footnotePrevious') : null,
+    comparing ? t('footnotePrevious', { kind }) : null,
     model.metric === 'share_of_voice' && model.entitiesChanged ? t('footnoteEntities') : null,
   ]
     .filter((part): part is string => part !== null)
@@ -242,14 +245,14 @@ export function TrendFrame({
         branded: scope.branded,
         promptWeighted: metric !== 'share_of_voice',
       })}
-      footnote={model === null ? undefined : footnoteOf(model, comparing, t)}
+      footnote={model === null ? undefined : footnoteOf(model, comparing, t, compareWord(scope))}
       controls={controls}
       categories={categories}
       categoryHeader={t('week')}
       titles={titles}
       panels={panels}
       height={height}
-      summary={summaryOf(items, metric, label, t)}
+      summary={summaryOf(items, metric, label, t, compareWord(scope))}
       menu={{ fileName }}
     />
   );

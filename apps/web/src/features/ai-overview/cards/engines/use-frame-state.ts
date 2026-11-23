@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 import type { CardPhase } from './card-phase';
+import { compareWord, type OverviewScope } from '../../scope/scope-model';
 import type { ChartEmpty, ChartError, ChartNotice } from '@/components/app/chart/chart-frame';
 
 /** What `useFrameState` reads of a card's data (the same names `useCardData` returns). */
@@ -12,6 +13,8 @@ export interface FrameStateData {
   partialPrevious: boolean;
   errorId: string | null;
   retry: () => void;
+  /** What the comparison is with, for the words of a partial comparison; left out it is the period before. */
+  scope?: Pick<OverviewScope, 'compareKind'> | undefined;
 }
 
 /** The part of the props of `ChartFrame` that every card of the family has in common. */
@@ -43,7 +46,7 @@ export class MissingEmptyStateError extends Error {
  * cards fail, go stale and run partial in the same words.
  */
 export function useFrameState(
-  { phase, stale, partialPrevious, errorId, retry }: FrameStateData,
+  { phase, stale, partialPrevious, errorId, retry, scope }: FrameStateData,
   { name, empty = null, retrying = false }: FrameStateOptions,
 ): FrameState {
   const t = useTranslations('aiOverview.engines.common');
@@ -76,6 +79,13 @@ export function useFrameState(
   }
   // Stale is said before partial: a card that shows old figures matters more than a missing comparison
   if (stale) return { status: phase, notice: { kind: 'stale', text: t('stale') } };
-  if (partialPrevious) return { status: phase, notice: { kind: 'partial', text: t('partialPrevious') } };
+  if (partialPrevious)
+    return {
+      status: phase,
+      notice: {
+        kind: 'partial',
+        text: t('partialPrevious', { kind: scope === undefined ? 'previous' : compareWord(scope) }),
+      },
+    };
   return { status: phase };
 }

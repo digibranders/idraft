@@ -127,6 +127,17 @@ describe('mapReadToFrame', () => {
     expect(state.notice).toEqual({ kind: 'partial', text: 'No comparison: the previous period has no answers' });
   });
 
+  it('names the same period last year when the comparison is with it', () => {
+    expect(map({ previous: read({ status: 'error' }) }, { kind: 'year' }).notice).toEqual({
+      kind: 'partial',
+      text: 'No comparison: the same period last year could not be read',
+    });
+    expect(map({ previous: read(), previousEmpty: true }, { kind: 'year' }).notice).toEqual({
+      kind: 'partial',
+      text: 'No comparison: the same period last year has no answers',
+    });
+  });
+
   it('has no notice when the comparison is off or fine', () => {
     expect(map({ previous: null }).notice).toBeUndefined();
     expect(map({ previous: read() }).notice).toBeUndefined();

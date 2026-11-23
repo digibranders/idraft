@@ -216,6 +216,23 @@ describe('ChangeSummaryCard', () => {
     expect(screen.queryByText(/No prompts in this scope/)).toBeNull();
   });
 
+  it('names the same period last year, not the previous days, when cmp=year (the kind of the scope reaches the words)', async () => {
+    const empty = summaryOf([promptRow('lost', [engineCells('chatgpt_web', {}), engineCells('gemini_web', {})])], {
+      codes: CODES,
+    });
+    server.use(
+      http.get(SUMMARY, ({ request }) =>
+        HttpResponse.json({ data: new URL(request.url).searchParams.get('to') === '2025-11-12' ? empty : NOW }),
+      ),
+    );
+    renderCard(`${WINDOW}&cmp=year`);
+    const ol = await list();
+    await waitFor(() => {
+      expect(items(ol)).toContain('There are no answers in the same period last year to compare with.');
+    });
+    expect(items(ol).join(' ')).not.toMatch(/previous/);
+  });
+
   it('says the comparison is off, and nothing about change, when it is off', async () => {
     serve();
     renderCard(`${WINDOW}&cmp=off`);
