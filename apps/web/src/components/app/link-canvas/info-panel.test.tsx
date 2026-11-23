@@ -24,6 +24,21 @@ describe('InfoPanel', () => {
     expect(screen.getByText('follow')).toBeInTheDocument();
   });
 
+  it('offers the live page under the facts when it has an address', () => {
+    renderWithProviders(
+      <InfoPanel
+        label="Info"
+        facts={facts}
+        visit={{ href: 'https://example.com/soc', label: 'Visit /soc in a new tab', text: 'Visit page' }}
+        onClose={vi.fn()}
+      />,
+    );
+    const link = screen.getByRole('link', { name: 'Visit /soc in a new tab' });
+    expect(link).toHaveAttribute('href', 'https://example.com/soc');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
   it('leaves out the link rows on the focus card', () => {
     renderWithProviders(<InfoPanel label="Info" facts={{ ...facts, placement: '', rel: '' }} onClose={vi.fn()} />);
     expect(screen.queryByText('Link placement')).not.toBeInTheDocument();

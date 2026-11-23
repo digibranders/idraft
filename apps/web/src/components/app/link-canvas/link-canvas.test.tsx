@@ -204,6 +204,17 @@ describe('LinkCanvas (spec 7.5)', () => {
     expect(props.onToggleCard).not.toHaveBeenCalled();
   });
 
+  it('gives each page card a Visit link when the site host is known, and none without it', () => {
+    const { unmount } = canvas({ host: 'example.com' });
+    const links = screen.getAllByRole('link', { name: /^Visit .* in a new tab$/ });
+    expect(links.length).toBeGreaterThan(1);
+    expect(links[0]).toHaveAttribute('href', expect.stringMatching(/^https:\/\/example\.com\//));
+    expect(links[0]).toHaveAttribute('rel', 'noopener noreferrer');
+    unmount();
+    canvas();
+    expect(screen.queryByRole('link', { name: /^Visit / })).not.toBeInTheDocument();
+  });
+
   it('opens the inspector and re-centers from the card tools', async () => {
     const { props, user } = canvas();
     await user.click(screen.getByRole('button', { name: 'Details of /pricing' }));

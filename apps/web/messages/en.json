@@ -8217,6 +8217,8 @@
     "retry": "Try again",
     "makeFocus": "Make {path} the focus",
     "details": "Details of {path}",
+    "visit": "Visit {path} in a new tab",
+    "visitPage": "Visit page",
     "backOut": "Links back to {count, plural, one {# earlier page} other {# earlier pages}}",
     "backIn": "Gets links back from {count, plural, one {# earlier page} other {# earlier pages}}",
     "backTipOut": "Links back to earlier pages",

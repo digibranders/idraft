@@ -4,6 +4,7 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, CornerUpLeft, Crosshair, Inf
 import { memo, useId, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react';
 
 import { InfoPanel, INFO_TOGGLE_ATTRIBUTE, type InfoFacts } from './info-panel';
+import { VisitLink } from './visit-link';
 import { tierEdge } from '@/components/app/tier/tier-colors';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
@@ -74,6 +75,8 @@ export interface LinkCardPageProps extends CanvasNodeData {
     onFocusPage: (urlId: string) => void;
     detailsLabel: string;
     onDetails: (urlId: string) => void;
+    /** The live page in a new tab; `null` when the page has no web address to open. */
+    visit: { href: string; label: string; text: string } | null;
   };
   back: {
     count: number;
@@ -274,6 +277,9 @@ function LinkCardView(props: LinkCardProps): ReactElement {
           tabIndex={props.tabStop ? 0 : -1}
           onClick={() => tools.onDetails(props.urlId ?? '')}
         />
+        {tools.visit === null ? null : (
+          <VisitLink href={tools.visit.href} label={tools.visit.label} tabIndex={props.tabStop ? 0 : -1} />
+        )}
       </div>
       {back === null ? null : (
         <Tooltip content={back.tip.content} detail={back.tip.detail}>
@@ -298,6 +304,7 @@ function LinkCardView(props: LinkCardProps): ReactElement {
         <InfoPanel
           label={info.label}
           facts={info.facts}
+          visit={tools.visit}
           onClose={(restoreFocus) => info.onClose(props.nodeKey, restoreFocus)}
         />
       ) : null}
