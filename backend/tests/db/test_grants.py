@@ -81,6 +81,8 @@ RUN_WORKER_UPDATE = (
     "links_compared",
     # Migration 0030: pages that refused the crawler.
     "pages_blocked",
+    # Migration 0032: when the crawl last read a new page.
+    "progress_at",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",

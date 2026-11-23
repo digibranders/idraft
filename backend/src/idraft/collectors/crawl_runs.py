@@ -50,7 +50,7 @@ from idraft.db.tables import (
 from idraft.domain.retries import ProviderErrorKind
 from idraft.domain.workloads import CostWorkload, cost_channel
 from idraft.providers.contract import ProviderCallError
-from idraft.providers.dataforseo.on_page import TASK_POST, CrawlOrder, OnPageApi
+from idraft.providers.dataforseo.on_page import TASK_POST, CrawlOrder, CrawlSummary, OnPageApi
 
 TICK_LIMIT: Final = 50
 KEEP_RUNS: Final = 4
@@ -69,6 +69,16 @@ POST_BUDGET: Final = 30.0
 # out) is cancelled, not sent late: a pile of them must not all be paid for on the day crawls
 # come back.
 QUEUED_MAX_AGE: Final = timedelta(days=3)
+# A crawl that reads no new page for this long while pages wait in the provider's queue is stopped,
+# and so is one that runs this long; the pages read so far are kept and ingested, and the crawl
+# says why it ended early in `stop_reason`. The provider fetches one page at a time at best, so
+# a page that never answers (it waits up to 120 seconds for each) can hold a crawl for hours.
+STALL_AFTER: Final = timedelta(minutes=5)
+CRAWL_TIME_LIMIT: Final = timedelta(minutes=45)
+# After we asked the provider to stop, its summary may still say "in progress"; the pages are
+# read anyway once this has passed.
+STOP_GRACE: Final = timedelta(minutes=5)
+FORCED_STOPS: Final = frozenset({"stalled", "time_limit"})
 _BLOCKED: Final = frozenset({"forbidden_robots", "forbidden_meta_tag", "forbidden_http_header"})
 _UNREACHABLE: Final = frozenset(
     {"site_unreachable", "invalid_page_status_code", "too_many_redirects"}
@@ -646,6 +656,25 @@ async def _progress_one(
         "pages_crawled": found.pages_crawled,
         "pages_found": found.pages_crawled + found.pages_in_queue,
     }
+    if found.pages_crawled > run.pages_crawled:
+        values["progress_at"] = now
+    forced = run.stop_reason in FORCED_STOPS
+    reason = None if found.finished or forced else _early_stop(run, found, now)
+    if reason is not None:
+        try:
+            await on_page.force_stop(run.provider_task_id)
+        except ProviderCallError as failure:
+            _log.warning(
+                "crawl not stopped at the provider",
+                run_id=str(run.id),
+                kind=failure.error.kind.value,
+            )
+            return "waiting"
+        _log.warning("crawl stopped early", run_id=str(run.id), reason=reason)
+        values.update(stop_reason=reason, progress_at=now)
+    # A crawl we stopped whose summary still reads "in progress" is taken as finished once the
+    # provider had its time: the pages it holds are the ones we ingest.
+    finished = found.finished or (forced and now - (run.progress_at or now) >= STOP_GRACE)
     async with sessions() as db, db.begin():
         # Only a crawl still crawling and with no cancel asked is moved. If a person asked for
         # a cancel since this crawl was read, nothing matches and the next tick cancels it.
@@ -655,7 +684,7 @@ async def _progress_one(
             crawl_runs.c.state == "crawling",
             crawl_runs.c.cancel_requested.is_(False),
         )
-        if not found.finished:
+        if not finished:
             return "progressed" if await _held(db, where, **values) else "waiting"
         code = (
             "site_blocked"
@@ -672,13 +701,25 @@ async def _progress_one(
         moved = await _held(
             db,
             where,
-            **values,
+            # A crawl we stopped keeps our reason; the provider's says "force stopped" or the like.
+            **{**values, "stop_reason": run.stop_reason if forced else found.stop_reason},
             state="processing",
-            stop_reason=found.stop_reason,
             crawled_at=now,
             ingest_phase="pages",
         )
     return "finished" if moved else "waiting"
+
+
+def _early_stop(run: Row[Any], found: CrawlSummary, now: datetime) -> str | None:
+    """Why a crawl still in progress should be stopped now, or None."""
+    began = run.submitted_at or run.created_at
+    if now - began >= CRAWL_TIME_LIMIT:
+        return "time_limit"
+    waiting = found.pages_in_queue > 0 and found.pages_crawled > 0
+    idle = (
+        found.pages_crawled <= run.pages_crawled and now - (run.progress_at or began) >= STALL_AFTER
+    )
+    return "stalled" if waiting and idle else None
 
 
 async def _held(db: AsyncSession, where: ColumnElement[bool], **values: object) -> bool:
