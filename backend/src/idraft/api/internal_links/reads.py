@@ -63,6 +63,7 @@ from idraft.api.internal_links.extras import (
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
+from idraft.api.internal_links.status_filter import status_classes
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
 from idraft.api.schemas.common import UserRef
@@ -92,6 +93,7 @@ from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
 from idraft.crawl.anchors import mostly_generic
 from idraft.crawl.scopes import LinkScope
+from idraft.crawl.status import BLOCKED_STATUSES, is_blocked, is_error
 from idraft.crawl.tiers import tier_code
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import (
@@ -184,7 +186,9 @@ def _flags(row: Row[Any]) -> list[str]:
     if row.links_state == "from_provider":
         flags.append("placement_unknown")
     status = row.status_code or 0
-    if status >= 400:
+    if is_blocked(status):
+        flags.append("blocked")
+    elif is_error(status):
         flags.append("broken")
     elif 300 <= status < 400:
         flags.append("redirect")
@@ -481,7 +485,6 @@ class EdgeList:
 
 _SOURCE_URL = aliased(urls)
 _TARGET_URL = aliased(urls)
-_STATUS_RANGES: Final = {"2xx": (200, 299), "3xx": (300, 399), "4xx": (400, 499), "5xx": (500, 599)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -634,16 +637,15 @@ def _edge_conditions(scope: PageScope, query: EdgeQuery) -> list[ColumnElement[b
     if query.placements:
         conditions.append(crawl_links.c.placement.in_(query.placements))
     if query.target_status:
-        status = _target_value(scope, "status_code")
-        conditions.append(
-            or_(*(status.between(*_STATUS_RANGES[name]) for name in query.target_status))
-        )
+        conditions.append(status_classes(_target_value(scope, "status_code"), query.target_status))
     if query.source is not None:
         conditions.append(crawl_links.c.source_url_id == query.source)
     if query.target is not None:
         conditions.append(crawl_links.c.target_url_id == query.target)
     if query.worklist == "broken_and_redirected":
-        conditions.append(_target_value(scope, "status_code") >= 300)
+        # A page that refused the crawler is unknown, not broken: it is no work for the owner.
+        status = _target_value(scope, "status_code")
+        conditions.append(and_(status >= 300, status.not_in(BLOCKED_STATUSES)))
     elif query.worklist == "links_to_non_indexable":
         conditions.append(_target_value(scope, "is_indexable").is_(False))
     if query.q_source:

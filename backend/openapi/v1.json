@@ -4557,6 +4557,18 @@
             "title": "Pages",
             "type": "integer"
           },
+          "pages_blocked": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pages that refused the crawler: unknown, not broken, so the numbers may be incomplete. null when not counted.",
+            "title": "Pages Blocked"
+          },
           "tiers": {
             "items": {
               "$ref": "#/components/schemas/SummaryTier"
@@ -4576,6 +4588,7 @@
           "host",
           "crawled_at",
           "pages",
+          "pages_blocked",
           "tiers",
           "flow",
           "worklists",
@@ -5609,6 +5622,18 @@
             "title": "Links Available",
             "type": "boolean"
           },
+          "pages_blocked": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pages that refused the crawler (401, 403, 429): unknown, not broken. null for a crawl that was not counted.",
+            "title": "Pages Blocked"
+          },
           "pages_crawled": {
             "title": "Pages Crawled",
             "type": "integer"
@@ -5716,6 +5741,7 @@
           "pages_found",
           "pages_crawled",
           "sitemap_pages",
+          "pages_blocked",
           "render_javascript",
           "estimated_cost_usd",
           "cost_usd",
@@ -14248,11 +14274,12 @@
                     "2xx",
                     "3xx",
                     "4xx",
-                    "5xx"
+                    "5xx",
+                    "blocked"
                   ],
                   "type": "string"
                 },
-                "maxItems": 4,
+                "maxItems": 5,
                 "type": "array"
               },
               {
@@ -14394,6 +14421,7 @@
                 "deep_only_through_auto",
                 "placement_unknown",
                 "broken",
+                "blocked",
                 "redirect",
                 "non_indexable",
                 "generic_anchors"
@@ -37998,7 +38026,8 @@
                       "2xx",
                       "3xx",
                       "4xx",
-                      "5xx"
+                      "5xx",
+                      "blocked"
                     ],
                     "type": "string"
                   },
@@ -38008,7 +38037,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 4,
+              "maxLength": 5,
               "title": "Filter[Target Status]"
             }
           },
@@ -38689,7 +38718,8 @@
                       "2xx",
                       "3xx",
                       "4xx",
-                      "5xx"
+                      "5xx",
+                      "blocked"
                     ],
                     "type": "string"
                   },
@@ -38699,7 +38729,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 4,
+              "maxLength": 5,
               "title": "Filter[Status]"
             }
           },

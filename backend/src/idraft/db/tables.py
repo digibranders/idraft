@@ -1834,6 +1834,7 @@ crawl_runs = Table(
     Column("enrich_failures", SmallInteger, nullable=False, server_default=FetchedValue()),
     Column("enrich_offset", BigInteger, nullable=False, server_default=FetchedValue()),
     Column("links_compared", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("pages_blocked", Integer),
     Column("error_code", Text),
     Column("error_message", Text),
     Column("cancel_requested", Boolean, nullable=False, server_default=FetchedValue()),

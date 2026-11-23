@@ -65,6 +65,10 @@ class ClientSummary(BaseModel):
     host: str | None = Field(description="The project's website host.")
     crawled_at: datetime | None
     pages: int
+    pages_blocked: int | None = Field(
+        description="Pages that refused the crawler: unknown, not broken, so the numbers may be "
+        "incomplete. null when not counted."
+    )
     tiers: list[SummaryTier]
     flow: list[SummaryFlowCell]
     worklists: list[SummaryWorklist]

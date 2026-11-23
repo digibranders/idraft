@@ -15,6 +15,7 @@ from sqlalchemy import ColumnElement, Join, and_, distinct, exists, false, func,
 from sqlalchemy.orm import aliased
 
 from idraft.api.internal_links.problems import LinksDroppedError
+from idraft.api.internal_links.status_filter import status_classes
 from idraft.api.schemas.internal_links import PageFilter
 from idraft.crawl.anchors import GENERIC_MIN_LINKS
 from idraft.db.tables import (
@@ -28,7 +29,6 @@ from idraft.db.tables import (
     urls,
 )
 
-_STATUS: Final = {"2xx": (200, 299), "3xx": (300, 399), "4xx": (400, 499), "5xx": (500, 599)}
 _FLAGS: Final = {
     "orphan": crawl_pages.c.is_orphan,
     "editorial_orphan": crawl_pages.c.is_editorial_orphan,
@@ -123,9 +123,7 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
             )
         )
     if found.status:
-        conditions.append(
-            or_(*(crawl_pages.c.status_code.between(*_STATUS[name]) for name in found.status))
-        )
+        conditions.append(status_classes(crawl_pages.c.status_code, tuple(found.status)))
     if found.indexable is not None:
         conditions.append(crawl_pages.c.is_indexable.is_(found.indexable))
     for flag in found.flags or ():

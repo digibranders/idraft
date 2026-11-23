@@ -74,7 +74,7 @@ class PageTierPatch(Patch):
         return self
 
 
-StatusClass = Literal["2xx", "3xx", "4xx", "5xx"]
+StatusClass = Literal["2xx", "3xx", "4xx", "5xx", "blocked"]
 PageFlag = Literal[
     "orphan",
     "editorial_orphan",
@@ -126,7 +126,7 @@ class PageFilter(Body):
 
     tier_ids: Annotated[list[UUID | Literal["none"]], Field(max_length=9)] | None = None
     tag_ids: Annotated[list[UUID], Field(max_length=TERMS_MAX)] | None = None
-    status: Annotated[list[StatusClass], Field(max_length=4)] | None = None
+    status: Annotated[list[StatusClass], Field(max_length=5)] | None = None
     indexable: bool | None = None
     flags: Annotated[list[PageFlag], Field(max_length=6)] | None = None
     worklist: PageWorklist | None = None
@@ -278,6 +278,7 @@ RowFlag = Literal[
     "deep_only_through_auto",
     "placement_unknown",
     "broken",
+    "blocked",
     "redirect",
     "non_indexable",
     "generic_anchors",
@@ -637,6 +638,10 @@ class CrawlRun(BaseModel):
     pages_found: int = Field(description="Crawled and still queued, while it runs.")
     pages_crawled: int
     sitemap_pages: int | None
+    pages_blocked: int | None = Field(
+        description="Pages that refused the crawler (401, 403, 429): unknown, not broken. "
+        "null for a crawl that was not counted."
+    )
     render_javascript: bool
     estimated_cost_usd: Usd | None
     cost_usd: Usd | None

@@ -141,6 +141,7 @@ class PublicSummaryService:
                         crawl_runs.c.created_at,
                         crawl_runs.c.links_dropped_at,
                         crawl_runs.c.previous_run_id,
+                        crawl_runs.c.pages_blocked,
                     ).where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run)
                 )
             ).one()
@@ -169,6 +170,7 @@ class PublicSummaryService:
             host=project.primary_host,
             crawled_at=found.finished_at or found.created_at,
             pages=sum(stat.pages for stat in flow.tiers),
+            pages_blocked=found.pages_blocked,
             tiers=[
                 SummaryTier(
                     code=_code(stat.tier),

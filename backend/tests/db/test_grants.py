@@ -79,6 +79,8 @@ RUN_WORKER_UPDATE = (
     "enrich_offset",
     # Migration 0028: whether the link diff ran.
     "links_compared",
+    # Migration 0030: pages that refused the crawler.
+    "pages_blocked",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",
