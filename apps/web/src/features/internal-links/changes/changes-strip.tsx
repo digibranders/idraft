@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { MetricStrip, type MetricStripGroup } from '@/components/app/metric/metric-strip';
-import { formatInteger } from '@/lib/format';
+import { EMPTY_VALUE, formatInteger } from '@/lib/format';
 import type { ChangeScope, ChangesSummary } from '@/lib/internal-links/types';
 
 /**
@@ -28,6 +28,8 @@ export function ChangesStrip({
   const t = useTranslations('internalLinks.changes.strip');
   const context = t('since', { since });
   const all = linkScope === 'all';
+  // Counts of links that were not compared are zero in the API, not measured: they never show as a number
+  const links = (count: number): string => (summary.links_compared ? formatInteger(count) : EMPTY_VALUE);
   const groups: MetricStripGroup[] = [
     {
       id: 'changes',
@@ -35,19 +37,19 @@ export function ChangesStrip({
         {
           id: 'lost',
           label: all ? t('lostAll') : t('lost'),
-          value: formatInteger(all ? summary.all_lost : summary.editorial_lost),
+          value: links(all ? summary.all_lost : summary.editorial_lost),
           context,
         },
         {
           id: 'added',
           label: all ? t('addedAll') : t('added'),
-          value: formatInteger(all ? summary.all_added : summary.editorial_added),
+          value: links(all ? summary.all_added : summary.editorial_added),
           context,
         },
         {
           id: 'lost-top',
           label: t('lostTop', { tiers }),
-          value: formatInteger(summary.lost_to_top),
+          value: links(summary.lost_to_top),
           context: t('editorialSince', { since }),
         },
         { id: 'pages-added', label: t('pagesAdded'), value: formatInteger(summary.pages_added), context },

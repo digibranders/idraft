@@ -109,7 +109,7 @@ function LinksByStatus({ context }: { context: LinksTabContext }): ReactElement 
 /** The lost links of the crawl, or the neutral note when the earlier crawl kept no links to compare with. */
 function LostSection({ context, comparison }: { context: LinksTabContext; comparison: LinkComparison }): ReactElement {
   const t = useTranslations('internalLinks.links');
-  if (comparison.previousStored === false) {
+  if (!comparison.linksCompared) {
     return <Banner tone="neutral" placement="region" message={t('previousDropped')} />;
   }
   return <LostLinksTable context={context} previousDate={comparison.previousDate} />;
@@ -125,7 +125,7 @@ function LostView({
   statusMenu: ReactNode;
 }): ReactElement {
   const { scope, state, crawl, setSearch, registerExport } = context;
-  const readable = comparison.previousStored !== false;
+  const readable = comparison.linksCompared;
   // The page's Export downloads the lost links as the table shows them, every row (decision W13)
   useEffect(() => {
     if (!readable) return undefined;
@@ -225,7 +225,7 @@ function LinksList({
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
   // The edge rows carry no added flag: the added links read (the first 200) marks them. With no earlier links to
   // compare with, no row could be marked, so the column is not drawn
-  const showAdded = comparison.state === 'compares' && comparison.previousStored !== false;
+  const showAdded = comparison.state === 'compares' && comparison.linksCompared;
   const marks = useAddedMarks(context, showAdded);
   const addedNote = marks.failed
     ? t('links.addedFailed')
