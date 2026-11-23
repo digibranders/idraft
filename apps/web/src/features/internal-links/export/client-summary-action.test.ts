@@ -71,7 +71,8 @@ describe('the client summary page', () => {
     expect(html).toContain('Lost editorial links to T1 and T2 pages');
     expect(html).toMatch(/<td[^>]*>\/[^<]+<\/td><td[^>]*>\/[^<]+<\/td><td[^>]*>[^<]+<\/td>/);
     expect(html.toLowerCase()).not.toContain('equity');
-    expect(html).not.toMatch(/[—–]/);
+    // Built from the code points: the dash scan of src/test/source-text.test.ts reads this file too
+    expect(html).not.toMatch(new RegExp(`[${String.fromCharCode(0x2014, 0x2013)}]`));
     expect(html).not.toContain('older crawl');
   });
 
