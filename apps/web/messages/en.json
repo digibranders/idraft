@@ -5983,6 +5983,7 @@
         "you": "{name} (you)",
         "open": "Open {name}",
         "ofBrandMentions": "{k, number} of {n, number} brand mentions",
+        "noteOf": "{k, number} of {n, number}",
         "rowTipOne": "{name}: {value}, {k, number} of {n, number} brand mentions",
         "platformCount": "{platform} {k, number} of {n, number}",
         "rowTipAverage": "{name}: {value}, average of {count, plural, one {# platform} other {# platforms}}, each counting once. Brand mentions: {counts}",
