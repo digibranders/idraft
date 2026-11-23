@@ -1058,7 +1058,11 @@ async def test_a_crawl_that_runs_for_45_minutes_is_stopped_even_while_it_progres
     run_id = await _slow_crawl(migrated, worker_db, on_page)
 
     on_page.summaries[:] = [summary(finished=False, crawled=400, queue=300)]
-    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=46))
+    # Counted from the crawl's own start (the database's clock), not from the module's `NOW`,
+    # which is older than the start by however long the test run had gone on.
+    started = (await _run(migrated, run_id))["submitted_at"]
+    assert isinstance(started, datetime)
+    await crawl_tick(worker_db, on_page, _Sent(), now=started + timedelta(minutes=46))
 
     assert (await _run(migrated, run_id))["stop_reason"] == "time_limit"
     assert on_page.stopped == ["task-1"]
