@@ -70,12 +70,15 @@ export interface PromptFacts {
   requested: boolean;
 }
 
+const NO_ENTITIES: readonly TrackedEntity[] = [];
+
 /** Index a summary read; defined once so the query's `select` is stable. */
 export function indexFacts(summary: PromptsSummaryWithFacts, requested: boolean): PromptFacts {
   return {
     prompts: new Map(summary.prompts.map((row) => [row.prompt_id, row])),
     topics: new Map(summary.topics.map((row) => [row.term_id, row])),
-    entities: summary.entities,
+    // A summary that does not carry the entity set (a read made without `include=entities`) has none to name
+    entities: (summary.entities as readonly TrackedEntity[] | undefined) ?? NO_ENTITIES,
     engineCodes: summary.engine_codes,
     requested,
   };

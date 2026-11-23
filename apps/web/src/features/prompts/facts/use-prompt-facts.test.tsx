@@ -77,8 +77,8 @@ describe('usePromptFacts', () => {
     expect(result.current.data).toBe(first);
   });
 
-  it('does not ask a backend that has not built the include: that is for the mocks only', () => {
-    expect(factsRequested()).toBe(false);
+  it('asks for the facts include, which the API builds', () => {
+    expect(factsRequested()).toBe(true);
   });
 
   it('keys the two reads apart so one never serves the other', () => {
