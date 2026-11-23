@@ -48,3 +48,17 @@ No change to the crawl order, the paid crawl, the release, or the production dat
 - The crawl diff leaves out the links of a page that refused the crawler in either crawl, so a refusal is no lost or added link and raises no alert. Known gap: a page linked only from a refused page still shows a lower editorial link count in the page-level changes ("moved pages"); not changed.
 - Crawls whose links were dropped by retention keep the broken counters they had; flags and filters read the status code, so they are right either way.
 - Not done: Task 7's check on the Eventus production crawl (before and after numbers) waits for the release and the owner's go.
+
+## Findings for follow-up A (read-only check, 2026-11-23, no spend)
+
+Sources: the DataForSEO `on_page/task_post` and pricing pages; Cloudflare's Verified bots and Web Bot Auth documentation.
+
+- **What we can set on the provider's crawl:** `custom_user_agent` (the default is the provider's own `Mozilla/5.0 (compatible; RSiteAuditor)`), `enable_javascript`, and `enable_browser_rendering` (which includes JavaScript and resource loading) with `browser_preset`. Nothing about IP addresses or request signing. The crawler's addresses and any bot registration belong to the provider.
+- **Cost of rendering:** about 0.0051 USD per page with browser rendering against 0.00015 USD per page for the plain crawl, roughly 34 times as much. For a 500 page site that is 2.55 USD against 0.08 USD.
+- **How a firewall lets a bot in without the site owner:** Cloudflare's Verified bots list needs honest self-identification, obeying robots.txt, sane request rates, and either validated IP ranges or Web Bot Auth (Ed25519 signed requests, a key directory at `/.well-known/http-message-signatures-directory`, a submission form). Both need an identity that is ours and stable.
+- **So:** with the provider as the crawler we can only change the agent name and turn rendering on. A crawler name of our own helps a little (a named, documented bot is easier to allow than the provider's), but it cannot be verified, so strict firewalls will still refuse it. Being let in by default needs a fetcher we run: fixed addresses, our own bot page, a signature, and the verified bot applications.
+- **Not checked:** whether the Eventus 403 comes from the agent name, the provider's addresses, or rate; a small paid test crawl with a custom agent would tell the first one apart (cost under 0.10 USD for the whole site). I did not probe their site myself.
+
+### Result of the test crawl (2026-11-23, 0.0675 USD)
+
+One provider crawl of www.eventussecurity.com, capped at 450 pages, with the honest custom agent `idraft-crawler/1.0 (+https://idraft.ai)`, nothing stored. It finished with one page: the start page, status 403, and nothing after it. The Nov 19 crawl with the provider's default agent read 439 pages with about 23% refused. So a custom agent name does not unblock Eventus; it was refused harder than the default one. The agent name is not the lever; the provider's addresses or the firewall's treatment of unknown bots are. Not tested (each costs about 0.07 USD): the default agent now (a same-time control, to rule out the site having tightened since Nov 19), and browser rendering (about 2.30 USD for 450 pages).
