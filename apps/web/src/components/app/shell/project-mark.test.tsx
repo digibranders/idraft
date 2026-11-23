@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ProjectMark } from './project-mark';
 
-// The seam has no icon route yet; these tests stand in a first-party one to exercise the image path
+// These tests stand in the workspace's icon route to exercise the image path; lib/favicon.test.ts and favicon-hook.test.tsx cover the route's address
+const iconFor = (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`;
+
 vi.mock('@/lib/favicon', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/favicon')>()),
-  faviconUrl: (host: string): string => `/api/v1/favicons/${encodeURIComponent(host)}`,
+  useFaviconUrl: (host: string | null): string | null => (host === null ? null : iconFor(host)),
 }));
 
 /** jsdom loads no images, so a test says how wide the one it "loaded" is. */

@@ -62,3 +62,16 @@ Sources: the DataForSEO `on_page/task_post` and pricing pages; Cloudflare's Veri
 ### Result of the test crawl (2026-11-23, 0.0675 USD)
 
 One provider crawl of www.eventussecurity.com, capped at 450 pages, with the honest custom agent `idraft-crawler/1.0 (+https://idraft.ai)`, nothing stored. It finished with one page: the start page, status 403, and nothing after it. The Nov 19 crawl with the provider's default agent read 439 pages with about 23% refused. So a custom agent name does not unblock Eventus; it was refused harder than the default one. The agent name is not the lever; the provider's addresses or the firewall's treatment of unknown bots are. Not tested (each costs about 0.07 USD): the default agent now (a same-time control, to rule out the site having tightened since Nov 19), and browser rendering (about 2.30 USD for 450 pages).
+
+## Findings: why a crawl of cleanstart.com takes so long (2026-11-23)
+
+Production run (project CleanStart, added 2026-11-23): "found" 611 at 2 min, 632 at 3, 655 at 12, 715 at 14, 732 at 22, 733 at 37. After the first minutes it moved by about 3 pages a minute, then by one page in 15 minutes. The found number is the provider's crawled pages plus its queue, and the queue is filled from the sitemap (528 URLs) at the start, so it says little about progress.
+
+Controlled test on the dev provider account, same site, first 60 pages, nothing stored (0.009 USD each):
+- Our current order (no `crawl_delay`, so the provider default of 2000 ms): 139 s, about 0.5 pages a second after an 18 s start.
+- `crawl_delay` 200 ms: 79 s, about 1 page a second after a 12 s start. All 60 pages answered 200, so the site does not block or throttle at this rate.
+- So: the provider fetches one page at a time at best (about 1 page a second, about 60 a minute); our unset delay halves that. A site of 700 pages needs about 12 minutes at best and about 25 minutes as ordered; 5,000 pages about 85 minutes and 170 minutes. The provider's speed is the floor, our order is the second factor, and cleanstart.com is not the problem for the first 60 pages.
+- The later stall (one page in 15 minutes) is not explained by the delay. The likeliest cause is pages that do not answer: the provider waits up to 120 s for a page. It cannot be confirmed from here (the production task is on the server's provider account).
+- Our code has no time limit on a crawl in state `crawling` (`crawl_runs.py` `_progress_one` only copies the counts), so a stuck crawl stays "Crawling" for ever, and a person cannot get the pages already read; cancelling throws them away.
+
+Fix list (proposed, needs the owner's go on the delay): (1) `crawl_delay` in `CrawlOrder`, 250 ms by default; (2) stall rule: no new crawled page for 5 minutes while some are queued, or 45 minutes in all, then `force_stop` and ingest what was read, marked partial; (3) the progress text shows read of found (il-web, already asked); (4) show the expected time from the sitemap size.

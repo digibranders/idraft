@@ -141,15 +141,32 @@ below is shown in the web app until the backend sends it: no screen calls an end
 ## First-party favicon route (request 22, 2026-11-17)
 
 Owner decision 6: the web app no longer asks a third-party favicon service (`google.com/s2`) for the icon of a cited domain,
-because that sends every domain a person's answers cite to Google. Until the API has a route of its own, every domain cell draws
+because that sends every domain a person's answers cite to Google. Until the route below was built, every domain cell drew
 its neutral placeholder square and every project mark its first letter.
 
 | #   | What the web would call                                                                                                      | What the backend does                                                                                                                                                                                                                                                                                                              |
 | --- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 22  | `GET /api/v1/workspaces/{workspace_id}/favicons/{domain}`, an image (at least 32 px wide, or `404` when the site has no icon) | Fetches and caches the icon of the registrable domain on the server, so the person's browser and the web app never contact a third party and the cited domain list stays inside the product. Accepts only a public registrable domain (the same rule as the web's `normalizeDomain`), is rate limited, and sends `Cache-Control` for a long time. |
 
-The web side is one function, `faviconUrl(host)` in `apps/web/src/lib/favicon.ts`: it answers `null` today and returns this
-route's path when the route exists. No component changes. Until then the placeholder is the product's answer, not a fault.
+**Built (2026-11-23).** `GET /api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}` (any workspace member) answers a PNG of
+32 to 128 px, or `404 not_found`; `400` for a name that is not a public domain; `429` past 60 icons a minute per workspace that
+were not already kept. Code: `backend/src/idraft/api/favicons/`.
+
+- The fetch is guarded (`fetch.py`): every hop is resolved by the server and refused unless every address is public (no loopback,
+  private, link-local or metadata, shared or reserved range, or IPv6 form that wraps one); the request is sent to the checked
+  address with the name as `Host` and TLS name, so a second lookup cannot change it; at most 3 redirects, each hop checked again;
+  address literals, other schemes and other ports are refused; the body is capped (page 256 KB, image 512 KB) and the whole
+  search at 15 seconds; only `image/*` bodies are taken as icons.
+- The icon is found as usual (`icons.py`): the page's `link rel` icon and apple-touch entries, largest declared first (SVG is
+  skipped), then `/favicon.ico`, at most 4 candidates. The first that Pillow reads at 32 px or more is shrunk to at most 128 px and
+  stored as a PNG; smaller ones are skipped, and a site with none is a `404`.
+- Kept in Redis (which the server writes to disk): an icon for 7 days (`favicon:v1:<domain>`), a site without one for 6 hours, and
+  a site that could not be reached for 15 minutes (`favicon:v1:miss:<domain>`). The rate limit counts only fetches that go out.
+  The answer sends `Cache-Control: private, max-age=604800` (`21600` for the `404`).
+
+The web side is `faviconUrl(host, workspaceId)` and the `useFaviconUrl(host)` hook in `apps/web/src/lib/favicon.ts`; the workspace
+id comes from `WorkspaceProviders`, so the project mark, the project switcher and the domain and URL cells need no new prop. The
+placeholder letter or square stays where the route answers `404` or the image is under `FAVICON_MIN_WIDTH`.
 
 ## Comparison with last year on the sources routes (request 23, 2026-11-17)
 

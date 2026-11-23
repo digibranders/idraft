@@ -53,6 +53,9 @@ from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.routes import router as entities_router
 from idraft.api.entities.service import EntityService
 from idraft.api.exports.routes import router as exports_router
+from idraft.api.favicons.fetch import SafeFetcher
+from idraft.api.favicons.routes import router as favicons_router
+from idraft.api.favicons.service import FaviconService
 from idraft.api.health import router as health_router
 from idraft.api.imports.routes import router as imports_router
 from idraft.api.imports.service import ImportService
@@ -267,6 +270,7 @@ def create_app(
                 imports=ImportService(sessions=sessions, store=sources),
                 ranks=RankService(sessions=sessions, raw_store=sources),
                 quotas=QuotaService(sessions=sessions),
+                favicons=FaviconService(redis=redis, throttle=throttle, fetcher=SafeFetcher(http)),
                 integrations=IntegrationService(
                     sessions=sessions,
                     states=OAuthStateStore(redis),
@@ -372,6 +376,7 @@ def create_app(
     app.include_router(cost_routes_router)
     app.include_router(imports_router)
     app.include_router(quotas_router)
+    app.include_router(favicons_router)
     app.include_router(integrations_router)
     app.include_router(engine_routes_router)
     app.include_router(prompt_routes_router)
