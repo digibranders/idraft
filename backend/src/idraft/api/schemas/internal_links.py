@@ -297,6 +297,12 @@ PageSort = Literal[
     "-status_code",
     "change",
     "-change",
+    "rank",
+    "-rank",
+    "citations",
+    "-citations",
+    "anchor",
+    "-anchor",
 ]
 EdgeWorklist = Literal["broken_and_redirected", "links_to_non_indexable"]
 UrlIdText = Annotated[str, Field(description="A `core.urls` id: a 64-bit integer as a string.")]

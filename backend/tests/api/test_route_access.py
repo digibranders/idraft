@@ -545,6 +545,20 @@ EXPECTED: dict[tuple[str, str], str] = {
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions",
     ): "data:read",
+    # Client summary links (plan 06): people manage them; anyone holding a link reads the summary.
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares",
+    ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares",
+    ): "data:read",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares/{share_id}",
+    ): "projects:write",
+    ("GET", "/api/v1/public/internal-links/summary/{token}"): "public",
     (
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept",
@@ -666,6 +680,9 @@ def test_the_declared_access_is_the_documented_access() -> None:
 PATH_PARAMETERS = {
     "workspace_id",
     "project_id",
+    # Client summary links: a link of a project, and the secret of a public link.
+    "share_id",
+    "token",
     "user_id",
     "invitation_id",
     "session_id",

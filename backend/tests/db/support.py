@@ -82,6 +82,7 @@ TENANT_TABLES: dict[str, str] = {
     "seo.crawl_mentions": "workspace_id",
     "core.link_opportunity_decisions": "workspace_id",
     "core.tier_suggestion_dismissals": "workspace_id",
+    "core.client_summary_shares": "workspace_id",
     "fp.gsc_page_daily": "workspace_id",
 }
 
@@ -749,6 +750,15 @@ async def seed_internal_links(
         project_id,
         workspace_id,
         url_id,
+        owner_id,
+    )
+    await db.execute(
+        "INSERT INTO core.client_summary_shares (workspace_id, project_id, token_hash, "
+        "created_by, expires_at) VALUES ($1, $2, sha256($3::bytea), $4, "
+        "now() + interval '30 days')",
+        workspace_id,
+        project_id,
+        run_id.bytes,
         owner_id,
     )
     return run_id

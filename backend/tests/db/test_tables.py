@@ -104,6 +104,7 @@ DECLARED = {
     "seo.crawl_mentions",
     "core.link_opportunity_decisions",
     "core.tier_suggestion_dismissals",
+    "core.client_summary_shares",
     "fp.gsc_page_daily",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
