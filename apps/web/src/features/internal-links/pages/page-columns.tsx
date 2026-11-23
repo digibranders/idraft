@@ -86,6 +86,7 @@ export function pageColumns(
     openJourney,
     comparison,
     linksAvailable,
+    olderCrawlDate = null,
   }: {
     tiers: readonly PageTier[];
     scope: LinkScope;
@@ -94,9 +95,11 @@ export function pageColumns(
     comparison: Comparison;
     /** False for a crawl whose links were dropped: its anchors are not stored. */
     linksAvailable: boolean;
+    /** The date of the crawl in view when it is not the latest: the Today columns say it differs from them. */
+    olderCrawlDate?: string | null;
   },
 ): Column[] {
-  const extras = extraColumns(t, { comparison, linksAvailable }, custom);
+  const extras = extraColumns(t, { comparison, linksAvailable, olderCrawlDate }, custom);
   const segments = [
     ...tiers.map((tier) => ({
       id: tier.tier_id,

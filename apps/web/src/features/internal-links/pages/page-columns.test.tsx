@@ -137,14 +137,36 @@ describe('the Change column', () => {
 
 describe('the rank, citation, anchor and Google columns', () => {
   it('shows tracked keywords and the average rank with one decimal, n/a without a rank', () => {
-    const keywords = { tracked: 4, ranking: 2, average_rank: 6, best_volume: 900 };
+    const keywords = { tracked: 4, ranking: 2, average_rank: 6, best_volume: 900, rank_as_of: '2026-11-18' };
     expect(cellOf('keywords', withExtras({ keywords })).text).toBe('4');
     expect(cellOf('rank', withExtras({ keywords })).text).toBe('6.0');
     expect(cellOf('rank', withExtras({ keywords: { ...keywords, average_rank: null } })).text).toBe('n/a');
   });
 
+  it('labels rank and citations as today’s numbers, and beside an older crawl names that crawl’s date', () => {
+    const header = (id: string, olderCrawlDate: string | null): { text: string; tip: string | undefined } => {
+      const column = pageColumns(t, {
+        tiers: [],
+        scope: 'editorial',
+        openJourney: () => undefined,
+        comparison: 'ready',
+        linksAvailable: true,
+        olderCrawlDate,
+      }).find((candidate) => candidate.id === id);
+      return { text: String(column?.header), tip: column?.headerTooltip };
+    };
+    expect(header('rank', null).text).toBe('Average rank today');
+    expect(header('citations', null).text).toBe('AI citations today');
+    expect(header('rank', null).tip).not.toContain('This crawl is from');
+    expect(header('rank', 'Nov 4, 2026').tip).toContain('This crawl is from Nov 4, 2026');
+    expect(header('citations', 'Nov 4, 2026').tip).toContain('today’s numbers, not the numbers of that day');
+  });
+
   it('shows AI citations with the engines and the window in the tooltip', () => {
-    const cell = cellOf('citations', withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29 } }));
+    const cell = cellOf(
+      'citations',
+      withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29, citations_as_of: '2026-11-18' } }),
+    );
     expect(cell.text).toBe('29');
     expect(cell.tip).toContain('ChatGPT 14, Gemini 9, AI Mode 6, last 28 days');
   });

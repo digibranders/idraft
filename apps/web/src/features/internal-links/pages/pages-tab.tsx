@@ -31,6 +31,7 @@ import { toast } from '@/components/ui/toast';
 import { downloadApiFile } from '@/lib/api/download';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatList } from '@/lib/format';
+import { formatIsoDate } from '@/lib/format/date';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { comparisonOf } from '@/lib/internal-links/page-extras';
 import {
@@ -130,9 +131,23 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     ? 'updating'
     : comparisonOf(summary.data?.data.state, context.crawl.crawl?.enrich_state);
   const linksAvailable = context.crawl.linksAvailable;
+  // Rank and citations are today's numbers; beside an older crawl their headers say so, with that crawl's date
+  const crawled = context.crawl.crawl;
+  const olderCrawlDate =
+    context.crawl.older && crawled !== null
+      ? formatIsoDate(crawled.finished_at ?? crawled.created_at, context.timeZone)
+      : null;
   const columns = useMemo(
-    () => pageColumns(t, { tiers, scope: state.scope, openJourney: context.openJourney, comparison, linksAvailable }),
-    [t, tiers, state.scope, context.openJourney, comparison, linksAvailable],
+    () =>
+      pageColumns(t, {
+        tiers,
+        scope: state.scope,
+        openJourney: context.openJourney,
+        comparison,
+        linksAvailable,
+        olderCrawlDate,
+      }),
+    [t, tiers, state.scope, context.openJourney, comparison, linksAvailable, olderCrawlDate],
   );
   const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(

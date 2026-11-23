@@ -47,9 +47,9 @@ describe('the columns that read the extras of a row', () => {
     await rowOf('/pricing');
     expect(reads()[0]?.get('include')).toBe('changes');
     await user.click(screen.getByRole('button', { name: 'Columns' }));
-    await user.click(await screen.findByRole('checkbox', { name: 'Average rank' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Average rank today' }));
     await waitFor(() => expect(reads().some((read) => read.get('include') === 'changes,keywords')).toBe(true));
-    await user.click(await screen.findByRole('checkbox', { name: 'AI citations' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'AI citations today' }));
     await waitFor(() =>
       expect(reads().some((read) => read.get('include') === 'changes,keywords,citations')).toBe(true),
     );

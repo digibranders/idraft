@@ -352,6 +352,9 @@ export function worklistCounts(projectId: string, view: RunView, base: Worklists
 // ---------------------------------------------------------------------------------------------
 // The numbers next to a page
 
+/** The day of the newest rank and citation check: those columns are today's numbers whichever crawl is in view. */
+const CHECKED_ON = '2026-11-18';
+
 interface KeywordFact {
   keyword: string;
   rank: number | null;
@@ -396,6 +399,7 @@ function keywordSummary(page: FixturePage): NonNullable<PageExtras['keywords']> 
     average_rank:
       ranks.length === 0 ? null : Math.round((ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length) * 10) / 10,
     best_volume: volumes.length === 0 ? null : Math.max(...volumes),
+    rank_as_of: ranks.length === 0 ? null : CHECKED_ON,
   };
 }
 
@@ -410,7 +414,7 @@ const CITATIONS: Readonly<Record<string, readonly [chatgpt: number, gemini: numb
 
 function citationsOf(page: FixturePage): NonNullable<PageExtras['citations']> {
   const [chatgpt, gemini, aiMode] = CITATIONS[page.path] ?? [0, 0, 0];
-  return { chatgpt, gemini, ai_mode: aiMode, total: chatgpt + gemini + aiMode };
+  return { chatgpt, gemini, ai_mode: aiMode, total: chatgpt + gemini + aiMode, citations_as_of: CHECKED_ON };
 }
 
 /** Search Console clicks and impressions over the 28 days before the latest crawl, by path. */
@@ -574,6 +578,6 @@ export function pageDetailExtras(view: RunView, page: FixturePage): PageDetailEx
     change: pageChangeOf(view, page),
     citations: citationsOf(page),
     gsc: gscOf(page),
-    keywords: keywordsOf(page),
+    keywords: keywordsOf(page).map((fact) => ({ ...fact, rank_as_of: fact.rank === null ? null : CHECKED_ON })),
   };
 }
