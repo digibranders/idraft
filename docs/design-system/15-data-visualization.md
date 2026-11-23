@@ -22,14 +22,14 @@ Decided by the owner on 2026-11-23, replacing the quiet rules this document had 
 | Lines | Smooth (0.3), 3 px, a fade under each line (32% at the top for one line, 16% when several share the chart, to nothing at the axis) and a soft shadow in the line's colour. The latest value is written at the end of each data line in the line's colour. Reference and aggregate lines stay dashed 2 px, with no fade and no end label. Markers keep their shapes ([20-accessibility.md](20-accessibility.md) section 12.2) with a ring in the surface colour |
 | Stacked areas | Smooth, each layer fading toward the axis, 1.5 px line in its colour |
 | Rings | One plain ring per subject: solid token colours, a thin gap between the segments, no gradient, no shadow, no depth. The number in the middle and the name below are text outside the canvas. The exact shares of every segment are in a table under the rings |
-| 3D columns | A front, a side and a top face drawn in 2D, so the front face height is the value and nothing is distorted. The value is written above the column. A column that opens something shows the hand and brightens under the pointer |
+| Cylinder bars | A ranked list of many brands (share of voice, you and up to 10 competitors) is a list of horizontal bars drawn as cylinders lying down: lit along the top edge, shaded underneath, rounded ends, a soft shadow in the bar's own colour (CSS `bar-cylinder`, so the list keeps its text, tooltips and buttons). You are `chart-1`, every other brand has its own colour, and `chart-other` past the palette |
 | Treemap | Rounded tiles (8 px) with a 3 px gap |
 | Motion | The entrance animates over 800 ms and updates over 400 ms, unless `prefers-reduced-motion: reduce` is set or motion cannot be asked about, where the chart draws at once (`chartMotion` in `lib/charts/rich-style.ts`) |
-| Pointer | A time chart shows a 2 px line that fades toward the axis under the pointer. Over any chart the resting cursor is the ring (`public/chart-cursor.svg`, hotspot at its middle, `crosshair` as the fallback); a mark that opens something keeps the hand |
+| Pointer | A time chart shows a 2 px line that fades toward the axis under the pointer. Over any chart the cursor is the ring (`public/chart-cursor.svg`, hotspot at its middle, `crosshair` as the fallback), over empty canvas and over marks alike: there is no hand cursor on a chart |
 | Tooltips | Unchanged (section 4) |
 | Still required | Text and table alternative for every chart (section 1, principle 4); colour never carries a number alone; own brand is `chart-1` |
 
-Ported to the app so far: every line chart of `ChartFrame` and small multiples (`categoryChartOption`), the Share of voice columns and the Outcome split rings. The other cards keep their current marks until they are ported.
+Ported to the app so far: every line chart of `ChartFrame` and small multiples (`categoryChartOption`), the Share of voice cylinder bars and the Outcome split rings. The other cards keep their current marks until they are ported.
 
 ## 2. ChartFrame
 

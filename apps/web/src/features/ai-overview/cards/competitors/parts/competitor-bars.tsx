@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -50,16 +50,14 @@ export interface CompetitorBarsProps {
   caption: string;
   /** Opens the competitor drawer; `opener` gets the focus back when it closes. */
   onOpen: (id: string, opener: HTMLElement | null) => void;
-  /** Draws the bar of each row (default). Off, the list is the legend of a chart above it: dot, name, share. */
-  bars?: boolean | undefined;
 }
 
 /**
  * The brands of a card as a list: a dot, the name, a bar and the share. A competitor's name is a button that opens its
- * drawer; your own row is text. Bars share one scale from 0, your bar is `chart-1` and the others neutral (DS 15). The
- * bar column is hidden under 24 rem of card width, where the share stays.
+ * drawer; your own row is text. Bars are cylinders (DS 15 section 1a) on one scale from 0, your bar in `chart-1` and each
+ * other brand in its own colour. The bar column is hidden under 24 rem of card width, where the share stays.
  */
-export function CompetitorBars({ rows, caption, onOpen, bars = true }: CompetitorBarsProps): ReactElement {
+export function CompetitorBars({ rows, caption, onOpen }: CompetitorBarsProps): ReactElement {
   const top = Math.max(0.0001, ...rows.map((row) => row.value ?? 0));
   // One note column for the whole list, so the shares keep their place whichever rows have a count
   const hasNotes = rows.some((row) => row.note !== undefined && row.note !== null);
@@ -85,18 +83,18 @@ export function CompetitorBars({ rows, caption, onOpen, bars = true }: Competito
                     </button>
                   )}
                 </div>
-                {bars ? (
-                  <div className="hidden min-w-0 flex-1 @sm:block">
-                    <div
-                      aria-hidden="true"
-                      data-slot="competitor-bar"
-                      className={cn('h-5 rounded-2xs', row.own ? 'bg-chart-1' : 'bg-chart-bar-neutral')}
-                      style={{
-                        width: row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
-                      }}
-                    />
-                  </div>
-                ) : null}
+                <div className="hidden min-w-0 flex-1 @sm:block">
+                  <div
+                    aria-hidden="true"
+                    data-slot="competitor-bar"
+                    className={cn('bar-cylinder', row.value === null && 'invisible')}
+                    style={{
+                      // The brand's own colour; `chart-other` for a brand past the palette
+                      '--bar-color': row.own ? 'var(--chart-1)' : `var(--chart-${row.slot === null ? 'other' : String(row.slot)})`,
+                      width: row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
+                    } as CSSProperties}
+                  />
+                </div>
                 <span
                   className={cn(
                     'ml-auto shrink-0 text-right num type-label whitespace-nowrap',
