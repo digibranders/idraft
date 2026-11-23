@@ -6,7 +6,7 @@ import { DETECTABLE, cell, engineOf, projectEngine } from './compare/change-test
 import { ComparedWindowProvider } from './compare/compared-window';
 import type { PromptCounts } from './inspector-reads';
 import { InspectorStrip } from './inspector-strip';
-import { promptRow } from './topics-by-engine/cells-fixtures';
+import { promptRow } from './topics-by-engine/cells.test-fixtures';
 import type { EngineSummary, MetricCell } from '@/lib/api/types';
 import { axe } from '@/test/axe';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';

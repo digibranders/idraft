@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildByEngineExport, byEngineFileName, type ByEngineExportLabels } from './by-engine-export';
-import { engine, head, projectEngine, weighted } from './cells-fixtures';
+import { engine, head, projectEngine, weighted } from './cells.test-fixtures';
 import type { TopicHead } from './topic-rows';
 
 const ENGINES = [projectEngine('chatgpt_web'), projectEngine('gemini_web')];

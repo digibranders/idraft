@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useSourceDomains, type DomainListOptions } from './source-reads';
 import { OverviewProvider } from '../../../overview-context';
-import { domainPage, domainRow, PREVIOUS_WINDOW, sourcesMeta } from '../model/source-fixtures';
+import { domainPage, domainRow, PREVIOUS_WINDOW, sourcesMeta } from '../model/source.test-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';

@@ -4,7 +4,7 @@ import type { ComponentType, ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CountryBreakdownCard from './country-breakdown-card';
-import { engineCells, promptRow, summaryOf, withBrandMentions } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions } from './engines.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';
 import type { PromptSummaryRow } from '@/lib/api/types';

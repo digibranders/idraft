@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { unlinkedPrompts } from './unlinked-model';
-import { cell, engine, promptRow } from '../../competitors/model/summary-fixtures';
+import { cell, engine, promptRow } from '../../competitors/model/summary.test-fixtures';
 import type { PromptSummaryRow } from '@/lib/api/types';
 
 /** A prompt on one platform: `n` valid answers, `only` of them mention the brand and cite none of its pages. */

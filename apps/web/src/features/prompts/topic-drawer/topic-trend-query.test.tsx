@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { topicTrendQuery, useTopicTrend } from './topic-trend-query';
 import { NO_TOPIC } from '@/features/prompts/prompt-model';
-import { engine, topicRow, week } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, topicRow, week } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { TopicReadScope } from '@/features/prompts/topics-by-engine/topic-entities-query';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { mockUser } from '@/mocks/fixtures';

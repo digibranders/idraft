@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, week } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, week } from './engines.test-fixtures';
 import {
   buildTrend,
   engineGate,
@@ -11,7 +11,7 @@ import {
   type TrendWords,
 } from './trend-model';
 import { buildAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { MetricCell, PointPool, PromptsSummary } from '@/lib/api/types';
 import { rateTipText, type RateTipWords } from '@/lib/charts/rate-tip';
 import { engineRates } from '@/lib/rates/strip-model';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { schedule } from './activity-fixtures';
+import { schedule } from './activity.test-fixtures';
 import { daysAsked } from './schedule-days';
 
 describe('daysAsked', () => {

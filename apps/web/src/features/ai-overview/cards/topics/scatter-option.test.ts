@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { TopicNode } from './model-types';
 import { scatterOption, type ScatterWords } from './scatter-option';
 import { scatterModel } from './scatter-model';
-import { engine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 const TOKENS: ChartTokens = {

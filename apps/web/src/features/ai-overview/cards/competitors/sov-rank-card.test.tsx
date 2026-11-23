@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SovRankCard from './sov-rank-card';
 import { loadingBodyHeight } from './skeletons';
-import { id } from './model/summary-fixtures';
+import { id } from './model/summary.test-fixtures';
 import { axe } from '@/test/axe';
 import { chartSummaryText } from '@/test/chart-summary';
 import { stubViewport } from '@/test/customize-harness';

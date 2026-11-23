@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { domainPage, sourcesMeta } from './model/source-fixtures';
+import { domainPage, sourcesMeta } from './model/source.test-fixtures';
 import RoleShareCard from './role-share-card';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';

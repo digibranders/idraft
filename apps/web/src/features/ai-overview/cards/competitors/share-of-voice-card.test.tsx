@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { competitor, engine, entityCells, own, share, summaryOf, weighted } from './model/summary-fixtures';
+import { competitor, engine, entityCells, own, share, summaryOf, weighted } from './model/summary.test-fixtures';
 import ShareOfVoiceCard from './share-of-voice-card';
 import { OpenCompetitorContext, type OpenCompetitor } from '../../competitor-drawer/open-competitor';
 import type { CardProps } from '@/features/layouts';

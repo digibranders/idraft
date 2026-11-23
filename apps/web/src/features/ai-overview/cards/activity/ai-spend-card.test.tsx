@@ -13,7 +13,7 @@ import {
   WORKSPACE,
 } from '@/test/ai-activity-kit';
 import AiSpendCard from './ai-spend-card';
-import { budgetStatus, type BudgetSpec } from './model/activity-fixtures';
+import { budgetStatus, type BudgetSpec } from './model/activity.test-fixtures';
 import type { BudgetStatus } from '@/lib/api/types';
 import { MOCK_PROJECTS } from '@/mocks/fixtures';
 import { axe } from '@/test/axe';

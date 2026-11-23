@@ -2,7 +2,7 @@ import { screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CompetitorTrendCard from './competitor-trend-card';
-import { at } from './model/summary-fixtures';
+import { at } from './model/summary.test-fixtures';
 import SovOverTimeCard from './sov-over-time-card';
 import SovRankCard from './sov-rank-card';
 import { stubViewport } from '@/test/customize-harness';

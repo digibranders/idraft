@@ -18,7 +18,8 @@ const ROOT = import.meta.dirname;
 const FORMAT_DIR = 'src/lib/format/**';
 const SOURCES = ['src/**/*.{ts,tsx}'];
 const MARKUP = ['src/**/*.tsx'];
-const TESTS = ['src/**/*.test.{ts,tsx}', 'src/test/**', 'vitest.setup.ts'];
+// `*.test-fixtures.ts` is sample data kept next to the tests that use it: it counts as test code, and no other file imports it.
+const TESTS = ['src/**/*.test.{ts,tsx}', 'src/**/*.test-fixtures.{ts,tsx}', 'src/test/**', 'vitest.setup.ts'];
 
 // -------------------------------------------------------------------------------------------------
 // Imports
@@ -48,6 +49,12 @@ const restrictedImports = (...patterns) => ['error', { patterns: [...BANNED_PACK
 const NO_FETCHING = {
   group: ['@tanstack/react-query', '@tanstack/react-query/*', 'openapi-fetch', 'openapi-fetch/*'],
   message: 'Components do not fetch. Pass data in from a feature (26 section 2).',
+};
+// The sample data of the tests never ships: a card, a model, a hook or a screen imports no `*.test-fixtures` file.
+// The seed data of the mock handlers (`src/mocks/*-fixtures.ts`) is runtime data of the mock API and is not matched.
+const NO_TEST_FIXTURES = {
+  group: ['**/*.test-fixtures'],
+  message: 'Test fixtures are for tests, not for the code of a screen, a card or a component.',
 };
 const FORMS_ONLY = {
   group: ['react-hook-form', 'react-hook-form/*', '@hookform/*', '@/lib/forms', '@/lib/forms/*'],
@@ -220,6 +227,12 @@ export default tseslint.config(
       'no-restricted-syntax': ['error', ...LITERAL_RULES],
     },
   },
+  // A later no-restricted-imports replaces this one for the files of the blocks below, so each repeats NO_TEST_FIXTURES
+  {
+    files: SOURCES,
+    ignores: TESTS,
+    rules: { 'no-restricted-imports': restrictedImports(NO_TEST_FIXTURES) },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     ignores: [FORMAT_DIR, '**/*.test.{ts,tsx}'],
@@ -356,33 +369,27 @@ export default tseslint.config(
   {
     files: ['src/components/ui/**/*.{ts,tsx}'],
     ignores: TESTS,
-    rules: { 'no-restricted-imports': restrictedImports(PRIMITIVE_IMPORTS), 'no-restricted-globals': NO_FETCH_GLOBAL },
+    rules: {
+      'no-restricted-imports': restrictedImports(PRIMITIVE_IMPORTS, NO_TEST_FIXTURES),
+      'no-restricted-globals': NO_FETCH_GLOBAL,
+    },
   },
   {
     files: ['src/components/app/**/*.{ts,tsx}'],
     ignores: [...TESTS, 'src/components/app/forms/**'],
     rules: {
-      'no-restricted-imports': restrictedImports(NO_FETCHING, FORMS_ONLY),
+      'no-restricted-imports': restrictedImports(NO_FETCHING, FORMS_ONLY, NO_TEST_FIXTURES),
       'no-restricted-globals': NO_FETCH_GLOBAL,
-    },
-  },
-  // The fixtures of the Overview cards (`*-fixtures.ts` in its cards folders) are for tests and the mock handlers: a
-  // card, a model or a hook of the feature never imports them, so no sample value can ship in its bundle.
-  {
-    files: ['src/features/ai-overview/**/*.{ts,tsx}'],
-    ignores: [...TESTS, 'src/features/ai-overview/**/*-fixtures.ts'],
-    rules: {
-      'no-restricted-imports': restrictedImports({
-        group: ['**/*-fixtures'],
-        message: 'Fixtures are for tests and the mock handlers, not for the code of a card.',
-      }),
     },
   },
   // The form components hold form state, and the component preview shows them in a live form. Neither fetches.
   {
     files: ['src/components/app/forms/**/*.{ts,tsx}', 'src/components/design-system/**/*.{ts,tsx}'],
     ignores: TESTS,
-    rules: { 'no-restricted-imports': restrictedImports(NO_FETCHING), 'no-restricted-globals': NO_FETCH_GLOBAL },
+    rules: {
+      'no-restricted-imports': restrictedImports(NO_FETCHING, NO_TEST_FIXTURES),
+      'no-restricted-globals': NO_FETCH_GLOBAL,
+    },
   },
 
   // Every visible string lives in messages/en.json (20 section 3.11). The component preview and its route

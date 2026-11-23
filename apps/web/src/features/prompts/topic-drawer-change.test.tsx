@@ -3,7 +3,7 @@ import { vi, describe, expect, it } from 'vitest';
 
 import { ComparedWindowProvider } from './compare/compared-window';
 import { TopicInspector } from './topic-inspector';
-import { cell, engine, projectEngine, promptRow, topicRow, weighted } from './topics-by-engine/cells-fixtures';
+import { cell, engine, projectEngine, promptRow, topicRow, weighted } from './topics-by-engine/cells.test-fixtures';
 import type { EngineSummary, MetricCell, PromptSummaryRow } from '@/lib/api/types';
 import { axe } from '@/test/axe';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';

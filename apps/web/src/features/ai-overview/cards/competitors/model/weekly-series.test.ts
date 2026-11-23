@@ -13,7 +13,7 @@ import {
   summaryOf,
   week,
   weighted,
-} from './summary-fixtures';
+} from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 import { trimIdleMentions, trimIdleShares } from './trim-weeks';
 import type { WeeklyPoint } from './types';

@@ -6,7 +6,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import OpportunitiesCard from './opportunities-card';
 import { loadingBodyHeight } from './skeletons';
-import { at, cell, competitor, engine, entityCells, own, promptRow, share, summaryOf } from './model/summary-fixtures';
+import {
+  at,
+  cell,
+  competitor,
+  engine,
+  entityCells,
+  own,
+  promptRow,
+  share,
+  summaryOf,
+} from './model/summary.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardDrill } from '../engines/use-card-seams';
 import type { CardProps } from '@/features/layouts';

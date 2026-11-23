@@ -4,7 +4,7 @@ import type { ComponentType } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CompetitorTrendCard from './competitors/competitor-trend-card';
-import { at } from './competitors/model/summary-fixtures';
+import { at } from './competitors/model/summary.test-fixtures';
 import SovOverTimeCard from './competitors/sov-over-time-card';
 import SovRankCard from './competitors/sov-rank-card';
 import RateTrendCard from './engines/rate-trend-card';

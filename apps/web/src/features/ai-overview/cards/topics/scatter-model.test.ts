@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { TopicNode } from './model-types';
 import { SCATTER_EXPORT_HEADER, scatterFileName, scatterModel } from './scatter-model';
 import { NO_TOPIC } from './topic-nodes';
-import { engine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { engine, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 type Pair = readonly [k: number, n: number];
 

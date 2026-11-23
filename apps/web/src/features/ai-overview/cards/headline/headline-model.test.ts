@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, week } from '../engines/engines-fixtures';
+import { engineCells, promptRow, summaryOf, week } from '../engines/engines.test-fixtures';
 import {
   buildHero,
   readAcross,

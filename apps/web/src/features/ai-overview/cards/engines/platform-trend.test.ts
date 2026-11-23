@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildPlatformTrend, weekMetricOf } from './platform-trend';
 import { weeklyShareNote } from './trend-model';
-import { at, cell, engine, share, summaryOf, week } from '../competitors/model/summary-fixtures';
+import { at, cell, engine, share, summaryOf, week } from '../competitors/model/summary.test-fixtures';
 import type { EngineCode, MetricCell, PromptsSummary, WeekCells } from '@/lib/api/types';
 
 const CURRENT = { from: '2026-10-19', to: '2026-11-15' };

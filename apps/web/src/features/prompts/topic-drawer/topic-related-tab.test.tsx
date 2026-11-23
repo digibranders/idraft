@@ -6,7 +6,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { RelatedTab, topicRelatedTab } from './topic-related-tab';
 import { topicDescendants } from '@/features/prompts/prompt-model';
 import type { TopicTabContext } from '@/features/prompts/seams/topic-tabs';
-import { engine, projectEngine, term, topicRow, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import {
+  engine,
+  projectEngine,
+  term,
+  topicRow,
+  weighted,
+} from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { TopicSummaryRow } from '@/lib/api/types';
 import { DRAWER_TOPIC_ID, READY_COUNTS, renderDrawerPart, summaryOf } from '@/test/topic-drawer-harness';
 

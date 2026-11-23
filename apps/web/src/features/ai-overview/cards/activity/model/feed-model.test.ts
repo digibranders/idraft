@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { run } from './activity-fixtures';
-import { day, dailyResponse, quiet } from './daily-fixtures';
+import { run } from './activity.test-fixtures';
+import { day, dailyResponse, quiet } from './daily.test-fixtures';
 import { buildFeed, startOfBusinessDay, type FeedEntry, type FeedInput } from './feed-model';
 import { buildAggregates, type OverviewAggregates } from '../../../data/aggregates';
-import { engineCells, promptRow, summaryOf } from '../../engines/engines-fixtures';
+import { engineCells, promptRow, summaryOf } from '../../engines/engines.test-fixtures';
 import type { Comparison } from '../../engines/facts-model';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
 
 const ALL: readonly EngineCode[] = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];

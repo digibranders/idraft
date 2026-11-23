@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CompetitorTrendCard from './competitor-trend-card';
-import { id } from './model/summary-fixtures';
+import { id } from './model/summary.test-fixtures';
 import { loadingBodyHeight } from './skeletons';
 import { axe } from '@/test/axe';
 import { chartSummaryText } from '@/test/chart-summary';

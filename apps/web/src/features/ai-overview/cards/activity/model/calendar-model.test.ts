@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { calendarWeeks, validShare, weekdayOf, type CalendarCell } from './calendar-model';
-import { day, quiet, twoWeeks } from './daily-fixtures';
+import { day, quiet, twoWeeks } from './daily.test-fixtures';
 import { dayCounts, engineDays } from './status-model';
 
 const days = (...rows: Parameters<typeof day>[0][]): ReturnType<typeof dayCounts>[] =>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildAggregates, type AggregateInputs, type OverviewAggregates } from './aggregates';
 import { NUMBER_VALUE_SOURCE, readNumber, type NumberReading, type NumberSource } from './number-sources';
-import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, projectEngine, promptRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, EngineSummary, MetricCell, PromptsSummary, Schemas } from '@/lib/api/types';
 import { NUMBER_TYPES } from '@/lib/layouts/catalog';
 

@@ -9,7 +9,7 @@ import {
   engineValue,
   type EngineValue,
 } from './engine-values';
-import { cell, engine, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 const CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const;
 

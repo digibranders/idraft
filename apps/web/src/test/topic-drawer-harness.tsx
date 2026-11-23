@@ -7,7 +7,7 @@ import {
   type TopicDrawerExtras,
   type TopicDrawerState,
 } from '@/features/prompts/topic-drawer/drawer-context';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { TopicCounts } from '@/features/prompts/topic-inspector';
 import type { PromptsSummary, TopicSummaryRow } from '@/lib/api/types';
 import { MOCK_PROJECTS, MOCK_WORKSPACE } from '@/mocks/fixtures';

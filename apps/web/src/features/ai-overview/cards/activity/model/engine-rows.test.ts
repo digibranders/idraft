@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { projectEngine } from './activity-fixtures';
+import { projectEngine } from './activity.test-fixtures';
 import { engineRows } from './engine-rows';
 
 describe('engineRows', () => {

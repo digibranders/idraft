@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { engineCells, promptRow, summaryOf, withBrandMentions, type EngineCellsInput } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf, withBrandMentions, type EngineCellsInput } from './engines.test-fixtures';
 import PeriodComparisonCard from './period-comparison-card';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import type { CardProps } from '@/features/layouts';

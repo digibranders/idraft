@@ -9,7 +9,7 @@ import {
   topicsBelow,
   type TopicDescendants,
 } from '@/features/prompts/prompt-model';
-import { promptRow, topicRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { promptRow, topicRow } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { PromptsSummary } from '@/lib/api/types';
 import { EVENTUS_WORLD } from '@/mocks/ai-prompt-world';
 import { setAiSeeded } from '@/mocks/ai-seed';

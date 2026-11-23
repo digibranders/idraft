@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TopicNode } from './model-types';
 import { attachPrevious, commonPrompts, topicChange } from './topic-change';
-import { cell, engine, promptRow, weighted } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { cell, engine, promptRow, weighted } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import { engineChangeOf } from '@/lib/compare/change-model';
 import { isDetectableChange } from '@/lib/stats';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cell, engine, weighted } from './cells-fixtures';
+import { cell, engine, weighted } from './cells.test-fixtures';
 import { bestEngine, bestWorst, engineChange, engineGapOf, engineValue, type EngineValue } from './engine-values';
 import { MIN_OBSERVATIONS } from '@/lib/stats';
 

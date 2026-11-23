@@ -13,7 +13,7 @@ import {
   topicRow,
   week,
   weighted,
-} from '@/features/prompts/topics-by-engine/cells-fixtures';
+} from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineSummary, SummaryEntity, TopicSummaryRow } from '@/lib/api/types';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { readChartTokens } from '@/lib/design/read-tokens';

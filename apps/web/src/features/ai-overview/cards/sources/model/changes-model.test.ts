@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { changePage, changeRow } from './change-fixtures';
+import { changePage, changeRow } from './change.test-fixtures';
 import { changeRows, newSourcesCount } from './changes-model';
-import { at } from './source-fixtures';
+import { at } from './source.test-fixtures';
 
 describe('newSourcesCount', () => {
   it('is page.total, not the number of rows the route sent', () => {

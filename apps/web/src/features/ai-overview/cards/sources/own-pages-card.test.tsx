@@ -4,8 +4,8 @@ import { useEffect, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import OwnPagesCard from './own-pages-card';
-import { pagePage, pageRow } from './model/page-fixtures';
-import { at, sourcesMeta } from './model/source-fixtures';
+import { pagePage, pageRow } from './model/page.test-fixtures';
+import { at, sourcesMeta } from './model/source.test-fixtures';
 import { ExportProvider, useExportBlocks, type ExportRead } from '../../export/export-registry';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardDrill } from '../engines/use-card-seams';

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PromptsScreen } from './prompts-screen';
 import type { EngineSummary, Role } from '@/lib/api/types';
-import { engine, topicRow, weighted } from './topics-by-engine/cells-fixtures';
+import { engine, topicRow, weighted } from './topics-by-engine/cells.test-fixtures';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_TERM_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';

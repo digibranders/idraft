@@ -1,4 +1,4 @@
-import { sourcesMeta, type MetaOptions } from './source-fixtures';
+import { sourcesMeta, type MetaOptions } from './source.test-fixtures';
 import type {
   DomainRole,
   EngineCode,
@@ -10,7 +10,7 @@ import type {
 
 /**
  * Builders of the own pages read and of the role split by engine, for the tests of CH-08 and CH-16. Typed by the
- * generated schema, like `source-fixtures.ts`. Not a test file.
+ * generated schema, like `source.test-fixtures.ts`. Not a test file.
  */
 
 export interface PageRowOptions {

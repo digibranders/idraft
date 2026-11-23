@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { scopeParts } from './header-model';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 
 describe('scopeParts', () => {
   const two = [projectEngine('chatgpt_web'), projectEngine('gemini_web')];

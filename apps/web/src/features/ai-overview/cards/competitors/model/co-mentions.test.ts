@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { coMentionMatrix } from './co-mentions';
-import { at, competitor, engine, entityCells, id, own, share, summaryOf, weighted } from './summary-fixtures';
+import { at, competitor, engine, entityCells, id, own, share, summaryOf, weighted } from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 import type { CoMentionCell, CoMentionMatrix } from './types';
 import type { Schemas, SummaryEntity } from '@/lib/api/types';

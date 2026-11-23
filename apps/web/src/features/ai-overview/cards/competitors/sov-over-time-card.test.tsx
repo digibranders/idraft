@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { cell, competitor, engine, entityCells, own, share, summaryOf, week } from './model/summary-fixtures';
+import { cell, competitor, engine, entityCells, own, share, summaryOf, week } from './model/summary.test-fixtures';
 import SovOverTimeCard from './sov-over-time-card';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';

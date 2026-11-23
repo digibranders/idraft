@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildComparison, comparisonDomains, type ComparisonRow } from './comparison-model';
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { buildAggregates, type OverviewAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptsSummary } from '@/lib/api/types';
 import { differenceInterval } from '@/lib/stats';
 

@@ -3,7 +3,13 @@ import { z } from 'zod';
 
 import { buildAggregates, type AggregateInputs, type EngineAggregate } from './aggregates';
 import { lastObservedAt } from '@/features/prompts/prompt-model';
-import { cell, engine, projectEngine, promptRow, topicRow } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import {
+  cell,
+  engine,
+  projectEngine,
+  promptRow,
+  topicRow,
+} from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type {
   EngineCode,
   EngineSummary,

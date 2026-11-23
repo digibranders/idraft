@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { engineCells, promptRow, summaryOf } from './engines-fixtures';
+import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { funnelOf, funnelScale, type EngineFunnel, type FunnelStepId } from './funnel-model';
 import { buildAggregates } from '../../data/aggregates';
-import { projectEngine } from '@/features/prompts/topics-by-engine/cells-fixtures';
+import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptSummaryRow } from '@/lib/api/types';
 
 /** A prompt on one engine: `named` of `valid` valid answers name the brand, `both` of them also cite it. */

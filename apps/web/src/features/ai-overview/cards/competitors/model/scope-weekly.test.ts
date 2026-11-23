@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { weeklySharesAcross } from './scope-weekly';
-import { at, competitor, engine, entityCells, own, share, summaryOf, week } from './summary-fixtures';
+import { at, competitor, engine, entityCells, own, share, summaryOf, week } from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 
 const HUBSPOT = competitor(2, 'HubSpot');

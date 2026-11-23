@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { shareAcrossPlatforms } from './scope-share';
-import { at, competitor, engine, entityCells, own, share, summaryOf, weighted } from './summary-fixtures';
+import { at, competitor, engine, entityCells, own, share, summaryOf, weighted } from './summary.test-fixtures';
 import { trackedSetOf } from './tracked-set';
 
 const THREE = [own(), competitor(2, 'HubSpot'), competitor(3, 'Zoho')];
