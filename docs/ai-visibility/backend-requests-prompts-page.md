@@ -1,5 +1,7 @@
 # Backend requests for the new Prompts page columns
 
+Open requests 10 to 24 of this file and of the Overview file, with their status, are collected in `docs/ai-visibility/backend-requests-open.md`.
+
 Date: 2026-11-16. Written by the W0-facts package of the port plan
 (`docs/superpowers/plans/2026-11-16-real-app-port-overview-and-prompts.md`).
 
