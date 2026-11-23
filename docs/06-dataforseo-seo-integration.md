@@ -103,6 +103,7 @@ Mobile costs the same as desktop per page. Tracking both devices doubles collect
 | `depth` | From depth profile for this check. |
 | `priority` | 1 (standard queue) by default; 2 only for schedules with `priority = 'high'` and `provider_mode = 'priority_queue'`. |
 | `load_async_ai_overview` | **Always true.** Without it, AI Overviews that Google loads asynchronously come back as `null`, which undercounts AI Overview presence. The surcharge is refunded when no async AIO is present. The billing formula is ambiguous in the docs (additive one base price vs whole-task multiplier); S-01 resolves it, and section 6 shows both cases. |
+| `resolve_poisoned_results` | **Always true on queued tasks** (`task_post`), not sent on live. Google serves automated requests other organic results than people see; DataForSEO cross-checks them against Google Web mode and replaces poisoned listings (`checks` holds `from_web` on a replaced one). One extra SERP unit a task at any depth ($0.0006 standard, $0.0012 priority). Measured 2026-11-23 on 15 queries against Search Console and a real browser: site on page one 28 of 30 runs with it, 10 of 30 without; top 10 repeats itself 0.92 with it, 0.28 without. Cannot be combined with `udm=web` or `udm=14`. Live answers are diagnostics and do not send it. |
 | `people_also_ask_click_depth` | Not sent on daily checks (no clicks; the documented values are 1 to 4). 1 on deep checks when the project has keyword discovery enabled (adds $0.00015 per click; unperformed clicks refunded). Questions visible without clicking are still captured. |
 | `group_organic_results` | true (provider default): nested `related_result` entries are grouped under their parent result. See 5.2. |
 | `calculate_rectangles` | false. Pixel position is post-MVP (it adds one base price). |
@@ -294,6 +295,7 @@ pages(depth)          = ceil(depth / 10)
 serp_cost             = base[mode] * pages(depth)
 aio_surcharge         = base[mode] if async AIO fetched (additive reading)
                         OR serp_cost if async AIO fetched (multiplier reading)   -- S-01 decides
+poison_fix            = base[mode] per queued task, any depth (live: not sent)
 paa_cost              = 0.00015 * clicks_performed
 base = { standard: 0.0006, priority: 0.0012, live: 0.002 }
 ```
@@ -307,6 +309,10 @@ Monthly per-keyword examples (standard queue, desktop, 30-day month):
 | `full` | $0.180 | $0.184 | $0.216 |
 
 The share of checks with an async AI Overview is unknown until S-03 measures it; 20% is a placeholder. Full cost scenarios are in [27-cost-model.md](27-cost-model.md).
+
+Add `poison_fix` once per check: one page unit, about 9% on a depth 100 check and 23% at depth 75 (measured 2026-11-23).
+
+**Rank history steps once.** The first check after `resolve_poisoned_results` went live reads the real SERP, so many keywords change place at once and the rank events (gained, lost, entered, dropped) of that day are the correction, not market movement. Release it when the owner expects that step, and note the date in the release notes.
 
 ## 7. Keyword metrics (search volume, CPC, KD, intent)
 
