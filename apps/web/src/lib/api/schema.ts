@@ -4981,6 +4981,11 @@ export interface components {
             /** Important Max Position */
             important_max_position: number;
             /**
+             * Links Compared
+             * @description False when the link counts were not worked out: the links of this crawl or of the one before were dropped. The counts are then zero, not measured.
+             */
+            links_compared: boolean;
+            /**
              * Lost To Top
              * @description Editorial links lost to the important tiers.
              */
@@ -8862,6 +8867,11 @@ export interface components {
             linking_pages: components["schemas"]["Neighbor"][];
             /** Linking Pages Total */
             linking_pages_total: number;
+            /**
+             * Links Available
+             * @description False when retention dropped the crawl's links: the link lists and counts are then empty, not zero.
+             */
+            links_available: boolean;
             /** Outlinks */
             outlinks: components["schemas"]["Neighbor"][];
             /** Outlinks Total */
