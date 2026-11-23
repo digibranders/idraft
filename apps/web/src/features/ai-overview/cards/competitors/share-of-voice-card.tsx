@@ -1,12 +1,13 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useRef, type ReactElement } from 'react';
 
 import { SHAPE_OPTIONS, useTrackedSet } from './data/use-competitor-reads';
 import { shareAcrossPlatforms, type ScopeShareRead } from './model/scope-share';
 import { colorSlots } from './model/tracked-set';
 import { unreadWhy, type TrackedSet } from './model/types';
+import { buttonNamed } from './parts/button-named';
 import { useCardPlatforms } from './parts/card-engine';
 import { CompetitorBars, type CompetitorBarRow } from './parts/competitor-bars';
 import { frameSummary, useFrameState, type DataSituation, type FrameState } from './parts/frame-state';
@@ -18,7 +19,9 @@ import { useOverviewSummary } from '../../overview-context';
 import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { BarListTable, barListCsv, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
+import { ColumnsChart } from '@/components/app/chart/columns-chart';
 import type { CardProps } from '@/features/layouts';
+import type { ColumnItem } from '@/lib/charts/rich-columns';
 import { formatList, formatPercent } from '@/lib/format';
 import { engineLabel } from '@/lib/layouts';
 
@@ -26,6 +29,8 @@ import { engineLabel } from '@/lib/layouts';
 const ROW_OPTIONS = [5, 10] as const;
 const DEFAULT_ROWS = 10;
 const LOADING_HEIGHT = loadingBodyHeight('ai.share_of_voice');
+/** The height of the columns above the list of brands. */
+const CHART_HEIGHT = 200;
 
 function rowsOf(option: string | undefined): number {
   const rows = Number(option);
@@ -51,6 +56,7 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
   const insufficient = useTranslations('common.insufficient');
   const platforms = useCardPlatforms();
   const open = useOpenCompetitor();
+  const list = useRef<HTMLDivElement>(null);
   const unavailable = useScopeUnavailable(t('title'));
   // One read: this card draws no change, so the previous period is not asked
   const summaryRead = useOverviewSummary({ ...SHAPE_OPTIONS.totals, subscribed: live });
@@ -154,6 +160,17 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
     openLabel: t('open', { name: row.label }),
   }));
 
+  // The chart is the picture; the list under it is its legend, with the counts and the buttons that open a competitor
+  const columns: ColumnItem[] = bars.map((row) => ({
+    id: row.id,
+    name: row.label,
+    value: row.value,
+    token: row.slot === null ? 'chart-other' : `chart-${String(row.slot)}`,
+    valueText: row.valueText,
+    own: row.own,
+    tip: row.tip,
+  }));
+
   const tableProps: BarListProps = {
     mode: 'comparison',
     rows: tableRows,
@@ -204,7 +221,24 @@ export default function ShareOfVoiceCard({ item, options, live }: CardProps): Re
           </>
         )
       }
-      body={<CompetitorBars rows={bars} caption={t('caption')} onOpen={open} />}
+      body={
+        <div className="flex flex-col gap-3">
+          <ColumnsChart
+            items={columns}
+            label={t('title')}
+            height={CHART_HEIGHT}
+            onOpen={(id) => {
+              // The button of the brand in the list below gets the focus back when the drawer closes
+              const label = bars.find((row) => row.id === id)?.openLabel;
+              const opener = label === undefined ? null : buttonNamed(list.current, label);
+              open(id, opener);
+            }}
+          />
+          <div ref={list}>
+            <CompetitorBars rows={bars} caption={t('caption')} onOpen={open} bars={false} />
+          </div>
+        </div>
+      }
       table={<BarListTable {...tableProps} />}
       menu={{ fileName: t('fileName'), csv }}
       {...frame}

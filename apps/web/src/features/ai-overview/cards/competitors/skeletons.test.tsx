@@ -44,7 +44,7 @@ describe('the skeletons of the competitors family', () => {
 
   /** The whole panel of the card once loaded, at the default options (the breakdown is in `skeletons.tsx`). */
   const TOTALS: Record<string, number> = {
-    'ai.share_of_voice': 514,
+    'ai.share_of_voice': 726,
     'ai.lost_to_competitor': 382,
     'ai.opportunities': 542,
     'ai.competitor_trend': 422,
@@ -66,7 +66,7 @@ describe('the skeletons of the competitors family', () => {
    * element with no lines yet (still one 12 px gap).
    */
   const LOADING_BODIES: Record<string, number> = {
-    'ai.share_of_voice': 444,
+    'ai.share_of_voice': 656,
     'ai.lost_to_competitor': 312,
     'ai.opportunities': 420,
     'ai.competitor_trend': 352,

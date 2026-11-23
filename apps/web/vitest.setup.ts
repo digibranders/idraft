@@ -14,6 +14,9 @@ if (typeof HTMLCanvasElement !== 'undefined') {
   // Stub getContext('2d') on HTMLCanvasElement in jsdom tests to eliminate noise
   const baseContext: Record<string, unknown> = {
     measureText: () => ({ width: 0 }),
+    // ECharts adds the colour stops of a gradient fill to what these return (the rich chart style fades its fills)
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
   };
   const contextProxy = new Proxy(baseContext, {
     get(target, prop) {

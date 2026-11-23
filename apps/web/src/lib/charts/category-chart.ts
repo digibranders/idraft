@@ -1,10 +1,11 @@
+import { chartMotion, fadeDown, fadingPointer, softShadow } from './rich-style';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
  * The ECharts option of a line or bar chart over categories (months, days), styled by the rules of
- * 15-data-visualization.md sections 3 and 4: no animation, a fixed outer padding that holds the axis labels, horizontal dashed
- * gridlines, an x axis line only, 2 px lines, markers on series of 60 points or fewer, bars at most 24 px
- * wide. Colours come by role, never by position in the data.
+ * 15-data-visualization.md sections 3, 4 and 1a: entrance motion (off for reduced motion), a fixed outer padding that holds
+ * the axis labels, horizontal dashed gridlines, an x axis line only, smooth 3 px lines with a fade and a soft shadow, the
+ * latest value written at the end of each line, markers on series of 60 points or fewer, bars at most 24 px wide. Colours come by role, never by position in the data.
  */
 
 /** `brand` is `chart-1`; `palette` takes `chart-2` onward by its stored index; `reference` and `other` are dashed. */
@@ -74,12 +75,12 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
   // Axis labels in the page's font, 12 px, with tabular figures as type-label draws them
   const label = { color: tokens.label, fontSize: 12, fontFamily: tokens.fontFamily };
   return {
-    animation: false,
+    ...chartMotion(),
     // Decal patterns only: the frame names and describes the chart, so ECharts writes no label of its own
     aria: { enabled: true, label: { enabled: false }, decal: { show: patterns } },
     // The padding bounds the axis labels too: the plot shrinks until the y labels ("30,000", "1.2M") and the
     // x labels fit inside it, so no width of label is cut at the card's edge
-    grid: { left: 4, right: 16, top: 8, bottom: 4, outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
+    grid: { left: 4, right: kind === 'line' ? 56 : 16, top: 8, bottom: 4, outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
     textStyle: label,
     xAxis: {
       type: 'category',
@@ -98,7 +99,10 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
     },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: kind === 'bar' ? 'shadow' : 'line', lineStyle: { color: tokens.borderStrong, width: 1 } },
+      axisPointer:
+        kind === 'bar'
+          ? { type: 'shadow', lineStyle: { color: tokens.borderStrong, width: 1 } }
+          : fadingPointer(tokens.palette[0] ?? tokens.foreground),
       // Kept inside the chart, so a card that clips its content does not cut it off
       confine: true,
       borderRadius: 8,
@@ -143,14 +147,35 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
           itemStyle: { borderRadius: stacked === true && !top ? [0, 0, 0, 0] : [2, 2, 0, 0] },
         };
       }
+      // A reference or aggregate line stays a quiet dashed 2 px line; the series of the data are smooth 3 px lines with a fade
+      // under them and a soft shadow, and the latest value written at their end
+      const dashed = entry.role.kind === 'reference' || entry.role.kind === 'other';
       return {
         ...base,
         type: 'line',
+        smooth: 0.3,
         connectNulls: false,
         showSymbol: entry.values.length <= MARKERS_UP_TO,
         symbol: lineSymbolOf(entry.role, position),
-        symbolSize: 6,
-        lineStyle: { width: 2, type: dashOf(entry.role), join: 'round' },
+        symbolSize: 8,
+        itemStyle: { color, borderColor: tokens.surfaceElevated, borderWidth: 2 },
+        lineStyle: dashed
+          ? { width: 2, type: dashOf(entry.role), join: 'round' }
+          : { width: 3, type: 'solid', join: 'round', cap: 'round', color, ...softShadow(color) },
+        ...(dashed ? {} : { areaStyle: { color: fadeDown(color, shown.length > 1 ? 0.16 : 0.32, 0) } }),
+        emphasis: { focus: 'none', scale: 1.3 },
+        endLabel: dashed
+          ? { show: false }
+          : {
+              show: true,
+              color,
+              fontFamily: tokens.fontFamily,
+              fontSize: 12,
+              fontWeight: 600,
+              distance: 8,
+              formatter: ({ value }: { value?: unknown }) => (typeof value === 'number' ? formatValue(value) : ''),
+            },
+        labelLayout: { moveOverlap: 'shiftY' },
       };
     }),
   };

@@ -52,7 +52,8 @@ const listBody = (frame: number, rows: number): number => Math.max(frame, LIST_H
  * table cells wrap, and the co-mentions grid draws a square cell for each of the eight brands.
  */
 export const SKELETON_TOTALS: Readonly<Record<string, number>> = {
-  'ai.share_of_voice': panelHeight({ body: listBody(280, 10), notes: 3 }),
+  // The 3D columns (200 px and a 12 px gap) sit above the list of brands
+  'ai.share_of_voice': panelHeight({ body: listBody(280, 10) + 212, notes: 3 }),
   'ai.lost_to_competitor': panelHeight({ body: listBody(240, 5), notes: 2 }),
   'ai.opportunities': 542,
   'ai.competitor_trend': 422,

@@ -66,5 +66,5 @@ Commands (in `apps/web`): `pnpm dev` (development server), `pnpm lint`, `pnpm ty
 6. Tables for records; one 76 px metric strip panel for summaries, never KPI cards; cards only when justified.
 7. One `FilterBar` with neutral chips for screen scope and filters; the date range and location sit in the top bar as project-wide scope; all view state in the URL.
 8. Ranks use arrows (`↑5`), metrics use signs (`+5.3 pts`); color only when the change is real.
-9. ECharts with a quiet theme and animation off; own brand is `chart-1`; no pie or donut charts; ranks plotted inverted with depth bands.
+9. ECharts in the rich style (section 1a of doc 15): smooth gradient lines, plain rings, 3D columns, entrance motion that stops for reduced motion, a ring cursor over charts; own brand is `chart-1`; no pie charts; ranks plotted inverted with depth bands.
 10. Every number honest: units, denominators, sample sizes, estimates labeled, unknown shown as unknown.

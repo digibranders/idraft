@@ -6,12 +6,30 @@ Library: Apache ECharts 6.1 (verified 2026-09-29) through an in-house wrapper; s
 
 ## 1. Principles
 
-1. **Quiet by default.** No chart backgrounds, no gradients, no shadows, no glow, no 3D, no entrance animations. Gridlines are horizontal only, 1 px dashed and faint.
+1. **Quiet frame, rich marks.** No chart backgrounds. The marks follow the rich style of section 1a. Gridlines are horizontal only, 1 px dashed and faint.
 2. **The data is the loudest element.** Series lines are 2 px; the own brand stands out by `chart-1`, circle markers and its first place in the legend. Axes and gridlines use the lightest tokens that still read.
 3. **Honest scales.** Rates start at 0. Ranks are inverted so better is up. Unknown values are gaps or hatched bands, never zeros.
 4. **Every chart has a text and table alternative** ([20-accessibility.md](20-accessibility.md)).
 5. **Charts are for trends and distributions; tables are for lookup.** A chart that answers "what is the value for X" should be a table.
-6. **No pie or donut charts in V1.** Parts-of-whole questions in this product (outcome mix, source share, rank distribution) are answered by 100% stacked bars or ranked horizontal bars, which compare better across time and entities.
+6. **No pie charts.** A part-of-whole question about one subject at one moment (the outcome split of a platform) is a plain ring (section 1a). Parts of a whole over time or across many entities (source share, rank distribution) stay 100% stacked bars or ranked horizontal bars, which compare better.
+
+## 1a. Rich style
+
+Decided by the owner on 2026-11-23, replacing the quiet rules this document had since design-system v2. It applies to charts only; everything else in the app keeps the no gradient, no glow, no shadow rules of the UI rules.
+
+| Element | Rule |
+|---|---|
+| Lines | Smooth (0.3), 3 px, a fade under each line (32% at the top for one line, 16% when several share the chart, to nothing at the axis) and a soft shadow in the line's colour. The latest value is written at the end of each data line in the line's colour. Reference and aggregate lines stay dashed 2 px, with no fade and no end label. Markers keep their shapes ([20-accessibility.md](20-accessibility.md) section 12.2) with a ring in the surface colour |
+| Stacked areas | Smooth, each layer fading toward the axis, 1.5 px line in its colour |
+| Rings | One plain ring per subject: solid token colours, a thin gap between the segments, no gradient, no shadow, no depth. The number in the middle and the name below are text outside the canvas. The exact shares of every segment are in a table under the rings |
+| 3D columns | A front, a side and a top face drawn in 2D, so the front face height is the value and nothing is distorted. The value is written above the column. A column that opens something shows the hand and brightens under the pointer |
+| Treemap | Rounded tiles (8 px) with a 3 px gap |
+| Motion | The entrance animates over 800 ms and updates over 400 ms, unless `prefers-reduced-motion: reduce` is set or motion cannot be asked about, where the chart draws at once (`chartMotion` in `lib/charts/rich-style.ts`) |
+| Pointer | A time chart shows a 2 px line that fades toward the axis under the pointer. Over any chart the resting cursor is the ring (`public/chart-cursor.svg`, hotspot at its middle, `crosshair` as the fallback); a mark that opens something keeps the hand |
+| Tooltips | Unchanged (section 4) |
+| Still required | Text and table alternative for every chart (section 1, principle 4); colour never carries a number alone; own brand is `chart-1` |
+
+Ported to the app so far: every line chart of `ChartFrame` and small multiples (`categoryChartOption`), the Share of voice columns and the Outcome split rings. The other cards keep their current marks until they are ported.
 
 ## 2. ChartFrame
 
@@ -48,7 +66,7 @@ Every chart renders inside `ChartFrame`:
 | Loading | Chart modules load with `next/dynamic` and `ssr: false`; the frame renders a skeleton of the final height meanwhile |
 | Theme | Built at runtime from tokens (`lib/design/read-tokens.ts`) and applied with ECharts 6 `setTheme()` on theme change; no reload |
 | Renderer | Canvas for all charts. SVG only for static exports where vector output is requested |
-| Animation | `animation: false` for every chart, including data updates ([21-motion.md](21-motion.md)): data changes redraw instantly |
+| Animation | The entrance and updates animate as section 1a says, and stop for reduced motion ([21-motion.md](21-motion.md)). Each option builder spreads `chartMotion()` |
 | Layout | Set `grid.outerBoundsMode: 'none'` and explicit grid padding so layouts do not shift between ECharts 6 versions; padding: left 40 px (fits 4-digit labels), right 16 px, top 8 px, bottom 24 px |
 | Escaping | Tooltip formatters return plain text or escape every collected string with `echarts.format.encodeHTML` ([20-frontend-specification.md](../20-frontend-specification.md) section 4.6) |
 
@@ -62,13 +80,13 @@ Every chart renders inside `ChartFrame`:
 | Y axis line | none | none |
 | Ticks | none | none |
 | Split lines (gridlines) | horizontal only, 1 px dashed, `chart-grid` (the `border-subtle` value) | same |
-| Series line | 2 px for every series. Own brand (`chart-1`) solid with circle markers; other series with the marker shapes of [20-accessibility.md](20-accessibility.md) section 12.2. Round joins. Markers are drawn on series with 60 points or fewer; denser series show a 6 px symbol on hover (emphasis) and for isolated points | same |
+| Series line | 3 px smooth data lines with a fade and a shadow, 2 px dashed reference lines (section 1a). Own brand (`chart-1`) solid with circle markers; other series with the marker shapes of [20-accessibility.md](20-accessibility.md) section 12.2. Round joins. Markers are drawn on series with 60 points or fewer; denser series show a 6 px symbol on hover (emphasis) and for isolated points | same |
 | Reference series (previous period, baselines, averages) | 2 px dashed, pattern `[4, 4]`, `chart-reference` | same |
 | "All" and "Other" aggregates | 2 px dashed, pattern `[8, 4]`, `chart-other` | same |
 | Estimates | 2 px dotted, pattern `[1, 3]`, "Estimate" in the series name | same |
-| Area | Not used for single lines. Stacked areas at 85% opacity with 1 px `surface` separators | same |
+| Area | A fade under each data line and stacked areas at 85% opacity fading toward the axis (section 1a) | same |
 | Bars | Max width 24 px, 2 px gap within groups, radius 2 (top corners only for vertical bars). `BarList` and 100% stacked bars have their own specs (sections 5.1 and 5.2) | same |
-| Crosshair | 1 px vertical line `border-strong` | same |
+| Crosshair | On a time chart a 2 px vertical line fading toward the axis (section 1a); on a bar chart the shadow band | same |
 | Tooltip | `surface-elevated`, 1 px `border`, `shadow-popover`, radius 8 (`rounded-lg`: a chart tooltip holds several rows and takes the popover radius, not the 6 px text tooltip radius of [06-surfaces-borders-radius.md](06-surfaces-borders-radius.md) section 3), padding as in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 6.1. Date title in `type-subsection-title` (14 / 20 px, weight 600) in `foreground`; one row per series: 8 px dot in the series color, name in `type-table` `foreground-secondary`, value right-aligned in `type-table` `num` `foreground` (section 10) | same tokens |
 | CI band | Series color at 12% opacity (`chart-band` for neutral) | 18% opacity |
 | Depth band | `rank-band-none` with 45 degree hatching (decal) and label "Not in top 20" | same |
