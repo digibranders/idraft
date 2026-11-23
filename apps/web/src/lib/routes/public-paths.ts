@@ -4,7 +4,15 @@
  * through without the session cookie, and the query client does not send a person away from them when
  * the API answers that nobody is signed in: the page itself handles that answer.
  */
-export const PUBLIC_PATHS = ['/login', '/two-factor', '/reset-password', '/verify-email', '/invite'] as const;
+export const PUBLIC_PATHS = [
+  '/login',
+  '/two-factor',
+  '/reset-password',
+  '/verify-email',
+  '/invite',
+  // Read-only pages opened from a shared link (`public` is a reserved workspace slug, so no workspace can clash)
+  '/public',
+] as const;
 
 /** Whether `pathname` is one of the public pages or lies under one. */
 export function isPublicPath(pathname: string): boolean {

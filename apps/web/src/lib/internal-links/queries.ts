@@ -52,6 +52,8 @@ const SETTINGS = `${P}/settings` as const;
 const RULES = `${P}/tier-rules` as const;
 const PREVIEW = `${P}/tier-rules/preview` as const;
 const TIERS = `${W}/page-tiers` as const;
+const SHARES = `${P}/internal-links/shares` as const;
+const PUBLIC_SUMMARY = '/api/v1/public/internal-links/summary/{token}' as const;
 
 /** The query parameters the generated client takes for the two lists. */
 type PagesParams = NonNullable<paths[typeof PAGES]['get']['parameters']['query']>;
@@ -465,6 +467,20 @@ export const crawlsQuery = (scope: LinksScope, limit: number = CRAWL_LIMIT): Api
  */
 export const linkSettingsQuery = (scope: LinksScope): ApiQueryOptions<typeof SETTINGS> =>
   apiQuery(SETTINGS, { params: { path: pathOf(scope) } });
+
+/** The project's client summary links, newest first, without their tokens. */
+export const sharesQuery = (scope: LinksScope): ApiQueryOptions<typeof SHARES> =>
+  apiQuery(SHARES, { params: { path: pathOf(scope) } });
+
+/**
+ * The public client summary a link opens: no sign-in, so a 404 (unknown, expired or revoked) is final and a 429 is
+ * shown by the page, which asks again on a press of "Try again", not by a silent retry.
+ */
+export const publicSummaryQuery = (token: string): ApiQueryOptions<typeof PUBLIC_SUMMARY> => ({
+  ...apiQuery(PUBLIC_SUMMARY, { params: { path: { token } } }),
+  retry: false,
+  staleTime: 0,
+});
 
 export const tierRulesQuery = (scope: LinksScope): ApiQueryOptions<typeof RULES> =>
   apiQuery(RULES, { params: { path: pathOf(scope) } });

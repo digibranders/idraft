@@ -26,6 +26,10 @@ export const createRuleMutation = apiMutation('post', `${P}/tier-rules`);
 export const updateRuleMutation = apiMutation('patch', `${P}/tier-rules/{rule_id}`);
 export const deleteRuleMutation = apiMutation('delete', `${P}/tier-rules/{rule_id}`);
 export const previewRuleMutation = apiMutation('post', `${P}/tier-rules/preview`);
+/** Send `body: { expires_in_days: 7 | 30 | 90 }`; the answer holds the link's token, this once. */
+export const createShareMutation = apiMutation('post', `${P}/internal-links/shares`);
+/** Revoking a link already revoked changes nothing. */
+export const revokeShareMutation = apiMutation('delete', `${P}/internal-links/shares/{share_id}`);
 export const createTierMutation = apiMutation('post', `${W}/page-tiers`);
 export const updateTierMutation = apiMutation('patch', `${W}/page-tiers/{tier_id}`);
 export const deleteTierMutation = apiMutation('delete', `${W}/page-tiers/{tier_id}`);

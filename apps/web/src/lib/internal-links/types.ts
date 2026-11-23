@@ -102,3 +102,9 @@ export type PageSort =
   | '-citations'
   | 'anchor'
   | '-anchor';
+
+export type Share = Schemas['Share'];
+export type CreatedShare = Schemas['CreatedShare'];
+export type ShareState = Schemas['ShareState'];
+export type ExpiryDays = Schemas['ExpiryDays'];
+export type ClientSummary = Schemas['ClientSummary'];

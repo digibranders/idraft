@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   acceptSuggestionsMutation,
   cancelCrawlMutation,
+  createShareMutation,
+  revokeShareMutation,
   decideOpportunitiesMutation,
   dismissSuggestionsMutation,
   startCrawlMutation,
@@ -109,6 +111,32 @@ describe('the opportunity and tier suggestion writes (the backend OpenAPI)', () 
     expect(seen).toEqual([
       { url: `${BASE}/tier-suggestions/accept`, body: { url_ids: ['5', '6'] } },
       { url: `${BASE}/tier-suggestions/dismiss`, body: { all: true } },
+    ]);
+  });
+});
+
+describe('the share link writes', () => {
+  it('creates a link with the expiry in the body and revokes it by its id', async () => {
+    const seen: { method: string; url: string; body: unknown }[] = [];
+    server.use(
+      http.post('*/api/v1/workspaces/:w/projects/:p/internal-links/shares', async ({ request }) => {
+        seen.push({ method: 'POST', url: new URL(request.url).pathname, body: await request.json() });
+        return HttpResponse.json({ data: { id: 's1', token: 't' } }, { status: 201 });
+      }),
+      http.delete('*/api/v1/workspaces/:w/projects/:p/internal-links/shares/:id', ({ request }) => {
+        seen.push({ method: 'DELETE', url: new URL(request.url).pathname, body: null });
+        return HttpResponse.json({ data: { id: 's1' } });
+      }),
+    );
+    await new MutationObserver(client(), createShareMutation).mutate({
+      params: { path },
+      body: { expires_in_days: 90 },
+    });
+    await new MutationObserver(client(), revokeShareMutation).mutate({ params: { path: { ...path, share_id: 's1' } } });
+    const base = '/api/v1/workspaces/w1/projects/p1/internal-links/shares';
+    expect(seen).toEqual([
+      { method: 'POST', url: base, body: { expires_in_days: 90 } },
+      { method: 'DELETE', url: `${base}/s1`, body: null },
     ]);
   });
 });

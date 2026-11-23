@@ -36,6 +36,8 @@ import {
   pageFilterOf,
   pageParams,
   pagesQuery,
+  publicSummaryQuery,
+  sharesQuery,
   tierFlowQuery,
   tierRulesQuery,
   tierRulePreviewQuery,
@@ -418,5 +420,14 @@ describe('tier suggestions and paths', () => {
     );
     expect(routesQuery(SCOPE, '7', 'r1').queryKey).toContainEqual(expect.objectContaining({ run: 'r1' }));
     expect(() => routesQuery(SCOPE, '0', null)).toThrow(UrlIdError);
+  });
+});
+
+describe('the share link reads', () => {
+  it('keys the project links under the project, and the public summary by its token without retries', () => {
+    expect(sharesQuery(SCOPE).queryKey.slice(0, 4)).toEqual(['ws', SCOPE.workspaceId, 'p', SCOPE.projectId]);
+    const read = publicSummaryQuery('abc');
+    expect(read.queryKey).toContain('abc');
+    expect(read.retry).toBe(false);
   });
 });
