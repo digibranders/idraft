@@ -10,6 +10,7 @@ const summary = (over: Partial<ChangesSummary>): ChangesSummary => ({
   editorial_added: 0,
   editorial_lost: 0,
   important_max_position: 2,
+  links_compared: true,
   lost_to_top: 6,
   pages_added: 0,
   pages_lost: 0,

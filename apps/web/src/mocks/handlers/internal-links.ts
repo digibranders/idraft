@@ -781,6 +781,7 @@ export const internalLinkHandlers: HttpHandler[] = [
         linking_by_tier: row.linked_from_tiers,
         linking_by_placement: [...placements].map(([placement, pages]) => ({ placement, pages })),
         top_anchors: kept && row.top_anchor !== null ? [{ anchor: row.top_anchor, links: 1 }] : [],
+        links_available: kept,
         linking_pages: linking.slice(0, 25),
         outlinks: outlinks.slice(0, 25),
         linking_pages_total: linking.length,

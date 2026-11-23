@@ -33,9 +33,15 @@ function show(
   patch: Partial<PageDetailExtras> = {},
   comparison: Comparison | null = 'ready',
   linksAvailable = true,
+  linksCompared = true,
 ): ReturnType<typeof renderWithProviders> {
   return renderWithProviders(
-    <ExtrasSections extras={{ ...BASE, ...patch }} comparison={comparison} linksAvailable={linksAvailable} />,
+    <ExtrasSections
+      extras={{ ...BASE, ...patch }}
+      comparison={comparison}
+      linksAvailable={linksAvailable}
+      linksCompared={linksCompared}
+    />,
   );
 }
 const card = (name: string): HTMLElement => screen.getByRole('heading', { name }).closest('section') as HTMLElement;
@@ -163,6 +169,21 @@ describe('anchor text pointing here', () => {
   it('says there are no anchors when no editorial link points here', () => {
     show({ anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] } });
     expect(card('Anchor text pointing here')).toHaveTextContent('No editorial links point here');
+  });
+
+  it('never reads a link change that was not compared as zero', () => {
+    const moved = show({}, 'ready', true, false);
+    expect(card('Changes since the last crawl')).toHaveTextContent('Not compared');
+    expect(card('Changes since the last crawl')).not.toHaveTextContent('+2');
+    moved.unmount();
+    show(
+      { change: { is_new: false, editorial_in_delta: 0, equity_points: null, depth_state: null, depth_delta: 0 } },
+      'ready',
+      true,
+      false,
+    );
+    expect(card('Changes since the last crawl')).toHaveTextContent('Links were not compared with the last crawl');
+    expect(card('Changes since the last crawl')).not.toHaveTextContent('No change');
   });
 
   it('says Not stored when the crawl no longer holds its links', () => {

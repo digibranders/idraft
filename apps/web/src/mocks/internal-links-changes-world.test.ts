@@ -93,6 +93,18 @@ describe('what the latest crawl changed', () => {
     expect(changesSummary(P, viewAt(4), T0).state).toBe('first_crawl');
   });
 
+  it('says the links were not compared when the previous crawl, or this one, lost its links', () => {
+    expect([0, 1, 2, 3, 4].map((rank) => changesSummary(P, viewAt(rank), T0).links_compared)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+    ]);
+    setLinksScenario({ latestLinksDropped: true });
+    expect(changesSummary(P, viewAt(0), T0).links_compared).toBe(false);
+  });
+
   it('has fewer changes on the crawl before, and none when the switch says so', () => {
     expect(changesSummary(P, viewAt(1), T0)).toMatchObject({ state: 'ready', editorial_lost: 2, editorial_added: 1 });
     expect(changesSummary(P, viewAt(2), T0)).toMatchObject({ state: 'ready', editorial_lost: 0, alert: null });

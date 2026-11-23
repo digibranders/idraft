@@ -367,6 +367,10 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | AlertFields (link alert rules) | SEO | `app/link-alert-rules/alert-settings.tsx` | V1 | link tracker spec 7.10 |
 | LinkCard | SEO | `app/link-canvas/link-card.tsx` | V1 | 20 §7.1 |
 | LinkCanvas | SEO | `app/link-canvas/link-canvas.tsx` | V1 | 15 §13, 20 §7.1 |
+| LayoutSwitch, LaneChips (canvas layout and tiers shown) | SEO | `app/link-canvas/layout-controls.tsx` | V1 | link tracker spec 7.9 |
+| InfoPanel (card facts) | SEO | `app/link-canvas/info-panel.tsx` | V1 | link tracker spec 7.9, 20 §7.1 |
+| SelectionBar (selected cards) | SEO | `app/link-canvas/selection-bar.tsx` | V1 | link tracker spec 7.9 |
+| CanvasHelp (legend and controls) | SEO | `app/link-canvas/canvas-help.tsx` | V1 | link tracker spec 7.9, 20 §7.1 |
 | EngineBadge (observation class badge) | AI | `app/ai/engine-badge.tsx` | V1 | 14 §4 |
 | MentionStatus | AI | `app/ai/mention-status.tsx` | V1 | 23 §5 |
 | CitationStatus | AI | `app/ai/citation-status.tsx` | V1 | 12 §6 |

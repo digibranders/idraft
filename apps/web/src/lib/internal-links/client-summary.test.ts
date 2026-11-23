@@ -6,7 +6,9 @@ import { clientSummaryHtml, type ClientSummaryInput, type ClientSummaryWords } f
 
 const words: ClientSummaryWords = {
   title: (host) => `Internal links summary for ${host}`,
-  crawlLine: (when, pages) => `Crawl of ${when}, ${pages} pages.`,
+  crawlLine: (when, pages) => `Crawl of ${when}, ${pages.toLocaleString('en-US')} pages.`,
+  olderNote: 'This is an older crawl.',
+  lostUnavailable: (reason) => (reason === 'dropped' ? 'Link data is not stored.' : 'No comparison.'),
   tiersHeading: 'Tiers',
   tiersHead: ['Tier', 'Pages', 'Share of pages', 'Average depth'],
   flowHeading: 'Links between tiers',
@@ -48,6 +50,23 @@ const input: ClientSummaryInput = {
   lost: [{ from: '/a', to: '/b', anchor: 'read more' }],
   importantMaxPosition: 2,
 };
+
+describe('client summary html additions', () => {
+  it('says so on an older crawl and only then', () => {
+    expect(clientSummaryHtml({ ...input, older: true }, words)).toContain('This is an older crawl.');
+    expect(clientSummaryHtml(input, words)).not.toContain('older crawl');
+  });
+  it('replaces the lost section with the reason when the lost links are not available', () => {
+    const out = clientSummaryHtml({ ...input, lost: null, lostReason: 'dropped' }, words);
+    expect(out).toContain('Link data is not stored.');
+    expect(out).not.toContain('read more');
+    expect(clientSummaryHtml({ ...input, lost: null, lostReason: 'no-comparison' }, words)).toContain('No comparison.');
+  });
+  it('counts the links the API holds beyond the ones read', () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({ from: `/f${String(i)}`, to: '/t', anchor: 'a' }));
+    expect(clientSummaryHtml({ ...input, lost: many, lostTotal: 450 }, words)).toContain('Plus 350 more.');
+  });
+});
 
 describe('client summary html', () => {
   const html = clientSummaryHtml(input, words);
@@ -108,7 +127,7 @@ describe('client summary html', () => {
         ...words,
         footer: nasty,
         title: (host) => `T ${host}`,
-        crawlLine: (when, pages) => `${when} ${pages} ${nasty}`,
+        crawlLine: (when, pages) => `${when} ${String(pages)} ${nasty}`,
         flowNote: nasty,
         lostHeading: () => nasty,
       },

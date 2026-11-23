@@ -10,6 +10,13 @@ import type { EdgeRow } from '@/lib/internal-links/types';
 
 type Column = DataTableColumn<EdgeRow>;
 
+/** The Added column: which rows the crawl added, and what the header says about the list that tells it. */
+export interface AddedColumn {
+  isAdded: (row: EdgeRow) => boolean;
+  /** Said in the header when the list was cut short or could not be read; `null` when it is the whole answer. */
+  note: string | null;
+}
+
 const badgeColumn = (id: string, header: string, cell: Column['cell']): Column => ({
   id,
   type: 'badge',
@@ -24,7 +31,7 @@ const badgeColumn = (id: string, header: string, cell: Column['cell']): Column =
  * The Links columns of spec 7.3 and the mock (`il-links.js` `COLUMNS`). The server orders the rows (menu and footer
  * links first), so no column sorts. There is no equity column and no First seen or Lost on (slice 2).
  */
-export function edgeColumns(t: LinksTranslate): Column[] {
+export function edgeColumns(t: LinksTranslate, added?: AddedColumn): Column[] {
   return [
     col.keyword<EdgeRow>('source', (row) => row.source.path, { header: t('links.columns.source'), sortable: false }),
     badgeColumn('sourceTier', t('links.columns.sourceTier'), (row) => <TierBadge tier={row.source.tier} />),
@@ -84,5 +91,20 @@ export function edgeColumns(t: LinksTranslate): Column[] {
       header: t('links.columns.occurrences'),
       sortable: false,
     }),
+    ...(added === undefined
+      ? []
+      : [
+          col.text<EdgeRow>(
+            'added',
+            // Only a link the added list holds is marked; any other may still be new, so it says nothing
+            (row) => (added.isAdded(row) ? t('links.columns.addedMark') : null),
+            {
+              header: t('links.columns.added'),
+              width: 120,
+              sortable: false,
+              ...(added.note === null ? {} : { headerTooltip: added.note }),
+            },
+          ),
+        ]),
   ];
 }

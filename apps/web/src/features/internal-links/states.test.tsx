@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CrawlRun } from '@/lib/internal-links/types';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
-import { EVENTUS, MOCK_RUN_ID, tierFlow } from '@/mocks/internal-links-world';
+import { EVENTUS, MOCK_RUN_ID, setLinksScenario, tierFlow } from '@/mocks/internal-links-world';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, FYNIX_LINKS, NO_WEBSITE, internalLinksAs } from '@/test/internal-links-harness';
@@ -309,5 +309,171 @@ describe('a crawl the system cancelled (error_code null, an error_message)', () 
     expect(screen.queryByText('The last crawl failed.')).toBeNull();
     expect(container.textContent).not.toMatch(/cancel/i);
     expect(container.textContent).not.toContain(SYSTEM_TEXT);
+  });
+});
+
+const CHANGES = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes';
+const CHANGES_SUMMARY = mswPath(`${CHANGES}/summary`);
+const OPPORTUNITIES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities');
+const PATHS = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths');
+const LINKS_DROPPED = /This crawl’s links are no longer stored\. Pick a newer crawl\./;
+
+describe('the Changes, Opportunities and Path finder tabs, in both themes', () => {
+  afterEach(() => {
+    setLinksScenario({
+      enrich: 'done',
+      firstCrawl: false,
+      latestLinksDropped: false,
+      noOpportunities: false,
+      noStartPage: false,
+    });
+  });
+
+  describe.each(THEMES)('%s theme', (theme) => {
+    it('Changes: loading is busy, an error has Try again, and the neutral states have no Try again', async () => {
+      setTheme(theme);
+      server.use(
+        http.get(CHANGES_SUMMARY, async () => {
+          await delay(60);
+          return undefined;
+        }),
+      );
+      const loading = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=changes' });
+      expect(await screen.findByText('Loading changes')).toBeInTheDocument();
+      await screen.findByRole('table', { name: 'Lost links' });
+      loading.unmount();
+      server.resetHandlers();
+
+      let calls = 0;
+      server.use(
+        http.get(CHANGES_SUMMARY, ({ request }) => {
+          calls += 1;
+          return calls === 1 ? problem(request, 'internal_error') : undefined;
+        }),
+      );
+      const failed = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=changes' });
+      expect(await screen.findByText('The changes could not be loaded')).toBeInTheDocument();
+      expect(await axe(failed.container)).toHaveNoViolations();
+      await failed.user.click(screen.getByRole('button', { name: 'Try again' }));
+      await screen.findByRole('table', { name: 'Lost links' });
+      noEquity(failed.container);
+      failed.unmount();
+      server.resetHandlers();
+
+      const neutral: [Parameters<typeof setLinksScenario>[0], string][] = [
+        [{ firstCrawl: true }, 'This is the first crawl'],
+        [{ enrich: 'running' }, 'Working out what changed'],
+        [{ enrich: 'failed' }, 'Changes could not be worked out for this crawl'],
+        [{ latestLinksDropped: true }, 'Links of this crawl are not stored'],
+      ];
+      for (const [scenario, text] of neutral) {
+        setLinksScenario(scenario);
+        const view = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=changes' });
+        expect(await screen.findByText(text)).toBeInTheDocument();
+        if (scenario.enrich !== 'running') expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expect(await axe(view.container)).toHaveNoViolations();
+        noEquity(view.container);
+        view.unmount();
+        setLinksScenario({ enrich: 'done', firstCrawl: false, latestLinksDropped: false });
+      }
+    });
+
+    it('Opportunities: loading, empty, error with Try again, and links dropped', async () => {
+      setTheme(theme);
+      server.use(
+        http.get(OPPORTUNITIES, async () => {
+          await delay(60);
+          return undefined;
+        }),
+      );
+      const loading = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+        searchParams: '?tab=opportunities',
+      });
+      expect(await screen.findByRole('grid', { name: 'Link opportunities' })).toHaveAttribute('aria-busy', 'true');
+      loading.unmount();
+      server.resetHandlers();
+
+      setLinksScenario({ noOpportunities: true });
+      const empty = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+        searchParams: '?tab=opportunities',
+      });
+      expect(await screen.findByText('No opportunities')).toBeInTheDocument();
+      expect(await axe(empty.container)).toHaveNoViolations();
+      empty.unmount();
+      setLinksScenario({ noOpportunities: false });
+
+      let calls = 0;
+      server.use(
+        http.get(OPPORTUNITIES, ({ request }) => {
+          calls += 1;
+          return calls === 1 ? problem(request, 'internal_error') : undefined;
+        }),
+      );
+      const failed = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+        searchParams: '?tab=opportunities',
+      });
+      expect(await screen.findByText('The opportunities could not be loaded')).toBeInTheDocument();
+      expect(await axe(failed.container)).toHaveNoViolations();
+      await failed.user.click(screen.getByRole('button', { name: 'Try again' }));
+      await screen.findByRole('grid', { name: 'Link opportunities' });
+      noEquity(failed.container);
+      failed.unmount();
+      server.resetHandlers();
+
+      setLinksScenario({ latestLinksDropped: true });
+      const dropped = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+        searchParams: '?tab=opportunities',
+      });
+      expect(await screen.findByText(LINKS_DROPPED)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+      expect(await axe(dropped.container)).toHaveNoViolations();
+    });
+
+    it('Path finder: loading, an error with Try again, a page nothing leads to, and links dropped', async () => {
+      setTheme(theme);
+      const open = (): ReturnType<typeof renderWithProviders> =>
+        renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+          searchParams: '?tab=journey&jv=paths&focus=103',
+        });
+      server.use(
+        http.get(PATHS, async () => {
+          await delay(60);
+          return undefined;
+        }),
+      );
+      const loading = open();
+      await screen.findByRole('combobox', { name: /^Find the way to: / });
+      expect(screen.queryByRole('heading', { name: /^Over any link/ })).toBeNull();
+      await screen.findByRole('heading', { name: /^Over any link/ });
+      loading.unmount();
+      server.resetHandlers();
+
+      let calls = 0;
+      server.use(
+        http.get(PATHS, ({ request }) => {
+          calls += 1;
+          return calls === 1 ? problem(request, 'internal_error') : undefined;
+        }),
+      );
+      const failed = open();
+      expect(await screen.findByText('The route could not be loaded.')).toBeInTheDocument();
+      expect(await axe(failed.container)).toHaveNoViolations();
+      await failed.user.click(screen.getByRole('button', { name: 'Try again' }));
+      await screen.findByRole('heading', { name: /^Over any link/ });
+      noEquity(failed.container);
+      failed.unmount();
+      server.resetHandlers();
+
+      setLinksScenario({ noStartPage: true });
+      const unreachable = open();
+      expect(await screen.findByText('This page cannot be reached from the home page.')).toBeInTheDocument();
+      expect(await axe(unreachable.container)).toHaveNoViolations();
+      unreachable.unmount();
+      setLinksScenario({ noStartPage: false, latestLinksDropped: true });
+
+      const dropped = open();
+      expect(await screen.findByText(LINKS_DROPPED)).toBeInTheDocument();
+      expect(await axe(dropped.container)).toHaveNoViolations();
+    });
   });
 });

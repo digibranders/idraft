@@ -233,7 +233,7 @@ export function OpportunitiesTab({ context }: { context: LinksTabContext }): Rea
     [tiers, o],
   );
 
-  if (!crawl.linksAvailable) return <LinksDropped />;
+  if (!crawl.linksAvailable) return <LinksDropped headingLevel={2} />;
 
   const searched = state.oppQuery !== null;
   const filtered = state.oppStatus !== null || tierChoice !== null || searched;

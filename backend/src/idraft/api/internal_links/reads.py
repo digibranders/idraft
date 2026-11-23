@@ -1100,6 +1100,7 @@ class LinkReadService:
                 outlinks=outlinks.rows,
                 linking_pages_total=linking.meta.total,
                 outlinks_total=outlinks.meta.total,
+                links_available=not scope.links_dropped,
                 extras=PageDetailExtras(
                     change=None if changed is None else changed.get(url),
                     keywords=keyword_rows(kw),
