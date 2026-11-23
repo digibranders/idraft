@@ -178,6 +178,8 @@ export function changesSummary(projectId: string, view: RunView, now = Date.now(
     previous_run_id: run.previous_run_id,
     previous_finished_at: previous?.finished_at ?? null,
     state: summaryState(run),
+    // False when the links of this crawl or of the one before were dropped: the link counts are then zero, not measured
+    links_compared: run.links_available && previous?.links_available !== false,
     editorial_lost: lost.length,
     editorial_added: set.added.length,
     all_lost: lost.filter((row) => row.still_linked_by === null).length,

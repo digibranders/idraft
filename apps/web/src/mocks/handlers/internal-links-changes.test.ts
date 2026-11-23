@@ -231,7 +231,12 @@ describe('the pages routes with the crawl history', () => {
     expect(pages.meta).toMatchObject({ run_id: OLDEST, links_available: false });
     expect(pages.data.every((row) => row.extras?.anchors === null)).toBe(true);
     const detail = await browser.call('GET', `${L}/pages/103?run=${OLDEST}`);
-    expect(detail.body.data).toMatchObject({ linking_pages: [], outlinks: [], linking_pages_total: 0 });
+    expect(detail.body.data).toMatchObject({
+      links_available: false,
+      linking_pages: [],
+      outlinks: [],
+      linking_pages_total: 0,
+    });
     const weak = await browser.call('GET', `${L}/pages?run=${OLDEST}&filter[worklist]=weak_outlinks`);
     expect([weak.status, weak.code]).toEqual([410, 'links_dropped']);
     expect((await browser.call('GET', `${L}/worklists?run=${OLDEST}`)).body.data).toMatchObject({ weak_outlinks: 0 });

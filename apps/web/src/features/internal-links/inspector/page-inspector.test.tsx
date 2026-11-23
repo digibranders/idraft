@@ -119,6 +119,7 @@ describe('the page inspector (spec 7.4)', () => {
             linking_by_tier: [],
             linking_by_placement: [],
             top_anchors: [],
+            links_available: true,
             extras: {
               anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] },
               change: null,
@@ -456,6 +457,7 @@ describe('the page inspector (spec 7.4)', () => {
               linking_by_tier: [],
               linking_by_placement: [],
               top_anchors: [{ anchor: 'old anchor text', links: 3 }],
+              links_available: false,
               linking_pages: [],
               outlinks: [],
               linking_pages_total: 0,

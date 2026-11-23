@@ -62,6 +62,7 @@ const EMPTY_READY: ChangesSummary = {
   previous_run_id: OLDEST ?? '',
   previous_finished_at: '2026-10-17T03:12:00Z',
   state: 'ready',
+  links_compared: false,
   editorial_lost: 0,
   editorial_added: 0,
   all_lost: 0,
@@ -77,6 +78,7 @@ const EMPTY_READY: ChangesSummary = {
 const SOME_LOST: ChangesSummary = {
   ...EMPTY_READY,
   previous_run_id: HISTORY_RUN_IDS[1] ?? '',
+  links_compared: true,
   editorial_lost: 3,
   editorial_added: 1,
   all_lost: 3,
