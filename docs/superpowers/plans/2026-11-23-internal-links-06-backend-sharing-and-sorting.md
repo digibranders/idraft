@@ -6,7 +6,7 @@ Date: 2026-11-23. Branch: `feat/internal-links-backend`. Owner decisions D8 to D
 
 - D8: the extra daily Search Console page call per property stays (`page_totals=True`). Nothing to build.
 - D9: alerts are in-app only; email and Slack stay refused with `422 channel_unavailable` until WP-47. Nothing to build.
-- D11, D12: as in plan 04. Open point P1 below: the relay also asked for "any followed link" in the opportunity rule, which changes plan 04 D12.
+- D11, D12: as in plan 04. Open point P1 below is settled: the opportunity rule stays editorial-only.
 
 ## Tasks
 
@@ -20,7 +20,7 @@ Date: 2026-11-23. Branch: `feat/internal-links-backend`. Owner decisions D8 to D
 
 ## Open points, to settle before tasks 3 to 6 are built
 
-- **P1 (D12).** Plan 04 D12 and spec 7.10 say a mention stops being an opportunity only when an EDITORIAL link exists (a menu link is not an in-text link). The relayed request asked for "any followed link". On Eventus that drops 140 of 357 pairs. Which one? Waiting for the owner through the research and design session.
+- **P1 (D12).** Plan 04 D12 and spec 7.10 say a mention stops being an opportunity only when an EDITORIAL link exists (a menu link is not an in-text link). The relayed request asked for "any followed link". SETTLED: D12 stays as planned (editorial only); the "any followed link" idea was a suggestion, not an owner decision, and it contradicts the spec. `opportunities.py` and the enrich skip are not changed.
 - **P2 (D13).** Renaming `equity_*` fields breaks the web client and the mock data. Proposal: keep the field names, fix every description, and rename in one later contract change; or rename now together with il-web.
 - **P3 (D15).** Which permission creates and revokes a share: `project:update` or a new `project:share`? Proposal: `project:update`.
 - **P4 (D15).** What "summary" holds. Proposal: the crawl summary (pages, health counts, tier counts, changes since the last crawl, top lost links by tier, the project name and the crawl date) and nothing at page level. No URLs of other tenants' data can appear; page URLs of the project's own site are a decision (proposal: counts only, no URL list).
