@@ -1872,7 +1872,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Pages whose editorial links in, equity or depth moved most */
+        /** Pages whose editorial links in, link strength or depth moved most */
         get: operations["changes_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_changes_pages_get"];
         put?: never;
         post?: never;
@@ -1928,7 +1928,7 @@ export interface paths {
         };
         /**
          * One journey step, links out or links in
-         * @description The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then equity share, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.
+         * @description The pages on one side of `url_id` in the scope in view, 8 at a time (`offset` for more), sorted by tier then link strength, with the link between, `has_children` and `reciprocal`; `meta.other_scopes` counts the pages of the other scopes for the group cards. A redirect's one child, links out, is its target. The canvas decides new pages, back links and pages seen elsewhere itself.
          */
         get: operations["neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get"];
         put?: never;
@@ -5033,6 +5033,11 @@ export interface components {
             ai_mode: number;
             /** Chatgpt */
             chatgpt: number;
+            /**
+             * Citations As Of
+             * @description The day of the project's newest AI answer behind these counts (today's numbers, not the crawl's day); null when there is none.
+             */
+            citations_as_of: string | null;
             /** Gemini */
             gemini: number;
             /** Total */
@@ -7695,6 +7700,11 @@ export interface components {
             keyword: string;
             /** Rank */
             rank: number | null;
+            /**
+             * Rank As Of
+             * @description The day of the check that gave `rank`; null when it was never checked.
+             */
+            rank_as_of: string | null;
             /** Volume */
             volume: number | null;
         };
@@ -7704,6 +7714,11 @@ export interface components {
             average_rank: number | null;
             /** Best Volume */
             best_volume: number | null;
+            /**
+             * Rank As Of
+             * @description The day of the newest check behind these ranks (today's numbers, not the crawl's day); null when none was checked.
+             */
+            rank_as_of: string | null;
             /** Ranking */
             ranking: number;
             /** Tracked */
@@ -8244,7 +8259,10 @@ export interface components {
             editorial_in: number;
             /** Editorial In Delta */
             editorial_in_delta: number | null;
-            /** Equity Points */
+            /**
+             * Equity Points
+             * @description Link strength change in points since the previous crawl.
+             */
             equity_points: number | null;
             page: components["schemas"]["ChangePage"];
         };
@@ -8270,7 +8288,10 @@ export interface components {
             anchor: string | null;
             /** Click Depth */
             click_depth: number | null;
-            /** Equity Share */
+            /**
+             * Equity Share
+             * @description Link strength: the page's share of the whole site's, 0 to 1.
+             */
             equity_share: number | null;
             /** Has Children */
             has_children: boolean;
@@ -8686,7 +8707,10 @@ export interface components {
             /** Phrase */
             phrase: string;
             source: components["schemas"]["ChangePage"];
-            /** Source Equity Share */
+            /**
+             * Source Equity Share
+             * @description Link strength of the page that would carry the link: its share of the whole site's, 0 to 1.
+             */
             source_equity_share: number | null;
             /**
              * Status
@@ -8851,7 +8875,10 @@ export interface components {
             depth_state: ("lost" | "found") | null;
             /** Editorial In Delta */
             editorial_in_delta: number | null;
-            /** Equity Points */
+            /**
+             * Equity Points
+             * @description Link strength change in points since the previous crawl.
+             */
             equity_points: number | null;
             /** Is New */
             is_new: boolean;
@@ -8931,7 +8958,10 @@ export interface components {
             click_depth: number | null;
             /** Depth Without Auto */
             depth_without_auto: number | null;
-            /** Equity Share */
+            /**
+             * Equity Share
+             * @description Link strength: the page's share of the whole site's, 0 to 1. Show the change in points, never this share.
+             */
             equity_share: number | null;
             /** @description Set when the list was asked for `include`. */
             extras?: components["schemas"]["PageExtras"] | null;
@@ -12298,7 +12328,10 @@ export interface components {
         TierStat: {
             /** Average Depth */
             average_depth: number | null;
-            /** Equity Share */
+            /**
+             * Equity Share
+             * @description Link strength of the tier: its pages' share of the whole site's, 0 to 1.
+             */
             equity_share: number;
             /** Pages */
             pages: number;
