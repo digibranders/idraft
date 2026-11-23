@@ -23,6 +23,7 @@ from sqlalchemy import (
     ARRAY,
     BigInteger,
     ColumnElement,
+    FromClause,
     Row,
     Text,
     and_,
@@ -57,6 +58,7 @@ from idraft.api.internal_links.extras import (
     summarize_keywords,
 )
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
+from idraft.api.internal_links.page_sort import extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
@@ -209,12 +211,28 @@ def _sort_column(name: str, view: LinkScope) -> ColumnElement[Any]:
     return func.coalesce(crawl_pages.c.status_code, 0)
 
 
-def _page_order(sort: str, view: LinkScope) -> tuple[ColumnElement[Any], ColumnElement[Any]]:
+@dataclass(frozen=True, slots=True)
+class _Sorter:
+    """What a list is sorted by: the value, and the rows it is read from (joined with the
+    subquery of a rank, citation or anchor sort)."""
+
+    sort: str
+    column: ColumnElement[Any]
+    source: FromClause
+
+
+def _sorter(scope: PageScope, view: LinkScope, sort: str) -> _Sorter:
+    extra = extra_sort(scope, sort)
+    if extra is None:
+        return _Sorter(sort, _sort_column(sort, view), page_rows(scope))
+    return _Sorter(sort, extra.column, extra.join(page_rows(scope)))
+
+
+def _page_order(sorter: _Sorter) -> tuple[ColumnElement[Any], ColumnElement[Any]]:
     """The list's order and the CSV's: the sort column, then the id, both the way `sort` says."""
-    column = _sort_column(sort, view)
-    if sort.startswith("-"):
-        return column.desc(), crawl_pages.c.url_id.desc()
-    return column, crawl_pages.c.url_id
+    if sorter.sort.startswith("-"):
+        return sorter.column.desc(), crawl_pages.c.url_id.desc()
+    return sorter.column, crawl_pages.c.url_id
 
 
 def _cursor_value(name: str, raw: str) -> object:
@@ -222,7 +240,7 @@ def _cursor_value(name: str, raw: str) -> object:
     anything it holds that the column could not take is `400 invalid_cursor`, never a 500."""
     key = name.lstrip("-")
     try:
-        if key == "path":
+        if key in ("path", "anchor"):
             return raw
         if key == "equity_share":
             number = float(raw)
@@ -237,7 +255,7 @@ def _cursor_value(name: str, raw: str) -> object:
     return whole
 
 
-def _page_select(scope: PageScope, view: LinkScope, sort: str) -> Any:
+def _page_select(view: LinkScope, sorter: _Sorter) -> Any:
     return select(
         crawl_pages,
         urls.c.canonical_url,
@@ -249,8 +267,8 @@ def _page_select(scope: PageScope, view: LinkScope, sort: str) -> Any:
         project_pages.c.set_at,
         _LINKING[view].label("in_view_linking"),
         _OUTLINKS[view].label("in_view_outlinks"),
-        _sort_column(sort, view).label("sort_key"),
-    ).select_from(page_rows(scope))
+        sorter.column.label("sort_key"),
+    ).select_from(sorter.source)
 
 
 async def _page_rows(
@@ -935,7 +953,8 @@ class LinkReadService:
                     select(func.count()).select_from(page_rows(scope)).where(*conditions)
                 )
             ).scalar_one()
-            column = _sort_column(sort, view)
+            sorter = _sorter(scope, view, sort)
+            column = sorter.column
             descending = sort.startswith("-")
             cursor_scope = {
                 "run": str(scope.run_id),
@@ -943,13 +962,13 @@ class LinkReadService:
                 "sort": sort,
                 "filter": found.model_dump(mode="json"),
             }
-            statement = _page_select(scope, view, sort).where(*conditions)
+            statement = _page_select(view, sorter).where(*conditions)
             if cursor is not None:
                 value, after_id = _page_cursor(cursor, cursor_scope, sort)
                 after = tuple_(column, crawl_pages.c.url_id)
                 bound = tuple_(literal(value), literal(after_id, BigInteger))
                 statement = statement.where(after < bound if descending else after > bound)
-            order = _page_order(sort, view)
+            order = _page_order(sorter)
             rows = (await db.execute(statement.order_by(*order).limit(limit + 1))).all()
             more = len(rows) > limit
             rows = rows[:limit]
@@ -982,11 +1001,12 @@ class LinkReadService:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
+            sorter = _sorter(scope, view, sort)
             rows = (
                 await db.execute(
-                    _page_select(scope, view, sort)
+                    _page_select(view, sorter)
                     .where(*page_conditions(found, scope))
-                    .order_by(*_page_order(sort, view))
+                    .order_by(*_page_order(sorter))
                     .limit(EXPORT_ROWS_MAX)
                 )
             ).all()
@@ -1044,7 +1064,7 @@ class LinkReadService:
             tiers = await load_tiers(db, access.workspace_id)
             rows = (
                 await db.execute(
-                    _page_select(scope, view, "path").where(
+                    _page_select(view, _sorter(scope, view, "path")).where(
                         crawl_pages.c.workspace_id == scope.workspace_id,
                         crawl_pages.c.run_id == scope.run_id,
                         crawl_pages.c.url_id == url_id,
