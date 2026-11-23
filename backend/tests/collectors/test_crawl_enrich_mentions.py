@@ -24,10 +24,17 @@ PAGE = (
 )
 
 
+PAGE_OF_OTHERS = (
+    "<html><body><main><p>A page about {path} with nothing to say of the others.</p></main>"
+    "</body></html>"
+)
+
+
 async def _site(
     pg: PostgresServer,
 ) -> tuple[Workspace, uuid.UUID, uuid.UUID, dict[str, int], MemoryStore]:
-    """A crawl of four pages, all reachable, with the same HTML stored for each. "/" links to
+    """A crawl of four pages, all reachable, with the HTML stored for each ("/" has PAGE, the rest
+    have a sentence of their own, since repeated text is the template's). "/" links to
     "/soc" in its text and to "/mdr" only through the menu."""
     workspace = await make_workspace(pg)
     project = await keyword_project(pg, workspace)
@@ -51,9 +58,12 @@ async def _site(
         ids["/"],
     )
     store = MemoryStore()
-    for url in ids.values():
+    for path, url in ids.items():
         row = await fetch(pg, "SELECT url_hash FROM core.urls WHERE id = $1", url)
-        await store.put(html_key(project, row[0]["url_hash"]), compress(PAGE.encode()))
+        # Text that most pages repeat is the template's, so only "/" carries the sentence with the
+        # phrases; every other page has words of its own
+        html = PAGE if path == "/" else PAGE_OF_OTHERS.format(path=path)
+        await store.put(html_key(project, row[0]["url_hash"]), compress(html.encode()))
     return workspace, project, run, ids, store
 
 

@@ -106,6 +106,8 @@ WORDS = {
     "screen": "ai_overview",
     "registrable_domain": "acme.example",
     "metric": "ai.mention_rate",
+    # The public client summary route has no workspace in its path; its token is no tenant id
+    "token": "a-link-token",
 }
 
 WORKSPACE_ROUTES = [(method, path) for method, path in ALL_ROUTES if "workspace_id" in _names(path)]
@@ -345,6 +347,8 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "items": [{"source_url_id": "{url_id}", "target_url_id": "{url_id}"}],
         "status": "dismissed",
     },
+    # A client summary link, which would be made and show a report to anyone holding it
+    ("POST", _W + "/projects/{project_id}/internal-links/shares"): {"expires_in_days": 7},
     # A page that is no suggestion of the tenant's crawl changes nothing; the test below uses
     # a page that is one.
     ("POST", _W + "/projects/{project_id}/internal-links/tier-suggestions/accept"): {
@@ -1206,6 +1210,18 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         project_id,
         json.dumps({"internal_links": {"allowed_subdomains": [f"{label}-blog.example.com"]}}),
     )
+    # An active client summary link of the project, so revoking it would succeed
+    share = await fetchrow(
+        pg,
+        "INSERT INTO core.client_summary_shares (workspace_id, project_id, token_hash, created_by, "
+        "expires_at) VALUES ($1, $2, sha256(convert_to($3::text, 'UTF8')), $4, "
+        "now() + interval '30 days') RETURNING id",
+        workspace.id,
+        project_id,
+        f"summary-token-{project_id}",
+        owner.id,
+    )
+    more_ids["share_id"] = str(share["id"])
     more_ids["crawl_run_id"] = str(queued_crawl["id"])
     more_ids["finished_crawl_id"] = str(crawl_run)
     more_ids["tier_id"] = str(spare_tier["id"])
@@ -1819,13 +1835,21 @@ async def test_the_extras_of_a_page_hold_only_its_own_workspaces_numbers(
     assert listed.status_code == 200, listed.text
     assert detail.status_code == 200, detail.text
     extras = {row["path"]: row for row in listed.json()["data"]}[path]["extras"]
-    assert extras["keywords"] == {
+    # The numbers; the as-of dates (`rank_as_of`, `citations_as_of`) say when, not how many
+    assert {key: value for key, value in extras["keywords"].items() if key != "rank_as_of"} == {
         "tracked": 1,
         "ranking": 1,
         "average_rank": 3.0,
         "best_volume": 1500,
     }
-    assert extras["citations"] == {"chatgpt": 1, "gemini": 0, "ai_mode": 0, "total": 1}
+    assert {
+        key: value for key, value in extras["citations"].items() if key != "citations_as_of"
+    } == {
+        "chatgpt": 1,
+        "gemini": 0,
+        "ai_mode": 0,
+        "total": 1,
+    }
     assert (extras["gsc"]["state"], extras["gsc"]["clicks"], extras["gsc"]["impressions"]) == (
         "ok",
         11,
