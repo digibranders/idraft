@@ -8390,7 +8390,8 @@
     },
     "coverage": {
       "blocked": "Read {read} of {crawled} pages; {blocked} refused our crawler, so numbers may be incomplete.",
-      "incomplete": "May be incomplete"
+      "incomplete": "May be incomplete",
+      "stoppedEarly": "This crawl was stopped early, so some pages are missing."
     },
     "rules": {
       "open": "Tier rules",

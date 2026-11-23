@@ -143,20 +143,26 @@ export function SkeletonRows(): ReactElement {
  * "Read 940 of 1,000 pages; 60 refused our crawler, so numbers may be incomplete." Shown when the crawl in view was
  * refused by some pages (401, 403, 429). Neutral blue, never an error, and it asks nothing of the customer (plan 08).
  */
-export function CoverageNote({ run }: { run: CrawlRun | null }): ReactElement | null {
+export function CoverageNote({ run }: { run: CrawlRun | null }): ReactElement {
   const t = useTranslations('internalLinks.coverage');
   const pages = run === null ? null : readPages(run.pages_crawled, run.pages_blocked);
-  if (run === null || pages === null || run.pages_blocked === null) return null;
+  // The crawl stopped itself (nothing new for 5 minutes, or 45 minutes in all) and kept the pages read so far
+  const stoppedEarly = run?.stop_reason === 'stalled' || run?.stop_reason === 'time_limit';
   return (
-    <Banner
-      tone="info"
-      placement="region"
-      message={t('blocked', {
-        read: formatInteger(pages.read),
-        crawled: formatInteger(pages.crawled),
-        blocked: formatInteger(run.pages_blocked),
-      })}
-    />
+    <>
+      {run === null || pages === null || run.pages_blocked === null ? null : (
+        <Banner
+          tone="info"
+          placement="region"
+          message={t('blocked', {
+            read: formatInteger(pages.read),
+            crawled: formatInteger(pages.crawled),
+            blocked: formatInteger(run.pages_blocked),
+          })}
+        />
+      )}
+      {stoppedEarly ? <Banner tone="info" placement="region" message={t('stoppedEarly')} /> : null}
+    </>
   );
 }
 

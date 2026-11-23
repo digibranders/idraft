@@ -63,6 +63,16 @@ describe('the coverage note', () => {
     ).toBeInTheDocument();
   });
 
+  it.each(['stalled', 'time_limit'])('says a crawl that stopped itself (%s) is missing pages', (stop) => {
+    renderWithProviders(<CoverageNote run={{ ...run(null), stop_reason: stop }} />);
+    expect(screen.getByText('This crawl was stopped early, so some pages are missing.')).toBeInTheDocument();
+  });
+
+  it('says nothing more for a crawl that reached the page limit', () => {
+    renderWithProviders(<CoverageNote run={{ ...run(null), stop_reason: 'limit_exceeded' }} />);
+    expect(screen.queryByText(/stopped early/)).toBeNull();
+  });
+
   it.each([[0], [null]])('is absent when %s pages refused the crawler', (blocked) => {
     renderWithProviders(<CoverageNote run={run(blocked)} />);
     expect(screen.queryByText(/refused our crawler/)).toBeNull();
