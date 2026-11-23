@@ -2054,6 +2054,25 @@ link_opportunity_decisions = Table(
     schema="core",
 )
 
+client_summary_shares = Table(
+    "client_summary_shares",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("token_hash", LargeBinary, nullable=False),
+    Column("created_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    _created_at(),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True)),
+    Column("revoked_by", Uuid, ForeignKey(users.c.id)),
+    UniqueConstraint("token_hash", name="client_summary_shares_token_hash_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
 tier_suggestion_dismissals = Table(
     "tier_suggestion_dismissals",
     metadata,
