@@ -27,3 +27,8 @@ Date: 2026-11-23. Branch: `feat/internal-links-backend`. Owner decisions D8 to D
 - **P5 (D15).** Rate limit numbers. Proposal: 30 requests a minute per IP and 120 an hour per token, stored in Redis as the sign-in limits are.
 - **P6 (D16).** What "rank", "citation" and "anchor" mean for a page. Proposal: rank is the best current position among the page's tracked keywords; citations is the total count over engines; anchor is the page's most used editorial anchor text, compared case-insensitively. Nulls last whichever the direction.
 - **P7 (D15).** Expired shares: kept for 30 days for the audit trail, then deleted by a daily job, or kept forever? Proposal: keep the row (hash only), no job.
+
+## Built, with notes (2026-11-23)
+
+- Tasks 1 to 7 are built. Sort keys of the Pages list added in task 6 and its follow-up: `rank`, `citations`, `anchor`, `tier`, `clicks`, `title`, `indexable`, `in_sitemap`, each also with a leading `-`. Rank, anchor, tier and title put a page with no value last in both directions; clicks and citations count 0.
+- **Anchor sort, 50,000 pages.** The top anchor is worked out per request from the crawl's editorial links (group by target and trimmed text, then the most used per page), so the cost grows with the link count. Timed on the Eventus crawl (15,337 links, 421 pages) the whole ordered query took 2.8 ms, so a site of 50,000 pages and 600,000 links would take roughly 40 times that, about 0.1 to 0.2 seconds: below the 1 second line, nothing built. Not timed on a real 600,000-link crawl. If it is slow there: store the top anchor on `seo.crawl_pages` (a text column `top_anchor_key`, set by `crawl_enrich` in its anchors phase beside `editorial_anchors`, with a worker column grant), sort on that column, and drop the subquery.

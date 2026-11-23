@@ -38815,7 +38815,17 @@
                 "citations",
                 "-citations",
                 "anchor",
-                "-anchor"
+                "-anchor",
+                "tier",
+                "-tier",
+                "clicks",
+                "-clicks",
+                "title",
+                "-title",
+                "indexable",
+                "-indexable",
+                "in_sitemap",
+                "-in_sitemap"
               ],
               "title": "Sort",
               "type": "string"

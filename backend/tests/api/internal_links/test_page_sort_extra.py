@@ -4,15 +4,20 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date, timedelta
 
 import httpx
 import pytest
 
 from idraft.api.resources import Resources
-from tests.api.auth.support import Workspace, make_workspace
+from tests.api.auth.support import Workspace, execute, make_workspace
 from tests.api.entities.support import member
-from tests.api.internal_links.support import SeedLink, seed_crawl, set_counts
-from tests.api.internal_links.support_changes import insert_citation, track_keyword
+from tests.api.internal_links.support import SeedLink, seed_crawl, seed_tiers, set_counts
+from tests.api.internal_links.support_changes import (
+    gsc_property,
+    insert_citation,
+    track_keyword,
+)
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 
@@ -131,3 +136,94 @@ async def test_a_cursor_of_one_sort_is_refused_by_another(
     )
 
     assert refused.status_code == 400
+
+
+async def test_tier_sorts_by_position_with_untiered_pages_last_both_ways(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, ids, headers = await _site(migrated, resources)
+    tiers = await seed_tiers(migrated, workspace)
+    for path, tier in (("/b", tiers[0]), ("/a", tiers[2])):
+        await execute(
+            migrated,
+            "INSERT INTO core.project_pages (project_id, url_id, workspace_id, tier_id, "
+            "tier_source) VALUES ($1, $2, $3, $4, 'manual')",
+            project,
+            ids[path],
+            workspace.id,
+            tier,
+        )
+
+    up = await _walk(api, workspace, project, headers, "tier")
+    down = await _walk(api, workspace, project, headers, "-tier")
+
+    assert up[:2] == ["/b", "/a"]  # T1, then T3
+    assert down[:2] == ["/a", "/b"]
+    assert set(up[2:]) == set(down[2:]) == {"/", "/c", "/d", "/e"}
+
+
+async def test_clicks_sort_by_google_clicks_and_are_all_equal_without_a_property(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, ids, headers = await _site(migrated, resources)
+
+    plain = await _walk(api, workspace, project, headers, "-clicks")
+    integration = await gsc_property(migrated, workspace, project)
+    for path, clicks in (("/c", 9), ("/e", 4)):
+        await execute(
+            migrated,
+            "INSERT INTO fp.gsc_page_daily (integration_id, metric_date, url_id, workspace_id, "
+            "project_id, clicks, impressions) VALUES ($1, $2, $3, $4, $5, $6, 90)",
+            integration,
+            date.today() - timedelta(days=3),
+            ids[path],
+            workspace.id,
+            project,
+            clicks,
+        )
+    down = await _walk(api, workspace, project, headers, "-clicks")
+    up = await _walk(api, workspace, project, headers, "clicks")
+
+    assert plain == sorted(PAGES_ORDER, reverse=True)  # all 0: the page id breaks every tie
+    assert down[:2] == ["/c", "/e"]
+    assert up[-2:] == ["/e", "/c"]
+    assert len(set(down)) == len(PAGES)
+
+
+async def test_title_sorts_in_lower_case_with_untitled_pages_last_both_ways(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, ids, headers = await _site(migrated, resources)
+    for path, title in (("/d", "beta page"), ("/e", "Alpha page")):
+        await execute(
+            migrated,
+            "UPDATE seo.crawl_pages SET title = $1 WHERE url_id = $2 AND project_id = $3",
+            title,
+            ids[path],
+            project,
+        )
+
+    up = await _walk(api, workspace, project, headers, "title")
+    down = await _walk(api, workspace, project, headers, "-title")
+
+    assert up[:2] == ["/e", "/d"]
+    assert down[:2] == ["/d", "/e"]
+    assert set(up[2:]) == set(down[2:]) == {"/", "/a", "/b", "/c"}
+
+
+async def test_indexable_and_sitemap_sort_with_the_page_as_the_last_tie_break(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, ids, headers = await _site(migrated, resources)
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET in_sitemap = true WHERE url_id = $1 AND project_id = $2",
+        ids["/b"],
+        project,
+    )
+
+    in_sitemap = await _walk(api, workspace, project, headers, "-in_sitemap")
+    indexable = await _walk(api, workspace, project, headers, "indexable")
+
+    assert in_sitemap[0] == "/b"
+    assert len(set(in_sitemap)) == len(set(indexable)) == len(PAGES)
