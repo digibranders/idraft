@@ -91,6 +91,7 @@ from idraft.crawl.head import canonical_of
 from idraft.crawl.hosts import site_hosts
 from idraft.crawl.placement import FoundLink, Placement, classify
 from idraft.crawl.scopes import LinkScope, scope_of
+from idraft.crawl.status import BLOCKED_STATUSES, is_blocked
 from idraft.crawl.template import TemplateRow, template_placements
 from idraft.db import dictionaries
 from idraft.db.tables import crawl_links, crawl_pages, crawl_runs, projects, urls
@@ -135,7 +136,6 @@ _RESOURCE_TYPES: Final = frozenset({"html", "redirect", "broken"})
 _REASONS: Final = frozenset(
     {"robots_txt", "meta_tag", "http_header", "attribute", "too_many_redirects"}
 )
-_REFUSED: Final = frozenset({401, 403})
 # A refused start page ends the crawl as `site_blocked` only when fewer pages than this were served.
 BLOCKED_SERVED_MIN: Final = 3
 _BLOCKED_MESSAGE: Final = "The start page refuses the crawler."
@@ -442,7 +442,7 @@ async def _pages(
                 )
             )
         ).scalar_one_or_none()
-        if status in _REFUSED:
+        if is_blocked(status):
             served: int = (
                 await db.execute(
                     select(func.count()).where(
@@ -848,7 +848,9 @@ _OUTGOING = text(
                  count(DISTINCT l.target_url_id) FILTER (WHERE l.scope = 'auto_generated') AS auto,
                  count(DISTINCT l.target_url_id) FILTER (WHERE l.scope = 'template') AS template,
                  count(DISTINCT l.target_url_id) AS every,
-                 count(DISTINCT l.target_url_id) FILTER (WHERE t.status_code >= 400) AS broken,
+                 count(DISTINCT l.target_url_id)
+                     FILTER (WHERE t.status_code >= 400
+                             AND t.status_code <> ALL(CAST(:blocked AS integer[]))) AS broken,
                  count(DISTINCT l.target_url_id)
                      FILTER (WHERE t.status_code BETWEEN 300 AND 399) AS redirect,
                  count(DISTINCT l.target_url_id) FILTER (WHERE NOT t.is_indexable) AS non_indexable
@@ -949,8 +951,9 @@ async def _page_metrics(sessions: async_sessionmaker[AsyncSession], run: _Run) -
         await _long_transaction(db)
         if not await _claim(db, run):
             return False
-        for statement in (_INCOMING, _OUTGOING, _TOP_ANCHOR):
+        for statement in (_INCOMING, _TOP_ANCHOR):
             await db.execute(statement, {"run_id": run.id})
+        await db.execute(_OUTGOING, {"run_id": run.id, "blocked": sorted(BLOCKED_STATUSES)})
         await db.execute(_FLAGS, {"run_id": run.id, "start": run.start_url_id})
         node_rows = (
             await db.execute(
