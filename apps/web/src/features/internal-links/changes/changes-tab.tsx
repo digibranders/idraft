@@ -85,10 +85,10 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
   }
   if (data === undefined) return <SkeletonRows />;
   if (data.state === 'first_crawl') {
-    return <EmptyState icon={History} title={c('firstTitle')} reason={c('firstText')} headingLevel={3} />;
+    return <EmptyState icon={History} title={c('firstTitle')} reason={c('firstText')} headingLevel={2} />;
   }
   if (data.state === 'unavailable') {
-    return <EmptyState icon={History} title={c('unavailableTitle')} reason={c('unavailableText')} headingLevel={3} />;
+    return <EmptyState icon={History} title={c('unavailableTitle')} reason={c('unavailableText')} headingLevel={2} />;
   }
 
   const tierWords = {
@@ -140,7 +140,7 @@ export function ChangesTab({ context }: { context: LinksTabContext }): ReactElem
           date={date}
         />
       ) : (
-        <LinksDropped />
+        <LinksDropped headingLevel={2} />
       )}
       <MovedPagesPanel context={context} since={since} />
     </div>
