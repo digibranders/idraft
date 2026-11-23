@@ -202,6 +202,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const common = useTranslations('common');
   const locale = useLocale();
   const canWrite = useCan('prompts:write');
+  const canRun = useCan('runs:trigger');
   const { permissions } = useMembership();
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
@@ -566,6 +567,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     facts,
     project: scope,
     timeZone: project.timeZone,
+    canCapture: canRun,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
@@ -707,7 +709,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     void setValues({ ...values, topic: { kind: 'enum', values: [key] } });
     void setView({ tab: 'prompts' }, { history: 'push' });
   };
-  const canRun = useCan('runs:trigger');
   // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
   // it failed) some of them are not in it, so the actions that read them wait
   const listReason = optionsPending ? t('bulk.listLoading') : null;

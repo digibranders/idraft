@@ -1,13 +1,16 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { MouseEvent, ReactElement } from 'react';
+import { useId, type MouseEvent, type ReactElement } from 'react';
 
 import { EngineLogo } from '@/components/app/engine/engine-logo';
+import { CitationList, type CitationListItem } from '@/components/app/evidence/citation-list';
 import { Dialog, DialogBody, DialogHeader } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatTableDateTime } from '@/lib/format';
 
 const stop = (event: MouseEvent): void => event.stopPropagation();
+const noop = (): void => undefined;
 
 /**
  * The address of a stored screenshot when it is one an image may load: a web address, an inline image, or the API's own
@@ -24,6 +27,10 @@ export function imageSource(raw: string): string | null {
   }
 }
 
+/** The pages the answer cites, which the image does not show in full: loading, failed to load, or the list. */
+export type AnswerCitations =
+  { status: 'loading' } | { status: 'failed' } | { status: 'ready'; items: readonly CitationListItem[] };
+
 export interface AnswerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -34,6 +41,10 @@ export interface AnswerDialogProps {
   observedAt: string;
   /** The stored image of the answer page. */
   screenshotUrl: string;
+  /** The answer is longer than the capture: its end is missing from the image. */
+  truncated?: boolean;
+  /** The answer's cited pages, listed under the image; left out when the caller has none to give. */
+  citations?: AnswerCitations;
   timeZone: string;
 }
 
@@ -49,10 +60,13 @@ export function AnswerDialog({
   promptText,
   observedAt,
   screenshotUrl,
+  truncated = false,
+  citations,
   timeZone,
 }: AnswerDialogProps): ReactElement {
   const t = useTranslations('prompts.lists.shot');
   const source = imageSource(screenshotUrl);
+  const citationPrefix = useId();
   return (
     // The dialog renders in a portal, but a React click still bubbles to the row that holds the cell
     <Dialog open={open} onOpenChange={onOpenChange} size="md" className="sm:w-160" onClick={stop}>
@@ -76,7 +90,27 @@ export function AnswerDialog({
               className="w-full rounded-md border border-border-subtle"
             />
           )}
+          {truncated ? <p className="type-meta">{t('truncated')}</p> : null}
         </div>
+        {citations === undefined ? null : (
+          <section className="mt-4 flex flex-col gap-2">
+            <h3 className="type-subsection-title text-foreground">{t('citations')}</h3>
+            {citations.status === 'loading' ? (
+              <div aria-busy="true" className="flex flex-col gap-2">
+                <Skeleton shape="text-14" widthPct={80} />
+                <Skeleton shape="text-14" widthPct={64} />
+              </div>
+            ) : citations.status === 'failed' ? (
+              <p role="alert" className="type-body text-foreground-secondary">
+                {t('citationsFailed')}
+              </p>
+            ) : citations.items.length === 0 ? (
+              <p className="type-body text-foreground-secondary">{t('noCitations')}</p>
+            ) : (
+              <CitationList items={citations.items} idPrefix={citationPrefix} onShowInAnswer={noop} />
+            )}
+          </section>
+        )}
       </DialogBody>
     </Dialog>
   );

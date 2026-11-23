@@ -5058,7 +5058,20 @@
         "noAnswerTip": "No answer in this period yet",
         "notCollectedTip": "No screenshot of the latest answer has been collected yet",
         "imageAlt": "The latest {platform} answer to the prompt, as the page showed it",
-        "close": "Close"
+        "close": "Close",
+        "get": "Get screenshot",
+        "getLabel": "Get a screenshot of the latest {platform} answer for {prompt}",
+        "getTip": "Costs {price}, once. Everyone on the project can open it afterwards.",
+        "retry": "Try again",
+        "retryLabel": "Try again to get a screenshot of the latest {platform} answer for {prompt}",
+        "failed": "The screenshot could not be taken. Try again.",
+        "expired": "Expired",
+        "expiredTip": "A screenshot can only be taken for an answer less than 7 days old",
+        "unsupportedTip": "This platform has no page to take a screenshot of",
+        "truncated": "This answer is longer than the screenshot, so the end is missing.",
+        "citations": "Cited pages",
+        "citationsFailed": "The cited pages could not be loaded.",
+        "noCitations": "This answer cites no pages."
       }
     },
     "groupsTab": {

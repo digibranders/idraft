@@ -25,6 +25,7 @@ export const popoverColumns: PromptColumnEntry = {
     single,
     engines,
     project,
+    canCapture,
     timeZone,
     t,
   }: PromptColumnContext): readonly DataTableColumn<PromptRow>[] => {
@@ -58,6 +59,8 @@ export const popoverColumns: PromptColumnEntry = {
               loaded,
               platform,
               timeZone,
+              project,
+              canCapture,
               t,
             }),
           ]),

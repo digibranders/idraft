@@ -323,6 +323,15 @@ export function usePromptLint(
   });
 }
 
+/**
+ * `POST {P}/ai/observations/{observation_id}/screenshot` (`runs:trigger`): takes the screenshot of an answer, one
+ * provider call the first time (`201`) and the stored image after it (`200`, `created` false). A refusal rejects with an
+ * `ApiProblem`: `410 screenshot_expired` (the answer is past the provider's window), `409 screenshot_unsupported`,
+ * `422 budget_exceeded`, `502 screenshot_failed` and `503 screenshots_unavailable`. `observed_at` is the `observed_at`
+ * of the answer, as for `observationQuery`.
+ */
+export const CAPTURE_SCREENSHOT = apiMutation('post', `${OBSERVATION}/screenshot`);
+
 /** `POST {P}/prompts/bulk-create`. */
 export const BULK_CREATE_PROMPTS = apiMutation('post', `${PROMPTS}/bulk-create`);
 /** `PATCH {P}/prompts/{prompt_id}`: here only to bring an archived prompt back. */

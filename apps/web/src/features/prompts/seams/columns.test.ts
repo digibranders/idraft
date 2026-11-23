@@ -22,6 +22,7 @@ const context: PromptColumnContext = {
   comparedWindow: null,
   changeWords: { tip: () => '', label: () => '', gap: () => '' },
   project: { workspaceId: 'workspace', projectId: 'project' },
+  canCapture: true,
   timeZone: 'UTC',
 };
 
