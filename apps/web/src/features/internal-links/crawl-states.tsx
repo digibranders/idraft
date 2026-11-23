@@ -105,8 +105,8 @@ export function FirstCrawl({
         </h2>
         <span className="num type-meta text-foreground-secondary">
           {run.trigger === 'website_added'
-            ? t('firstProgress', { count: run.pages_found, time })
-            : t('firstProgressManual', { count: run.pages_found, time })}
+            ? t('firstProgress', { read: run.pages_crawled, found: run.pages_found, time })
+            : t('firstProgressManual', { read: run.pages_crawled, found: run.pages_found, time })}
         </span>
       </div>
       <div
@@ -194,7 +194,7 @@ export function CrawlBanners({
         <Banner
           tone="info"
           placement="region"
-          lead={t('runningLead', { count: active.pages_found })}
+          lead={t('runningLead', { read: active.pages_crawled, found: active.pages_found })}
           message={t('runningText', { date: shown })}
         />
       )}

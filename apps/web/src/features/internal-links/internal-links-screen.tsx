@@ -94,7 +94,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     (run: CrawlRun): void => {
       if (run.state === 'failed') announce(states('endedFailed'), { key: 'internal-links-crawl' });
       else if (run.state !== 'cancelled') {
-        announce(states('endedFinished', { count: run.pages_found }), { key: 'internal-links-crawl' });
+        announce(states('endedFinished', { count: run.pages_crawled }), { key: 'internal-links-crawl' });
       }
     },
     [states],
