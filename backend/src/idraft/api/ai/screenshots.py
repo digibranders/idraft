@@ -155,10 +155,12 @@ class ScreenshotService:
         observation_id: int,
         observed_at: datetime | None,
     ) -> CaptureOutcome:
-        if self._provider is None or self._store is None:
-            raise ScreenshotsUnavailableError("This installation cannot capture screenshots.")
+        # The observation is looked up first: whether this installation can capture says nothing
+        # a caller may learn about an answer that is not theirs, so a foreign one is 404 here too.
         async with self._transaction(access) as db:
             row = await self._observation(db, access, project_id, observation_id, observed_at)
+        if self._provider is None or self._store is None:
+            raise ScreenshotsUnavailableError("This installation cannot capture screenshots.")
         if row.provider_task_id is None:
             raise ScreenshotUnsupportedError("This answer has no provider task to photograph.")
         ref = ObservationRef(

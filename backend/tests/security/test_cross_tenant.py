@@ -188,6 +188,8 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
         "prompt_ids": ["{prompt_id}"],
         "engine_codes": ["chatgpt_web"],
     },
+    # Takes no body: the observation in the path is what it would spend money on.
+    ("POST", _W + "/projects/{project_id}/ai/observations/{observation_id}/screenshot"): {},
     ("POST", _W + "/projects/{project_id}/tracked-keywords/bulk-update"): {
         "ids": ["{tracked_keyword_id}"],
         "set": {"priority": 1},
@@ -372,6 +374,18 @@ EVERY_PROJECT_ONLY = {
 # Routes a tenant's own project answers `409 crawl_in_progress` for, as the tenant has a queued
 # crawl (it is what the cancel route is exercised on).
 CRAWL_UNDER_WAY = {("POST", _W + "/projects/{project_id}/link-crawls")}
+# What a member inside their own scope is answered for an observation of their own: the test
+# installation has no DataForSEO account, so no screenshot is taken, and none is stored.
+SCREENSHOT_ROUTES = {
+    ("POST", _W + "/projects/{project_id}/ai/observations/{observation_id}/screenshot"): (
+        503,
+        "screenshots_unavailable",
+    ),
+    ("GET", _W + "/projects/{project_id}/ai/observations/{observation_id}/screenshot"): (
+        404,
+        "no_screenshot",
+    ),
+}
 # Routes that take a file instead of JSON.
 UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
 # Query parameters a route requires, so that it answers for its path and not for a missing
@@ -1638,6 +1652,8 @@ async def test_a_project_outside_the_members_scope_is_not_found(
     elif (method, path) in CRAWL_UNDER_WAY:
         # The scope let the member in; the project's queued crawl is why nothing is started.
         assert _problem(inside) == (409, "crawl_in_progress")
+    elif (method, path) in SCREENSHOT_ROUTES:
+        assert _problem(inside) == SCREENSHOT_ROUTES[(method, path)]
     elif (method, path) in NOT_BUILT:
         # Inside the member's scope a published contract answers that its body is not built.
         assert _problem(inside) == (501, "not_implemented")
