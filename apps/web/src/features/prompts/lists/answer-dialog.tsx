@@ -1,19 +1,27 @@
 'use client';
 
+import { ZoomIn, ZoomOut } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useState, type MouseEvent, type ReactElement } from 'react';
+import { useCallback, useId, useLayoutEffect, useRef, useState, type MouseEvent, type ReactElement } from 'react';
 
 import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { CitationList, type CitationListItem } from '@/components/app/evidence/citation-list';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogHeader } from '@/components/ui/dialog';
-import { SegmentedControl } from '@/components/ui/segmented-control';
+import { IconButton } from '@/components/ui/icon-button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatTableDateTime } from '@/lib/format';
 
-/** The image width as a share of the box: `fit` shows the whole width, the others scroll sideways as well. */
-const ZOOM_LEVELS = ['fit', '150', '200', '300'] as const;
-type ZoomLevel = (typeof ZOOM_LEVELS)[number];
-const ZOOM_WIDTH_PCT: Readonly<Record<ZoomLevel, number>> = { fit: 100, '150': 150, '200': 200, '300': 300 };
+/** The image width as a percent of the box: 100 shows the whole width, more scrolls sideways as well. */
+const FIT = 100;
+const MAX_ZOOM = 400;
+/** One press of Zoom in or Zoom out multiplies the width by this. */
+const BUTTON_STEP = 1.25;
+/** Ctrl or Cmd with the wheel (a pinch arrives the same way): the width changes by this share of a pixel of wheel. */
+const WHEEL_ZOOM = 0.0015;
+/** A wheel in lines (Firefox) counts this many pixels a line. */
+const LINE_PIXELS = 16;
+const clampZoom = (percent: number): number => Math.min(MAX_ZOOM, Math.max(FIT, percent));
 
 const stop = (event: MouseEvent): void => event.stopPropagation();
 const noop = (): void => undefined;
@@ -73,7 +81,52 @@ export function AnswerDialog({
   const t = useTranslations('prompts.lists.shot');
   const source = imageSource(screenshotUrl);
   const citationPrefix = useId();
-  const [zoom, setZoom] = useState<ZoomLevel>('fit');
+  const [zoom, setZoom] = useState(FIT);
+  const box = useRef<HTMLDivElement | null>(null);
+  const zoomNow = useRef(FIT);
+  // Where the zoom was asked at, so that point of the image stays under the cursor once the image has its new size
+  const anchor = useRef<{ x: number; y: number; ratio: number } | null>(null);
+  const zoomTo = useCallback((next: number, at?: { x: number; y: number }): void => {
+    const target = clampZoom(next);
+    const element = box.current;
+    if (element === null || target === zoomNow.current) return;
+    anchor.current = {
+      x: at?.x ?? element.clientWidth / 2,
+      y: at?.y ?? element.clientHeight / 2,
+      ratio: target / zoomNow.current,
+    };
+    zoomNow.current = target;
+    setZoom(target);
+  }, []);
+  useLayoutEffect(() => {
+    const element = box.current;
+    const from = anchor.current;
+    anchor.current = null;
+    if (element === null || from === null) return;
+    element.scrollLeft = (element.scrollLeft + from.x) * from.ratio - from.x;
+    element.scrollTop = (element.scrollTop + from.y) * from.ratio - from.y;
+  }, [zoom]);
+  // React attaches wheel listeners as passive, so a native one is what can keep the page from zooming under the box. A
+  // plain wheel is left alone: it scrolls the box. The box mounts with the dialog, so the listener goes on with the ref.
+  const watchBox = useCallback(
+    (element: HTMLDivElement | null): (() => void) | undefined => {
+      box.current = element;
+      if (element === null) return undefined;
+      const onWheel = (event: WheelEvent): void => {
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        const unit = event.deltaMode === 1 ? LINE_PIXELS : event.deltaMode === 2 ? element.clientHeight : 1;
+        const rect = element.getBoundingClientRect();
+        zoomTo(zoomNow.current * Math.exp(-event.deltaY * unit * WHEEL_ZOOM), {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        });
+      };
+      element.addEventListener('wheel', onWheel, { passive: false });
+      return () => element.removeEventListener('wheel', onWheel);
+    },
+    [zoomTo],
+  );
   return (
     // The dialog renders in a portal, but a React click still bubbles to the row that holds the cell
     <Dialog open={open} onOpenChange={onOpenChange} size="md" className="sm:w-160" onClick={stop}>
@@ -89,21 +142,33 @@ export function AnswerDialog({
           </div>
           <p className="type-body-strong text-foreground">{promptText}</p>
           {source === null ? null : (
-            <SegmentedControl
-              semantics="view"
-              size="sm"
-              label={t('zoom')}
-              value={zoom}
-              onValueChange={setZoom}
-              items={ZOOM_LEVELS.map((level) => ({
-                value: level,
-                label: level === 'fit' ? t('zoomFit') : t('zoomPercent', { percent: level }),
-              }))}
-            />
+            <div role="group" aria-label={t('zoom')} className="flex items-center gap-1">
+              <IconButton
+                icon={ZoomOut}
+                label={t('zoomOut')}
+                disabled={zoom <= FIT}
+                onClick={() => zoomTo(zoom / BUTTON_STEP)}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t('zoomFit', { percent: Math.round(zoom) })}
+                onClick={() => zoomTo(FIT)}
+              >
+                {t('zoomPercent', { percent: Math.round(zoom) })}
+              </Button>
+              <IconButton
+                icon={ZoomIn}
+                label={t('zoomIn')}
+                disabled={zoom >= MAX_ZOOM}
+                onClick={() => zoomTo(zoom * BUTTON_STEP)}
+              />
+            </div>
           )}
           {source === null ? null : (
             // The page is tall and, zoomed, wide: the image scrolls in its own box, so the cited pages below it stay in reach
             <div
+              ref={watchBox}
               role="region"
               tabIndex={0}
               aria-label={t('imageBoxLabel', { platform: platform.name })}
@@ -114,7 +179,7 @@ export function AnswerDialog({
               <img
                 src={source}
                 alt={t('imageAlt', { platform: platform.name })}
-                style={{ width: `${ZOOM_WIDTH_PCT[zoom]}%` }}
+                style={{ width: `${zoom}%` }}
                 className="max-w-none"
               />
             </div>
