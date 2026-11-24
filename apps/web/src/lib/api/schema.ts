@@ -6355,9 +6355,8 @@ export interface components {
             /**
              * Linked Keywords
              * @description With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.
-             * @default []
              */
-            linked_keywords: components["schemas"]["LinkedKeyword"][];
+            linked_keywords?: components["schemas"]["LinkedKeyword"][] | null;
         };
         /** CrawlCreate */
         CrawlCreate: {
@@ -12994,9 +12993,8 @@ export interface components {
             /**
              * Linked Keywords
              * @description With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.
-             * @default []
              */
-            linked_keywords: components["schemas"]["LinkedKeyword"][];
+            linked_keywords?: components["schemas"]["LinkedKeyword"][] | null;
             /**
              * Prompt Count
              * @description The prompts in scope, whatever the engines shown.
@@ -13492,9 +13490,8 @@ export interface components {
             /**
              * Linked Keywords
              * @description With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.
-             * @default []
              */
-            linked_keywords: components["schemas"]["LinkedKeyword"][];
+            linked_keywords?: components["schemas"]["LinkedKeyword"][] | null;
             /** Name */
             name: string | null;
             /** Prompt Count */
