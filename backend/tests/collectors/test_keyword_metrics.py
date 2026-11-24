@@ -31,6 +31,7 @@ from idraft.providers.dataforseo.labs import KeywordOverviewParams
 from idraft.storage.raw import RawStorageError
 from tests.api.auth.support import execute, fetch, fetchrow
 from tests.api.keywords.support import LOCATION, OTHER_LOCATION, ensure_locations
+from tests.collectors.ai_support import add_prompt
 from tests.collectors.support import (
     NOW,
     Project,
@@ -154,6 +155,71 @@ async def _plan(sessions: Ledger, project: Project, selector: dict[str, Any] | N
 
 
 # Planning.
+
+
+async def _link(
+    pg: PostgresServer,
+    project: Project,
+    prompt_id: uuid.UUID,
+    text: str,
+    language: str = "en",
+    *,
+    primary: bool = True,
+) -> uuid.UUID:
+    """A keyword no one tracks, linked to the prompt."""
+    keyword = await fetchrow(
+        pg,
+        "INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
+        "VALUES ($1, $2, $2, $3) RETURNING id",
+        project.workspace_id,
+        text,
+        language,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.keyword_prompt_links (workspace_id, project_id, keyword_id, prompt_id, "
+        "link_type, is_primary) VALUES ($1, $2, $3, $4, 'generated', $5)",
+        project.workspace_id,
+        project.id,
+        keyword["id"],
+        prompt_id,
+        primary,
+    )
+    keyword_id: uuid.UUID = keyword["id"]
+    return keyword_id
+
+
+async def test_a_keyword_linked_to_a_prompt_is_planned_at_the_prompts_country_without_tracking(
+    worker_db: Ledger, migrated: PostgresServer
+) -> None:
+    await ensure_locations(migrated)
+    project = await make_tenant(migrated)
+    uk = await add_prompt(migrated, project, "best crm uk", country="GB")
+    us = await add_prompt(migrated, project, "best crm us", country="US")
+    archived = await add_prompt(migrated, project, "old crm", active=False)
+    uk_keyword = await _link(migrated, project, uk.id, "crm uk")
+    us_keyword = await _link(migrated, project, us.id, "crm us")
+    fresh = await _link(migrated, project, us.id, "fresh crm", primary=False)
+    await _link(migrated, project, archived.id, "old crm")
+    await _metrics(migrated, project, fresh, NOW - 3 * DAY)
+
+    stale_plan = await _plan(worker_db, project)
+    given = await _plan(worker_db, project, {"keyword_ids": [str(uk_keyword), str(fresh)]})
+    narrowed = await _plan(worker_db, project, {"groups": [str(uuid.uuid4())]})
+
+    assert {(t.subject_id, t.location_id) for t in stale_plan.tasks} == {
+        (subject_id(uk_keyword, "en"), OTHER_LOCATION),
+        (subject_id(us_keyword, "en"), LOCATION),
+    }
+    assert {(t.subject_id, t.location_id) for t in given.tasks} == {
+        (subject_id(uk_keyword, "en"), OTHER_LOCATION),
+        (subject_id(fresh, "en"), LOCATION),
+    }
+    assert narrowed.tasks == []
+    tracked = await fetch(
+        migrated, "SELECT 1 FROM seo.tracked_keywords WHERE project_id = $1", project.id
+    )
+    assert tracked == []
 
 
 async def test_a_schedule_plans_the_projects_stale_and_new_keywords_once_each(

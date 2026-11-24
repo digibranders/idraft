@@ -19,7 +19,18 @@ from typing import Any, Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import ColumnElement, and_, exists, func, literal, or_, select, tuple_, update
+from sqlalchemy import (
+    ColumnElement,
+    and_,
+    exists,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -29,11 +40,13 @@ from idraft.collectors.ledger import FetchedTask, LedgerTask, NewRun, NewTask, T
 from idraft.collectors.raw_payloads import load_raw_payload
 from idraft.collectors.registry import Plan, ScheduleWindow
 from idraft.db.tables import (
+    ai_prompts,
     collection_runs,
     collection_tasks,
     keyword_group_members,
     keyword_metric_snapshots,
     keyword_metrics_current,
+    keyword_prompt_links,
     keywords,
     locations,
     projects,
@@ -45,6 +58,7 @@ from idraft.db.tables import (
 )
 from idraft.domain.keyword_metrics import MetricsReading, is_material_change
 from idraft.domain.workloads import TaskWorkload
+from idraft.keywords.prompt_links import prompt_location_id
 from idraft.keywords.trees import descendants
 from idraft.providers.contract import CanonicalRequest
 from idraft.providers.dataforseo import labs
@@ -170,13 +184,69 @@ def _selected(
     return statement.where(~_fresh(now - timedelta(days=days)))
 
 
+def _linked(
+    workspace_id: UUID, project_id: UUID, selector: Mapping[str, Any], *, now: datetime
+) -> Any:
+    """The keywords the project's active prompts are linked to, at each prompt's place, once
+    each, chosen as `_selected` chooses (`keyword_ids`, `new`, stale or `all`). They are not
+    tracked, so a group or term narrows them away. Their metrics are what the Prompts page
+    shows as search volume."""
+    link, p = keyword_prompt_links.c, ai_prompts.c
+    linked = (
+        select(
+            link.keyword_id,
+            link.workspace_id,
+            keywords.c.language_code,
+            prompt_location_id().label("location_id"),
+        )
+        .distinct()
+        .select_from(
+            keyword_prompt_links.join(
+                keywords,
+                and_(
+                    keywords.c.id == link.keyword_id, keywords.c.workspace_id == link.workspace_id
+                ),
+            )
+            .join(ai_prompts, and_(p.id == link.prompt_id, p.workspace_id == link.workspace_id))
+            .join(
+                projects,
+                and_(projects.c.id == p.project_id, projects.c.workspace_id == p.workspace_id),
+            )
+        )
+        .where(
+            link.workspace_id == workspace_id,
+            link.project_id == project_id,
+            link.status == "active",
+            p.is_active,
+            p.deleted_at.is_(None),
+            projects.c.deleted_at.is_(None),
+            func.char_length(keywords.c.text) <= labs.KEYWORD_MAX,
+        )
+        .subquery("linked")
+    )
+    statement = select(linked.c.keyword_id, linked.c.location_id, linked.c.language_code).where(
+        linked.c.location_id.is_not(None)
+    )
+    if selector.get("groups") or selector.get("terms"):
+        return statement.where(false())
+    keyword_ids = selector.get("keyword_ids")
+    if keyword_ids is not None:
+        statement = statement.where(linked.c.keyword_id.in_(_uuids(keyword_ids)))
+    if selector.get("new"):
+        return statement.where(~_has_snapshot(linked.c), ~_recent_task(now, linked.c))
+    stale_days = selector.get("stale_days")
+    if selector.get("all") or (keyword_ids is not None and stale_days is None):
+        return statement
+    days = STALE_DAYS if stale_days is None else int(stale_days)
+    return statement.where(~_fresh(now - timedelta(days=days), linked.c))
+
+
 def _uuids(values: Any) -> list[UUID]:
     """Ids a stored selector holds, as JSON strings."""
     return [UUID(str(value)) for value in values]
 
 
-def _same_key(table_columns: Any) -> ColumnElement[bool]:
-    t = tracked_keywords.c
+def _same_key(table_columns: Any, t: Any = tracked_keywords.c) -> ColumnElement[bool]:
     return and_(
         table_columns.keyword_id == t.keyword_id,
         table_columns.location_id == t.location_id,
@@ -186,20 +256,20 @@ def _same_key(table_columns: Any) -> ColumnElement[bool]:
     )
 
 
-def _fresh(cutoff: datetime) -> ColumnElement[bool]:
+def _fresh(cutoff: datetime, t: Any = tracked_keywords.c) -> ColumnElement[bool]:
     current = keyword_metrics_current.c
-    return exists().where(_same_key(current), current.fetched_at >= cutoff)
+    return exists().where(_same_key(current, t), current.fetched_at >= cutoff)
 
 
-def _has_snapshot() -> ColumnElement[bool]:
-    return exists().where(_same_key(keyword_metric_snapshots.c))
+def _has_snapshot(t: Any = tracked_keywords.c) -> ColumnElement[bool]:
+    return exists().where(_same_key(keyword_metric_snapshots.c, t))
 
 
-def _recent_task(now: datetime) -> ColumnElement[bool]:
+def _recent_task(now: datetime, t: Any = tracked_keywords.c) -> ColumnElement[bool]:
     """A task for the keyword from a run made within `NEW_KEYWORD_QUIET`. The run's time, not
     the task's: the ledger sets a task's `created_at` to the start of its window's month (its
     partition key), which is more than a day old from the second day of the month on."""
-    t, task, run = tracked_keywords.c, collection_tasks.c, collection_runs.c
+    task, run = collection_tasks.c, collection_runs.c
     return exists().where(
         task.workload == WORKLOAD.value,
         task.subject_type == SUBJECT_TYPE,
@@ -220,8 +290,11 @@ async def select_subjects(
     *,
     now: datetime,
 ) -> list[Subject]:
-    rows = await db.execute(_selected(workspace_id, project_id, selector, now=now))
-    found = [Subject(row.keyword_id, row.location_id, row.language_code) for row in rows]
+    rows = [
+        *await db.execute(_selected(workspace_id, project_id, selector, now=now)),
+        *await db.execute(_linked(workspace_id, project_id, selector, now=now)),
+    ]
+    found = {Subject(row.keyword_id, row.location_id, row.language_code) for row in rows}
     return sorted(found, key=lambda s: (s.location_id, s.language_code, str(s.keyword_id)))
 
 
