@@ -2,9 +2,10 @@ import type { LinkedKeywordVolume } from './types';
 
 /**
  * `not_collected`: the backend sends no linked keyword yet. `no_link`: the prompt (or no prompt of the group) is linked
- * to a keyword. `no_volume`: the keywords are linked but none has its monthly searches yet.
+ * to a keyword. `pending`: the keywords are linked but not measured yet. `no_volume`: they were measured and the
+ * provider has no monthly searches for them.
  */
-export type VolumeUnknown = 'not_collected' | 'no_link' | 'no_volume';
+export type VolumeUnknown = 'not_collected' | 'no_link' | 'pending' | 'no_volume';
 
 export type VolumeReading =
   { state: 'ok'; value: number; keyword: string } | { state: 'unknown'; reason: VolumeUnknown };
@@ -13,7 +14,8 @@ export type VolumeReading =
 export function promptVolumeOf(link: LinkedKeywordVolume | null | undefined): VolumeReading {
   if (link === undefined) return { state: 'unknown', reason: 'not_collected' };
   if (link === null) return { state: 'unknown', reason: 'no_link' };
-  if (link.search_volume === null) return { state: 'unknown', reason: 'no_volume' };
+  if (link.search_volume === null)
+    return { state: 'unknown', reason: link.measured === true ? 'no_volume' : 'pending' };
   return { state: 'ok', value: link.search_volume, keyword: link.keyword };
 }
 
@@ -42,14 +44,18 @@ export function groupVolumeOf(links: readonly (LinkedKeywordVolume | null | unde
     return { state: 'unknown', reason: 'not_collected', keywords: 0, prompts };
   }
   const keywords = new Map<string, number | null>();
+  let unmeasured = false;
   for (const link of links) {
     if (link === undefined || link === null) continue;
     const known = keywords.get(link.keyword);
     keywords.set(link.keyword, known ?? link.search_volume);
+    unmeasured ||= link.search_volume === null && link.measured !== true;
   }
   if (keywords.size === 0) return { state: 'unknown', reason: 'no_link', keywords: 0, prompts };
   const volumes = [...keywords.values()].filter((volume): volume is number => volume !== null);
-  if (volumes.length === 0) return { state: 'unknown', reason: 'no_volume', keywords: keywords.size, prompts };
+  if (volumes.length === 0) {
+    return { state: 'unknown', reason: unmeasured ? 'pending' : 'no_volume', keywords: keywords.size, prompts };
+  }
   return {
     state: 'ok',
     value: volumes.reduce((sum, volume) => sum + volume, 0),

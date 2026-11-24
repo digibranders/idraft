@@ -49,6 +49,11 @@ export interface LinkedKeywordVolume {
   keyword: string;
   search_volume: number | null;
   /**
+   * True once the keyword has been measured at the prompt's place, even when the provider has no volume for the phrase.
+   * False while it still waits for its first collection.
+   */
+  measured: boolean;
+  /**
    * The drawer's Related keywords card (backend request 12): where the keyword ranks in its latest rank check, `null`
    * when it is not in the first 20 results. Absent means the backend has not built it.
    */

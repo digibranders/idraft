@@ -19,7 +19,7 @@ function renderCard(overrides: Partial<RelatedKeywordsProps>): ReturnType<typeof
 }
 
 const keyword = (extra: Partial<LinkedKeywordVolume>): { linked_keyword: LinkedKeywordVolume } => ({
-  linked_keyword: { keyword: 'best crm for startups', search_volume: 1190, ...extra },
+  linked_keyword: { keyword: 'best crm for startups', search_volume: 1190, measured: true, ...extra },
 });
 
 describe('the Related keywords card of the Competitors tab', () => {
