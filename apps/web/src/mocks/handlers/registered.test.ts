@@ -21,7 +21,6 @@ const SLOTS: ReadonlyArray<readonly [slug: string, name: string, load: ModuleLoa
   ['candidates', 'candidateHandlers', () => import('./candidates')],
   ['saved-views', 'savedViewHandlers', () => import('./saved-views')],
   ['exports', 'exportHandlers', () => import('./exports')],
-  ['reports', 'reportHandlers', () => import('./reports')],
   ['prompt-timeline', 'promptTimelineHandlers', () => import('./prompt-timeline')],
   ['rederive', 'rederiveHandlers', () => import('./rederive')],
   ['retrieval', 'retrievalHandlers', () => import('./retrieval')],

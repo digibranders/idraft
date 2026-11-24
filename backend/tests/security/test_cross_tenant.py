@@ -362,6 +362,14 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     },
     # A client summary link, which would be made and show a report to anyone holding it
     ("POST", _W + "/projects/{project_id}/internal-links/shares"): {"expires_in_days": 7},
+    ("POST", _W + "/projects/{project_id}/reports/shares"): {"expires_in_days": 7},
+    ("POST", _W + "/projects/{project_id}/reports/schedules"): {
+        "frequency": "weekly",
+        "recipients": ["client@example.com"],
+    },
+    ("PATCH", _W + "/projects/{project_id}/reports/schedules/{report_schedule_id}"): {
+        "paused": True
+    },
     # A page that is no suggestion of the tenant's crawl changes nothing; the test below uses
     # a page that is one.
     ("POST", _W + "/projects/{project_id}/internal-links/tier-suggestions/accept"): {
@@ -1254,6 +1262,27 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         owner.id,
     )
     more_ids["share_id"] = str(share["id"])
+    report_share = await fetchrow(
+        pg,
+        "INSERT INTO core.ai_report_shares (workspace_id, project_id, token_hash, created_by, "
+        "expires_at) VALUES ($1, $2, sha256(convert_to($3::text, 'UTF8')), $4, "
+        "now() + interval '30 days') RETURNING id",
+        workspace.id,
+        project_id,
+        f"report-token-{project_id}",
+        owner.id,
+    )
+    more_ids["report_share_id"] = str(report_share["id"])
+    report_schedule = await fetchrow(
+        pg,
+        "INSERT INTO core.ai_report_schedules (workspace_id, project_id, frequency, recipients, "
+        "next_run_at, created_by) VALUES ($1, $2, 'weekly', ARRAY['client@example.com'], "
+        "now() + interval '1 day', $3) RETURNING id",
+        workspace.id,
+        project_id,
+        owner.id,
+    )
+    more_ids["report_schedule_id"] = str(report_schedule["id"])
     more_ids["crawl_run_id"] = str(queued_crawl["id"])
     more_ids["finished_crawl_id"] = str(crawl_run)
     more_ids["tier_id"] = str(spare_tier["id"])
@@ -1454,6 +1483,8 @@ _TENANT_ROWS = {
     "auth.invitations": "workspace_id",
     "core.projects": "workspace_id",
     "core.workspace_quotas": "workspace_id",
+    "core.ai_report_shares": "workspace_id",
+    "core.ai_report_schedules": "workspace_id",
     "core.entities": "workspace_id",
     "core.entity_aliases": "workspace_id",
     "core.entity_domains": "workspace_id",

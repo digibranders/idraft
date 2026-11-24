@@ -2097,6 +2097,45 @@ client_summary_shares = Table(
     schema="core",
 )
 
+ai_report_shares = Table(
+    "ai_report_shares",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("token_hash", LargeBinary, nullable=False),
+    Column("created_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    _created_at(),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True)),
+    Column("revoked_by", Uuid, ForeignKey(users.c.id)),
+    UniqueConstraint("token_hash", name="ai_report_shares_token_hash_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
+ai_report_schedules = Table(
+    "ai_report_schedules",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("frequency", Text, nullable=False),
+    Column("recipients", ARRAY(Text), nullable=False),
+    Column("paused", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("next_run_at", DateTime(timezone=True), nullable=False),
+    Column("last_sent_at", DateTime(timezone=True)),
+    Column("last_error", Text),
+    Column("created_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    _created_at(),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
 tier_suggestion_dismissals = Table(
     "tier_suggestion_dismissals",
     metadata,

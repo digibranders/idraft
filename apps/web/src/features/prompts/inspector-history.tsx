@@ -11,7 +11,9 @@ import {
   Sparkles,
   type LucideIcon,
 } from 'lucide-react';
+import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import { useCallback, useMemo, type ReactElement } from 'react';
 
 import {
@@ -36,6 +38,7 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { TextLink } from '@/components/ui/text-link';
 import type { ObservationFactsWithExtra } from '@/lib/api/prompt-facts';
 import type { ObservationSummary, ProjectEngine } from '@/lib/api/types';
 import type { ChartBoundary } from '@/lib/charts/boundaries';
@@ -77,6 +80,8 @@ export interface InspectorHistoryProps {
   labelOf: (code: string) => string;
   noCountsReason: string;
   onOpenAnswer: ((observationId: string, observedAt: string) => void) | undefined;
+  /** The page of the prompt, which opens on Compare days; none where the address cannot name it. */
+  compareHref?: Route | undefined;
 }
 
 /**
@@ -96,10 +101,12 @@ export function InspectorHistory({
   labelOf,
   noCountsReason,
   onOpenAnswer,
+  compareHref,
 }: InspectorHistoryProps): ReactElement {
   const t = useTranslations('prompts.inspector');
   const history = useTranslations('prompts.inspector.history');
   const drawer = useTranslations('prompts.drawer.history');
+  const compare = useTranslations('prompts.dayCompare');
   const rate = useTranslations('prompts.rate');
   const common = useTranslations('common');
   const model = useMemo(
@@ -361,6 +368,11 @@ export function InspectorHistory({
   ];
   return (
     <>
+      {compareHref === undefined ? null : (
+        <TextLink render={<Link href={compareHref} />} className="self-start type-body-strong">
+          {compare('open')}
+        </TextLink>
+      )}
       {chart}
       <InspectorSection
         title={drawer('answersTitle')}

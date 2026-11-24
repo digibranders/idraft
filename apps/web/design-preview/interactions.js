@@ -1533,7 +1533,7 @@
   // carry ?inspect= keep working. The old #/rankings address still opens it. Destinations that are not built say so
   // instead of navigating.
 
-  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', citations: 'Citations', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', citations: 'Citations', reports: 'Reports', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer
   const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'], prompts: ['topics', 'explorer'], citations: ['pages', 'gaps'] };
   let route = { view: 'keywords', section: null };
@@ -1568,7 +1568,7 @@
     $('[data-crumb-current]').textContent = label;
     $('[data-crumb-parent]').hidden = !settings;
     // Date range and location are hidden where they do not apply (11 section 4)
-    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages' || next.view === 'internal-links'));
+    $$('[data-scope-control]').forEach((el) => (el.hidden = settings || next.view === 'pages' || next.view === 'internal-links' || next.view === 'reports'));
     // The tab title is the page title (glossary A3): "AI visibility overview", while the breadcrumb says "AI visibility"
     const pageTitle = next.view === 'ai' ? 'AI visibility overview' : label;
     document.title = `${settings ? `${label}, Settings` : pageTitle} · Design System Preview`;
