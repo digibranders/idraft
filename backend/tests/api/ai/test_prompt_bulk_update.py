@@ -298,13 +298,13 @@ async def test_bulk_update_by_filter_changes_what_the_list_would_show(
         low: "bofu",
         lower: "bofu",
         resting: "bofu",
-        high: "unknown",
+        high: "tofu",  # the wording rule gave it when it was added
     }
     assert {str(prompt_id): row["intent"] for prompt_id, row in rows.items()} == {
         low: "commercial",
         lower: "commercial",
-        resting: "unknown",
-        high: "unknown",
+        resting: "informational",
+        high: "informational",
     }
 
 
