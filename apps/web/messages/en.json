@@ -5331,6 +5331,37 @@
     "linkCopied": "Link copied",
     "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
+    "insights": {
+      "title": "Insights",
+      "meta": "Whole project",
+      "retry": "Try again",
+      "atLeastMark": "+",
+      "startTracking": "Start tracking",
+      "viewGaps": "View gaps",
+      "viewPages": "View pages",
+      "emptyTitle": "Nothing to act on",
+      "emptyReason": "Every keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.",
+      "lines": {
+        "untracked": {
+          "text": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
+          "failed": "Could not count the keywords with a Google AI Overview",
+          "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked"
+        },
+        "gaps": {
+          "text": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
+          "failed": "Could not count the citation gaps"
+        },
+        "citingCompetitors": {
+          "text": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
+          "failed": "Could not count the domains that cite your competitors",
+          "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked"
+        },
+        "newDomains": {
+          "text": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
+          "failed": "Could not count the new cited domains"
+        }
+      }
+    },
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The platforms of this project could not be read",
     "enginesFailedReason": "The server did not answer. Try again in a moment.",
