@@ -936,7 +936,7 @@ def _page_values(
     """Depth and equity of every page that counts, and the share of equity the error pages
     hold. Variants are folded into their canonical pages first (plan 09). Pure work, run in a
     thread."""
-    start = start_url_id
+    start = None if start_url_id is None else variant_of.get(start_url_id, start_url_id)
     nodes, links = fold_variants(nodes, links, variant_of)
     walked = _walked_links(start, run_id, nodes, links)
     depths = {} if start is None else click_depths(start, nodes, walked)
@@ -968,7 +968,6 @@ async def _count_and_read(
     for statement in (_INCOMING, _TOP_ANCHOR):
         await db.execute(statement, {"run_id": run_id})
     await db.execute(_OUTGOING, {"run_id": run_id, "blocked": sorted(BLOCKED_STATUSES)})
-    await db.execute(_FLAGS, {"run_id": run_id, "start": start_url_id})
     node_rows = (
         await db.execute(
             select(
@@ -999,6 +998,9 @@ async def _count_and_read(
     variant_of = {
         row.url_id: row.variant_of_url_id for row in node_rows if row.variant_of_url_id is not None
     }
+    # A start page that is a variant (`/index.html` naming `/`) stands for its canonical page.
+    start = None if start_url_id is None else variant_of.get(start_url_id, start_url_id)
+    await db.execute(_FLAGS, {"run_id": run_id, "start": start})
     return nodes, links, variant_of
 
 
@@ -1143,13 +1145,15 @@ async def recount_variants(
         return None
     project_id: UUID = found.project_id
 
-    async def lock(db: AsyncSession) -> Row[Any] | None:
-        # The API takes the project row first and then a crawl; the same order here.
-        await db.execute(
-            select(projects.c.id)
-            .where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
-            .with_for_update(of=projects, key_share=True)
-        )
+    async def lock(db: AsyncSession, *, project: bool) -> Row[Any] | None:
+        if project:
+            # The API takes the project row first and then a crawl; the same order here. Held
+            # only for the end, as ingest does: the first transaction holds the crawl alone.
+            await db.execute(
+                select(projects.c.id)
+                .where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
+                .with_for_update(of=projects, key_share=True)
+            )
         row = (
             await db.execute(
                 select(
@@ -1162,37 +1166,38 @@ async def recount_variants(
                 .with_for_update(key_share=True)
             )
         ).one_or_none()
+        # A crawl whose links were dropped has nothing to count from: its numbers stay as they are.
         if (
             row is None
             or row.state not in DATA_STATES
             or row.enrich_state not in ("done", "failed")
+            or row.links_dropped_at is not None
         ):
             return None
         return row
 
     async with sessions() as db, db.begin():
         await _long_transaction(db)
-        row = await lock(db)
+        row = await lock(db, project=False)
         if row is None:
             return None
         nodes, links, variant_of = await _count_and_read(db, run_id, row.start_url_id)
-        if row.links_dropped_at is None:
-            await db.execute(_RESET_ANCHORS, {"run_id": str(run_id)})
-            await db.execute(
-                ANCHORS_UPDATE,
-                {
-                    "run_id": str(run_id),
-                    "workspace_id": str(workspace_id),
-                    "edge": EDGE_PATTERN,
-                    "generic": sorted(GENERIC_ANCHORS),
-                },
-            )
+        await db.execute(_RESET_ANCHORS, {"run_id": str(run_id)})
+        await db.execute(
+            ANCHORS_UPDATE,
+            {
+                "run_id": str(run_id),
+                "workspace_id": str(workspace_id),
+                "edge": EDGE_PATTERN,
+                "generic": sorted(GENERIC_ANCHORS),
+            },
+        )
     values, lost = await asyncio.to_thread(
         _page_values, nodes, links, variant_of, row.start_url_id, run_id
     )
     async with sessions() as db, db.begin():
         await _long_transaction(db)
-        if await lock(db) is None:
+        if await lock(db, project=True) is None:
             return None
         await _store_values(db, workspace_id, run_id, values, lost)
         summary = (

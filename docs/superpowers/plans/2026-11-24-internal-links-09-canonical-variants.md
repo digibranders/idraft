@@ -70,3 +70,24 @@ required, so no other tenant is touched.
   after the fetch). Later, if crawl cost or time matters.
 - `core.page_tier_levels` page counts (`page_count` of a tier) still count the rows that hold the
   tier, variants included. They guard deleting a tier, they are not the site's page count.
+
+## Behaviour to know about (from the review)
+
+- **Links to non-indexable pages.** A link to a variant now counts as a link to its indexable
+  canonical page, so "Links to non-indexable pages" no longer lists "you link to a canonicalised
+  URL". The first target stays in `crawl_links.folded_from_url_id`; the API does not expose it
+  yet. A follow-up if owners want that finding back.
+- **Broken after the fold.** If a variant's canonical page is a 404 or a redirect, a link to the
+  variant now counts as broken or redirected.
+- **One-time noise in changes.** The first crawl after a project is recounted or deployed is
+  compared with a previous crawl that was not folded, so the change lists show some lost and added
+  links. Recount the latest crawl before the next one runs.
+- **Duplicate link rows.** A page that links both a variant and its canonical page has two link
+  rows to the canonical page; counts use distinct pairs.
+- **The recount is visible half done.** It commits the counts first and the depth, equity and tier
+  flow in a second transaction, so a viewer can see a mix for a moment (or until a rerun, if the
+  process dies between them). It is idempotent. It holds the crawl row for the first transaction and
+  the project row only for the second.
+- A crawl whose links were dropped is never recounted: it has nothing to count from.
+- A start page that is a variant (`/index.html` naming `/`) stands for its canonical page in the
+  depth walk, the orphan flags and the route finder.

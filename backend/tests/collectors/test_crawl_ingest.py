@@ -1580,7 +1580,8 @@ async def test_a_crawl_finished_before_variants_is_recounted_to_what_a_fresh_ing
     await execute(
         migrated,
         "UPDATE seo.crawl_pages SET variant_of_url_id = NULL, linking_pages_all = 99, "
-        "outlinks_all = 99 WHERE run_id = $1",
+        "outlinks_all = 99, click_depth = 7, equity_share = 0.5, top_anchor = 'stale' "
+        "WHERE run_id = $1",
         run_id,
     )
     await execute(migrated, "UPDATE seo.crawl_runs SET pages_variant = NULL WHERE id = $1", run_id)

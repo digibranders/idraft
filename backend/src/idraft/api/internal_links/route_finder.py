@@ -9,7 +9,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import ARRAY, BigInteger, and_, bindparam, select, text
+from sqlalchemy import ARRAY, BigInteger, and_, bindparam, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.internal_links.page_filter import PageScope
@@ -238,9 +238,22 @@ class RouteFinder:
             ).first()
             if held is None:
                 raise NotFoundError
+            # A start page that is a variant stands for its canonical page (plan 09).
             start: int | None = (
                 await db.execute(
-                    select(crawl_runs.c.start_url_id).where(
+                    select(
+                        func.coalesce(crawl_pages.c.variant_of_url_id, crawl_runs.c.start_url_id)
+                    )
+                    .select_from(
+                        crawl_runs.outerjoin(
+                            crawl_pages,
+                            and_(
+                                crawl_pages.c.run_id == crawl_runs.c.id,
+                                crawl_pages.c.url_id == crawl_runs.c.start_url_id,
+                            ),
+                        )
+                    )
+                    .where(
                         crawl_runs.c.workspace_id == scope.workspace_id,
                         crawl_runs.c.id == scope.run_id,
                     )

@@ -6,7 +6,9 @@ an earlier answer first, so it can be run again on a finished crawl:
 
 1. Links come back to their first target and none is ignored.
 2. A page is a variant when its canonical is another page of the same crawl that is not itself
-   a variant: a canonical that points on, or back (a cycle), leaves both ends counting as pages.
+   a variant. The page it names is not a variant when it names no one, itself, or a URL the
+   crawl did not reach; a canonical that points on to a crawled page, or back (a cycle), leaves
+   the page that names it counting.
    A variant has no depth, no share of equity and no counts.
 3. A link to a variant is re-pointed at its canonical page; the first target stays in
    `folded_from_url_id`.
@@ -49,7 +51,9 @@ _SET_VARIANTS: Final[TextClause] = text(
     FROM seo.crawl_pages c
     WHERE v.run_id = CAST(:run_id AS uuid) AND c.run_id = v.run_id
       AND c.url_id = v.canonical_url_id AND v.canonical_url_id <> v.url_id
-      AND (c.canonical_url_id IS NULL OR c.canonical_url_id = c.url_id)
+      AND (c.canonical_url_id IS NULL OR c.canonical_url_id = c.url_id
+           OR NOT EXISTS (SELECT 1 FROM seo.crawl_pages cc
+                          WHERE cc.run_id = c.run_id AND cc.url_id = c.canonical_url_id))
     """
 )
 _FOLD_LINKS: Final[TextClause] = text(
