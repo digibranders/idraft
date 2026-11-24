@@ -70,8 +70,9 @@ def _cases(term: str, rival: uuid.UUID, co_mentions: int) -> list[Case]:
         ("include=co_mentions", {"include": "co_mentions"}, {}, co_mentions),
         ("include=total", {"include": "total"}, {}, 0),
         ("include=cells", {"include": "cells"}, {}, 0),
-        # The newest valid answers and the linked keywords: one statement each.
-        ("include=facts", {"include": "facts"}, {}, 2),
+        # The newest valid answers, the linked keywords, the places of the own brand, the brands
+        # named and the pages cited: one statement each.
+        ("include=facts", {"include": "facts"}, {}, 5),
         ("group_by=country", {"group_by": "country"}, {}, 0),
         ("filter[outcome]", {"filter[outcome]": "neither"}, {}, 0),
         ("filter[opportunity]", {"filter[opportunity]": "named_not_cited"}, {}, 0),

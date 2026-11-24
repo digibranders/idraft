@@ -7397,8 +7397,35 @@
           "mentioned": {
             "$ref": "#/components/schemas/MetricCell"
           },
+          "other_brands": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OtherBrand"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=facts`, on a prompt row: the brands other than the own that the engine's valid answers name (competitors and watched brands, the only brands the project's extraction keeps), most named first, at most 20; empty when no answer names one. Left out on topic and total rows, and when `facts` was not asked for.",
+            "title": "Other Brands"
+          },
           "outcomes": {
             "$ref": "#/components/schemas/OutcomeCells"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PositionCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=facts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when `facts` was not asked for.",
+            "title": "Position"
           },
           "previous": {
             "anyOf": [
@@ -7429,6 +7456,21 @@
           },
           "share_of_voice": {
             "$ref": "#/components/schemas/MetricCell"
+          },
+          "top_links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TopLink"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=facts`, on a prompt row: the pages the engine's valid answers cite, most cited first, then by address, at most 20; empty when no answer cites one. Citations flagged `engine_internal` or `unresolved_redirect` are left out. Left out on topic and total rows, and when `facts` was not asked for.",
+            "title": "Top Links"
           }
         },
         "required": [
@@ -14536,6 +14578,24 @@
         "title": "OpportunityPair",
         "type": "object"
       },
+      "OtherBrand": {
+        "properties": {
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "Valid answers that name the brand, over the engine's valid answers."
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "mentioned"
+        ],
+        "title": "OtherBrand",
+        "type": "object"
+      },
       "OutcomeCells": {
         "properties": {
           "cited_only": {
@@ -15911,6 +15971,39 @@
           "trials"
         ],
         "title": "Pooled",
+        "type": "object"
+      },
+      "PositionCounts": {
+        "description": "Where the own brand is named in the answers of an engine, as counts that add up over\nprompts: the mean place is `rank_sum / ordered_answers`.",
+        "properties": {
+          "answers": {
+            "description": "Valid answers (the denominator of `mentioned`).",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "mentions": {
+            "description": "Valid answers that name the own brand (`mentioned`).",
+            "title": "Mentions",
+            "type": "integer"
+          },
+          "ordered_answers": {
+            "description": "Valid answers that name the own brand with a place. The place is the order among the brands the project tracks (`own_mention_order`), not a place in a list the answer gives: the extraction does not parse lists yet.",
+            "title": "Ordered Answers",
+            "type": "integer"
+          },
+          "rank_sum": {
+            "description": "The sum of the places of the answers counted in `ordered_answers`, 1 being named first.",
+            "title": "Rank Sum",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank_sum",
+          "ordered_answers",
+          "mentions",
+          "answers"
+        ],
+        "title": "PositionCounts",
         "type": "object"
       },
       "PreviousUnits": {
@@ -25120,6 +25213,42 @@
           "reasons"
         ],
         "title": "TierSuggestionRow",
+        "type": "object"
+      },
+      "TopLink": {
+        "properties": {
+          "answers": {
+            "description": "Valid answers that cite the page (once per answer).",
+            "title": "Answers",
+            "type": "integer"
+          },
+          "domain": {
+            "description": "The host of the page.",
+            "title": "Domain",
+            "type": "string"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "url": {
+            "description": "The canonical URL of the cited page.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "domain",
+          "domain_role",
+          "answers"
+        ],
+        "title": "TopLink",
         "type": "object"
       },
       "TopicSummaryRow": {

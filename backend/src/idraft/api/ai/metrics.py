@@ -76,7 +76,7 @@ from idraft.domain.ai_engines import ENGINES, EngineCode, ObservationClass
 METHOD_VERSION: Final = 1
 # The citation flags citation share leaves out: what the sources routes leave out by default
 # (docs/14 section 9), so the Overview and the Sources page count the same units.
-EXCLUDED_FLAGS: Final = ("engine_internal", "unresolved_redirect")
+EXCLUDED_FLAGS: Final = source_repository.EXCLUDED_FLAGS
 _PROMPT: Final[Aggregation] = "prompt_weighted"
 _OBSERVATION: Final[Aggregation] = "observation_weighted"
 _OUTCOME: Final = (

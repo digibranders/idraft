@@ -845,6 +845,37 @@ class WeekCells(BaseModel):
     )
 
 
+class PositionCounts(BaseModel):
+    """Where the own brand is named in the answers of an engine, as counts that add up over
+    prompts: the mean place is `rank_sum / ordered_answers`."""
+
+    rank_sum: int = Field(
+        description="The sum of the places of the answers counted in `ordered_answers`, 1 being "
+        "named first."
+    )
+    ordered_answers: int = Field(
+        description="Valid answers that name the own brand with a place. The place is the order "
+        "among the brands the project tracks (`own_mention_order`), not a place in a list the "
+        "answer gives: the extraction does not parse lists yet."
+    )
+    mentions: int = Field(description="Valid answers that name the own brand (`mentioned`).")
+    answers: int = Field(description="Valid answers (the denominator of `mentioned`).")
+
+
+class OtherBrand(BaseModel):
+    name: str
+    mentioned: MetricCell = Field(
+        description="Valid answers that name the brand, over the engine's valid answers."
+    )
+
+
+class TopLink(BaseModel):
+    url: str = Field(description="The canonical URL of the cited page.")
+    domain: str = Field(description="The host of the page.")
+    domain_role: Literal["own", "competitor", "third_party"]
+    answers: int = Field(description="Valid answers that cite the page (once per answer).")
+
+
 class LatestAnswer(BaseModel):
     """The newest valid answer of an engine for a prompt row."""
 
@@ -905,6 +936,32 @@ class EngineSummary(BaseModel):
         "engine in the window and the state of its screenshot; null when the engine has no "
         "valid answer there. Left out on topic and total rows, and when `facts` was not asked "
         "for.",
+    )
+    position: PositionCounts | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`: where the own brand is named in the engine's valid "
+        "answers, as counts (zeros when there is no valid answer). On a topic, total or country "
+        "row the counts are the sums over its prompts. Left out when `facts` was not asked for.",
+    )
+    other_brands: list[OtherBrand] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`, on a prompt row: the brands other than the own that "
+        "the engine's valid answers name (competitors and watched brands, the only brands the "
+        "project's extraction keeps), most named first, at most 20; empty when no answer names "
+        "one. Left out on topic and total rows, and when `facts` was not asked for.",
+    )
+    top_links: list[TopLink] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`, on a prompt row: the pages the engine's valid answers "
+        "cite, most cited first, then by address, at most 20; empty when no answer cites one. "
+        "Citations flagged `engine_internal` or `unresolved_redirect` are left out. Left out on "
+        "topic and total rows, and when `facts` was not asked for.",
     )
 
 

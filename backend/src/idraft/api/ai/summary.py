@@ -35,10 +35,12 @@ from idraft.api.schemas.ai import (
     LinkedKeyword,
     MetricCell,
     MetricContext,
+    OtherBrand,
     Outcome,
     OutcomeCells,
     PointPool,
     Pooled,
+    PositionCounts,
     PromptsSummary,
     PromptSummaryRow,
     SummaryCompare,
@@ -50,6 +52,7 @@ from idraft.api.schemas.ai import (
     SummaryRows,
     SummaryTotal,
     TopicSummaryRow,
+    TopLink,
     WeekCells,
     _NotAsked,
 )
@@ -500,6 +503,11 @@ class _Read:
     latest: Mapping[tuple[UUID, str], LatestAnswer] | None = None
     # With `include=facts`: the keyword each prompt is linked to; a prompt without one is absent.
     linked: Mapping[UUID, repository.LinkedRow] | None = None
+    # With `include=facts`: the places of the own brand, the brands the answers name and the pages
+    # they cite, by prompt and engine; a prompt and engine with none is absent. None: not asked.
+    position: Mapping[tuple[UUID, str], repository.PositionSums] | None = None
+    brands: Mapping[tuple[UUID, str], list[repository.BrandNamed]] | None = None
+    links: Mapping[tuple[UUID, str], list[repository.LinkCited]] | None = None
 
 
 def _entity_cells(
@@ -673,7 +681,62 @@ def _engine_row(
         latest=NOT_ASKED
         if read.latest is None or topic
         else read.latest.get((next(iter(prompt_ids)), code)),
+        position=_position(code, prompt_ids, current, read),
+        other_brands=_other_brands(code, prompt_ids, current, read, topic=topic),
+        top_links=_top_links(code, prompt_ids, read, topic=topic),
     )
+
+
+def _position(
+    code: str, prompt_ids: Collection[UUID], current: Sequence[Counts], read: _Read
+) -> PositionCounts | _NotAsked:
+    """Where the own brand is named in the row's valid answers on the engine, counts that add up
+    over prompts. `mentions` and `answers` are those of `mentioned`, so the row's numbers agree."""
+    if read.position is None:
+        return NOT_ASKED
+    placed = [read.position[key] for p in prompt_ids if (key := (p, code)) in read.position]
+    return PositionCounts(
+        rank_sum=sum(p.rank_sum for p in placed),
+        ordered_answers=sum(p.ordered_answers for p in placed),
+        mentions=sum(c.mentioned for c in current),
+        answers=sum(c.n_valid for c in current),
+    )
+
+
+def _other_brands(
+    code: str,
+    prompt_ids: Collection[UUID],
+    current: Sequence[Counts],
+    read: _Read,
+    *,
+    topic: bool,
+) -> list[OtherBrand] | _NotAsked:
+    if read.brands is None or topic:
+        return NOT_ASKED
+    counts = current[0] if current else _NONE
+    return [
+        OtherBrand(
+            name=brand.name,
+            mentioned=_cell(brand.answers, counts.n_valid, counts.n_observations),
+        )
+        for brand in read.brands.get((next(iter(prompt_ids)), code), [])
+    ]
+
+
+def _top_links(
+    code: str, prompt_ids: Collection[UUID], read: _Read, *, topic: bool
+) -> list[TopLink] | _NotAsked:
+    if read.links is None or topic:
+        return NOT_ASKED
+    return [
+        TopLink(
+            url=link.url,
+            domain=link.domain,
+            domain_role=cast(Literal["own", "competitor", "third_party"], link.domain_role),
+            answers=link.answers,
+        )
+        for link in read.links.get((next(iter(prompt_ids)), code), [])
+    ]
 
 
 def _latest_answers(
@@ -996,6 +1059,22 @@ class SummaryService:
                 if "facts" in query.include
                 else None
             )
+            window_facts = "facts" in query.include
+            position = (
+                await repository.position_sums(db, ws, project_id, ids, **window)
+                if window_facts
+                else None
+            )
+            brands = (
+                await repository.named_brands(db, ws, project_id, ids, **window)
+                if window_facts
+                else None
+            )
+            links = (
+                await repository.cited_links(db, ws, project_id, ids, **window)
+                if window_facts
+                else None
+            )
             latest = (
                 _latest_answers(
                     await repository.latest_answers(db, ws, project_id, ids, **window),
@@ -1027,6 +1106,9 @@ class SummaryService:
             detail="cells" in query.include,
             latest=latest,
             linked=linked,
+            position=position,
+            brands=brands,
+            links=links,
         )
         # The filters choose prompt rows and nothing else: every other block reads every prompt
         # in scope (C-5, C-6).

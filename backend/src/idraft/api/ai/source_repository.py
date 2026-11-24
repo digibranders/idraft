@@ -56,6 +56,9 @@ from idraft.keywords.trees import descendants
 
 _F, _O, _C, _D = ai_observation_facts.c, ai_observations.c, ai_citations.c, domains.c
 ROLES: Final = ("own", "competitor", "third_party")
+# The citation flags every default read leaves out (docs/14 section 9): the Sources page, citation
+# share and the cited links of the prompts summary count the same units.
+EXCLUDED_FLAGS: Final = ("engine_internal", "unresolved_redirect")
 # The sorts of the source routes and the output column each orders by.
 SORT_COLUMNS: Final = {
     "-citation_units": "citation_units",
