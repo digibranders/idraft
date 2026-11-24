@@ -77,6 +77,7 @@ async def test_a_crawl_is_posted_with_the_settings_of_the_spec(api: Api, on_page
             "store_raw_html": True,
             "enable_javascript": False,
             "allow_subdomains": False,
+            "crawl_delay": 250,
             "allowed_subdomains": ["blog.example.com"],
             "tag": "run-1",
         }

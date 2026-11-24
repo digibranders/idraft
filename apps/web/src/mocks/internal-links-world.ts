@@ -293,6 +293,7 @@ function finishedRun(index = 0): CrawlRun {
   const finished = Date.parse(FINISHED) - index * WEEK_MS;
   const pages = HISTORY_PAGES[index] ?? PAGES.length;
   return {
+    pages_blocked: null,
     run_id: HISTORY_RUN_IDS[index] ?? MOCK_RUN_ID,
     trigger: 'schedule',
     state: 'ready',
@@ -657,6 +658,7 @@ export function tierFlow(view: LinkScope): TierFlow {
 export function worklists(): Worklists {
   const rows = PAGES.map((page) => pageRow(page, 'editorial'));
   return {
+    may_be_incomplete: false,
     run_id: MOCK_RUN_ID,
     under_linked_t1: rows.filter(
       (row) =>

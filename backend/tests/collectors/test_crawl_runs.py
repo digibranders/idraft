@@ -963,3 +963,137 @@ async def test_the_tick_sends_the_enrich_job_for_ready_crawls_that_still_have_ex
 
     assert enriched == [pending]
     assert report.enrich_sent == 1
+
+
+def test_the_order_asks_the_provider_for_a_250_ms_pause_between_hits() -> None:
+    order = CrawlOrder(
+        host="example.com",
+        max_crawl_pages=10,
+        enable_javascript=False,
+        allowed_subdomains=(),
+        tag="t",
+    )
+
+    assert order.body()["crawl_delay"] == 250
+
+
+async def _slow_crawl(
+    migrated: PostgresServer, worker_db: Sessions, on_page: FakeOnPage
+) -> uuid.UUID:
+    """A crawl under way that has read 10 pages, as the first tick records them."""
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    await _crawling(migrated, run_id, "task-1")
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["pages_crawled"], row["stop_reason"]) == ("crawling", 10, None)
+    return run_id
+
+
+async def test_a_crawl_that_reads_no_new_page_for_five_minutes_is_stopped_and_kept(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=10, queue=90)])
+    run_id = await _slow_crawl(migrated, worker_db, on_page)
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=4))
+    assert (await _run(migrated, run_id))["stop_reason"] is None
+    assert on_page.stopped == []
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=6))
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["stop_reason"]) == ("crawling", "stalled")
+    assert on_page.stopped == ["task-1"]
+
+    # The provider now says finished (with its own reason): the pages go to ingest, and the
+    # crawl keeps ours.
+    on_page.summaries[:] = [summary(finished=True, crawled=10, queue=0, stop="force_stopped")]
+    sent = _Sent()
+    await crawl_tick(worker_db, on_page, sent, now=NOW + timedelta(minutes=7))
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["stop_reason"], row["ingest_phase"]) == (
+        "processing",
+        "stalled",
+        "pages",
+    )
+    assert [task.run_id for task in sent.tasks] == [run_id]
+
+
+async def test_a_new_page_starts_the_stall_clock_again(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=10, queue=90)])
+    run_id = await _slow_crawl(migrated, worker_db, on_page)
+
+    on_page.summaries[:] = [summary(finished=False, crawled=11, queue=89)]
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=4))
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=8))
+
+    assert (await _run(migrated, run_id))["stop_reason"] is None
+    assert on_page.stopped == []
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=10))
+    assert (await _run(migrated, run_id))["stop_reason"] == "stalled"
+
+
+async def test_a_crawl_with_an_empty_queue_is_not_stalled_it_is_about_to_finish(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=10, queue=0)])
+    workspace, project = await site_project(migrated)
+    run_id = await _queue(worker_db, workspace.id, project)
+    await _crawling(migrated, run_id, "task-1")
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW)
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=20))
+
+    assert (await _run(migrated, run_id))["stop_reason"] is None
+    assert on_page.stopped == []
+
+
+async def test_a_crawl_that_runs_for_45_minutes_is_stopped_even_while_it_progresses(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=10, queue=90)])
+    run_id = await _slow_crawl(migrated, worker_db, on_page)
+
+    on_page.summaries[:] = [summary(finished=False, crawled=400, queue=300)]
+    # Counted from the crawl's own start (the database's clock), not from the module's `NOW`,
+    # which is older than the start by however long the test run had gone on.
+    started = (await _run(migrated, run_id))["submitted_at"]
+    assert isinstance(started, datetime)
+    await crawl_tick(worker_db, on_page, _Sent(), now=started + timedelta(minutes=46))
+
+    assert (await _run(migrated, run_id))["stop_reason"] == "time_limit"
+    assert on_page.stopped == ["task-1"]
+
+
+async def test_a_stop_the_provider_does_not_take_is_tried_again_and_nothing_is_recorded(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=10, queue=90)])
+    run_id = await _slow_crawl(migrated, worker_db, on_page)
+
+    async def stop(task_id: str) -> None:
+        raise ProviderCallError(ProviderError(kind=ProviderErrorKind.TIMEOUT, message="read"))
+
+    on_page.force_stop = stop  # type: ignore[method-assign]
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=6))
+
+    assert (await _run(migrated, run_id))["stop_reason"] is None
+
+
+async def test_a_crawl_we_stopped_is_ingested_when_the_provider_still_says_in_progress(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = FakeOnPage(summaries=[summary(finished=False, crawled=10, queue=90)])
+    run_id = await _slow_crawl(migrated, worker_db, on_page)
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=6))
+    assert (await _run(migrated, run_id))["stop_reason"] == "stalled"
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=9))
+    assert (await _run(migrated, run_id))["state"] == "crawling"
+
+    await crawl_tick(worker_db, on_page, _Sent(), now=NOW + timedelta(minutes=12))
+    row = await _run(migrated, run_id)
+    assert (row["state"], row["stop_reason"]) == ("processing", "stalled")

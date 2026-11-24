@@ -93,6 +93,9 @@ export function WorklistChips({
       {counts !== undefined && [...PAGE_LISTS, ...EDGE_LISTS, ...history].every(([id]) => counts[id] === 0) ? (
         <span className="type-meta text-foreground-tertiary">{t('pages.noIssues')}</span>
       ) : null}
+      {counts?.may_be_incomplete === true ? (
+        <span className="type-meta text-foreground-tertiary">{t('coverage.incomplete')}</span>
+      ) : null}
       <TierSuggestions scope={scope} onEmptied={focusAllPages} />
     </div>
   );

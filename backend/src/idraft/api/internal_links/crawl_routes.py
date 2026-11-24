@@ -52,6 +52,7 @@ def crawl_view(record: CrawlRecord, latest: UUID | None) -> CrawlRun:
         pages_found=record.pages_found,
         pages_crawled=record.pages_crawled,
         sitemap_pages=record.sitemap_pages,
+        pages_blocked=record.pages_blocked,
         render_javascript=record.render_javascript,
         estimated_cost_usd=record.estimated_cost_usd,
         cost_usd=record.cost_usd,

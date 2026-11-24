@@ -8,6 +8,8 @@ const words: ClientSummaryWords = {
   title: (host) => `Internal links summary for ${host}`,
   crawlLine: (when, pages) => `Crawl of ${when}, ${pages.toLocaleString('en-US')} pages.`,
   olderNote: 'This is an older crawl.',
+  coverage: (read, crawled, blocked) => `Read ${read} of ${crawled} pages; ${blocked} refused.`,
+  incompleteNote: 'may be incomplete',
   lostUnavailable: (reason) => (reason === 'dropped' ? 'Link data is not stored.' : 'No comparison.'),
   tiersHeading: 'Tiers',
   tiersHead: ['Tier', 'Pages', 'Share of pages', 'Average depth'],

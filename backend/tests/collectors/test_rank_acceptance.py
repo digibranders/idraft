@@ -95,9 +95,9 @@ class Outbox:
 
 class SerpProvider(FakeProvider):
     """DataForSEO's organic SERP as the worker meets it: a batch is accepted at the price of
-    its pages and the asynchronous AI Overview, what it accepted is listed as ready, and its
-    answer lists ten to a hundred results with the project's site at a rank that moves from
-    day to day."""
+    its pages, the asynchronous AI Overview and the pass that resolves poisoned results, what it
+    accepted is listed as ready, and its answer lists ten to a hundred results with the project's
+    site at a rank that moves from day to day."""
 
     def __init__(self, clock: dict[str, datetime]) -> None:
         super().__init__(code="dataforseo", size=100)
@@ -117,7 +117,8 @@ class SerpProvider(FakeProvider):
             self.sent[request.task_id] += 1
             self.requests[provider_task_id] = request
             self.waiting.append(provider_task_id)
-            cost = (pages(request.params.depth) + 1) * PAGE_PRICE
+            # The pages, the AI Overview and the resolving pass: the last two a page each
+            cost = (pages(request.params.depth) + 2) * PAGE_PRICE
             accepted.append(
                 AcceptedTask(
                     task_id=request.task_id, provider_task_id=provider_task_id, cost_usd=cost

@@ -35,6 +35,14 @@ export const SUMMARY_WORKLISTS = [
   'weak_outlinks',
 ] as const satisfies readonly (keyof Worklists)[];
 export type SummaryWorklist = (typeof SUMMARY_WORKLISTS)[number];
+/** The counts that read pages and links of a crawl whose refused pages are unknown (the API's `may_be_incomplete`). */
+const INCOMPLETE_WORKLISTS: readonly SummaryWorklist[] = [
+  'under_linked_t1',
+  'orphans',
+  'editorial_orphans',
+  'deep_only_through_auto',
+  'weak_outlinks',
+];
 
 export interface SummaryLabels {
   untiered: string;
@@ -120,7 +128,12 @@ export async function buildClientSummary(options: BuildClientSummaryOptions): Pr
         depth: stat.average_depth,
       })),
       matrix: stats.map((from) => stats.map((to) => sums.get(`${keyOf(from.tier)}>${keyOf(to.tier)}`) ?? 0)),
-      worklists: SUMMARY_WORKLISTS.map((key) => ({ label: labels.worklist(key), count: worklists.data[key] })),
+      worklists: SUMMARY_WORKLISTS.map((key) => ({
+        label: labels.worklist(key),
+        count: worklists.data[key],
+        incomplete: worklists.data.may_be_incomplete && INCOMPLETE_WORKLISTS.includes(key),
+      })),
+      pagesBlocked: crawl?.pages_blocked ?? null,
       lost,
       lostReason,
       ...(lostTotal === undefined ? {} : { lostTotal }),

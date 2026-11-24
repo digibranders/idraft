@@ -89,6 +89,7 @@ DECLARED = {
     "ai.derivations",
     "ai.entity_mentions",
     "ai.observation_facts",
+    "ai.observation_screenshots",
     "core.page_tier_levels",
     "core.tier_rules",
     "core.project_pages",

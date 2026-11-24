@@ -79,6 +79,47 @@ async def test_lost_and_added_pairs_are_stored_per_scope_with_what_still_links_t
     )
 
 
+async def test_links_of_a_page_that_refused_the_crawler_are_neither_lost_nor_added(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    """Plan 08 task 4: /blog answered 403 in the newer crawl, so its links were not read and the
+    absence of its link to /pricing is no change; the same holds for a refusal in the older one."""
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    older, newer, ids, _ = await two_crawls(migrated, workspace, project)
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET status_code = 403 WHERE run_id = $1 AND url_id = $2",
+        newer,
+        ids["/blog"],
+    )
+
+    await _enrich(worker_db, workspace.id, newer)
+
+    assert await _pairs(migrated, newer, "lost", "editorial") == {
+        ("/blog/a", "/pricing"): "navigation",
+    }
+    assert set(await _pairs(migrated, newer, "added", "editorial")) == {("/blog/a", "/blog/b")}
+
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET status_code = 200 WHERE run_id = $1 AND url_id = $2",
+        newer,
+        ids["/blog"],
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET status_code = 429 WHERE run_id = $1 AND url_id = $2",
+        older,
+        ids["/blog"],
+    )
+
+    await _enrich(worker_db, workspace.id, newer)
+
+    assert set(await _pairs(migrated, newer, "lost", "all")) == set()
+    assert set(await _pairs(migrated, newer, "added", "editorial")) == {("/blog/a", "/blog/b")}
+
+
 async def test_pages_that_moved_have_a_row_and_the_others_have_none(
     migrated: PostgresServer, worker_db: Sessions
 ) -> None:

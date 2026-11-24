@@ -67,6 +67,7 @@ TENANT_TABLES: dict[str, str] = {
     "ai.citations": "workspace_id",
     "ai.entity_mentions": "workspace_id",
     "ai.observation_facts": "workspace_id",
+    "ai.observation_screenshots": "workspace_id",
     "core.page_tier_levels": "workspace_id",
     "core.tier_rules": "workspace_id",
     "core.project_pages": "workspace_id",
@@ -869,4 +870,14 @@ async def seed_ai(
         prompt_id,
         version_id,
         SEED_LOCATION,
+    )
+    await db.execute(
+        "INSERT INTO ai.observation_screenshots (observation_id, observed_at, workspace_id, "
+        "project_id, storage_key, width, height, byte_size, truncated, cost_usd, "
+        "provider_task_id) VALUES ($1, $2, $3, $4, $5, 1920, 4700, 100, false, 0.004, 'task')",
+        observation_id,
+        observed_at,
+        workspace_id,
+        project_id,
+        f"screenshots/v1/{workspace_id}/{project_id}/{observation_id}.png.zst",
     )

@@ -51,6 +51,7 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}"): "workspace:update",
     ("GET", "/api/v1/workspaces/{workspace_id}/tracked-keyword-quota"): "member",
+    ("GET", "/api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}"): "member",
     ("GET", "/api/v1/workspaces/{workspace_id}/members"): "member",
     ("PATCH", "/api/v1/workspaces/{workspace_id}/members/{user_id}"): "members:manage fresh",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/members/{user_id}"): "members:manage fresh",
@@ -470,6 +471,17 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
         "{observation_id}/compare",
     ): "data:read",
+    # AI answer screenshots: capturing spends, so it needs `runs:trigger`; reading is data
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
+        "{observation_id}/screenshot",
+    ): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/"
+        "{observation_id}/screenshot",
+    ): "runs:trigger",
     # WP-30 runs-costs-health
     ("GET", "/api/v1/workspaces/{workspace_id}/budgets"): "costs:read",
     ("POST", "/api/v1/workspaces/{workspace_id}/budgets"): "budgets:manage",

@@ -58,6 +58,7 @@ vi.mock('next/navigation', () => ({
 const CRAWLS = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls');
 
 const run = (over: Partial<CrawlRun>): CrawlRun => ({
+  pages_blocked: null,
   run_id: MOCK_RUN_ID,
   trigger: 'schedule',
   state: 'ready',
@@ -171,7 +172,7 @@ describe('the Internal links page (spec 7.1 and 9)', () => {
     expect(screen.queryByRole('tablist')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Crawl now' }));
     expect(await screen.findByRole('heading', { name: 'Mapping fynix.digital' })).toBeInTheDocument();
-    const progress = screen.getByRole('progressbar', { name: 'Pages found against the crawl limit' });
+    const progress = screen.getByRole('progressbar', { name: 'URLs found against the crawl limit' });
     expect(progress).toHaveAttribute('aria-valuemax', '2000');
     expect(screen.getByText(/Tag your most important pages while you wait/)).toBeInTheDocument();
     expect(screen.queryByRole('tablist')).toBeNull();
@@ -233,7 +234,7 @@ describe('the crawl states of the page (spec 9)', () => {
     answerWith([run({ state: 'failed', error_code: 'site_blocked' })]);
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByRole('heading', { name: 'The last crawl failed.' })).toBeInTheDocument();
-    expect(screen.getByText(/eventussecurity.com refuses our crawler/)).toBeInTheDocument();
+    expect(screen.getByText(/eventussecurity.com refused our crawler/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
     expect(screen.queryByRole('tablist')).toBeNull();
   });
@@ -248,7 +249,7 @@ describe('the crawl states of the page (spec 9)', () => {
 
   // Every code the backend sets on a failed crawl (collectors/crawl_runs.py), and one it does not
   it.each([
-    ['site_blocked', /refuses our crawler/],
+    ['site_blocked', /refused our crawler/],
     ['site_unreachable', /could not be reached/],
     ['budget_exceeded', /workspace budget for site crawls is used up/],
     ['provider_error', /The crawl service reported an error/],
@@ -352,7 +353,7 @@ describe('the crawl states of the page (spec 9)', () => {
     ]);
     const requests = countRequests();
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    expect(await screen.findByText(/Crawling now: 310 pages found so far/)).toBeInTheDocument();
+    expect(await screen.findByText(/Crawling now: read \d+ of 310 URLs found so far/)).toBeInTheDocument();
     const button = screen.getByRole('button', { name: 'Crawling' });
     expect(button).toHaveAttribute('aria-busy', 'true');
     expect(button).not.toBeDisabled();
@@ -682,12 +683,19 @@ describe('a crawl that ends while the page is open', () => {
     await screen.findByRole('region', { name: 'Crawl in scope' });
     const flowBefore = requests('/internal-links/tier-flow');
     answerWith([
-      { ...running, state: 'ready', is_latest: true, pages_found: 52, finished_at: '2026-11-16T03:09:00Z' },
+      {
+        ...running,
+        state: 'ready',
+        is_latest: true,
+        pages_found: 52,
+        pages_crawled: 52,
+        finished_at: '2026-11-16T03:09:00Z',
+      },
       { ...latest, is_latest: false },
     ]);
     await act(() => vi.advanceTimersByTimeAsync(CRAWL_POLL_MS + 100));
     await waitFor(() =>
-      expect(document.getElementById(LIVE_REGION_ID.polite)?.textContent).toBe('The crawl finished: 52 pages found.'),
+      expect(document.getElementById(LIVE_REGION_ID.polite)?.textContent).toBe('The crawl finished: 52 URLs read.'),
     );
     await waitFor(() => expect(requests('/internal-links/tier-flow')).toBe(flowBefore + 1));
     expect(screen.queryByText(/Crawling now/)).toBeNull();
@@ -697,7 +705,7 @@ describe('a crawl that ends while the page is open', () => {
     expect(requests('/link-crawls')).toBe(crawlsAfter);
     expect(requests('/internal-links/tier-flow')).toBe(flowBefore + 1);
     expect(vi.mocked(announce)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(announce)).toHaveBeenCalledWith('The crawl finished: 52 pages found.', expect.anything());
+    expect(vi.mocked(announce)).toHaveBeenCalledWith('The crawl finished: 52 URLs read.', expect.anything());
   });
 
   it('is announced as failed, once, when it fails', async () => {

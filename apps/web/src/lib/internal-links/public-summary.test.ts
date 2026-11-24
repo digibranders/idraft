@@ -7,6 +7,7 @@ const labels = { untiered: 'Untiered', worklist: (key: string): string => `list:
 const options = { locale: 'en', timeZone: 'UTC', labels };
 
 const SUMMARY: ClientSummary = {
+  pages_blocked: 40,
   crawled_at: '2026-11-18T10:00:00Z',
   generated_at: '2026-11-19T10:00:00Z',
   host: 'example.com',
@@ -21,8 +22,8 @@ const SUMMARY: ClientSummary = {
     { from_code: null, to_code: 'T1', links: 2 },
   ],
   worklists: [
-    { key: 'weak_outlinks', count: 1 },
-    { key: 'orphans', count: 3 },
+    { key: 'weak_outlinks', count: 1, may_be_incomplete: false },
+    { key: 'orphans', count: 3, may_be_incomplete: true },
   ],
   lost: { state: 'available', total: 25, links: [{ from_path: '/a', to_path: '/b', anchor: 'b page' }] },
 };
@@ -37,6 +38,12 @@ describe('summaryInputOf', () => {
     ]);
     expect(input.worklists.map((list) => list.count)).toEqual([0, 3, 0, 0, 0, 0, 1]);
     expect(input.crawledOn).toBe('Nov 18, 2026');
+  });
+
+  it('carries the refused pages and which counts may be incomplete', () => {
+    const input = summaryInputOf(SUMMARY, options);
+    expect(input.pagesBlocked).toBe(40);
+    expect(input.worklists.filter((list) => list.incomplete === true).map((list) => list.count)).toEqual([3]);
   });
 
   it('keeps the lost links with their total, and defaults the important tiers to T1 and T2', () => {

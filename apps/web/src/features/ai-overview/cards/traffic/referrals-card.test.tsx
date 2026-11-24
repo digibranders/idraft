@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +8,7 @@ import { CardInfoProvider } from '@/components/app/chart/card-info';
 import { axe } from '@/test/axe';
 import { cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
+import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
@@ -40,6 +42,21 @@ describe('the AI referral visits card', () => {
     expect(connect.getAttribute('href')).toContain('/integrations');
     expect(screen.queryByText(/Sample/)).not.toBeInTheDocument();
     expect(screen.queryByText(/visits in 28 days/)).not.toBeInTheDocument();
+  });
+
+  it('says GA4 is connected, and offers no connect button, when the project has a live GA4 property', async () => {
+    server.use(
+      http.get('*/api/v1/workspaces/:w/projects/:p/integrations', () =>
+        HttpResponse.json({
+          data: [{ integration_id: 'i1', kind: 'ga4', status: 'active' }],
+          page: { limit: 50, offset: 0, total: 1 },
+        }),
+      ),
+    );
+    render('cmp=off');
+    expect(await screen.findByText('GA4 is connected, visits are not collected yet')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Connect GA4' })).not.toBeInTheDocument();
+    expect(screen.queryByText('GA4 is not connected')).not.toBeInTheDocument();
   });
 
   it('keeps its place and says it is not measured on Google AI Mode', async () => {

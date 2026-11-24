@@ -884,6 +884,7 @@ _FLAGS = text(
 _SUMMARY = text(
     """
     SELECT count(*) FILTER (WHERE in_sitemap) AS sitemap_pages,
+           count(*) FILTER (WHERE status_code = ANY(CAST(:blocked AS integer[]))) AS pages_blocked,
            percentile_cont(0.25) WITHIN GROUP (ORDER BY equity_share)
                FILTER (WHERE status_code = 200) AS equity_p25
     FROM seo.crawl_pages WHERE run_id = :run_id
@@ -1025,7 +1026,9 @@ async def _metrics(
         )
         if not await _claim(db, run):
             return False
-        summary = (await db.execute(_SUMMARY, {"run_id": run.id})).one()
+        summary = (
+            await db.execute(_SUMMARY, {"run_id": run.id, "blocked": sorted(BLOCKED_STATUSES)})
+        ).one()
         flipped: UUID | None = (
             await db.execute(
                 update(crawl_runs)
@@ -1041,6 +1044,7 @@ async def _metrics(
                     ingest_failures=0,
                     finished_at=func.now(),
                     sitemap_pages=summary.sitemap_pages,
+                    pages_blocked=summary.pages_blocked,
                     equity_p25=summary.equity_p25,
                 )
                 .returning(crawl_runs.c.id)

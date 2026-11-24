@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
+from functools import partial
 
 import httpx
 from fastapi import FastAPI
@@ -29,6 +30,8 @@ from idraft.api.ai.panel_routes import router as ai_panels_router
 from idraft.api.ai.prompt_routes import router as prompt_routes_router
 from idraft.api.ai.prompt_service import PromptService
 from idraft.api.ai.retrieval_routes import router as ai_retrieval_router
+from idraft.api.ai.screenshot_routes import router as ai_screenshots_router
+from idraft.api.ai.screenshots import ScreenshotService
 from idraft.api.ai.source_intel_routes import router as ai_source_intel_router
 from idraft.api.ai.source_routes import router as ai_sources_router
 from idraft.api.ai.sources import SourceService
@@ -53,6 +56,9 @@ from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.routes import router as entities_router
 from idraft.api.entities.service import EntityService
 from idraft.api.exports.routes import router as exports_router
+from idraft.api.favicons.fetch import SafeFetcher
+from idraft.api.favicons.routes import router as favicons_router
+from idraft.api.favicons.service import FaviconService
 from idraft.api.health import router as health_router
 from idraft.api.imports.routes import router as imports_router
 from idraft.api.imports.service import ImportService
@@ -126,10 +132,14 @@ from idraft.config.sentry import init_sentry
 from idraft.config.settings import Settings, load_settings
 from idraft.db.engine import create_engine, create_session_factory
 from idraft.db.migrate import migration_state
+from idraft.providers.dataforseo.client import ALL_CALLS, FAMILY_LIMITS, DataForSeoClient
+from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from idraft.providers.email import EmailSender, build_email_sender
 from idraft.providers.pauses import RedisPauses
+from idraft.screenshots.adapters import DataForSeoScreenshots, download_image
 from idraft.storage.raw import ObjectStore, RawStore, open_raw_store
 from idraft.vault.envelope import EnvelopeCipher
+from idraft.worker.limiter import RedisCallGate
 
 REDIS_TIMEOUT_SECONDS = 1.0
 HTTP_TIMEOUT_SECONDS = 10.0
@@ -160,6 +170,19 @@ def _open_import_store(settings: Settings) -> AbstractAsyncContextManager[RawSto
         secret_access_key=settings.r2_raw_secret_access_key.get_secret_value(),
         max_connections=IMPORT_STORE_CONNECTIONS,
     )
+
+
+def _screenshot_provider(
+    settings: Settings, http: httpx.AsyncClient, redis: Redis
+) -> DataForSeoScreenshots | None:
+    """DataForSEO's screenshot call, paced by the shared limiter the worker uses; None without
+    an account, when the capture route answers `503 screenshots_unavailable`."""
+    credentials = settings.dataforseo_credentials
+    if credentials is None:
+        return None
+    login, password = credentials
+    gate = RedisCallGate(redis, DATAFORSEO, all_calls=ALL_CALLS, families=FAMILY_LIMITS)
+    return DataForSeoScreenshots(DataForSeoClient(http, gate, login=login, password=password))
 
 
 def _google_oauth(settings: Settings) -> GoogleOAuthConfig | None:
@@ -267,6 +290,7 @@ def create_app(
                 imports=ImportService(sessions=sessions, store=sources),
                 ranks=RankService(sessions=sessions, raw_store=sources),
                 quotas=QuotaService(sessions=sessions),
+                favicons=FaviconService(redis=redis, throttle=throttle, fetcher=SafeFetcher(http)),
                 integrations=IntegrationService(
                     sessions=sessions,
                     states=OAuthStateStore(redis),
@@ -280,6 +304,12 @@ def create_app(
                 ai_engines=EngineService(sessions=sessions),
                 prompts=PromptService(sessions=sessions),
                 ai_observations=ObservationService(sessions=sessions, raw_store=sources),
+                ai_screenshots=ScreenshotService(
+                    sessions=sessions,
+                    store=sources,
+                    provider=_screenshot_provider(settings, http, redis),
+                    download=partial(download_image, http),
+                ),
                 ai_summary=SummaryService(sessions=sessions),
                 ai_sources=SourceService(sessions=sessions),
                 ai_citation_board=CitationBoardService(sessions=sessions),
@@ -361,6 +391,7 @@ def create_app(
     app.include_router(serp_snapshots_router)
     app.include_router(rank_events_router)
     app.include_router(ai_observations_router)
+    app.include_router(ai_screenshots_router)
     app.include_router(ai_summary_router)
     app.include_router(ai_sources_router)
     app.include_router(ai_citation_board_router)
@@ -372,6 +403,7 @@ def create_app(
     app.include_router(cost_routes_router)
     app.include_router(imports_router)
     app.include_router(quotas_router)
+    app.include_router(favicons_router)
     app.include_router(integrations_router)
     app.include_router(engine_routes_router)
     app.include_router(prompt_routes_router)

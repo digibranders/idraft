@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
+import { isBlockedStatus } from '@/lib/internal-links/status';
 import type { LinkScope } from '@/lib/internal-links/scopes';
 import type { PageRow } from '@/lib/internal-links/types';
 
@@ -12,7 +13,8 @@ export function FocusNote({ page, scope }: { page: PageRow; scope: LinkScope }):
   const lines: string[] = [];
   const status = page.status_code ?? 0;
   if (status === 200 && scope === 'editorial') lines.push(t('editorialIn', { count: page.linking_pages }));
-  if (status >= 400) lines.push(t('notFoundNote'));
+  if (isBlockedStatus(status)) lines.push(t('blockedNote'));
+  else if (status >= 400) lines.push(t('notFoundNote'));
   else if (status >= 300) lines.push(t('redirectNote'));
   if (page.flags.includes('orphan')) lines.push(t('orphanNote'));
   else if (page.flags.includes('editorial_orphan')) {
