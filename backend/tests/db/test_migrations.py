@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import asyncpg
 import pytest
@@ -321,7 +322,15 @@ def test_concurrent_migrators_take_turns(pg: PostgresServer) -> None:
         subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         for _ in range(4)
     ]
-    outcomes = [(process.communicate(timeout=60), process.returncode) for process in processes]
+    # Drained together: the one holding the lock fills its pipes (a log line per migration) while
+    # the others wait on it, so reading them one after another deadlocks once the output outgrows
+    # the pipe buffer.
+    with ThreadPoolExecutor(max_workers=len(processes)) as pool:
+        communicated = list(pool.map(lambda process: process.communicate(timeout=120), processes))
+    outcomes = [
+        (output, process.returncode)
+        for output, process in zip(communicated, processes, strict=True)
+    ]
 
     assert [code for _, code in outcomes] == [0, 0, 0, 0], [err for (_, err), _ in outcomes]
     assert _version(url) == [migration_state().head]
