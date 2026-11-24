@@ -58,7 +58,7 @@ from tests.api.workspaces.support import make_project
 from tests.collectors.ai_support import Prompt, add_prompt, seed_extraction, seed_observation
 from tests.collectors.support import Project
 from tests.conftest import PostgresServer
-from tests.db.support import insert_prompt, seed_rank
+from tests.db.support import insert_prompt, seed_alerts, seed_rank
 from tests.providers.google.fake_google import FakeGoogle
 from tests.security.cross_tenant_exceptions import NOT_PATH_SCOPED
 
@@ -298,6 +298,13 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-44 links-generate
     # WP-45 candidates-api
     # WP-47 alerts-api
+    ("POST", _W + "/projects/{project_id}/alert-rules"): {
+        "name": "Planted rule",
+        "rule_type": "rank_drop",
+        "params": {"positions": 5},
+    },
+    ("PATCH", _W + "/projects/{project_id}/alert-rules/{alert_rule_id}"): {"name": "Taken over"},
+    ("POST", _W + "/projects/{project_id}/alert-events/acknowledge"): {"ids": ["{alert_event_id}"]},
     # WP-49 saved-views
     # WP-50 exports
     # WP-51 reports
@@ -605,7 +612,11 @@ class Tenant:
         # that counts and depths equal by chance; the tenant's own page paths and URL (in the
         # ids) are what would show it.
         return [
-            *(value for name, value in self.ids().items() if name != "url_id"),
+            *(
+                value
+                for name, value in self.ids().items()
+                if name not in ("url_id", "alert_event_id")
+            ),
             str(self.owner.id),
             self.workspace.slug,
             self.owner.email,
@@ -1023,6 +1034,9 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-45 candidates-api
 
     # WP-47 alerts-api
+    alert_rule_id, alert_event_id = await _seed_alerts(pg, workspace.id, project_id)
+    more_ids["alert_rule_id"] = str(alert_rule_id)
+    more_ids["alert_event_id"] = str(alert_event_id)
 
     # WP-49 saved-views
 
@@ -1325,7 +1339,7 @@ def _nowhere(ids: dict[str, str]) -> dict[str, str]:
     snapshot or an AI observation a number no sequence has reached."""
     return {
         name: "9223372036854775000"
-        if name in ("serp_snapshot_id", "observation_id", "url_id")
+        if name in ("serp_snapshot_id", "observation_id", "url_id", "alert_event_id")
         else str(uuid.uuid4())
         for name in ids
     }
@@ -1535,6 +1549,9 @@ _TENANT_ROWS = {
     # WP-44 links-generate
     # WP-45 candidates-api
     # WP-47 alerts-api
+    "ops.alert_rules": "workspace_id",
+    "ops.alert_events": "workspace_id",
+    "ops.alert_cursors": "workspace_id",
     # WP-49 saved-views
     # WP-50 exports
     # WP-51 reports
@@ -1553,6 +1570,16 @@ _TENANT_ROWS = {
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
 }
+
+
+async def _seed_alerts(
+    pg: PostgresServer, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> tuple[uuid.UUID, int]:
+    db = await asyncpg.connect(pg.url())
+    try:
+        return await seed_alerts(db, workspace_id, project_id)
+    finally:
+        await db.close()
 
 
 async def _checksum(pg: PostgresServer, *workspaces: Workspace) -> dict[str, str | None]:

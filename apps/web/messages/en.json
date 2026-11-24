@@ -542,12 +542,148 @@
       "schedules": "Schedules",
       "retention": "Data retention",
       "links": "Internal links",
+      "alertRules": "Alert rules",
       "workspace": "General",
       "members": "Members and roles",
       "budgets": "Budgets and usage",
       "tiers": "Page tiers",
       "costs": "Costs",
       "operations": "Operations"
+    }
+  },
+  "alerts": {
+    "title": "Alert rules",
+    "description": "An alert shows here after a run or a check finds a change. Each alert says what changed since the one before.",
+    "newRule": "Add alert rule",
+    "readOnlyLead": "Read only:",
+    "readOnly": "Owners, admins and editors can change alert rules and acknowledge alerts.",
+    "forbidden": "You do not have permission to see the alerts of this project. Ask an admin of this workspace.",
+    "loadFailed": "The alert rules could not be loaded.",
+    "loadFailedReason": "The server did not answer. Try again in a moment.",
+    "emptyTitle": "No alert rules yet",
+    "emptyReason": "Add a rule to hear about changes after each run.",
+    "emptyReasonReadOnly": "Owners, admins and editors can add alert rules.",
+    "tableLabel": "Alert rules of this project",
+    "columns": {
+      "rule": "Rule",
+      "appliesTo": "Applies to",
+      "on": "On",
+      "actions": "Actions"
+    },
+    "switchLabel": "{name}",
+    "actionsFor": "Actions for {name}",
+    "menu": {
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "turnedOn": "{name} is on.",
+    "turnedOff": "{name} is off.",
+    "toggleFailed": "{name} could not be changed. Try again.",
+    "gone": "{name} was deleted by someone else.",
+    "created": "{name} added",
+    "saved": "{name} saved",
+    "deleted": "{name} deleted",
+    "deleteTitle": "Delete {name}?",
+    "deleteDescription": "Its alerts are deleted too. This cannot be undone.",
+    "deleteConfirm": "Delete rule",
+    "deleteFailed": "The rule was not deleted. Try again in a moment.",
+    "types": {
+      "aiMentionGained": {
+        "label": "Brand mentioned in an answer",
+        "hint": "A prompt starts to mention your brand."
+      },
+      "aiMentionLost": {
+        "label": "Brand no longer mentioned in an answer",
+        "hint": "A prompt stops mentioning your brand."
+      },
+      "aiCompetitorAppeared": {
+        "label": "Competitor mentioned in an answer",
+        "hint": "A competitor is mentioned for a prompt where it was not in the previous run."
+      },
+      "rankDrop": {
+        "label": "Keyword rank drops",
+        "hint": "A keyword falls by the number of positions you set in one check."
+      }
+    },
+    "rankDropOf": "Keyword rank drops by {positions, plural, one {# position} other {# positions}} or more",
+    "allGroups": "All groups",
+    "allPlatforms": "All platforms",
+    "removedGroup": "Deleted group",
+    "appliesBoth": "{groups}, {platforms}",
+    "platforms": {
+      "chatgptWeb": "ChatGPT",
+      "geminiWeb": "Gemini",
+      "googleAiMode": "Google AI Mode"
+    },
+    "dialog": {
+      "createTitle": "Add alert rule",
+      "createDescription": "A rule checks every run or check that finishes after you add it.",
+      "editTitle": "Edit {name}",
+      "discardDescription": "Your changes to this rule are not saved.",
+      "name": "Name",
+      "nameRequired": "Name the rule so you can find it in the list.",
+      "nameTooLong": "Use at most {max} characters.",
+      "type": "Alert me when",
+      "typeFixed": "The type of a rule cannot change. Add a new rule for another type.",
+      "groups": "Groups",
+      "groupsAiHint": "Only prompts in these groups count. Leave empty for every group.",
+      "groupsSeoHint": "Only keywords in these groups count. Leave empty for every group.",
+      "groupsPlaceholder": "All groups",
+      "groupsEmpty": "No group matches “{query}”",
+      "groupsChips": "Chosen groups",
+      "platforms": "Platforms",
+      "platformsHint": "Leave empty for every platform.",
+      "platformsPlaceholder": "All platforms",
+      "platformsEmpty": "No platform matches “{query}”",
+      "platformsChips": "Chosen platforms",
+      "removeValue": "Remove {value}",
+      "positions": "Drops by at least (positions)",
+      "positionsHint": "Compares one check with the one before it.",
+      "positionsInvalid": "Use a whole number from {min} to {max}.",
+      "sent": "Sent: in the app, after each run. Email and Slack come later.",
+      "create": "Add rule",
+      "readFailed": "The groups could not be loaded. Try again.",
+      "saveFailed": "The rule was not saved. Try again in a moment.",
+      "invalidParams": "These settings do not fit this type of rule.",
+      "forbidden": "You do not have permission to change alert rules."
+    },
+    "recent": {
+      "title": "Recent alerts",
+      "toAcknowledge": "{count, plural, one {# alert} other {# alerts}} to acknowledge.",
+      "toAcknowledgeMore": "{count, plural, one {# alert} other {# alerts}} to acknowledge, and more below.",
+      "nothingOpen": "Every alert shown is acknowledged.",
+      "tableLabel": "Recent alerts of this project",
+      "columns": {
+        "when": "When",
+        "what": "What changed",
+        "rule": "Rule",
+        "severity": "Severity",
+        "status": "Status"
+      },
+      "severity": {
+        "info": "Info",
+        "warning": "Warning",
+        "critical": "Critical"
+      },
+      "acknowledge": "Acknowledge",
+      "acknowledgeLabel": "Acknowledge alert: {subject}",
+      "acknowledged": "Acknowledged",
+      "acknowledgeAll": "Acknowledge all",
+      "acknowledgedDone": "{count, plural, one {# alert acknowledged} other {# alerts acknowledged}}",
+      "acknowledgeFailed": "The alerts were not acknowledged. Try again.",
+      "emptyTitle": "No alerts yet",
+      "emptyReason": "The next run checks every rule that is on.",
+      "loadFailed": "The alerts could not be loaded.",
+      "loadFailedReason": "The server did not answer. Try again in a moment.",
+      "loadMore": "Show more alerts",
+      "loadMoreFailed": "More alerts could not be loaded."
+    },
+    "evidence": {
+      "answers": "answers",
+      "answersOn": "{platform} answers",
+      "mentionChange": "{subject} was mentioned in {beforeMentioning} of {beforeValid} {answers} in the previous run and in {afterMentioning} of {afterValid} in this run.",
+      "rankDrop": "Rank fell from {from} to {to} ({positions, plural, one {# position} other {# positions}}).",
+      "unknown": "Changed since the previous run."
     }
   },
   "projectSettings": {
@@ -8119,7 +8255,6 @@
       }
     }
   },
-  "alerts": {},
   "reports": {
     "title": "Reports",
     "meta": "{project}",

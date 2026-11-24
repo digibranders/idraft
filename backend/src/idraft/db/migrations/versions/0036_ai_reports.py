@@ -9,8 +9,8 @@ A schedule emails the report weekly or monthly. The worker has no workspace unti
 due schedule, so a second definer function claims the due rows across workspaces and moves their
 `next_run_at` in the same statement: a crash after the claim loses one send, never repeats it.
 
-Revision ID: 0035
-Revises: 0034
+Revision ID: 0036
+Revises: 0035
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from alembic import op
 
 from idraft.db.ddl import column_grant, grants, statements, tenant_isolation
 
-revision: str = "0035"
-down_revision: str | None = "0034"
+revision: str = "0036"
+down_revision: str | None = "0035"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 

@@ -44,7 +44,7 @@ the most cited domains.
 
 ## Backend
 
-1. Migration `0035`: `core.ai_report_shares` (as `client_summary_shares`) with the definer lookup
+1. Migration `0036`: `core.ai_report_shares` (as `client_summary_shares`) with the definer lookup
    `core.ai_report_share_by_token`, and `core.ai_report_schedules` (`id`, `workspace_id`, `project_id`, `frequency`
    weekly or monthly, `recipients text[]`, `paused`, `next_run_at`, `last_sent_at`, `last_error`, `created_by`,
    `created_at`), RLS and grants (the worker role may select and update schedules and insert shares).

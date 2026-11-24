@@ -1265,7 +1265,7 @@
   // Settings (24 section 6): sections, the dirty form with its SaveBar and cost notice, and project deletion
 
   const SETTINGS_LABELS = Object.fromEntries($$('[data-settings-link]').map((a) => [a.dataset.settingsLink, a.textContent.trim()]));
-  const BUILT_SECTIONS = new Set(['profile', 'security', 'preferences', 'general', 'engines', 'internal-links', 'page-tiers']);
+  const BUILT_SECTIONS = new Set(['profile', 'security', 'preferences', 'general', 'engines', 'internal-links', 'page-tiers', 'alert-rules']);
   const NAV_ON = ['type-body-strong', 'text-primary-text', 'bg-surface-selected'];
   const NAV_OFF = ['type-body', 'text-foreground-secondary', 'hover:bg-surface-hover'];
   function setNavState(link, on) {

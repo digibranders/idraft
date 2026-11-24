@@ -187,8 +187,8 @@ forbidden_modules = ["idraft.api", "idraft.worker"]
 name = "the dev seed is reached only from the operator CLI"
 type = "forbidden"
 source_modules = [
-  "idraft.ai", "idraft.api", "idraft.collectors", "idraft.config", "idraft.crawl", "idraft.db",
-  "idraft.domain", "idraft.extraction", "idraft.keywords", "idraft.providers",
+  "idraft.ai", "idraft.alerts", "idraft.api", "idraft.collectors", "idraft.config", "idraft.crawl",
+  "idraft.db", "idraft.domain", "idraft.extraction", "idraft.keywords", "idraft.providers",
   "idraft.ranks", "idraft.screenshots", "idraft.storage", "idraft.vault", "idraft.worker",
 ]
 forbidden_modules = ["idraft.devseed"]

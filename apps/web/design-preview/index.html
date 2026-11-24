@@ -675,6 +675,8 @@
             <!-- Internal links settings (spec 7.7, 7.8): filled by il-settings.js -->
             <section data-settings-section="internal-links" hidden aria-labelledby="set-internal-links-title" class="flex flex-col gap-5"></section>
             <section data-settings-section="page-tiers" hidden aria-labelledby="set-page-tiers-title" class="flex flex-col gap-5"></section>
+            <!-- Alert rules (docs/superpowers/plans/2026-11-24-alerts.md): filled by alerts.js -->
+            <section data-settings-section="alert-rules" hidden aria-labelledby="set-alert-rules-title" class="flex flex-col gap-5"></section>
 
             <section data-settings-section="placeholder" hidden aria-labelledby="set-placeholder-title" class="flex flex-col gap-4">
               <h2 id="set-placeholder-title" data-placeholder-title class="type-section-title">Section</h2>
@@ -1122,6 +1124,12 @@
   </form>
 </div>
 
+<!-- Compare days: one prompt and platform, a column per run. Built in prompts-compare.js -->
+<div id="dlg-compare-days" role="dialog" aria-modal="true" aria-labelledby="dlg-compare-title" hidden class="fixed inset-0 z-(--z-dialog) flex items-start justify-center px-4 data-top-offset">
+  <div data-scrim class="absolute inset-0 bg-(--scrim)"></div>
+  <div data-dialog-panel class="relative max-w-full rounded-xl bg-surface-elevated shadow-dialog flex flex-col"></div>
+</div>
+
 <!-- Layout customization (docs/superpowers/specs/2026-09-30-layout-customization-design.md) -->
 <p id="layout-live" role="status" aria-live="polite" class="sr-only"></p>
 <p id="layout-drag-help" hidden>Press Space to pick up, the arrow keys to move, Space to drop, Escape to put it back.</p>
@@ -1292,5 +1300,6 @@
 <script type="module" src="./kw-grouped.js"></script>
 <script type="module" src="./il.js"></script>
 <script type="module" src="./reports.js"></script>
+<script type="module" src="./alerts.js"></script>
 </body>
 </html>

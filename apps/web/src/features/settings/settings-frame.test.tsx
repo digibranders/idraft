@@ -58,6 +58,7 @@ describe('SettingsFrame', () => {
       '/digibranders/fynix/settings/schedules',
       '/digibranders/fynix/settings/retention',
       '/digibranders/fynix/settings/links',
+      '/digibranders/fynix/settings/alert-rules',
       '/digibranders/fynix/settings/workspace',
       '/digibranders/fynix/settings/members',
       '/digibranders/fynix/settings/budgets',

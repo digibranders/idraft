@@ -86,6 +86,9 @@ TENANT_TABLES: dict[str, str] = {
     "core.client_summary_shares": "workspace_id",
     "core.ai_report_shares": "workspace_id",
     "core.ai_report_schedules": "workspace_id",
+    "ops.alert_rules": "workspace_id",
+    "ops.alert_events": "workspace_id",
+    "ops.alert_cursors": "workspace_id",
     "fp.gsc_page_daily": "workspace_id",
 }
 
@@ -780,7 +783,37 @@ async def seed_internal_links(
         project_id,
         owner_id,
     )
+    await seed_alerts(db, workspace_id, project_id)
     return run_id
+
+
+async def seed_alerts(
+    db: asyncpg.Connection[Any], workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> tuple[uuid.UUID, int]:
+    """One rule, one alert it raised, and the project's cursor. Returns the rule and alert ids."""
+    rule_id: uuid.UUID = await db.fetchval(
+        "INSERT INTO ops.alert_rules (workspace_id, project_id, name, rule_type) "
+        "VALUES ($1, $2, 'Lost mentions', 'ai_mention_lost') RETURNING id",
+        workspace_id,
+        project_id,
+    )
+    event_id: int = await db.fetchval(
+        "INSERT INTO ops.alert_events (rule_id, workspace_id, project_id, subject_type, "
+        "subject_id, subject_label, dedupe_key, event_kind, severity, evidence, occurred_at) "
+        "VALUES ($1, $2, $3, 'prompt', 'p', 'A prompt', $4, 'ai_mention_lost', 'warning', "
+        "'{}', now()) RETURNING id",
+        rule_id,
+        workspace_id,
+        project_id,
+        f"{rule_id}|p|ai_mention_lost|r",
+    )
+    await db.execute(
+        "INSERT INTO ops.alert_cursors (project_id, workspace_id, last_completed_at) "
+        "VALUES ($1, $2, now())",
+        project_id,
+        workspace_id,
+    )
+    return rule_id, event_id
 
 
 async def seed_ai(

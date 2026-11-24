@@ -2168,3 +2168,69 @@ gsc_page_daily = Table(
     ),
     schema="fp",
 )
+
+alert_rules = Table(
+    "alert_rules",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("rule_type", Text, nullable=False),
+    Column("scope", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("params", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("channels", ARRAY(Text), nullable=False, server_default=FetchedValue()),
+    Column("digest_mode", Text, nullable=False, server_default=FetchedValue()),
+    Column("is_active", Boolean, nullable=False, server_default=FetchedValue()),
+    _created_at(),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    UniqueConstraint("id", "workspace_id", name="alert_rules_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="ops",
+)
+
+alert_events = Table(
+    "alert_events",
+    metadata,
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("rule_id", Uuid, nullable=False),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("subject_type", Text, nullable=False),
+    Column("subject_id", Text, nullable=False),
+    Column("subject_label", Text, nullable=False),
+    Column("dedupe_key", Text, nullable=False),
+    Column("event_kind", Text, nullable=False),
+    Column("severity", Text, nullable=False),
+    Column("evidence", JSONB, nullable=False),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
+    Column("notified_at", DateTime(timezone=True)),
+    Column("acknowledged_by", Uuid, ForeignKey(users.c.id, ondelete="SET NULL")),
+    Column("acknowledged_at", DateTime(timezone=True)),
+    UniqueConstraint("dedupe_key", name="alert_events_dedupe_key_key"),
+    ForeignKeyConstraint(
+        ["rule_id", "workspace_id"],
+        [alert_rules.c.id, alert_rules.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="ops",
+)
+
+alert_cursors = Table(
+    "alert_cursors",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("last_completed_at", DateTime(timezone=True), nullable=False),
+    Column("last_rank_event_id", BigInteger, nullable=False, server_default=FetchedValue()),
+    Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="ops",
+)
