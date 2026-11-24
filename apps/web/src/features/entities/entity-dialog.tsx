@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState, type ReactNode } from 'react';
 
+import { PasteCompetitors } from './paste-competitors-dialog';
 import {
   COMPETITOR_LIMIT,
   refreshEntities,
@@ -27,11 +28,9 @@ import { isApiProblem } from '@/lib/api/problem';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
 import { otherNames, wordAlias } from '@/lib/entities/aliases';
 import { nextCompetitorColor } from '@/lib/entities/colors';
+import { MAX_NAME_LENGTH, nameFromDomain } from '@/lib/entities/paste-list';
 import { attachEntityMutation, createEntityMutation, findBrandId } from '@/lib/entities/project-entities';
 import { textLength } from '@/lib/text/length';
-
-/** The API's limit on a canonical name. */
-const MAX_NAME_LENGTH = 200;
 
 type AddedRole = Exclude<ProjectRole, 'own'>;
 
@@ -52,13 +51,22 @@ export interface EntityDialogProps {
  * role in this project; if the second step fails, trying again only gives the role.
  */
 export function EntityDialog({ role, ...props }: EntityDialogProps): ReactNode {
-  return role === null ? null : <EntityForm role={role} {...props} />;
+  return role === null ? null : <EntityDialogModes role={role} {...props} />;
 }
 
-/** "Hubspot" from "hubspot.com": the first label of the host, as a starting point the person corrects. */
-function nameFromDomain(domain: string): string {
-  const label = domain.split('.')[0] ?? '';
-  return label === '' ? '' : `${label.charAt(0).toLocaleUpperCase()}${label.slice(1)}`;
+/** A competitor is added one at a time, or from a pasted list; the dialog opens on one and returns to it. */
+function EntityDialogModes({ role, ...props }: Omit<EntityDialogProps, 'role'> & { role: AddedRole }): ReactNode {
+  const [pasting, setPasting] = useState(false);
+  return pasting ? (
+    <PasteCompetitors
+      scope={props.scope}
+      entities={props.entities}
+      onBack={() => setPasting(false)}
+      onClose={props.onClose}
+    />
+  ) : (
+    <EntityForm role={role} {...props} onPaste={role === 'competitor' ? () => setPasting(true) : undefined} />
+  );
 }
 
 function EntityForm({
@@ -66,7 +74,8 @@ function EntityForm({
   role,
   entities,
   onClose,
-}: Omit<EntityDialogProps, 'role'> & { role: AddedRole }): ReactNode {
+  onPaste,
+}: Omit<EntityDialogProps, 'role'> & { role: AddedRole; onPaste: (() => void) | undefined }): ReactNode {
   const t = useTranslations('entitySettings.dialog');
   const domains = useTranslations('common.domain');
   const multiSelectHints = useMultiSelectHints();
@@ -249,6 +258,11 @@ function EntityForm({
         />
         <DialogBody>
           {alert === null ? null : <FormAlert message={alert} />}
+          {onPaste === undefined || createdId !== null ? null : (
+            <Button type="button" variant="ghost" size="sm" className="self-start" onClick={onPaste} disabled={busy}>
+              {t('addSeveral')}
+            </Button>
+          )}
           <Field invalid={shownDomainError !== null} disabled={createdId !== null}>
             <FieldLabel>{t('domain')}</FieldLabel>
             <DomainInput

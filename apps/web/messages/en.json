@@ -1510,7 +1510,42 @@
       "competitorLimit": "This project tracks {limit} competitors in SEO, the most it can. Add this one for AI visibility only, or turn SEO off for another.",
       "addedCompetitor": "{name} added as a competitor",
       "addedWatched": "{name} is now watched",
-      "existing": "{name} already exists in this workspace. Add competitor gives it its role in this project, with its saved domains and aliases."
+      "existing": "{name} already exists in this workspace. Add competitor gives it its role in this project, with its saved domains and aliases.",
+      "addSeveral": "Add several at once",
+      "paste": {
+        "title": "Add competitors",
+        "description": "A site you compete with for rankings and AI answers, one for each line.",
+        "list": "Competitors",
+        "placeholder": "hubspot.com\nPipedrive, pipedrive.com",
+        "hint": "A site on each line, or a name and a site: HubSpot, hubspot.com. Up to 50 at a time.",
+        "issuesList": "Lines that will not be added",
+        "issue": "Line {line}, {text}: {reason}",
+        "problem": {
+          "format": "use a site, or a name and a site",
+          "nameTooLong": "the name is too long",
+          "duplicate": "the site is already in the list",
+          "alreadyTracked": "the project already has this site",
+          "tooMany": "only the first 50 are read"
+        },
+        "seoOver": "This project tracks {limit} competitors in SEO and has {free, plural, =0 {no place} one {# place} other {# places}} left. The first {free, plural, =0 {none} one {one} other {# of them}} are tracked in SEO, the rest in AI visibility only.",
+        "sov": "Adding competitors changes share of voice for all brands from today.",
+        "addOne": "Add one",
+        "submit": "Add {count, plural, =0 {competitors} one {# competitor} other {# competitors}}",
+        "discardDescription": "The competitors you pasted will not be added.",
+        "added": "{count, plural, one {# competitor} other {# competitors}} added",
+        "resultTitle": "Some competitors were not added",
+        "resultSummary": "{added, plural, =0 {None was} one {# was} other {# were}} added and {failed, plural, one {# was} other {# were}} not.",
+        "failedList": "Competitors that were not added",
+        "retry": "Paste these again",
+        "fail": {
+          "domain": "the site was refused",
+          "nameTaken": "another brand in this workspace has this name",
+          "create": "the brand was not created, try again in a moment",
+          "attach": "it was created but not added to this project, try again",
+          "alreadyAdded": "it is already in this project",
+          "limit": "this project already tracks {limit} competitors in SEO"
+        }
+      }
     },
     "tracking": {
       "title": "Tracking for {name}",
