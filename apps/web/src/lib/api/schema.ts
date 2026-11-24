@@ -6934,6 +6934,16 @@ export interface components {
              */
             previous?: components["schemas"]["EngineCells"] | null;
             /**
+             * Recommended
+             * @description With `include=facts`: the recommendation rate, valid answers that recommend the own brand over the engine's valid answers, built as `mentioned` is (a recommendation is a kind of mention, so the numerator is at most that of `mentioned`). Null while none of the row's valid answers has been classified yet (derived again after the extractor that classifies them). Left out when `facts` was not asked for.
+             */
+            recommended?: components["schemas"]["MetricCell"] | null;
+            /**
+             * Sentiment
+             * @description With `include=facts`: how many valid answers name the own brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the row names the own brand with a tone. Never one score. Left out when `facts` was not asked for.
+             */
+            sentiment?: components["schemas"]["SentimentCounts"] | null;
+            /**
              * Series
              * @description With `include=series`: a point for each week the window touches, oldest first, at most 14; a week without answers has counts of 0. The first and last weeks may be partial (cut at the window bounds). The points of a prompt row are always pooled over the trailing four weeks; those of a topic, total or country row are when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`). A pool stays inside the window. Left out otherwise.
              */
@@ -12125,6 +12135,21 @@ export interface components {
             stale_days?: number | null;
             /** Terms */
             terms?: string[] | null;
+        };
+        /**
+         * SentimentCounts
+         * @description The tone of the answers of an engine that name the own brand, as counts that add up over
+         *     prompts. They add up to the classified mentions of the engine.
+         */
+        SentimentCounts: {
+            /** Mixed */
+            mixed: number;
+            /** Negative */
+            negative: number;
+            /** Neutral */
+            neutral: number;
+            /** Positive */
+            positive: number;
         };
         /** SeoSettings */
         SeoSettings: {
