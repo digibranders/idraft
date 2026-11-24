@@ -100,7 +100,7 @@ def _header_only_png(width: int, height: int) -> bytes:
     )
 
 
-@pytest.mark.parametrize(("width", "height"), [(4001, 100), (1920, 10_001)])
+@pytest.mark.parametrize(("width", "height"), [(4001, 100), (1920, 20_900)])
 def test_a_capture_larger_than_any_real_one_is_refused_before_it_is_decoded(
     width: int, height: int
 ) -> None:
@@ -115,6 +115,15 @@ def test_a_real_capture_at_the_limits_is_accepted() -> None:
     image.save(out, format="PNG")
     with pytest.raises(CaptureError, match="blank"):
         trim_capture(out.getvalue(), requested_height=100)
+
+
+def test_a_google_ai_mode_page_taller_than_a_chatgpt_capture_is_accepted() -> None:
+    # 10,117 px high at 1,920 wide: the page the live check on 2026-11-24 was refused for.
+    image = Image.new("RGB", (1920, 10_117), BACKGROUND)
+    out = io.BytesIO()
+    image.save(out, format="PNG")
+    with pytest.raises(CaptureError, match="blank"):
+        trim_capture(out.getvalue(), requested_height=9999)
 
 
 def test_an_image_header_that_claims_a_bomb_is_a_capture_error_not_a_crash() -> None:
