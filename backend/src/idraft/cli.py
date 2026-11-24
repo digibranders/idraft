@@ -10,6 +10,10 @@ refuses to run anywhere but a developer's machine (docs/ops/dev-eventus-seed.md)
 
 `ai-quality` prints the AI quality checks of one UTC day (docs/25-observability.md section 9). It
 connects as `migrator` too, reads across workspaces and writes nothing.
+
+`backfill-prompt-intent` gives every live prompt whose intent is `unknown` the intent and funnel
+stage its wording rule gives (`idraft.ai.intent`). It connects as `migrator`, and a second run
+changes nothing.
 """
 
 from __future__ import annotations
@@ -233,6 +237,61 @@ def _ai_quality(arguments: argparse.Namespace) -> int:
     return 0
 
 
+_UNKNOWN_PROMPTS = """
+    SELECT p.id, v.text
+    FROM ai.prompts p JOIN ai.prompt_versions v ON v.id = p.current_version_id
+    WHERE p.intent = 'unknown' AND p.deleted_at IS NULL
+"""
+# `intent = 'unknown'` again: a person may have set it since the read. A funnel stage someone set
+# is kept. `updated_at` moves with the row.
+_SET_INTENT = """
+    UPDATE ai.prompts
+    SET intent = $2,
+        funnel_stage = CASE WHEN funnel_stage = 'unknown' THEN $3 ELSE funnel_stage END,
+        updated_at = now()
+    WHERE id = ANY($1::uuid[]) AND intent = 'unknown'
+"""
+
+
+async def backfill_prompt_intent(database_url: str) -> dict[str, int] | None:
+    """Prompts changed, by the intent they were given; None when the role is not the owner.
+
+    Only `unknown` rows are touched: `ai.prompts` keeps no source for the intent, and an intent a
+    person set is never `unknown`."""
+    from idraft.ai.intent import classify_prompt_intent
+
+    connection = await asyncpg.connect(database_url, timeout=CONNECT_TIMEOUT_SECONDS)
+    try:
+        if await connection.fetchval("SELECT current_user") != OWNER_ROLE:
+            return None
+        groups: dict[tuple[str, str], list[uuid.UUID]] = {}
+        for row in await connection.fetch(_UNKNOWN_PROMPTS):
+            groups.setdefault(classify_prompt_intent(row["text"]), []).append(row["id"])
+        changed: dict[str, int] = {}
+        async with connection.transaction():
+            for (intent, stage), ids in groups.items():
+                if intent == "unknown":
+                    continue
+                status = await connection.execute(_SET_INTENT, ids, intent, stage)
+                changed[intent] = changed.get(intent, 0) + int(status.rsplit(" ", 1)[1])
+        return changed
+    finally:
+        await connection.close()
+
+
+def _backfill_prompt_intent(arguments: argparse.Namespace) -> int:
+    settings = load_migrator_settings()
+    try:
+        changed = asyncio.run(backfill_prompt_intent(settings.asyncpg_dsn))
+    except (OSError, TimeoutError, asyncpg.PostgresError) as error:
+        return _fail(_database_problem(error))
+    if changed is None:
+        return _fail(f"This command must connect as {OWNER_ROLE}. Check DATABASE_URL.")
+    lines = [f"{intent}: {count}" for intent, count in sorted(changed.items())]
+    sys.stdout.write("\n".join([*lines, f"changed {sum(changed.values())} prompts"]) + "\n")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m idraft.cli", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -264,6 +323,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     quality.add_argument("--workspace", type=uuid.UUID, help="read one workspace only")
     quality.add_argument("--project", type=uuid.UUID, help="read one project only")
     quality.set_defaults(run=_ai_quality)
+    backfill = commands.add_parser(
+        "backfill-prompt-intent",
+        help="set intent and funnel stage from the wording of every prompt whose intent is unknown",
+    )
+    backfill.set_defaults(run=_backfill_prompt_intent)
     arguments = parser.parse_args(argv)
     code: int = arguments.run(arguments)
     return code

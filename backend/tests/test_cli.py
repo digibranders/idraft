@@ -13,6 +13,8 @@ from idraft import cli
 from idraft.api.auth.passwords import verify_password
 from tests.ai.quality_support import DAY, World, failing_day, make_world
 from tests.api.auth.support import execute, fetch, fetchrow
+from tests.collectors.ai_support import add_prompt
+from tests.collectors.support import make_tenant
 from tests.conftest import BASE_URL, PostgresServer
 from tests.db.support import connection
 
@@ -462,3 +464,67 @@ def test_ai_quality_needs_a_valid_day(
             database_url=migrated.url("migrator"),
         )
     assert stopped.value.code == 2
+
+
+def test_backfill_prompt_intent_sets_unknown_intents_once(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def seed() -> dict[str, uuid.UUID]:
+        project = await make_tenant(migrated)
+        ids = {
+            "commercial": (await add_prompt(migrated, project, "Compare the top 10 SOC firms")).id,
+            "informational": (await add_prompt(migrated, project, "What is a SOC")).id,
+            "set": (await add_prompt(migrated, project, "Compare SOC vendors")).id,
+            "archived": (await add_prompt(migrated, project, "SOC pricing", active=False)).id,
+            "deleted": (await add_prompt(migrated, project, "Buy a SOC")).id,
+        }
+        await execute(
+            migrated,
+            "UPDATE ai.prompts SET intent = 'local', funnel_stage = 'bofu' WHERE id = $1",
+            ids["set"],
+        )
+        await execute(
+            migrated, "UPDATE ai.prompts SET deleted_at = now() WHERE id = $1", ids["deleted"]
+        )
+        return ids
+
+    async def states(ids: dict[str, uuid.UUID]) -> dict[str, tuple[str, str]]:
+        rows = await fetch(
+            migrated,
+            "SELECT id, intent, funnel_stage FROM ai.prompts WHERE id = ANY($1::uuid[])",
+            list(ids.values()),
+        )
+        by_id = {row["id"]: (row["intent"], row["funnel_stage"]) for row in rows}
+        return {name: by_id[prompt_id] for name, prompt_id in ids.items()}
+
+    ids = asyncio.run(seed())
+    arguments = ["backfill-prompt-intent"]
+
+    code, out, err = _run(monkeypatch, capsys, arguments, database_url=migrated.url("migrator"))
+
+    assert (code, err) == (0, "")
+    assert asyncio.run(states(ids)) == {
+        "commercial": ("commercial", "mofu"),
+        "informational": ("informational", "tofu"),
+        "set": ("local", "bofu"),
+        "archived": ("transactional", "bofu"),
+        "deleted": ("unknown", "unknown"),
+    }
+    lines = out.splitlines()
+    assert any(line.startswith("commercial: ") for line in lines)
+    assert lines[-1].startswith("changed ")
+
+    code, out, err = _run(monkeypatch, capsys, arguments, database_url=migrated.url("migrator"))
+
+    assert (code, err, out) == (0, "", "changed 0 prompts\n")
+
+
+def test_backfill_prompt_intent_refuses_to_run_as_any_role_but_migrator(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, out, err = _run(
+        monkeypatch, capsys, ["backfill-prompt-intent"], database_url=migrated.url("app_api")
+    )
+
+    assert (code, out) == (1, "")
+    assert err == "This command must connect as migrator. Check DATABASE_URL.\n"
