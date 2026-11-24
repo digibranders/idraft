@@ -38,7 +38,6 @@ from sqlalchemy import (
     literal,
     or_,
     select,
-    true,
     tuple_,
 )
 from sqlalchemy.dialects.postgresql import aggregate_order_by
@@ -140,7 +139,9 @@ async def read_scope(
 
 
 def _in_view(view: LinkScope, table: Any = crawl_links) -> ColumnElement[bool]:
-    return true() if view is LinkScope.ALL else table.c.scope == view.value
+    """The links in a scope that count: links the variants fold left out are `ignored` (plan 09)."""
+    counted = table.c.ignored.is_(False)
+    return counted if view is LinkScope.ALL else and_(counted, table.c.scope == view.value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +197,8 @@ def _flags(row: Row[Any]) -> list[str]:
         flags.append("non_indexable")
     if mostly_generic(row.editorial_anchors, row.generic_anchors):
         flags.append("generic_anchors")
+    if row.variant_of_url_id is not None:
+        flags.append("variant")
     return flags
 
 
@@ -758,6 +761,7 @@ async def neighbor_page(
         crawl_links.c.run_id == scope.run_id,
         mine == url_id,
         theirs != url_id,
+        crawl_links.c.ignored.is_(False),
     )
     redirect_child = direction == "out" and focus.redirect_url_id is not None
     if redirect_child:

@@ -66,18 +66,27 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequen
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Final
+from typing import Any, Final
 from uuid import UUID
 
 import structlog
 from sqlalchemy import bindparam, case, exc, func, insert, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as upsert
+from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
+from idraft.collectors.crawl_enrich import ANCHORS_UPDATE
 from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask
-from idraft.collectors.crawl_store import apply_rules, recompute_tier_flow
+from idraft.collectors.crawl_store import (
+    DATA_STATES,
+    apply_rules,
+    latest_run,
+    recompute_tier_flow,
+)
 from idraft.collectors.crawl_store import html_key as html_key  # kept here for its callers
+from idraft.collectors.crawl_variants_sql import EFFECTIVE_LINKS, apply_variants
+from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.crawl.edges import PageEdge, clean_text, is_clean, page_edges
 from idraft.crawl.graph import (
     Link,
@@ -93,6 +102,7 @@ from idraft.crawl.placement import FoundLink, Placement, classify
 from idraft.crawl.scopes import LinkScope, scope_of
 from idraft.crawl.status import BLOCKED_STATUSES, is_blocked
 from idraft.crawl.template import TemplateRow, template_placements
+from idraft.crawl.variants import fold_variants
 from idraft.db import dictionaries
 from idraft.db.tables import crawl_links, crawl_pages, crawl_runs, projects, urls
 from idraft.domain.retries import ProviderErrorKind
@@ -833,9 +843,9 @@ _INCOMING = text(
                  count(DISTINCT source_url_id) FILTER (WHERE scope = 'auto_generated') AS auto,
                  count(DISTINCT source_url_id) FILTER (WHERE scope = 'template') AS template,
                  count(DISTINCT source_url_id) AS every
-          FROM seo.crawl_links WHERE run_id = :run_id GROUP BY target_url_id) c
-    WHERE p.run_id = :run_id AND p.url_id = c.url_id
-    """
+          FROM ({effective}) e GROUP BY target_url_id) c
+    WHERE p.run_id = CAST(:run_id AS uuid) AND p.url_id = c.url_id
+    """.replace("{effective}", EFFECTIVE_LINKS)
 )
 _OUTGOING = text(
     """
@@ -854,37 +864,42 @@ _OUTGOING = text(
                  count(DISTINCT l.target_url_id)
                      FILTER (WHERE t.status_code BETWEEN 300 AND 399) AS redirect,
                  count(DISTINCT l.target_url_id) FILTER (WHERE NOT t.is_indexable) AS non_indexable
-          FROM seo.crawl_links l
-          LEFT JOIN seo.crawl_pages t ON t.run_id = l.run_id AND t.url_id = l.target_url_id
-          WHERE l.run_id = :run_id GROUP BY l.source_url_id) c
-    WHERE p.run_id = :run_id AND p.url_id = c.url_id
-    """
+          FROM ({effective}) l
+          LEFT JOIN seo.crawl_pages t ON t.run_id = CAST(:run_id AS uuid)
+               AND t.url_id = l.target_url_id
+          GROUP BY l.source_url_id) c
+    WHERE p.run_id = CAST(:run_id AS uuid) AND p.url_id = c.url_id
+    """.replace("{effective}", EFFECTIVE_LINKS)
 )
 _TOP_ANCHOR = text(
     """
     UPDATE seo.crawl_pages p SET top_anchor = a.anchor
     FROM (SELECT DISTINCT ON (target_url_id) target_url_id, anchor
           FROM (SELECT target_url_id, anchor, sum(occurrences) AS uses
-                FROM seo.crawl_links
-                WHERE run_id = :run_id AND scope = 'editorial' AND anchor <> ''
+                FROM ({effective}) e
+                WHERE scope = 'editorial' AND anchor <> ''
                 GROUP BY target_url_id, anchor) counted
           ORDER BY target_url_id, uses DESC, anchor) a
-    WHERE p.run_id = :run_id AND p.url_id = a.target_url_id
-    """
+    WHERE p.run_id = CAST(:run_id AS uuid) AND p.url_id = a.target_url_id
+    """.replace("{effective}", EFFECTIVE_LINKS)
 )
 _FLAGS = text(
     """
     UPDATE seo.crawl_pages SET
-        is_orphan = in_sitemap AND linking_pages_all = 0 AND url_id IS DISTINCT FROM :start,
+        is_orphan = in_sitemap AND linking_pages_all = 0 AND url_id IS DISTINCT FROM :start
+            AND variant_of_url_id IS NULL,
         is_editorial_orphan = coalesce(status_code = 200, false) AND linking_pages_all > 0
             AND linking_pages_editorial = 0 AND url_id IS DISTINCT FROM :start
+            AND variant_of_url_id IS NULL
     WHERE run_id = :run_id
     """
 )
 _SUMMARY = text(
     """
-    SELECT count(*) FILTER (WHERE in_sitemap) AS sitemap_pages,
-           count(*) FILTER (WHERE status_code = ANY(CAST(:blocked AS integer[]))) AS pages_blocked,
+    SELECT count(*) FILTER (WHERE in_sitemap AND variant_of_url_id IS NULL) AS sitemap_pages,
+           count(*) FILTER (WHERE variant_of_url_id IS NOT NULL) AS pages_variant,
+           count(*) FILTER (WHERE variant_of_url_id IS NULL
+                            AND status_code = ANY(CAST(:blocked AS integer[]))) AS pages_blocked,
            percentile_cont(0.25) WITHIN GROUP (ORDER BY equity_share)
                FILTER (WHERE status_code = 200) AS equity_p25
     FROM seo.crawl_pages WHERE run_id = :run_id
@@ -892,30 +907,38 @@ _SUMMARY = text(
 )
 
 
-def _walked_links(run: _Run, nodes: dict[int, Node], links: list[Link]) -> list[Link]:
+def _walked_links(
+    start_url_id: int | None, run_id: UUID, nodes: dict[int, Node], links: list[Link]
+) -> list[Link]:
     """The links the depth walk follows: the stored ones, and, when the start page was not
     served, the site's template links as its own. Those are for the walk only: they are never
     stored, counted or ranked."""
-    if run.start_url_id is None:
+    if start_url_id is None:
         return links
-    roots = template_roots(run.start_url_id, nodes, links)
+    roots = template_roots(start_url_id, nodes, links)
     if not roots:
         return links
     _log.info(
         "crawl start page unreadable, depth from template links",
-        run_id=str(run.id),
+        run_id=str(run_id),
         roots=len(roots),
     )
-    return [*links, *(Link(run.start_url_id, root, LinkScope.TEMPLATE, True) for root in roots)]
+    return [*links, *(Link(start_url_id, root, LinkScope.TEMPLATE, True) for root in roots)]
 
 
 def _page_values(
-    nodes: dict[int, Node], links: list[Link], run: _Run
+    nodes: dict[int, Node],
+    links: list[Link],
+    variant_of: dict[int, int],
+    start_url_id: int | None,
+    run_id: UUID,
 ) -> tuple[list[dict[str, object]], float]:
-    """Depth and equity of every page, and the share of equity the error pages hold. Pure
-    work, run in a thread."""
-    start = run.start_url_id
-    walked = _walked_links(run, nodes, links)
+    """Depth and equity of every page that counts, and the share of equity the error pages
+    hold. Variants are folded into their canonical pages first (plan 09). Pure work, run in a
+    thread."""
+    start = start_url_id
+    nodes, links = fold_variants(nodes, links, variant_of)
+    walked = _walked_links(start, run_id, nodes, links)
     depths = {} if start is None else click_depths(start, nodes, walked)
     without = {} if start is None else click_depths(start, nodes, walked, without_auto=True)
     equity = pagerank(nodes, links)
@@ -936,6 +959,75 @@ def _page_values(
     return values, lost / total
 
 
+async def _count_and_read(
+    db: AsyncSession, run_id: UUID, start_url_id: int | None
+) -> tuple[dict[int, Node], list[Link], dict[int, int]]:
+    """Decide the variants, count every page's links and flags, and read the graph (the nodes,
+    the links that count, and the variants with the page each folds into)."""
+    await apply_variants(db, run_id)
+    for statement in (_INCOMING, _TOP_ANCHOR):
+        await db.execute(statement, {"run_id": run_id})
+    await db.execute(_OUTGOING, {"run_id": run_id, "blocked": sorted(BLOCKED_STATUSES)})
+    await db.execute(_FLAGS, {"run_id": run_id, "start": start_url_id})
+    node_rows = (
+        await db.execute(
+            select(
+                crawl_pages.c.url_id,
+                crawl_pages.c.status_code,
+                crawl_pages.c.redirect_url_id,
+                crawl_pages.c.variant_of_url_id,
+            ).where(crawl_pages.c.run_id == run_id)
+        )
+    ).all()
+    link_rows = (
+        await db.execute(
+            select(
+                crawl_links.c.source_url_id,
+                crawl_links.c.target_url_id,
+                crawl_links.c.scope,
+                crawl_links.c.is_followed,
+            ).where(crawl_links.c.run_id == run_id, crawl_links.c.ignored.is_(False))
+        )
+    ).all()
+    nodes = {
+        row.url_id: Node(row.url_id, row.status_code, row.redirect_url_id) for row in node_rows
+    }
+    links = [
+        Link(row.source_url_id, row.target_url_id, LinkScope(row.scope), row.is_followed)
+        for row in link_rows
+    ]
+    variant_of = {
+        row.url_id: row.variant_of_url_id for row in node_rows if row.variant_of_url_id is not None
+    }
+    return nodes, links, variant_of
+
+
+async def _store_values(
+    db: AsyncSession,
+    workspace_id: UUID,
+    run_id: UUID,
+    values: list[dict[str, object]],
+    lost: float,
+) -> None:
+    if values:
+        await db.execute(
+            update(crawl_pages)
+            .where(crawl_pages.c.run_id == run_id, crawl_pages.c.url_id == bindparam("b_url"))
+            .values(
+                click_depth=bindparam("b_depth"),
+                depth_without_auto=bindparam("b_without"),
+                equity_share=bindparam("b_share"),
+                deep_only_through_auto=bindparam("b_deep"),
+            ),
+            values,
+        )
+    await db.execute(
+        update(crawl_runs)
+        .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
+        .values(equity_lost_to_errors=lost)
+    )
+
+
 async def _page_metrics(sessions: async_sessionmaker[AsyncSession], run: _Run) -> bool:
     """Counts, flags, depth and equity of every page, written to the pages. The crawl is still
     `processing`, so nothing here is shown yet, and the statements can be run again. The SQL
@@ -952,57 +1044,15 @@ async def _page_metrics(sessions: async_sessionmaker[AsyncSession], run: _Run) -
         await _long_transaction(db)
         if not await _claim(db, run):
             return False
-        for statement in (_INCOMING, _TOP_ANCHOR):
-            await db.execute(statement, {"run_id": run.id})
-        await db.execute(_OUTGOING, {"run_id": run.id, "blocked": sorted(BLOCKED_STATUSES)})
-        await db.execute(_FLAGS, {"run_id": run.id, "start": run.start_url_id})
-        node_rows = (
-            await db.execute(
-                select(
-                    crawl_pages.c.url_id, crawl_pages.c.status_code, crawl_pages.c.redirect_url_id
-                ).where(crawl_pages.c.run_id == run.id)
-            )
-        ).all()
-        link_rows = (
-            await db.execute(
-                select(
-                    crawl_links.c.source_url_id,
-                    crawl_links.c.target_url_id,
-                    crawl_links.c.scope,
-                    crawl_links.c.is_followed,
-                ).where(crawl_links.c.run_id == run.id)
-            )
-        ).all()
-    nodes = {
-        row.url_id: Node(row.url_id, row.status_code, row.redirect_url_id) for row in node_rows
-    }
-    links = [
-        Link(row.source_url_id, row.target_url_id, LinkScope(row.scope), row.is_followed)
-        for row in link_rows
-    ]
-    del node_rows, link_rows
-    values, lost = await asyncio.to_thread(_page_values, nodes, links, run)
+        nodes, links, variant_of = await _count_and_read(db, run.id, run.start_url_id)
+    values, lost = await asyncio.to_thread(
+        _page_values, nodes, links, variant_of, run.start_url_id, run.id
+    )
     async with sessions() as db, db.begin():
         await _long_transaction(db)
         if not await _claim(db, run):
             return False
-        if values:
-            await db.execute(
-                update(crawl_pages)
-                .where(crawl_pages.c.run_id == run.id, crawl_pages.c.url_id == bindparam("b_url"))
-                .values(
-                    click_depth=bindparam("b_depth"),
-                    depth_without_auto=bindparam("b_without"),
-                    equity_share=bindparam("b_share"),
-                    deep_only_through_auto=bindparam("b_deep"),
-                ),
-                values,
-            )
-        await db.execute(
-            update(crawl_runs)
-            .where(crawl_runs.c.workspace_id == run.workspace_id, crawl_runs.c.id == run.id)
-            .values(equity_lost_to_errors=lost)
-        )
+        await _store_values(db, run.workspace_id, run.id, values, lost)
     return True
 
 
@@ -1045,6 +1095,7 @@ async def _metrics(
                     finished_at=func.now(),
                     sitemap_pages=summary.sitemap_pages,
                     pages_blocked=summary.pages_blocked,
+                    pages_variant=summary.pages_variant,
                     equity_p25=summary.equity_p25,
                 )
                 .returning(crawl_runs.c.id)
@@ -1057,6 +1108,113 @@ async def _metrics(
         await apply_rules(db, workspace_id=run.workspace_id, project_id=run.project_id)
         await recompute_tier_flow(db, workspace_id=run.workspace_id, run_id=run.id)
         return True
+
+
+@dataclass(frozen=True, slots=True)
+class RecountOutcome:
+    run_id: UUID
+    pages: int
+    pages_variant: int
+
+
+_RESET_ANCHORS = text(
+    "UPDATE seo.crawl_pages SET editorial_anchors = 0, generic_anchors = 0 "
+    "WHERE run_id = CAST(:run_id AS uuid)"
+)
+
+
+async def recount_variants(
+    sessions: async_sessionmaker[AsyncSession], *, workspace_id: UUID, run_id: UUID
+) -> RecountOutcome | None:
+    """Fold the variants of a crawl that was finished before they were known (plan 09): the
+    same counts, flags, depth, equity, anchors and tier flow as a fresh ingest gives, with no
+    new crawl. Only a finished crawl whose second job has ended is touched; the changes against
+    its previous crawl, which the second job stored, are left as they were. It takes the
+    project lock as the end of ingest does, and can be run again. None: nothing was done."""
+    async with sessions() as db:
+        found = (
+            await db.execute(
+                select(crawl_runs.c.project_id).where(
+                    crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id
+                )
+            )
+        ).one_or_none()
+    if found is None:
+        return None
+    project_id: UUID = found.project_id
+
+    async def lock(db: AsyncSession) -> Row[Any] | None:
+        # The API takes the project row first and then a crawl; the same order here.
+        await db.execute(
+            select(projects.c.id)
+            .where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
+            .with_for_update(of=projects, key_share=True)
+        )
+        row = (
+            await db.execute(
+                select(
+                    crawl_runs.c.state,
+                    crawl_runs.c.enrich_state,
+                    crawl_runs.c.start_url_id,
+                    crawl_runs.c.links_dropped_at,
+                )
+                .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
+                .with_for_update(key_share=True)
+            )
+        ).one_or_none()
+        if (
+            row is None
+            or row.state not in DATA_STATES
+            or row.enrich_state not in ("done", "failed")
+        ):
+            return None
+        return row
+
+    async with sessions() as db, db.begin():
+        await _long_transaction(db)
+        row = await lock(db)
+        if row is None:
+            return None
+        nodes, links, variant_of = await _count_and_read(db, run_id, row.start_url_id)
+        if row.links_dropped_at is None:
+            await db.execute(_RESET_ANCHORS, {"run_id": str(run_id)})
+            await db.execute(
+                ANCHORS_UPDATE,
+                {
+                    "run_id": str(run_id),
+                    "workspace_id": str(workspace_id),
+                    "edge": EDGE_PATTERN,
+                    "generic": sorted(GENERIC_ANCHORS),
+                },
+            )
+    values, lost = await asyncio.to_thread(
+        _page_values, nodes, links, variant_of, row.start_url_id, run_id
+    )
+    async with sessions() as db, db.begin():
+        await _long_transaction(db)
+        if await lock(db) is None:
+            return None
+        await _store_values(db, workspace_id, run_id, values, lost)
+        summary = (
+            await db.execute(_SUMMARY, {"run_id": run_id, "blocked": sorted(BLOCKED_STATUSES)})
+        ).one()
+        await db.execute(
+            update(crawl_runs)
+            .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
+            .values(
+                sitemap_pages=summary.sitemap_pages,
+                pages_blocked=summary.pages_blocked,
+                pages_variant=summary.pages_variant,
+                equity_p25=summary.equity_p25,
+            )
+        )
+        if await latest_run(db, workspace_id, project_id) == run_id:
+            await recompute_tier_flow(db, workspace_id=workspace_id, run_id=run_id)
+        return RecountOutcome(
+            run_id=run_id,
+            pages=len(nodes) - len(variant_of),
+            pages_variant=summary.pages_variant,
+        )
 
 
 _STEPS: Final[dict[str, Step]] = {

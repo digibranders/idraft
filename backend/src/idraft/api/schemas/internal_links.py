@@ -82,6 +82,7 @@ PageFlag = Literal[
     "placement_unknown",
     "has_broken_outlinks",
     "generic_anchors",
+    "variant",
 ]
 PageWorklist = Literal[
     "under_linked_t1",
@@ -128,7 +129,12 @@ class PageFilter(Body):
     tag_ids: Annotated[list[UUID], Field(max_length=TERMS_MAX)] | None = None
     status: Annotated[list[StatusClass], Field(max_length=5)] | None = None
     indexable: bool | None = None
-    flags: Annotated[list[PageFlag], Field(max_length=6)] | None = None
+    flags: Annotated[list[PageFlag], Field(max_length=7)] | None = None
+    include_variants: bool = Field(
+        default=False,
+        description="Parameter variants (a page whose canonical is another crawled page) are "
+        "left out unless this is true or the `variant` flag is asked for.",
+    )
     worklist: PageWorklist | None = None
     q: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
 
@@ -282,6 +288,7 @@ RowFlag = Literal[
     "redirect",
     "non_indexable",
     "generic_anchors",
+    "variant",
 ]
 PageSort = Literal[
     "path",
@@ -646,6 +653,14 @@ class CrawlRun(BaseModel):
     pages_blocked: int | None = Field(
         description="Pages that refused the crawler (401, 403, 429): unknown, not broken. "
         "null for a crawl that was not counted."
+    )
+    pages_variant: int | None = Field(
+        description="Parameter variants: crawled pages whose canonical is another crawled page "
+        "(`/blogs?page=2` names `/blogs`). They are not pages of the site and are left out of "
+        "every count. null for a crawl that was not counted."
+    )
+    pages: int = Field(
+        description="Pages of the site the crawl found: `pages_crawled` less `pages_variant`."
     )
     render_javascript: bool
     estimated_cost_usd: Usd | None

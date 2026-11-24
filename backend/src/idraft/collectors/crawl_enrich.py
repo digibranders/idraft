@@ -196,6 +196,7 @@ _PAGE_CHANGES = text(
     LEFT JOIN seo.crawl_pages p ON p.run_id = CAST(:previous_id AS uuid)
          AND p.workspace_id = c.workspace_id AND p.url_id = c.url_id
     WHERE c.run_id = CAST(:run_id AS uuid) AND c.workspace_id = CAST(:workspace_id AS uuid)
+      AND c.variant_of_url_id IS NULL
       AND (p.url_id IS NULL
            OR c.linking_pages_editorial <> p.linking_pages_editorial
            OR c.click_depth IS DISTINCT FROM p.click_depth
@@ -211,7 +212,7 @@ _PAIRS = """
            source_url_id, target_url_id, placement, anchor
     FROM seo.crawl_links
     WHERE run_id = CAST(:{run} AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
-      AND source_url_id <> target_url_id {scope}
+      AND source_url_id <> target_url_id AND NOT ignored {scope}
       AND NOT EXISTS (
           SELECT 1 FROM seo.crawl_pages refused
           WHERE refused.workspace_id = CAST(:workspace_id AS uuid)
@@ -243,6 +244,7 @@ _LINK_CHANGES = """
 _STILL_ANY_SCOPE = """(SELECT l.placement FROM seo.crawl_links l
         WHERE l.run_id = CAST(:run_id AS uuid) AND l.workspace_id = CAST(:workspace_id AS uuid)
           AND l.source_url_id = b.source_url_id AND l.target_url_id = b.target_url_id
+          AND NOT l.ignored
         ORDER BY CASE l.scope WHEN 'editorial' THEN 0 WHEN 'auto_generated' THEN 1 ELSE 2 END, l.id
         LIMIT 1)"""
 _NEWER_CRAWL = text(
@@ -408,7 +410,7 @@ async def _changes(
 # ------------------------------------------------------------------------------------------
 # Phase 2: editorial anchor counts per page, for the "Mostly generic anchors" flag
 
-_ANCHORS = text(
+ANCHORS_UPDATE = text(
     """
     UPDATE seo.crawl_pages p SET editorial_anchors = c.total, generic_anchors = c.generic
     FROM (SELECT target_url_id, count(*) AS total,
@@ -416,7 +418,7 @@ _ANCHORS = text(
                                         = ANY(:generic)) AS generic
           FROM seo.crawl_links
           WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
-            AND scope = 'editorial' AND source_url_id <> target_url_id
+            AND scope = 'editorial' AND source_url_id <> target_url_id AND NOT ignored
           GROUP BY target_url_id) c
     WHERE p.run_id = CAST(:run_id AS uuid) AND p.workspace_id = CAST(:workspace_id AS uuid)
       AND p.url_id = c.target_url_id
@@ -433,7 +435,7 @@ async def _anchors(
             return False
         if run.links_kept:
             await db.execute(
-                _ANCHORS,
+                ANCHORS_UPDATE,
                 {
                     "run_id": str(run.id),
                     "workspace_id": str(run.workspace_id),
@@ -479,6 +481,7 @@ _ANCHOR_PHRASES = text(
     FROM seo.crawl_links
     WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
       AND scope = 'editorial' AND source_url_id <> target_url_id AND anchor <> ''
+      AND NOT ignored
     GROUP BY target_url_id, lower(anchor)
     HAVING count(DISTINCT source_url_id) >= 2
     """
@@ -487,7 +490,7 @@ _ALREADY_LINKED = text(
     """
     SELECT DISTINCT source_url_id, target_url_id FROM seo.crawl_links
     WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
-      AND scope = 'editorial' AND source_url_id = ANY(:sources)
+      AND scope = 'editorial' AND source_url_id = ANY(:sources) AND NOT ignored
     """
 ).bindparams(bindparam("sources", type_=ARRAY(BigInteger)))
 

@@ -66,6 +66,7 @@ class CrawlRecord:
     pages_crawled: int
     sitemap_pages: int | None
     pages_blocked: int | None
+    pages_variant: int | None
     render_javascript: bool
     estimated_cost_usd: Decimal | None
     cost_usd: Decimal | None
@@ -81,6 +82,11 @@ class CrawlRecord:
     links_available: bool
     previous_run_id: UUID | None
     enrich_state: Literal["pending", "running", "done", "failed"]
+
+    @property
+    def pages(self) -> int:
+        """The crawl's pages that count: the ones it crawled, less its parameter variants."""
+        return self.pages_crawled - (self.pages_variant or 0)
 
     @property
     def hints(self) -> list[Literal["render_javascript"]]:
@@ -114,6 +120,7 @@ def _record(row: Row[tuple[object, ...]]) -> CrawlRecord:
         pages_crawled=row.pages_crawled,
         sitemap_pages=row.sitemap_pages,
         pages_blocked=row.pages_blocked,
+        pages_variant=row.pages_variant,
         render_javascript=bool(row.settings.get("render_javascript")),
         estimated_cost_usd=row.estimated_cost_usd,
         cost_usd=row.cost_usd,

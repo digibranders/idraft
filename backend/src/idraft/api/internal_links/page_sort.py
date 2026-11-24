@@ -132,6 +132,7 @@ def _anchor(scope: PageScope, *, descending: bool) -> ExtraSort:
             crawl_links.c.workspace_id == scope.workspace_id,
             crawl_links.c.run_id == scope.run_id,
             crawl_links.c.scope == "editorial",
+            crawl_links.c.ignored.is_(False),
             crawl_links.c.source_url_id != crawl_links.c.target_url_id,
         )
         .subquery("anchor_trimmed")
