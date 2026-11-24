@@ -22,7 +22,7 @@ afterEach(() => server.events.removeAllListeners());
 describe('selectionsOf', () => {
   it('sends a filter as one request and the ids in batches of the most the API takes', () => {
     expect(selectionsOf({ ids: ids(3), allMatching: true }, { ...DEFAULT_PAGE_QUERY, q: '/blog' })).toEqual([
-      { filter: { q: '/blog' } },
+      { filter: { q: '/blog', include_variants: false } },
     ]);
     const batches = selectionsOf({ ids: ids(2 * ID_BATCH + 1), allMatching: false }, DEFAULT_PAGE_QUERY);
     expect(batches.map((batch) => ('url_ids' in batch ? batch.url_ids.length : -1))).toEqual([ID_BATCH, ID_BATCH, 1]);

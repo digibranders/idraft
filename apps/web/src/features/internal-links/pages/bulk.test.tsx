@@ -221,7 +221,7 @@ describe('bulk tiers (spec 5.2)', () => {
     await chooseAllMatching(user);
     await user.keyboard('1');
     await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0]).toEqual({ filter: { status: ['2xx'] }, tier_id: expect.any(String) });
+    expect(bodies[0]).toEqual({ filter: { status: ['2xx'], include_variants: false }, tier_id: expect.any(String) });
     expect(bodies[0]).not.toHaveProperty('url_ids');
   });
 
@@ -235,7 +235,7 @@ describe('bulk tiers (spec 5.2)', () => {
     await user.keyboard('2');
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({
-      filter: { q: '/blog', worklist: 'orphans', tier_ids: ['none'] },
+      filter: { q: '/blog', worklist: 'orphans', tier_ids: ['none'], include_variants: false },
       tier_id: expect.any(String),
     });
   });

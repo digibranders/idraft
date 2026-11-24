@@ -87,8 +87,9 @@ describe('the pages query (the backend OpenAPI)', () => {
     expect(pageFilterOf({ ...DEFAULT_PAGE_QUERY, tierIds: ['none'], q: '/blog' })).toEqual({
       tier_ids: ['none'],
       q: '/blog',
+      include_variants: false,
     });
-    expect(pageFilterOf(DEFAULT_PAGE_QUERY)).toEqual({});
+    expect(pageFilterOf(DEFAULT_PAGE_QUERY)).toEqual({ include_variants: false });
   });
 
   it('keys every read under the project, so a tier change reaches all of them', () => {
@@ -291,7 +292,7 @@ describe('the pages list extras (include)', () => {
   });
 
   it('keeps include out of the bulk filter', () => {
-    expect(pageFilterOf({ ...DEFAULT_PAGE_QUERY, include: ['changes'] })).toEqual({});
+    expect(pageFilterOf({ ...DEFAULT_PAGE_QUERY, include: ['changes'] })).toEqual({ include_variants: false });
   });
 });
 

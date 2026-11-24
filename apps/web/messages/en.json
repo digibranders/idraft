@@ -8996,7 +8996,8 @@
         "brokenOutlinks": "This page links to a page that returns an error.",
         "redirectOutlinks": "This page links to a URL that redirects. Update the link to the final URL.",
         "fewEditorialLinks": "A T1 page with fewer than 3 editorial linking pages. Add links from related pages.",
-        "genericAnchors": "Most editorial links to this page use generic anchor text. Use words that describe the page."
+        "genericAnchors": "Most editorial links to this page use generic anchor text. Use words that describe the page.",
+        "variant": "The same page as another address, with a query string added. Its links count for the page it names, and it is left out of the page counts."
       },
       "openJourney": "Open in journey",
       "visit": "Visit page",
@@ -9067,6 +9068,7 @@
       "noIssues": "No issues",
       "worklistsLabel": "Worklists",
       "linkCount": "{count, plural, one {# link} other {# links}}",
+      "variantsLink": "{count, plural, one {# parameter variant} other {# parameter variants}}",
       "emptyTitle": "No pages in this crawl",
       "emptyReason": "The crawl found no page. Check the website in the project settings, then crawl again.",
       "noMatchTitle": "No pages match",
@@ -9212,7 +9214,8 @@
       "redirectOutlinks": "Links to a redirect",
       "fewEditorialLinks": "Few editorial links",
       "hasBrokenOutlinks": "Has broken outlinks",
-      "genericAnchors": "Mostly generic anchors"
+      "genericAnchors": "Mostly generic anchors",
+      "variant": "Parameter variant"
     },
     "worklists": {
       "underLinkedT1": "Under-linked T1 pages",

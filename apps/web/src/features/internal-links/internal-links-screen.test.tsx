@@ -59,6 +59,8 @@ const CRAWLS = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/
 
 const run = (over: Partial<CrawlRun>): CrawlRun => ({
   pages_blocked: null,
+  pages: over.pages_crawled ?? 40,
+  pages_variant: null,
   run_id: MOCK_RUN_ID,
   trigger: 'schedule',
   state: 'ready',
@@ -689,6 +691,7 @@ describe('a crawl that ends while the page is open', () => {
         is_latest: true,
         pages_found: 52,
         pages_crawled: 52,
+        pages: 52,
         finished_at: '2026-11-16T03:09:00Z',
       },
       { ...latest, is_latest: false },

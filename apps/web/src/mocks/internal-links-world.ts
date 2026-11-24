@@ -294,6 +294,8 @@ function finishedRun(index = 0): CrawlRun {
   const pages = HISTORY_PAGES[index] ?? PAGES.length;
   return {
     pages_blocked: null,
+    pages,
+    pages_variant: 0,
     run_id: HISTORY_RUN_IDS[index] ?? MOCK_RUN_ID,
     trigger: 'schedule',
     state: 'ready',

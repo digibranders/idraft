@@ -37,6 +37,8 @@ export function WorklistChips({
   current,
   onPick,
   onPickEdges,
+  variants,
+  onShowVariants,
 }: {
   scope: LinksScope;
   /** The crawl the counts are of: `null` for the latest. */
@@ -46,6 +48,10 @@ export function WorklistChips({
   current: PageWorklist | null;
   onPick: (worklist: PageWorklist | null) => void;
   onPickEdges: (worklist: EdgeWorklist) => void;
+  /** Parameter variants in the crawl (`CrawlRun.pages_variant`): `null` when it was not counted. */
+  variants: number | null;
+  /** Lists the variants: the Pages tab with the Parameter variant flag on. */
+  onShowVariants: () => void;
 }): ReactElement {
   const t = useTranslations('internalLinks');
   const read = useQuery(worklistsQuery(scope, run));
@@ -92,6 +98,11 @@ export function WorklistChips({
       ))}
       {counts !== undefined && [...PAGE_LISTS, ...EDGE_LISTS, ...history].every(([id]) => counts[id] === 0) ? (
         <span className="type-meta text-foreground-tertiary">{t('pages.noIssues')}</span>
+      ) : null}
+      {variants !== null && variants > 0 ? (
+        <Button variant="ghost" size="sm" onClick={onShowVariants}>
+          {t('pages.variantsLink', { count: variants })}
+        </Button>
       ) : null}
       {counts?.may_be_incomplete === true ? (
         <span className="type-meta text-foreground-tertiary">{t('coverage.incomplete')}</span>

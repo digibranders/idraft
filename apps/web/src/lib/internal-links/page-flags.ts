@@ -25,7 +25,8 @@ export type FlagKey =
   | 'brokenOutlinks'
   | 'redirectOutlinks'
   | 'fewEditorialLinks'
-  | 'genericAnchors';
+  | 'genericAnchors'
+  | 'variant';
 
 export interface DisplayFlag {
   key: FlagKey;
@@ -43,6 +44,7 @@ const ROW_FLAGS: readonly (readonly [string, DisplayFlag])[] = [
   ['deep_only_through_auto', { key: 'deepOnlyThroughAuto', tone: 'warning' }],
   ['placement_unknown', { key: 'placementUnknown', tone: 'neutral' }],
   ['generic_anchors', { key: 'genericAnchors', tone: 'warning' }],
+  ['variant', { key: 'variant', tone: 'neutral' }],
 ];
 
 /** Fewer editorial linking pages than this makes a T1 page under-linked (spec 7.2). */

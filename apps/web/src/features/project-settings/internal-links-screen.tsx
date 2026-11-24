@@ -231,7 +231,7 @@ export function InternalLinksSettingsScreen({
         </span>
       ),
     },
-    { id: 'pages', header: t('crawlPages'), cell: (run) => formatInteger(run.pages_crawled) },
+    { id: 'pages', header: t('crawlPages'), cell: (run) => formatInteger(run.pages) },
     {
       id: 'cost',
       header: t('cost'),
