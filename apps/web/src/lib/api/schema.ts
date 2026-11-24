@@ -6917,7 +6917,17 @@ export interface components {
              */
             latest?: components["schemas"]["LatestAnswer"] | null;
             mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Other Brands
+             * @description With `include=facts`, on a prompt row: the brands other than the own that the engine's valid answers name (competitors and watched brands, the only brands the project's extraction keeps), most named first, at most 20; empty when no answer names one. Left out on topic and total rows, and when `facts` was not asked for.
+             */
+            other_brands?: components["schemas"]["OtherBrand"][] | null;
             outcomes: components["schemas"]["OutcomeCells"];
+            /**
+             * Position
+             * @description With `include=facts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when `facts` was not asked for.
+             */
+            position?: components["schemas"]["PositionCounts"] | null;
             /**
              * Previous
              * @description With a compare window: the same cells over `compare_window`. Null when none of the row's prompts has an answer of any status on the engine there (no data is not a rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. Left out when no compare window was asked for.
@@ -6929,6 +6939,11 @@ export interface components {
              */
             series?: components["schemas"]["WeekCells"][] | null;
             share_of_voice: components["schemas"]["MetricCell"];
+            /**
+             * Top Links
+             * @description With `include=facts`, on a prompt row: the pages the engine's valid answers cite, most cited first, then by address, at most 20; empty when no answer cites one. Citations flagged `engine_internal` or `unresolved_redirect` are left out. Left out on topic and total rows, and when `facts` was not asked for.
+             */
+            top_links?: components["schemas"]["TopLink"][] | null;
         };
         /** EngineUnits */
         EngineUnits: {
@@ -9555,6 +9570,13 @@ export interface components {
             /** Target Url Id */
             target_url_id: string;
         };
+        /** OtherBrand */
+        OtherBrand: {
+            /** @description Valid answers that name the brand, over the engine's valid answers. */
+            mentioned: components["schemas"]["MetricCell"];
+            /** Name */
+            name: string;
+        };
         /** OutcomeCells */
         OutcomeCells: {
             cited_only: components["schemas"]["MetricCell"];
@@ -9994,6 +10016,33 @@ export interface components {
             successes: number;
             /** Trials */
             trials: number;
+        };
+        /**
+         * PositionCounts
+         * @description Where the own brand is named in the answers of an engine, as counts that add up over
+         *     prompts: the mean place is `rank_sum / ordered_answers`.
+         */
+        PositionCounts: {
+            /**
+             * Answers
+             * @description Valid answers (the denominator of `mentioned`).
+             */
+            answers: number;
+            /**
+             * Mentions
+             * @description Valid answers that name the own brand (`mentioned`).
+             */
+            mentions: number;
+            /**
+             * Ordered Answers
+             * @description Valid answers that name the own brand with a place. The place is the order among the brands the project tracks (`own_mention_order`), not a place in a list the answer gives: the extraction does not parse lists yet.
+             */
+            ordered_answers: number;
+            /**
+             * Rank Sum
+             * @description The sum of the places of the answers counted in `ordered_answers`, 1 being named first.
+             */
+            rank_sum: number;
         };
         /** PreviousUnits */
         PreviousUnits: {
@@ -13472,6 +13521,29 @@ export interface components {
              * @description A `core.urls` id: a 64-bit integer as a string.
              */
             url_id: string;
+        };
+        /** TopLink */
+        TopLink: {
+            /**
+             * Answers
+             * @description Valid answers that cite the page (once per answer).
+             */
+            answers: number;
+            /**
+             * Domain
+             * @description The host of the page.
+             */
+            domain: string;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * Url
+             * @description The canonical URL of the cited page.
+             */
+            url: string;
         };
         /** TopicSummaryRow */
         TopicSummaryRow: {
@@ -23779,6 +23851,7 @@ export const tierRulePatchMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<
 export const tierRulePreviewRequestMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRulePreviewRequest"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierRuleViewMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleView"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierSuggestionMetaGsc_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierSuggestionMeta"]["gsc_state"]> = ["ok", "pending", "not_connected"];
+export const topLinkDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TopLink"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];
