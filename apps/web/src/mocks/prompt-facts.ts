@@ -122,6 +122,8 @@ export function linkedKeywordOf(promptId: string, topicNames: readonly string[])
   return {
     keyword,
     search_volume: volume,
+    // Half of the keywords without a volume are measured with none, so the column shows both unknown states
+    measured: volume !== null || hashText(`${keyword}:measured`) % 2 === 0,
     rank,
     ai_overview: overview === 0 ? null : { cited_position: overview === 1 ? null : (hashText(keyword) % 3) + 1 },
   };

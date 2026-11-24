@@ -5192,7 +5192,9 @@
         "noLinkGroupTip": "No prompt in this group has a linked keyword",
         "fetching": "Fetching",
         "noVolumeTip": "The linked keyword's search volume is being collected and shows here once it arrives",
-        "noVolumeGroupTip": "The search volume of the linked keywords is being collected and shows here once it arrives"
+        "noVolumeGroupTip": "The search volume of the linked keywords is being collected and shows here once it arrives",
+        "noDataTip": "The provider has no search volume for this phrase",
+        "noDataGroupTip": "The provider has no search volume for the linked keywords"
       },
       "position": {
         "header": "Mention position",

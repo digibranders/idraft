@@ -978,6 +978,11 @@ class LinkedKeyword(BaseModel):
         description="The monthly searches from the keyword's latest metrics at the prompt's "
         "place; null while it has none (a number, including 0, is never invented)."
     )
+    measured: bool = Field(
+        description="True once the keyword has a metrics row at the prompt's place, even one "
+        "without a volume (the provider has none for the phrase); false while it is still "
+        "waiting for its first collection."
+    )
 
 
 _LINKED_ONE = (

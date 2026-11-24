@@ -1008,6 +1008,7 @@ async def topic_names(
 class LinkedRow:
     keyword: str
     search_volume: int | None
+    measured: bool
 
 
 async def linked_keywords(
@@ -1020,8 +1021,9 @@ async def linked_keywords(
         return {}
     link, k, m = keyword_prompt_links.c, keywords.c, keyword_metrics_current.c
     volume = func.max(m.search_volume)
+    measured = func.count(m.keyword_id) > 0
     statement = (
-        select(link.prompt_id, k.text, volume.label("search_volume"))
+        select(link.prompt_id, k.text, volume.label("search_volume"), measured.label("measured"))
         .select_from(
             keyword_prompt_links.join(
                 keywords, and_(k.id == link.keyword_id, k.workspace_id == link.workspace_id)
@@ -1060,11 +1062,13 @@ async def linked_keywords(
         .order_by(
             link.prompt_id,
             volume.desc().nulls_last(),
+            measured.desc(),
             link.is_primary.desc(),
             k.text,
         )
         .ext(distinct_on(link.prompt_id))
     )
     return {
-        row.prompt_id: LinkedRow(row.text, row.search_volume) for row in await db.execute(statement)
+        row.prompt_id: LinkedRow(row.text, row.search_volume, row.measured)
+        for row in await db.execute(statement)
     }

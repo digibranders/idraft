@@ -15,9 +15,12 @@ connects as `migrator` too, reads across workspaces and writes nothing.
 stage its wording rule gives (`idraft.ai.intent`). It connects as `migrator`, and a second run
 changes nothing.
 
-`link-prompt-keywords` links every live prompt that has no keyword link to its head search phrase
-(`idraft.ai.keyword_phrase`), making the keyword when the workspace has none. The keyword is not
-tracked, so it costs no rank checks. With `--queue-metrics` it also queues one keyword metrics run
+`link-prompt-keywords` links every live prompt that has no keyword link to the keyword of its
+project that shares the most words with it and has a search volume, else to a short phrase of 2 or
+3 words (`idraft.ai.keyword_phrase.pick_keyword`), making the keyword when the workspace has none.
+The keyword is not tracked, so it costs no rank checks. With `--relink` it first replaces the
+`generated` links whose keyword has no volume (never a link a person made) and deletes the
+keywords that leaves unused. With `--queue-metrics` it also queues one keyword metrics run
 a project for the linked keywords that have no metrics yet (about 0.0004 USD a keyword, paid when
 the worker plans the run). It connects as `migrator`, and a second run links nothing new.
 """
@@ -38,6 +41,7 @@ import asyncpg
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from idraft.ai.keyword_phrase import MeasuredKeyword, pick_keyword
 from idraft.api.auth.passwords import (
     PASSWORD_MAX,
     PASSWORD_MIN,
@@ -298,13 +302,70 @@ def _backfill_prompt_intent(arguments: argparse.Namespace) -> int:
     return 0
 
 
+# The place a prompt's keyword is measured at: its country, else the project's default location
+# (the same rule as `idraft.keywords.prompt_links.prompt_location_id`).
+_PROMPT_PLACE = """
+    coalesce((SELECT min(loc.id) FROM core.locations loc
+              WHERE loc.country_iso = p.country_iso AND loc.location_type = 'Country'),
+             pr.default_location_id)
+"""
 _UNLINKED_PROMPTS = """
-    SELECT p.id, p.workspace_id, p.project_id, p.language_code, v.text
-    FROM ai.prompts p JOIN ai.prompt_versions v ON v.id = p.current_version_id
+    SELECT p.id, p.workspace_id, p.project_id, p.language_code, v.text,
+           __PLACE__ AS location_id
+    FROM ai.prompts p
+    JOIN ai.prompt_versions v ON v.id = p.current_version_id
+    JOIN core.projects pr ON pr.id = p.project_id AND pr.workspace_id = p.workspace_id
     WHERE p.is_active AND p.deleted_at IS NULL
       AND ($1::uuid IS NULL OR p.project_id = $1)
       AND NOT EXISTS (SELECT 1 FROM core.keyword_prompt_links l WHERE l.prompt_id = p.id)
     ORDER BY p.created_at, p.id
+""".replace("__PLACE__", _PROMPT_PLACE)
+# Generated active links whose keyword has no volume at the prompt's place. A prompt that also has
+# a link of another type (a person's choice) is left alone.
+_RELINKABLE = """
+    SELECT l.id AS link_id, l.keyword_id, l.is_primary, k.normalized_text, p.id, p.workspace_id,
+           p.project_id, p.language_code, v.text, __PLACE__ AS location_id
+    FROM core.keyword_prompt_links l
+    JOIN seo.keywords k ON k.id = l.keyword_id AND k.workspace_id = l.workspace_id
+    JOIN ai.prompts p ON p.id = l.prompt_id AND p.workspace_id = l.workspace_id
+    JOIN ai.prompt_versions v ON v.id = p.current_version_id
+    JOIN core.projects pr ON pr.id = p.project_id AND pr.workspace_id = p.workspace_id
+    WHERE l.link_type = 'generated' AND l.status = 'active'
+      AND p.is_active AND p.deleted_at IS NULL AND ($1::uuid IS NULL OR p.project_id = $1)
+      AND NOT EXISTS (SELECT 1 FROM core.keyword_prompt_links o
+                      WHERE o.prompt_id = p.id AND o.status = 'active'
+                        AND o.link_type <> 'generated')
+      AND NOT EXISTS (SELECT 1 FROM seo.keyword_metrics_current m
+                      WHERE m.keyword_id = l.keyword_id AND m.workspace_id = l.workspace_id
+                        AND m.language_code = k.language_code
+                        AND m.location_id = __PLACE__
+                        AND m.search_volume IS NOT NULL)
+    ORDER BY p.created_at, p.id, l.is_primary DESC, l.id
+""".replace("__PLACE__", _PROMPT_PLACE)
+# The project's own keywords (tracked, or linked to one of its prompts) that have a volume.
+_MEASURED_KEYWORDS = """
+    SELECT k.text, k.language_code, m.location_id, max(m.search_volume) AS volume
+    FROM seo.keywords k
+    JOIN seo.keyword_metrics_current m ON m.keyword_id = k.id AND m.workspace_id = k.workspace_id
+                                      AND m.language_code = k.language_code
+    WHERE k.workspace_id = $1 AND m.search_volume IS NOT NULL
+      AND (EXISTS (SELECT 1 FROM seo.tracked_keywords t
+                   WHERE t.keyword_id = k.id AND t.workspace_id = k.workspace_id
+                     AND t.project_id = $2 AND t.deleted_at IS NULL)
+           OR EXISTS (SELECT 1 FROM core.keyword_prompt_links l
+                      WHERE l.keyword_id = k.id AND l.workspace_id = k.workspace_id
+                        AND l.project_id = $2 AND l.status = 'active'))
+    GROUP BY k.text, k.language_code, m.location_id
+"""
+_DELETE_LINK = "DELETE FROM core.keyword_prompt_links WHERE id = $1 AND link_type = 'generated'"
+# A keyword nothing refers to any more and that holds no volume: made by an earlier run.
+_DELETE_ORPHANS = """
+    DELETE FROM seo.keywords k
+    WHERE k.id = ANY($1::uuid[])
+      AND NOT EXISTS (SELECT 1 FROM core.keyword_prompt_links l WHERE l.keyword_id = k.id)
+      AND NOT EXISTS (SELECT 1 FROM seo.tracked_keywords t WHERE t.keyword_id = k.id)
+      AND NOT EXISTS (SELECT 1 FROM seo.keyword_metrics_current m
+                      WHERE m.keyword_id = k.id AND m.search_volume IS NOT NULL)
 """
 # `xmax = 0` is true for a row this statement inserted and false for one it found.
 _FIND_OR_MAKE_KEYWORD = """
@@ -318,7 +379,7 @@ _LINK = """
     INSERT INTO core.keyword_prompt_links
         (workspace_id, project_id, keyword_id, prompt_id, link_type, is_primary, status,
          method_version)
-    VALUES ($1, $2, $3, $4, 'generated', true, 'active', $5)
+    VALUES ($1, $2, $3, $4, 'generated', $6, 'active', $5)
     ON CONFLICT (project_id, keyword_id, prompt_id) DO NOTHING
 """
 # Linked keywords of a project with no metrics at any place, and no keyword metrics run waiting.
@@ -343,53 +404,80 @@ _QUEUE_RUN = """
     VALUES ($1, $2, 'keyword_metrics', now(), now() + interval '1 hour', 'manual', 'planned',
             'system', $3::jsonb)
 """
-HEAD_PHRASE_METHOD = 1
+# 1: the head phrase of the prompt. 2: the best keyword of the project that has a volume, else a
+# short core phrase (`idraft.ai.keyword_phrase.pick_keyword`).
+KEYWORD_PICK_METHOD = 2
 KEYWORD_METRICS_USD = 0.0004
+_MeasuredByPlace = dict[tuple[int | None, str], list[MeasuredKeyword]]
+
+
+async def _measured_keywords(
+    connection: asyncpg.Connection, cache: dict[uuid.UUID, _MeasuredByPlace], row: asyncpg.Record
+) -> list[MeasuredKeyword]:
+    """The keywords of the prompt's project that have a volume at the prompt's place."""
+    project = row["project_id"]
+    if project not in cache:
+        by_place: _MeasuredByPlace = {}
+        for found in await connection.fetch(_MEASURED_KEYWORDS, row["workspace_id"], project):
+            place = (found["location_id"], found["language_code"])
+            by_place.setdefault(place, []).append(MeasuredKeyword(found["text"], found["volume"]))
+        cache[project] = by_place
+    return cache[project].get((row["location_id"], row["language_code"]), [])
+
+
+async def _pick_keyword_row(
+    connection: asyncpg.Connection, cache: dict[uuid.UUID, _MeasuredByPlace], row: asyncpg.Record
+) -> asyncpg.Record | None:
+    """Find or make the keyword for a prompt row; None when its text gives no usable phrase."""
+    from idraft.keywords.text import KeywordRefusedError, check_keyword, normalize
+
+    pick = pick_keyword(row["text"], await _measured_keywords(connection, cache, row))
+    if pick is None:
+        return None
+    try:
+        text = check_keyword(pick.text)
+    except KeywordRefusedError:
+        return None
+    return await connection.fetchrow(
+        _FIND_OR_MAKE_KEYWORD, row["workspace_id"], text, normalize(text), row["language_code"]
+    )
 
 
 async def link_prompt_keywords(
-    database_url: str, *, queue_metrics: bool, project: uuid.UUID | None = None
+    database_url: str,
+    *,
+    queue_metrics: bool,
+    project: uuid.UUID | None = None,
+    relink: bool = False,
 ) -> dict[str, float] | None:
     """What was linked and queued, by name; None when the role is not the owner.
 
-    Each live prompt without any link gets its head phrase as keyword (made when the workspace has
-    none) and a primary `generated` link. A prompt whose text has no usable phrase is skipped and
-    counted. Nothing is tracked, so no rank check is ever made for these keywords."""
-    import json
+    Each live prompt without any link gets a keyword (the best keyword of its project that has a
+    volume, else a short phrase made for it) and a primary `generated` link. A prompt whose text
+    has no usable phrase is skipped and counted. Nothing is tracked, so no rank check is ever made
+    for these keywords.
 
-    from idraft.ai.keyword_phrase import head_phrase
-    from idraft.keywords.text import KeywordRefusedError, check_keyword, normalize
+    With `relink`, a `generated` link whose keyword has no volume is first replaced by the same
+    choice, and a keyword the replaced links leave unused (no link, not tracked, no volume) is
+    deleted. A link a person made is never touched. A second run changes nothing."""
+    import json
 
     connection = await asyncpg.connect(database_url, timeout=CONNECT_TIMEOUT_SECONDS)
     try:
         if await connection.fetchval("SELECT current_user") != OWNER_ROLE:
             return None
-        counts: dict[str, float] = {
-            "prompts": 0,
-            "linked": 0,
-            "keywords_made": 0,
-            "keywords_reused": 0,
-            "skipped": 0,
-        }
+        counts: dict[str, float] = {}
+        cache: dict[uuid.UUID, _MeasuredByPlace] = {}
         async with connection.transaction():
+            if relink:
+                counts.update(await _relink(connection, cache, project))
+            counts.update(prompts=0, linked=0, keywords_made=0, keywords_reused=0, skipped=0)
             for row in await connection.fetch(_UNLINKED_PROMPTS, project):
                 counts["prompts"] += 1
-                phrase = head_phrase(row["text"])
-                try:
-                    text = check_keyword(phrase) if phrase else None
-                except KeywordRefusedError:
-                    text = None
-                if text is None:
+                keyword = await _pick_keyword_row(connection, cache, row)
+                if keyword is None:
                     counts["skipped"] += 1
                     continue
-                keyword = await connection.fetchrow(
-                    _FIND_OR_MAKE_KEYWORD,
-                    row["workspace_id"],
-                    text,
-                    normalize(text),
-                    row["language_code"],
-                )
-                assert keyword is not None
                 counts["keywords_made" if keyword["made"] else "keywords_reused"] += 1
                 await connection.execute(
                     _LINK,
@@ -397,7 +485,8 @@ async def link_prompt_keywords(
                     row["project_id"],
                     keyword["id"],
                     row["id"],
-                    HEAD_PHRASE_METHOD,
+                    KEYWORD_PICK_METHOD,
+                    True,
                 )
                 counts["linked"] += 1
             counts["runs_queued"] = counts["keywords_queued"] = 0
@@ -418,6 +507,46 @@ async def link_prompt_keywords(
         await connection.close()
 
 
+async def _relink(
+    connection: asyncpg.Connection,
+    cache: dict[uuid.UUID, _MeasuredByPlace],
+    project: uuid.UUID | None,
+) -> dict[str, float]:
+    """Replace the generated links whose keyword has no volume; delete the keywords left unused."""
+    rows = await connection.fetch(_RELINKABLE, project)
+    counts: dict[str, float] = {
+        "relink_candidates": len(rows),
+        "relinked": 0,
+        "relink_unchanged": 0,
+        "relink_skipped": 0,
+        "relink_keywords_made": 0,
+    }
+    released: set[uuid.UUID] = set()
+    for row in rows:
+        keyword = await _pick_keyword_row(connection, cache, row)
+        if keyword is None:
+            counts["relink_skipped"] += 1
+        elif keyword["id"] == row["keyword_id"]:
+            counts["relink_unchanged"] += 1
+        else:
+            await connection.execute(_DELETE_LINK, row["link_id"])
+            await connection.execute(
+                _LINK,
+                row["workspace_id"],
+                row["project_id"],
+                keyword["id"],
+                row["id"],
+                KEYWORD_PICK_METHOD,
+                row["is_primary"],
+            )
+            released.add(row["keyword_id"])
+            counts["relinked"] += 1
+            counts["relink_keywords_made"] += 1 if keyword["made"] else 0
+    deleted = await connection.fetch(_DELETE_ORPHANS + " RETURNING k.id", list(released))
+    counts["orphan_keywords_deleted"] = len(deleted)
+    return counts
+
+
 def _link_prompt_keywords(arguments: argparse.Namespace) -> int:
     settings = load_migrator_settings()
     try:
@@ -426,6 +555,7 @@ def _link_prompt_keywords(arguments: argparse.Namespace) -> int:
                 settings.asyncpg_dsn,
                 queue_metrics=arguments.queue_metrics,
                 project=arguments.project,
+                relink=arguments.relink,
             )
         )
     except (OSError, TimeoutError, asyncpg.PostgresError) as error:
@@ -474,12 +604,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     backfill.set_defaults(run=_backfill_prompt_intent)
     link = commands.add_parser(
         "link-prompt-keywords",
-        help="link every live prompt without a keyword to its head search phrase",
+        help="link every live prompt without a keyword to a keyword that has a search volume",
     )
     link.add_argument(
         "--queue-metrics",
         action="store_true",
         help="also queue a keyword metrics run for linked keywords that have no metrics yet",
+    )
+    link.add_argument(
+        "--relink",
+        action="store_true",
+        help="first replace generated links whose keyword has no volume, and delete the unused "
+        "keywords they leave",
     )
     link.add_argument("--project", type=uuid.UUID, help="one project only")
     link.set_defaults(run=_link_prompt_keywords)

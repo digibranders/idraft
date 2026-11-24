@@ -11762,6 +11762,11 @@
             "title": "Keyword",
             "type": "string"
           },
+          "measured": {
+            "description": "True once the keyword has a metrics row at the prompt's place, even one without a volume (the provider has none for the phrase); false while it is still waiting for its first collection.",
+            "title": "Measured",
+            "type": "boolean"
+          },
           "search_volume": {
             "anyOf": [
               {
@@ -11777,7 +11782,8 @@
         },
         "required": [
           "keyword",
-          "search_volume"
+          "search_volume",
+          "measured"
         ],
         "title": "LinkedKeyword",
         "type": "object"

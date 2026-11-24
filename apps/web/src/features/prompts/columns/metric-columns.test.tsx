@@ -66,7 +66,11 @@ function show<TRow>(column: DataTableColumn<TRow>, row: TRow): Shown {
   };
 }
 
-const link = (keyword: string, volume: number | null): LinkedKeywordVolume => ({ keyword, search_volume: volume });
+const link = (keyword: string, volume: number | null): LinkedKeywordVolume => ({
+  keyword,
+  search_volume: volume,
+  measured: volume !== null,
+});
 
 interface Row {
   facts: FactsRow | undefined;

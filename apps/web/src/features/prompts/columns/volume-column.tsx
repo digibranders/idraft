@@ -17,7 +17,8 @@ const isGroup = (reading: Reading): reading is GroupVolumeReading => 'prompts' i
 /**
  * Search volume: the monthly searches of the keyword a prompt is linked to, and for a group the sum of its linked
  * keywords, each counted once (`groupVolumeOf`). A row with no linked keyword says so in the tooltip of an `n/a`; one whose
- * keywords have no volume yet says `Fetching`, never a 0; both sort last. `readingOf` gives a prompt's or a group's reading.
+ * keywords are not measured yet says `Fetching`, and one the provider has no volume for says `n/a` with that reason;
+ * never a 0, and all sort last. `readingOf` gives a prompt's or a group's reading.
  */
 export function volumeColumn<TRow>(
   t: Translate,
@@ -50,10 +51,15 @@ export function volumeColumn<TRow>(
               label: EMPTY_VALUE,
               tooltip: t(group ? 'prompts.metrics.volume.noLinkGroupTip' : 'prompts.metrics.volume.noLinkTip'),
             };
-          case 'no_volume':
+          case 'pending':
             return {
               label: t('prompts.metrics.volume.fetching'),
               tooltip: t(group ? 'prompts.metrics.volume.noVolumeGroupTip' : 'prompts.metrics.volume.noVolumeTip'),
+            };
+          case 'no_volume':
+            return {
+              label: EMPTY_VALUE,
+              tooltip: t(group ? 'prompts.metrics.volume.noDataGroupTip' : 'prompts.metrics.volume.noDataTip'),
             };
         }
       },
