@@ -78,12 +78,21 @@ describe('the mention position card', () => {
     expect(document.querySelector('[data-slot="share-segment"]')).toBeNull();
   });
 
-  it('says Not collected yet, and draws no shares, when the counts by place are not sent, whatever the mean says', async () => {
+  it('shows the mean place and the answers it rests on, and draws no shares, when the counts by place are not sent', async () => {
     const withoutOrder: PositionCounts = { rank_sum: 34, ordered_answers: 20, mentions: 22, answers: 40 };
     serve(platform('chatgpt_web', { position: withoutOrder }));
     renderCard(PositionDistributionCard, 'cmp=off&engine=chatgpt_web');
-    expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
+    expect(await screen.findByText('mean 1.7')).toBeInTheDocument();
+    expect(screen.getByText('20 answers with a place')).toBeInTheDocument();
+    expect(screen.queryByText('Not collected yet')).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /Mentioned first/ })).not.toBeInTheDocument();
+  });
+
+  it('gives no mean from fewer than 2 answers with a place, and says so', async () => {
+    const one: PositionCounts = { rank_sum: 1, ordered_answers: 1, mentions: 1, answers: 40 };
+    serve(platform('chatgpt_web', { position: one }));
+    renderCard(PositionDistributionCard, 'cmp=off&engine=chatgpt_web');
+    expect(await screen.findByText('Too few mentions')).toBeInTheDocument();
     expect(screen.queryByText(/^mean \d/)).not.toBeInTheDocument();
   });
 
