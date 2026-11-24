@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { NewProjectPage } from '@/features/onboarding';
-import { WorkspaceShell } from '@/features/shell/workspace-shell';
+import { WorkspaceFrame } from '@/features/shell/workspace-frame';
 import { canCreateProjects } from '@/lib/permissions';
 import { requireMembership } from '@/lib/session/server';
 
@@ -23,8 +23,8 @@ export default async function OnboardingPage({ params }: PageProps<'/[workspace]
   const [{ membership }, t] = await Promise.all([requireMembership(workspace), getTranslations('onboarding')]);
   if (!canCreateProjects(membership)) notFound();
   return (
-    <WorkspaceShell workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }} page={t('title')}>
+    <WorkspaceFrame workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }} page={t('title')}>
       <NewProjectPage workspace={{ id: membership.workspace.workspace_id, slug: membership.workspace.slug }} />
-    </WorkspaceShell>
+    </WorkspaceFrame>
   );
 }

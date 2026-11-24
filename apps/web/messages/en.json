@@ -511,6 +511,21 @@
     "timeZone": "Times in {timeZone}",
     "paused": "Paused",
     "empty": {
+      "steps": {
+        "title": "What a project covers",
+        "site": {
+          "title": "Your site",
+          "body": "Its domain is where rank checks and Internal links start."
+        },
+        "brand": {
+          "title": "Your brand",
+          "body": "Answers are checked for its name and its other names."
+        },
+        "track": {
+          "title": "What to track",
+          "body": "Add keywords and prompts once the project exists."
+        }
+      },
       "title": "No projects yet",
       "creator": "Projects created in this workspace appear here.",
       "viewer": "Owners, admins and editors can create projects.",
@@ -1098,6 +1113,19 @@
     "location": "Location",
     "locationHint": "Where rank checks search from. Choose a country, or a city for local results.",
     "locationUnknown": "Choose a location from the list.",
+    "basicsTitle": "Project and site",
+    "basicsDescription": "What the project is called, where it lives in links, and the site it tracks.",
+    "checksTitle": "Checks",
+    "checksDescription": "Where and when rank checks run, and the language of the project.",
+    "summary": {
+      "title": "Summary",
+      "unnamed": "No name yet",
+      "notSet": "Not set",
+      "needed": "Still needed",
+      "ready": "Ready to create",
+      "done": "Done",
+      "todo": "Missing"
+    },
     "brandTitle": "Your brand",
     "brandDescription": "The brand answers are checked for. It owns the site above. Competitors are added later, under Brands and aliases.",
     "brand": "Brand name",
