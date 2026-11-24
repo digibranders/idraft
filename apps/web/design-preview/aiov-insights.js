@@ -1,4 +1,4 @@
-/* global location */
+/* global location, URLSearchParams */
 /**
  * The Insights box of the AI visibility Overview (roadmap feature 4, plan docs/superpowers/plans/2026-11-24-opportunities-feed.md).
  * One line per finding: a count, a sentence and the screen that holds the work. Lines at zero are left out while
@@ -30,15 +30,15 @@ const LINES = [
   },
   {
     key: 'citingCompetitors',
-    text: (n) => `${one(n, 'cited domain cites', 'cited domains cite')} your tracked competitors`,
+    text: (n) => `${one(n, 'cited domain cites', 'cited domains cite')} your tracked competitors, last 28 days`,
     href: '#/citations',
-    action: 'View domains',
+    action: 'View pages',
   },
   {
     key: 'newDomains',
     text: (n) => `${one(n, 'new cited domain', 'new cited domains')} this month`,
     href: '#/citations',
-    action: 'View domains',
+    action: 'View pages',
   },
 ];
 
@@ -94,13 +94,13 @@ export function insightsBox() {
   head.append(icon('sparkles', 'size-icon text-foreground-secondary'));
   const title = el('h2', 'type-section-title', 'Insights');
   title.id = 'aiov-insights-title';
-  head.append(title, el('span', 'type-meta', 'Whole project, this month'));
+  head.append(title, el('span', 'type-meta', 'Whole project'));
   const list = el('ul', 'border-t border-border-subtle divide-y divide-border-subtle');
   const state = stateOf();
   const open = LINES.filter((def) => COUNTS[def.key] > 0);
   if (state === 'loading') list.append(...skeletonRows());
   else if (state === 'error') list.append(message('Could not load the insights', 'The reads did not answer. Nothing is lost.', true));
-  else if (state === 'empty' || open.length === 0) list.append(message('Nothing to act on this month', 'Every tracked keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.'));
+  else if (state === 'empty' || open.length === 0) list.append(message('Nothing to act on', 'Every keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.'));
   else list.append(...open.map((def) => line(def, COUNTS[def.key])));
   section.append(head, list);
   return section;
