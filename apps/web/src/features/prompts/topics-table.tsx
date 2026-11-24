@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Folder } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
@@ -32,6 +32,7 @@ import { DataTable } from '@/components/app/data-table/data-table';
 import { effectiveSort } from '@/components/app/data-table/sort-fallback';
 import type { DataTableColumn, RowTree, TableStatus } from '@/components/app/data-table/types';
 import { Badge } from '@/components/ui/badge';
+import { Icon } from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { EngineSummary, ProjectEngine, PromptsSummary, PromptSummaryRow } from '@/lib/api/types';
@@ -276,7 +277,8 @@ export function TopicsTable({
         if (row.kind === 'prompt') return name.cell(row);
         const count = t('topics.promptCount', { count: row.promptCount });
         return (
-          <span className="flex min-w-0 items-baseline gap-2">
+          <span className="flex min-w-0 items-center gap-2">
+            <Icon icon={Folder} size="sm" className="shrink-0 text-foreground" />
             <Button
               {...CELL_CONTROL}
               variant="link"
@@ -293,7 +295,12 @@ export function TopicsTable({
             {/* Only a row that opens (its prompts are known) has the count of what it opens onto */}
             {row.members === null ? null : (
               <Tooltip content={count} purpose="label">
-                <span className="min-w-0 truncate num font-normal text-foreground-tertiary">{count}</span>
+                <span
+                  aria-label={count}
+                  className="shrink-0 rounded-full bg-surface-hover px-2 type-label num font-normal text-foreground-secondary"
+                >
+                  {row.promptCount}
+                </span>
               </Tooltip>
             )}
           </span>

@@ -130,10 +130,10 @@ describe('Keywords By group', () => {
     // Only the first group starts open
     const audits = groupRow(tree, /SEO audits/);
     expect(audits).toHaveAttribute('aria-expanded', 'true');
-    expect(within(audits).getByRole('rowheader')).toHaveTextContent('13 keywords');
+    expect(within(within(audits).getByRole('rowheader')).getByLabelText('13 keywords')).toBeInTheDocument();
     // Content is tracked in two countries for one keyword: 11 rows, 10 keywords
     const content = groupRow(tree, /^Services \/ Content|Content/);
-    expect(within(content).getByRole('rowheader')).toHaveTextContent('10 keywords');
+    expect(within(within(content).getByRole('rowheader')).getByLabelText('10 keywords')).toBeInTheDocument();
     expect(content).toHaveAttribute('aria-expanded', 'false');
     expect(keywordsUnder(tree, /Content/)).toEqual([]);
 
@@ -254,10 +254,10 @@ describe('Keywords By group', () => {
   it('counts the groups again for the device shown', async () => {
     const { user } = renderWithProviders(byDefault());
     const tree = await loadedTree();
-    expect(within(groupRow(tree, /Local/)).getByRole('rowheader')).toHaveTextContent('10 keywords');
+    expect(within(within(groupRow(tree, /Local/)).getByRole('rowheader')).getByLabelText('10 keywords')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Mobile' }));
-    await waitFor(() => expect(within(groupRow(tree, /Local/)).getByRole('rowheader')).toHaveTextContent('1 keyword'));
-    expect(within(groupRow(tree, /SEO audits/)).getByRole('rowheader')).toHaveTextContent('1 keyword');
+    await waitFor(() => expect(within(within(groupRow(tree, /Local/)).getByRole('rowheader')).getByLabelText('1 keyword')).toBeInTheDocument());
+    expect(within(within(groupRow(tree, /SEO audits/)).getByRole('rowheader')).getByLabelText('1 keyword')).toBeInTheDocument();
   });
 
   it('shows the flat table with By group disabled when the list is in server mode', async () => {

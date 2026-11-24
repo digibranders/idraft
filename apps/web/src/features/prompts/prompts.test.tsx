@@ -1365,21 +1365,21 @@ describe('Prompts: the Groups tab', () => {
     expect(screen.queryByText(ROLLUP_NOTE)).toBeNull();
   });
 
-  it('reads a group as Rankings reads a group: its name with a muted count of the prompts it opens onto', async () => {
+  it('reads a group as Rankings reads a group: a folder, its name and a badge with the count of the prompts it opens onto', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();
     await within(tree).findByText('Paid Search');
-    const count = within(rowOf(tree, 'Technical SEO')).getByText('4 prompts');
-    // Cut to an ellipsis in a narrow cell, the count says all of itself in a tooltip
+    const count = within(rowOf(tree, 'Technical SEO')).getByLabelText('4 prompts');
+    expect(count).toHaveTextContent('4');
+    // The badge shows the number; the tooltip and the label say it in words
     await user.hover(count);
     expect(await screen.findByText('4 prompts', { selector: '[data-slot="tooltip"] span' })).toBeInTheDocument();
     await user.unhover(count);
-    // The count gives way before the name does: it ends in an ellipsis where the name keeps its room
-    expect(count).toHaveClass('text-foreground-tertiary', 'min-w-0', 'truncate');
+    expect(count).toHaveClass('rounded-full', 'shrink-0');
     expect(
       within(rowOf(tree, 'Technical SEO')).getByRole('button', { name: 'Open the group Technical SEO' }),
     ).toHaveClass('shrink-0');
-    expect(within(rowOf(tree, 'Paid Search')).getByText('2 prompts')).toBeInTheDocument();
+    expect(within(rowOf(tree, 'Paid Search')).getByLabelText('2 prompts')).toBeInTheDocument();
   });
 
   it('draws the name of a group in the text color of a group name, and a prompt under it as text that a click on the row opens', async () => {
@@ -1961,7 +1961,7 @@ describe('Prompts: the Groups tab', () => {
       await vi.waitFor(async () => expect(await names()).toEqual(['RBI']));
       expect(within(tree).queryByText('Cyber')).toBeNull();
       expect(within(tree).queryByText('Compliance')).toBeNull();
-      expect(within(rowOf(tree, 'RBI')).getByText('1 prompt')).toBeInTheDocument();
+      expect(within(rowOf(tree, 'RBI')).getByLabelText('1 prompt')).toBeInTheDocument();
       // One group, one prompt, though three topics hold the prompt
       expect(screen.getByText(`1 group ${MIDDLE_DOT} 1 prompt`)).toBeInTheDocument();
     });
