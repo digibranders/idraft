@@ -32,6 +32,7 @@ from idraft.api.schemas.ai import (
     EntityCells,
     EntityPreviousCells,
     LatestAnswer,
+    LinkedKeyword,
     MetricCell,
     MetricContext,
     Outcome,
@@ -497,6 +498,8 @@ class _Read:
     # it. None: not asked for, so a prompt row carries no `latest`; asked for, a prompt and
     # engine without a valid answer is absent here and its `latest` is null.
     latest: Mapping[tuple[UUID, str], LatestAnswer] | None = None
+    # With `include=facts`: the keyword each prompt is linked to; a prompt without one is absent.
+    linked: Mapping[UUID, repository.LinkedRow] | None = None
 
 
 def _entity_cells(
@@ -711,6 +714,24 @@ def _last_answers(
     return max(observed, default=None), max(valid, default=None)
 
 
+def _linked(row: repository.LinkedRow) -> LinkedKeyword:
+    return LinkedKeyword(keyword=row.keyword, search_volume=row.search_volume)
+
+
+def _linked_of(members: Collection[UUID], read: _Read) -> list[LinkedKeyword] | _NotAsked:
+    """The distinct keywords the members are linked to, each once, the most searched first."""
+    if read.linked is None:
+        return NOT_ASKED
+    distinct = {
+        row.keyword: row for prompt in members if (row := read.linked.get(prompt)) is not None
+    }
+    ordered = sorted(
+        distinct.values(),
+        key=lambda row: (row.search_volume is None, -(row.search_volume or 0), row.keyword),
+    )
+    return [_linked(row) for row in ordered]
+
+
 def _prompt_row(
     prompt: SummaryPrompt, engine_codes: Sequence[str], read: _Read
 ) -> PromptSummaryRow:
@@ -723,6 +744,9 @@ def _prompt_row(
         last_observed_at=last_observed,
         last_valid_at=last_valid,
         engines=[_engine_row(code, [prompt.id], read, topic=False) for code in engine_codes],
+        linked_keyword=NOT_ASKED
+        if read.linked is None
+        else (_linked(row) if (row := read.linked.get(prompt.id)) is not None else None),
     )
 
 
@@ -741,6 +765,7 @@ def _topic_row(
         last_observed_at=last_observed,
         last_valid_at=last_valid,
         engines=[_engine_row(code, members, read, topic=True) for code in engine_codes],
+        linked_keywords=_linked_of(members, read),
     )
 
 
@@ -758,6 +783,7 @@ def _countries(
         CountrySummary(
             country_iso=iso,
             engines=[_engine_row(code, markets[iso], read, topic=True) for code in engine_codes],
+            linked_keywords=_linked_of(markets[iso], read),
         )
         for iso in sorted(markets)
     ]
@@ -965,6 +991,11 @@ class SummaryService:
                 else {}
             )
             names = await repository.topic_names(db, ws, held.keys())
+            linked = (
+                await repository.linked_keywords(db, ws, project_id, ids)
+                if "facts" in query.include
+                else None
+            )
             latest = (
                 _latest_answers(
                     await repository.latest_answers(db, ws, project_id, ids, **window),
@@ -995,6 +1026,7 @@ class SummaryService:
             previous_named=previous_named,
             detail="cells" in query.include,
             latest=latest,
+            linked=linked,
         )
         # The filters choose prompt rows and nothing else: every other block reads every prompt
         # in scope (C-5, C-6).
@@ -1031,6 +1063,7 @@ class SummaryService:
                 last_observed_at=last_observed,
                 last_valid_at=last_valid,
                 engines=[_engine_row(code, ids, read, topic=True) for code in shown],
+                linked_keywords=_linked_of(ids, read),
             )
         return PromptsSummary(
             window=MetricWindow(

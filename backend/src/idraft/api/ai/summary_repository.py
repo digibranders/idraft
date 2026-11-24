@@ -32,10 +32,15 @@ from idraft.db.tables import (
     ai_prompt_versions,
     ai_prompts,
     entities,
+    keyword_metrics_current,
+    keyword_prompt_links,
+    keywords,
     project_entities,
+    projects,
     taxonomy_terms,
     taxonomy_vocabularies,
 )
+from idraft.keywords.prompt_links import prompt_location_id
 from idraft.keywords.trees import descendants
 
 _F, _O = ai_observation_facts.c, ai_observations.c
@@ -777,3 +782,69 @@ async def topic_names(
         select(t.id, t.name).where(t.workspace_id == workspace_id, t.id.in_(list(term_ids)))
     )
     return {row.id: row.name for row in rows}
+
+
+@dataclass(frozen=True, slots=True)
+class LinkedRow:
+    keyword: str
+    search_volume: int | None
+
+
+async def linked_keywords(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, prompt_ids: Collection[UUID]
+) -> dict[UUID, LinkedRow]:
+    """The keyword each prompt is linked to, in one statement for all the prompts: the active
+    link with the most searches at the prompt's place (a keyword with no metrics last), then
+    the primary one, then the first by text. A prompt without an active link is absent."""
+    if not prompt_ids:
+        return {}
+    link, k, m = keyword_prompt_links.c, keywords.c, keyword_metrics_current.c
+    volume = func.max(m.search_volume)
+    statement = (
+        select(link.prompt_id, k.text, volume.label("search_volume"))
+        .select_from(
+            keyword_prompt_links.join(
+                keywords, and_(k.id == link.keyword_id, k.workspace_id == link.workspace_id)
+            )
+            .join(
+                ai_prompts,
+                and_(
+                    ai_prompts.c.id == link.prompt_id,
+                    ai_prompts.c.workspace_id == link.workspace_id,
+                ),
+            )
+            .join(
+                projects,
+                and_(
+                    projects.c.id == ai_prompts.c.project_id,
+                    projects.c.workspace_id == ai_prompts.c.workspace_id,
+                ),
+            )
+            .outerjoin(
+                keyword_metrics_current,
+                and_(
+                    m.keyword_id == link.keyword_id,
+                    m.workspace_id == link.workspace_id,
+                    m.language_code == k.language_code,
+                    m.location_id == prompt_location_id(),
+                ),
+            )
+        )
+        .where(
+            link.workspace_id == workspace_id,
+            link.project_id == project_id,
+            link.prompt_id.in_(list(prompt_ids)),
+            link.status == "active",
+        )
+        .group_by(link.id, link.prompt_id, link.is_primary, k.text)
+        .order_by(
+            link.prompt_id,
+            volume.desc().nulls_last(),
+            link.is_primary.desc(),
+            k.text,
+        )
+        .ext(distinct_on(link.prompt_id))
+    )
+    return {
+        row.prompt_id: LinkedRow(row.text, row.search_volume) for row in await db.execute(statement)
+    }

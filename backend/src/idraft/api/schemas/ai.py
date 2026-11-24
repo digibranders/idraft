@@ -915,6 +915,25 @@ _LAST_OBSERVED = (
 _LAST_VALID = "The newest valid answer counted in the window, on the engines shown; null if none."
 
 
+class LinkedKeyword(BaseModel):
+    keyword: str
+    search_volume: int | None = Field(
+        description="The monthly searches from the keyword's latest metrics at the prompt's "
+        "place; null while it has none (a number, including 0, is never invented)."
+    )
+
+
+_LINKED_ONE = (
+    "With `include=facts`: the keyword the prompt is linked to, the one with the most searches "
+    "when it has several; null when it has no active link. Left out when `facts` was not asked "
+    "for."
+)
+_LINKED_MANY = (
+    "With `include=facts`: the distinct keywords linked to the prompts of the row, each once "
+    "(a keyword with a null volume is not a 0). Left out when `facts` was not asked for."
+)
+
+
 class PromptSummaryRow(BaseModel):
     prompt_id: UUID
     text: str
@@ -923,6 +942,12 @@ class PromptSummaryRow(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
+    linked_keyword: LinkedKeyword | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description=_LINKED_ONE,
+    )
 
 
 class TopicSummaryRow(BaseModel):
@@ -933,6 +958,12 @@ class TopicSummaryRow(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": []},
+        description=_LINKED_MANY,
+    )
 
 
 class SummaryTotal(BaseModel):
@@ -942,6 +973,12 @@ class SummaryTotal(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": []},
+        description=_LINKED_MANY,
+    )
 
 
 class CoMentionPair(BaseModel):
@@ -959,6 +996,12 @@ class EngineCoMentions(BaseModel):
 class CountrySummary(BaseModel):
     country_iso: str
     engines: list[EngineSummary]
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": []},
+        description=_LINKED_MANY,
+    )
 
 
 class SummaryEntity(BaseModel):
