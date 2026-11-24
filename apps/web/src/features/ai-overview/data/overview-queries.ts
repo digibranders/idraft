@@ -1,9 +1,8 @@
 import { addDays, isBeforeFirstDay } from '@/components/app/date-range/business-date';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
-import type { paths } from '@/lib/api/schema';
 import type { EngineCode } from '@/lib/api/types';
 import { compareParams } from '@/lib/compare/compare-model';
-import { factsRequested } from '@/lib/prompt-facts/request';
+import { overviewFactsRequested } from '@/lib/prompt-facts/request';
 import { brandedParams, type DateWindow, type OverviewScope } from '../scope/scope-model';
 
 /**
@@ -19,7 +18,6 @@ const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const ENGINES = `${P}/engines` as const;
 const SUMMARY = `${P}/ai/prompts-summary` as const;
 
-type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
 const SOURCES = `${P}/ai/sources/domains` as const;
 const FANOUT = `${P}/ai/fanout-queries` as const;
 const SCHEDULES = `${P}/schedules` as const;
@@ -108,7 +106,7 @@ export interface SummaryOptions {
   period?: 'current' | 'previous';
   /**
    * Blocks to add: a point per week, a cell per tracked entity, the one-row total, the co-mention pair counts, and the
-   * per-platform facts (position counts, sentiment counts). `facts` is sent only where the API knows it (`factsRequested`).
+   * per-platform facts (position counts, sentiment counts). `facts` is sent only where the API builds them (`overviewFactsRequested`).
    */
   include?: readonly ('series' | 'entities' | 'total' | 'co_mentions' | 'facts')[];
   /** `topics` leaves the prompt rows out, `none` both row lists. Left out: every row. */
@@ -135,7 +133,7 @@ export function overviewSummaryQuery(
 ): ApiQueryOptions<typeof SUMMARY> {
   const { scope } = read;
   const window = period === 'previous' ? scope.previous : scope.range;
-  const asked = include.filter((block) => block !== 'facts' || factsRequested());
+  const asked = include.filter((block) => block !== 'facts' || overviewFactsRequested());
   return apiQuery(SUMMARY, {
     params: {
       path: pathOf(project),
@@ -145,8 +143,7 @@ export function overviewSummaryQuery(
         ...brandedParams(scope.branded),
         ...engineFilter(read),
         ...scopeFilters(scope),
-        // `facts` is not in the generated client yet: the one cast, until `pnpm gen:api` brings the value
-        ...(asked.length === 0 ? {} : { include: [...asked].sort() as SummaryInclude[] }),
+        ...(asked.length === 0 ? {} : { include: [...asked].sort() }),
         ...(rows === undefined ? {} : { rows }),
       },
     },

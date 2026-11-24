@@ -68,6 +68,8 @@ export interface PromptColumnContext {
   comparedWindow: ComparedWindow;
   /** The workspace and project of the table, for the cells that write (Add as competitor) or read on their own. */
   project: PromptScope;
+  /** The person may spend on a screenshot of an answer (`runs:trigger`); a reader sees the ones that exist. */
+  canCapture: boolean;
   /** The project's time zone, in which the day of an answer is told. */
   timeZone: string;
   /** The words of a change, from the one translator the screen holds: a pure `cellTip` cannot call the hook. */

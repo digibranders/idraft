@@ -190,8 +190,16 @@ export function sampleBadge(text = 'Sample data') {
 // -------------------------------------------------------------------------------------------------
 // Sparkline: a plain SVG polyline that follows the theme through its color token
 
+let sparklineCount = 0;
+
+/**
+ * A smooth line with a fade under it, a soft shadow and a dot on the latest week. Returns a wrapper (the dot is an
+ * HTML element, because a dot inside a stretched SVG would turn into an ellipse).
+ */
 export function sparkline(points, { token = 'chart-1', height = 28, label } = {}) {
   const NS = 'http://www.w3.org/2000/svg';
+  const wrap = el('div', 'relative w-full');
+  wrap.style.height = `${height}px`;
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `0 0 100 ${height}`);
   svg.setAttribute('preserveAspectRatio', 'none');
@@ -201,30 +209,71 @@ export function sparkline(points, { token = 'chart-1', height = 28, label } = {}
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', label);
   } else svg.setAttribute('aria-hidden', 'true');
+  wrap.append(svg);
   const values = points.filter((value) => value !== null);
-  if (values.length < 2) return svg;
+  if (values.length < 2) return wrap;
   const low = Math.min(...values);
   const high = Math.max(...values);
   const span = high - low || 1;
-  const coordinates = points
-    .map((value, index) => (value === null ? null : `${((index / (points.length - 1)) * 100).toFixed(2)},${(height - 3 - ((value - low) / span) * (height - 6)).toFixed(2)}`))
+  const spots = points
+    .map((value, index) => (value === null ? null : { x: (index / (points.length - 1)) * 100, y: height - 4 - ((value - low) / span) * (height - 8) }))
     .filter(Boolean);
-  const line = document.createElementNS(NS, 'polyline');
-  line.setAttribute('points', coordinates.join(' '));
+  // A smooth path through the points (Catmull-Rom turned into cubic curves), so the line has no corners
+  let path = `M${spots[0].x.toFixed(2)},${spots[0].y.toFixed(2)}`;
+  for (let at = 0; at < spots.length - 1; at += 1) {
+    const before = spots[Math.max(0, at - 1)];
+    const from = spots[at];
+    const to = spots[at + 1];
+    const after = spots[Math.min(spots.length - 1, at + 2)];
+    const one = `${(from.x + (to.x - before.x) / 6).toFixed(2)},${(from.y + (to.y - before.y) / 6).toFixed(2)}`;
+    const two = `${(to.x - (after.x - from.x) / 6).toFixed(2)},${(to.y - (after.y - from.y) / 6).toFixed(2)}`;
+    path += ` C${one} ${two} ${to.x.toFixed(2)},${to.y.toFixed(2)}`;
+  }
+  sparklineCount += 1;
+  const gradientId = `spark-fade-${sparklineCount}`;
+  const defs = document.createElementNS(NS, 'defs');
+  const gradient = document.createElementNS(NS, 'linearGradient');
+  gradient.setAttribute('id', gradientId);
+  gradient.setAttribute('x1', '0');
+  gradient.setAttribute('y1', '0');
+  gradient.setAttribute('x2', '0');
+  gradient.setAttribute('y2', '1');
+  [['0', '0.32'], ['1', '0']].forEach(([offset, opacity]) => {
+    const stop = document.createElementNS(NS, 'stop');
+    stop.setAttribute('offset', offset);
+    stop.setAttribute('stop-color', `var(--${token})`);
+    stop.setAttribute('stop-opacity', opacity);
+    gradient.append(stop);
+  });
+  defs.append(gradient);
+  const last = spots[spots.length - 1];
+  const area = document.createElementNS(NS, 'path');
+  area.setAttribute('d', `${path} L${last.x.toFixed(2)},${height} L${spots[0].x.toFixed(2)},${height} Z`);
+  area.setAttribute('fill', `url(#${gradientId})`);
+  const line = document.createElementNS(NS, 'path');
+  line.setAttribute('d', path);
   line.setAttribute('fill', 'none');
   line.setAttribute('stroke', `var(--${token})`);
-  line.setAttribute('stroke-width', '1.75');
+  line.setAttribute('stroke-width', '2.25');
   line.setAttribute('stroke-linejoin', 'round');
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('vector-effect', 'non-scaling-stroke');
-  svg.append(line);
-  return svg;
+  line.style.filter = `drop-shadow(0 3px 3px color-mix(in srgb, var(--${token}) 40%, transparent))`;
+  svg.append(defs, area, line);
+  const dot = el('span', 'absolute size-2 rounded-full border-2 border-surface');
+  dot.style.background = `var(--${token})`;
+  dot.style.left = `${last.x}%`;
+  dot.style.top = `${last.y}px`;
+  dot.style.transform = 'translate(-50%, -50%)';
+  dot.setAttribute('aria-hidden', 'true');
+  wrap.append(dot);
+  return wrap;
 }
 
 // -------------------------------------------------------------------------------------------------
 // Bar list: one row per entity, the value as a bar
 
-export function barList(rows, { max, valueText: text = pct0, always = false } = {}) {
+export function barList(rows, { max, valueText: text = pct0, always = false, cylinder = false } = {}) {
   const top = max ?? Math.max(...rows.map((row) => row.value ?? 0), 0.0001);
   const table = el('table', 'w-full');
   const body = el('tbody');
@@ -250,10 +299,14 @@ export function barList(rows, { max, valueText: text = pct0, always = false } = 
     if (row.badge) name.append(row.badge);
     label.append(name);
     const barCell = el('td', `w-full pr-2 ${always ? '' : 'hidden @sm:table-cell'}`);
-    const bar = el('div', 'h-5 rounded-2xs');
+    // A cylinder lying down: lit along its top edge, shaded underneath, rounded at both ends, in the brand's color
+    const bar = el('div', cylinder ? 'bar-cylinder' : 'h-5 rounded-2xs');
     bar.setAttribute('aria-hidden', 'true');
     bar.style.width = `${Math.max(1, Math.round(((row.value ?? 0) / top) * 100))}%`;
-    bar.style.background = row.value === null ? 'transparent' : `var(--${row.barToken ?? (row.strong ? 'chart-1' : 'chart-bar-neutral')})`;
+    const color = `var(--${row.barToken ?? (row.strong ? 'chart-1' : 'chart-bar-neutral')})`;
+    if (row.value === null) bar.style.background = 'transparent';
+    else if (cylinder) bar.style.setProperty('--bar-color', color);
+    else bar.style.background = color;
     barCell.append(bar);
     const value = el('td', 'w-24 text-right type-label num whitespace-nowrap');
     value.append(row.value === null ? el('span', 'text-foreground-tertiary', 'n/a') : el('span', '', text(row.value)));

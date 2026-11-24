@@ -24,6 +24,8 @@ const words: ClientSummaryWords = {
   title: (host) => `Internal links summary for ${host}`,
   crawlLine: (when, pages) => `Crawl of ${when}, ${String(pages)} pages.`,
   olderNote: 'This summary is of an older crawl.',
+  coverage: (read, crawled, blocked) => `Read ${read} of ${crawled} pages; ${blocked} refused our crawler.`,
+  incompleteNote: 'may be incomplete',
   lostUnavailable: (reason) => (reason === 'dropped' ? 'The links are not stored.' : 'Nothing to compare.'),
   tiersHeading: 'Pages by tier',
   tiersHead: ['Tier', 'Pages', 'Share of pages', 'Average depth'],

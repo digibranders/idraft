@@ -7,8 +7,7 @@ import type { DateRange } from '../prompt-model';
 import type { PromptScope, SummaryScope } from '../prompt-queries';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import { compareParams } from '@/lib/compare/compare-model';
-import type { paths } from '@/lib/api/schema';
-import { FACTS_INCLUDE as FACTS_INCLUDE_NAME, factsRequested } from '@/lib/prompt-facts/request';
+import { FACTS_INCLUDE, factsRequested } from '@/lib/prompt-facts/request';
 import type {
   PromptsSummaryWithFacts,
   PromptSummaryRowWithFacts,
@@ -17,10 +16,6 @@ import type {
 } from '@/lib/prompt-facts';
 
 const SUMMARY = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary' as const;
-
-type SummaryInclude = NonNullable<NonNullable<paths[typeof SUMMARY]['get']['parameters']['query']>['include']>[number];
-
-const FACTS_INCLUDE = FACTS_INCLUDE_NAME as SummaryInclude;
 
 export { factsRequested };
 
@@ -70,12 +65,15 @@ export interface PromptFacts {
   requested: boolean;
 }
 
+const NO_ENTITIES: readonly TrackedEntity[] = [];
+
 /** Index a summary read; defined once so the query's `select` is stable. */
 export function indexFacts(summary: PromptsSummaryWithFacts, requested: boolean): PromptFacts {
   return {
     prompts: new Map(summary.prompts.map((row) => [row.prompt_id, row])),
     topics: new Map(summary.topics.map((row) => [row.term_id, row])),
-    entities: summary.entities,
+    // A summary that does not carry the entity set (a read made without `include=entities`) has none to name
+    entities: summary.entities ?? NO_ENTITIES,
     engineCodes: summary.engine_codes,
     requested,
   };

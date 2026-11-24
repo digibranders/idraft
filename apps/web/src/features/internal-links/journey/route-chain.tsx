@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '../status-badge';
 import { Icon } from '@/components/ui/icon';
 import { routeSteps, type RouteStepView } from '@/lib/internal-links/route-format';
 import type { Route } from '@/lib/internal-links/types';
@@ -55,9 +56,7 @@ export function RouteChain({ title, route }: { title: string; route: Route }): R
               {step.first ? <Badge tone="neutral">{t('home')}</Badge> : null}
               {/* routeSteps keeps the steps in order, so the tier is that of the step at the same place */}
               <TierBadge tier={route.steps[index]?.page.tier ?? null} />
-              {step.statusCode !== null && step.statusCode !== 200 ? (
-                <Badge tone={step.statusCode >= 400 ? 'negative' : 'warning'}>{String(step.statusCode)}</Badge>
-              ) : null}
+              {step.statusCode !== null && step.statusCode !== 200 ? <StatusBadge status={step.statusCode} /> : null}
             </div>
           </li>
         ))}

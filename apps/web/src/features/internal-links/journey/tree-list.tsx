@@ -9,6 +9,7 @@ import { useEffect, type KeyboardEvent, type ReactElement } from 'react';
 import { useNeighborLookup } from './use-neighbor-lookup';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '../status-badge';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
@@ -23,8 +24,6 @@ const CELL = 'px-3 align-middle';
 const TREE_COLUMNS = ['page', 'tier', 'anchor', 'type', 'linking', 'status'] as const;
 /** Indent per level (mock: 20 px); a style, since it multiplies with the level. */
 const INDENT = 20;
-
-const statusTone = (status: number): 'negative' | 'warning' => (status >= 400 ? 'negative' : 'warning');
 
 /**
  * The tree list (spec 7.5, decision W3): the canvas's text alternative and the better view for anchors. One
@@ -203,7 +202,7 @@ export function TreeList({
           {muted || status === null ? null : status === 200 ? (
             <span className="num type-table text-foreground-secondary">200</span>
           ) : (
-            <Badge tone={statusTone(status)}>{String(status)}</Badge>
+            <StatusBadge status={status} />
           )}
         </td>
       </tr>

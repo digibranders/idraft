@@ -839,6 +839,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/favicons/{registrable_domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The icon of a site
+         * @description A PNG between 32 and 128 px wide, found and kept by the server: the browser never contacts the site or a third party. `404 not_found` when the site has no icon of at least 32 px (also kept, for 6 hours); `400` when the domain is not a public domain name; `429` past 60 icons a minute not yet kept, per workspace. Any workspace member may read it.
+         */
+        get: operations["get_favicon_api_v1_workspaces__workspace_id__favicons__registrable_domain__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/invitations": {
         parameters: {
             query?: never;
@@ -1530,6 +1550,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations/{observation_id}/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The stored screenshot of an AI answer
+         * @description `data:read`. The PNG, or `404 no_screenshot` when none was captured.
+         */
+        get: operations["screenshot_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__screenshot_get"];
+        put?: never;
+        /**
+         * Capture the screenshot of an AI answer
+         * @description `runs:trigger`. One DataForSEO call ($0.004) the first time; later calls return the stored image and cost nothing (`200` instead of `201`). `422 budget_exceeded` when a budget would be passed. `410 screenshot_expired` once the answer is past 6 days 20 hours (the provider keeps a page 7 days from posting the task, which is earlier than the answer's time) or the provider no longer holds its task, `409 screenshot_unsupported` for an engine with no platform page, `502 screenshot_failed` when the provider or the image could not be used, `503 screenshots_unavailable` when this installation has no DataForSEO account or no object storage.
+         */
+        post: operations["capture_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__screenshot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary": {
         parameters: {
             query?: never;
@@ -1539,7 +1583,7 @@ export interface paths {
         };
         /**
          * Mentioned, Cited, outcomes and Share of voice per prompt, engine and topic
-         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last weeks may be partial (cut at the window bounds; the first `week_start` can precede `window.from`). A point of a prompt row always holds the trailing four weeks to its week, and one of a topic, total or country row does when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`, `prompts`): a pooled point never reaches outside the window, so the first points hold fewer weeks, and the points of a prompt row do not add up to its window cell. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. With `include=series` too, each point also holds those cells over the very weeks the point holds (its own week, or the weeks it pools), as `entities`, without `previous`. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier; 29 February becomes the 28th) or `compare_from` with `compare_to` (both or neither, at most 92 days, any position; they win over `compare`) add `compare_window` and `previous_answers` (the valid answers in scope there), and `previous` beside each engine's cells, and beside each entity's with `include=entities`: null when none of the row's prompts has an answer of the engine in that window, cells with a denominator of 0 when it has answers and none valid. `include=total` adds `total`: every prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and `entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: per engine shown, the valid answers in scope and, for each pair of the tracked entities (the own ones first, at most 20) named in the same valid answer, how many answers name both; it does not depend on `rows`. `include=cells` adds `detail` to every engine of the rows, `total` and `by_country`: Cited among the answers with citations, the own share of the citation units, First mention (the own brand named before any other tracked entity, of the answers that name it) and the fan-out presence and mean (null on an engine that does not expose fan-out), over the window alone, with `metric_context.detail`. Blocks not asked for are left out. `filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: `named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, `nobody_named` is no tracked entity named, `lost_to:<entity_id>` is that competitor named and the own brand not (an id that is not a competitor of the project keeps no row and is not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. `group_by=country` adds `by_country`: one entry per market of the prompts in scope (the prompt's own, sorted by code), with the engines built as a topic row of those prompts and the blocks the rows carry when asked; a prompt without a market is in no entry, and the block does not depend on `rows`, the outcome or opportunity filters.
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each cell counts valid, current answers: `numerator` of `denominator`, with `n_observations` every answer of the cell and `value` null when the denominator is 0. Share of voice is doc 16 section 5 per observation: the own brand's share of the tracked entities each answer names, over the answers that name one; the response lists the entity set once. Branded prompts are left out unless `include_branded` is true; `branded_only` keeps them alone. A prompt of two topics counts in both; prompts without a topic share a row with `term_id` null. `filter[country_iso]` keeps the prompts of one market and `filter[term]` the prompts given the term or one under it; the topic rows then hold only those prompts, and under `filter[term]` they are the term and the topics below it, with no row for prompts without a topic. Each row says when its last counted answer and its last valid one came. `include=series` adds a point for each week the window touches (weeks start on Monday in the project's timezone), with Mentioned, Cited and Share of voice over the week's answers. The first and last weeks may be partial (cut at the window bounds; the first `week_start` can precede `window.from`). A point of a prompt row always holds the trailing four weeks to its week, and one of a topic, total or country row does when fewer than 10 of its prompts answered that week (`is_pooled`, `pool`, `prompts`): a pooled point never reaches outside the window, so the first points hold fewer weeks, and the points of a prompt row do not add up to its window cell. `include=entities` adds, per engine, a Mentioned and a Share of voice cell for each tracked entity (the own ones first, at most 20); across all the entities an answer names, its shares add up to 1. With `include=series` too, each point also holds those cells over the very weeks the point holds (its own week, or the weeks it pools), as `entities`, without `previous`. `compare=previous_period` (as many days just before the window), `compare=previous_year` (the same dates a year earlier; 29 February becomes the 28th) or `compare_from` with `compare_to` (both or neither, at most 92 days, any position; they win over `compare`) add `compare_window` and `previous_answers` (the valid answers in scope there), and `previous` beside each engine's cells, and beside each entity's with `include=entities`: null when none of the row's prompts has an answer of the engine in that window, cells with a denominator of 0 when it has answers and none valid. `include=total` adds `total`: every prompt in scope as one row, aggregated as a topic row is, with the `previous`, `series` and `entities` blocks when asked. `rows=topics` leaves the prompt rows out and `rows=none` both row lists; `total` does not depend on `rows`. `include=co_mentions` adds `co_mentions`: per engine shown, the valid answers in scope and, for each pair of the tracked entities (the own ones first, at most 20) named in the same valid answer, how many answers name both; it does not depend on `rows`. `include=cells` adds `detail` to every engine of the rows, `total` and `by_country`: Cited among the answers with citations, the own share of the citation units, First mention (the own brand named before any other tracked entity, of the answers that name it) and the fan-out presence and mean (null on an engine that does not expose fan-out), over the window alone, with `metric_context.detail`. `include=facts` adds `latest` to every engine of the prompt rows: the newest valid answer in the window and the state of its screenshot (the other facts of the page contract come with their own requests). Blocks not asked for are left out. `filter[outcome]=O` keeps a prompt row when at least one of its valid answers in the window, on the engines shown, had outcome O; `filter[opportunity]` keeps it by the same rule: `named_not_cited` is outcome `mentioned_only`, `cited_not_named` is `cited_only`, `nobody_named` is no tracked entity named, `lost_to:<entity_id>` is that competitor named and the own brand not (an id that is not a competitor of the project keeps no row and is not an error). With both, a row must pass each. They narrow `prompts` only: cells, topic rows, `total`, `co_mentions` and `prompt_count` still count every prompt in scope. `group_by=country` adds `by_country`: one entry per market of the prompts in scope (the prompt's own, sorted by code), with the engines built as a topic row of those prompts and the blocks the rows carry when asked; a prompt without a market is in no entry, and the block does not depend on `rows`, the outcome or opportunity filters.
          */
         get: operations["prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get"];
         put?: never;
@@ -5453,6 +5497,11 @@ export interface components {
             lost: components["schemas"]["SummaryLost"];
             /** Pages */
             pages: number;
+            /**
+             * Pages Blocked
+             * @description Pages that refused the crawler: unknown, not broken, so the numbers may be incomplete. null when not counted.
+             */
+            pages_blocked: number | null;
             /** Tiers */
             tiers: components["schemas"]["SummaryTier"][];
             /** Worklists */
@@ -5910,6 +5959,11 @@ export interface components {
              * @description False once the crawl's links were dropped (past the last four finished crawls): its pages stay, links, journeys and changes of links are gone.
              */
             links_available: boolean;
+            /**
+             * Pages Blocked
+             * @description Pages that refused the crawler (401, 403, 429): unknown, not broken. null for a crawl that was not counted.
+             */
+            pages_blocked: number | null;
             /** Pages Crawled */
             pages_crawled: number;
             /**
@@ -6364,6 +6418,11 @@ export interface components {
              * @description With `include=entities`: a cell for each tracked entity of `entities`, the own ones first, then competitors by name, at most 20. Left out otherwise.
              */
             entities?: components["schemas"]["EntityCells"][] | null;
+            /**
+             * Latest
+             * @description With `include=facts`, on a prompt row: the newest valid answer of the engine in the window and the state of its screenshot; null when the engine has no valid answer there. Left out on topic and total rows, and when `facts` was not asked for.
+             */
+            latest?: components["schemas"]["LatestAnswer"] | null;
             mentioned: components["schemas"]["MetricCell"];
             outcomes: components["schemas"]["OutcomeCells"];
             /**
@@ -7856,6 +7915,30 @@ export interface components {
             tracked: number;
         };
         /**
+         * LatestAnswer
+         * @description The newest valid answer of an engine for a prompt row.
+         */
+        LatestAnswer: {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Screenshot State
+             * @description `available`: a stored image. `capturable`: none yet and the provider can still make one (within 6 days 20 hours of the answer). `expired`: none, and too late. `unsupported`: the engine has no platform page.
+             * @enum {string}
+             */
+            screenshot_state: "available" | "capturable" | "expired" | "unsupported";
+            /**
+             * Screenshot Url
+             * @description The API path of the stored image, null when none was captured.
+             */
+            screenshot_url: string | null;
+        };
+        /**
          * LayoutDocument
          * @description The numbers and cards of one screen, in order: a full snapshot, at most 16 KB.
          */
@@ -9071,7 +9154,7 @@ export interface components {
             /** Q */
             q?: string | null;
             /** Status */
-            status?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
+            status?: ("2xx" | "3xx" | "4xx" | "5xx" | "blocked")[] | null;
             /** Tag Ids */
             tag_ids?: string[] | null;
             /** Tier Ids */
@@ -9097,7 +9180,7 @@ export interface components {
             /** @description Set when the list was asked for `include`. */
             extras?: components["schemas"]["PageExtras"] | null;
             /** Flags */
-            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "redirect" | "non_indexable" | "generic_anchors")[];
+            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "blocked" | "redirect" | "non_indexable" | "generic_anchors")[];
             /** In Sitemap */
             in_sitemap: boolean;
             /** Is Indexable */
@@ -11191,6 +11274,23 @@ export interface components {
              */
             scope: "editorial" | "auto_generated" | "template";
         };
+        /** ScreenshotData */
+        ScreenshotData: {
+            /** Created */
+            created: boolean;
+            /** Height */
+            height: number | null;
+            /** Truncated */
+            truncated: boolean;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number | null;
+        };
+        /** ScreenshotResponse */
+        ScreenshotResponse: {
+            data: components["schemas"]["ScreenshotData"];
+        };
         /** Seasonality */
         Seasonality: {
             /**
@@ -12154,6 +12254,11 @@ export interface components {
              * @enum {string}
              */
             key: "under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "broken_and_redirected" | "links_to_non_indexable" | "weak_outlinks";
+            /**
+             * May Be Incomplete
+             * @description Some pages refused the crawler, so this count may be incomplete.
+             */
+            may_be_incomplete: boolean;
         };
         /** TagChangeResponse */
         TagChangeResponse: {
@@ -13549,6 +13654,11 @@ export interface components {
              * @description Pages that lost an editorial link and are important.
              */
             lost_links_top: number;
+            /**
+             * May Be Incomplete
+             * @description True when pages refused the crawler: the links of those pages were not read, so under_linked_t1, orphans, editorial_orphans, deep_only_through_auto and weak_outlinks may count pages that are linked from a page we could not see.
+             */
+            may_be_incomplete: boolean;
             /** Orphans */
             orphans: number;
             /**
@@ -15416,6 +15526,38 @@ export interface operations {
             };
         };
     };
+    get_favicon_api_v1_workspaces__workspace_id__favicons__registrable_domain__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                registrable_domain: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The icon. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_invitations_api_v1_workspaces__workspace_id__invitations_get: {
         parameters: {
             query?: {
@@ -17059,6 +17201,78 @@ export interface operations {
             };
         };
     };
+    screenshot_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__screenshot_get: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                observation_id: number;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    capture_api_v1_workspaces__workspace_id__projects__project_id__ai_observations__observation_id__screenshot_post: {
+        parameters: {
+            query?: {
+                /** @description A hint to find the month. */
+                observed_at?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+                project_id: string;
+                observation_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScreenshotResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     prompts_summary_api_v1_workspaces__workspace_id__projects__project_id__ai_prompts_summary_get: {
         parameters: {
             query?: {
@@ -17072,8 +17286,8 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
-                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`. */
-                include?: ("series" | "entities" | "total" | "co_mentions" | "cells")[] | null;
+                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`. */
+                include?: ("series" | "entities" | "total" | "co_mentions" | "cells" | "facts")[] | null;
                 /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window`, `previous_answers` and `previous` cells. */
                 compare?: "none" | "previous_period" | "previous_year";
                 /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
@@ -18039,7 +18253,7 @@ export interface operations {
                 "filter[target_tier]"?: (string | "none")[] | null;
                 "filter[tag]"?: string[] | null;
                 "filter[placement]"?: ("content" | "auto_generated" | "navigation" | "header" | "footer" | "sidebar" | "breadcrumb")[] | null;
-                "filter[target_status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
+                "filter[target_status]"?: ("2xx" | "3xx" | "4xx" | "5xx" | "blocked")[] | null;
                 "filter[source]"?: string | null;
                 "filter[target]"?: string | null;
                 "filter[worklist]"?: ("broken_and_redirected" | "links_to_non_indexable") | null;
@@ -18209,7 +18423,7 @@ export interface operations {
                 scope?: "editorial" | "auto_generated" | "template" | "all";
                 "filter[tier]"?: (string | "none")[] | null;
                 "filter[tag]"?: string[] | null;
-                "filter[status]"?: ("2xx" | "3xx" | "4xx" | "5xx")[] | null;
+                "filter[status]"?: ("2xx" | "3xx" | "4xx" | "5xx" | "blocked")[] | null;
                 "filter[indexable]"?: boolean | null;
                 "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors")[] | null;
                 "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
@@ -21846,7 +22060,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricGe
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricBreakdownGetParametersQueryDimensionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown"]["get"]["parameters"]["query"]["dimension"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells", "facts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryRowsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["rows"]> = ["topics", "none"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryFilterOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["filter[outcome]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
@@ -21868,7 +22082,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChan
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[placement]"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterTarget_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[target_status]"]> = ["2xx", "3xx", "4xx", "5xx"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterTarget_statusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[target_status]"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["broken_and_redirected", "links_to_non_indexable"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksEdgesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksNeighborsGetParametersQueryDirectionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"]["get"]["parameters"]["query"]["direction"]> = ["in", "out"];
@@ -21876,7 +22090,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksNeig
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksOpportunitiesGetParametersQueryStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities"]["get"]["parameters"]["query"]["status"]> = ["open", "accepted", "dismissed"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksOpportunitiesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change", "rank", "-rank", "citations", "-citations", "anchor", "-anchor", "tier", "-tier", "clicks", "-clicks", "title", "-title", "indexable", "-indexable", "in_sitemap", "-in_sitemap"];
@@ -22017,6 +22231,7 @@ export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<Flattened
 export const keywordImportCreateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportCreate"]["source"]> = ["paste", "api"];
 export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["competition_level"]> = ["LOW", "MEDIUM", "HIGH"];
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const latestAnswerScreenshot_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LatestAnswer"]["screenshot_state"]> = ["available", "capturable", "expired", "unsupported"];
 export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit", "word_count", "multiple_questions", "leading_wording", "language_mismatch", "contains_competitor_alias"];
 export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
 export const listMetaScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ListMeta"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
@@ -22042,9 +22257,9 @@ export const opportunityStatusValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OpportunityDecisions"]["status"]> = ["open", "accepted", "dismissed"];
 export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
 export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
-export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx"];
+export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
-export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "redirect", "non_indexable", "generic_anchors"];
+export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "blocked", "redirect", "non_indexable", "generic_anchors"];
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
 export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
 export const placementCountPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PlacementCount"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];

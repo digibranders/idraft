@@ -11,7 +11,8 @@ import { UNGROUPED, archiveKeywords, deleteKeywords, store, usedCountries } from
 import { BUTTON_SM, icon } from './perf-ui.js';
 import { confirmDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { ALL_COUNTRIES, addScope, best, columnsFor, clicks, impressions, derived, gained, groupOf, isRank, measures, monthly, plural, rankText, refresh, setRenderer, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
+import { intentBadges } from './intent-badges.js';
+import { ALL_COUNTRIES, addScope, best, columnsFor, clicks, impressions, derived, gained, groupOf, intentsOf, isRank, measures, monthly, plural, rankText, refresh, setRenderer, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
 import { openAdd, openMove } from './kw-grouped-dialogs.js';
 import { openGroup, openKeyword, redrawDrawer } from './kw-grouped-drawer.js';
 import { bindPages, closePages, pagesOf } from './kw-grouped-pages.js';
@@ -131,7 +132,7 @@ function keywordRow(keyword, columns, grouped) {
     link.rel = 'noopener noreferrer';
     link.dataset.pages = keyword.id;
     link.setAttribute('aria-label', `Open ${info.url}${count > 1 ? `. ${count} pages rank for this keyword` : ''}`);
-    link.append(icon('arrow-up-right', 'size-icon-sm'));
+    link.append(icon('link', 'size-icon-sm'));
     if (count > 1) link.append(el('span', 'type-micro num text-warning-text', String(count)));
     line.append(link);
   }
@@ -146,7 +147,7 @@ function keywordRow(keyword, columns, grouped) {
     clicks: () => td(pending(keyword) || keyword.volume === 0 ? muted('Not collected yet') : num(clicks(keyword).toLocaleString('en-US'))),
     kd: () => td(pending(keyword) ? muted('Not collected yet') : keyword.kd === null ? muted('Not collected yet') : num(String(keyword.kd))),
     cpc: () => td(keyword.cpc ? num(`$${keyword.cpc.toFixed(2)}`) : muted('Not collected yet')),
-    intent: () => td(pending(keyword) ? muted('Not collected yet') : el('span', 'type-table text-foreground', keyword.intent[0].toUpperCase() + keyword.intent.slice(1))),
+    intent: () => td(pending(keyword) ? muted('Not collected yet') : intentBadges(intentsOf(keyword))),
     features: () => td(featuresCell(info)),
     aio: () => td(aioCell(info)),
     trend: () => td(trendCell(keyword)),
@@ -176,10 +177,12 @@ function groupRow(group, items, columns) {
   toggle.setAttribute('aria-expanded', String(open));
   toggle.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} the ${plural(items.length, 'keyword')} in ${group.name}`);
   toggle.append(icon(open ? 'chevron-down' : 'chevron-right', 'size-icon'));
-  const text = el('span', 'min-w-0 flex flex-col');
-  text.append(el('span', 'truncate type-body-strong text-foreground', group.name));
   const movers = [m.up > 0 ? `↑${m.up}` : '', m.down > 0 ? `↓${m.down}` : ''].filter(Boolean).join(' ');
-  text.append(el('span', 'truncate type-label text-foreground-tertiary', `${plural(m.count, 'keyword')}${m.countries > 1 ? ` · ${m.countries} locations` : ''}${movers ? ` · ${movers}` : ''}`));
+  const text = el('span', 'min-w-0 flex items-center gap-2');
+  text.title = `${plural(m.count, 'keyword')}${m.countries > 1 ? `, ${m.countries} locations` : ''}${movers ? `, ${movers}` : ''}`;
+  const badge = el('span', 'shrink-0 rounded-full bg-surface-hover px-2 type-label num text-foreground-secondary', String(m.count));
+  badge.setAttribute('aria-label', plural(m.count, 'keyword'));
+  text.append(icon('folder', 'size-icon-sm shrink-0 text-foreground'), el('span', 'truncate type-body-strong text-foreground', group.name), badge);
   line.append(toggle, text);
   name.append(line);
   const rankOf = (device) => td(num(`${m[device].top10} in top 10`));

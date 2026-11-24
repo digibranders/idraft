@@ -563,6 +563,7 @@ def test_the_api_document_has_the_summary_additions() -> None:
         "total",
         "co_mentions",
         "cells",
+        "facts",
     }
 
     for name in (

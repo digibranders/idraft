@@ -15,7 +15,7 @@ import { SORT_ID } from '../prompt-model';
 import { COLUMN_AFTER, withColumnEntries, type PromptColumnContext } from '../seams/columns';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
-import type { PromptsSummaryWithFacts } from '@/lib/api/prompt-facts';
+import type { PromptsSummaryWithFacts, ScreenshotState } from '@/lib/api/prompt-facts';
 import type { ProjectEngine } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -58,13 +58,15 @@ const brands = (loaded: boolean, scope: readonly string[] = ['chatgpt_web']): Da
 const links = (loaded: boolean): DataTableColumn<Row> =>
   linksColumn<Row>({ rowOf: (value) => value.facts, labelOf: () => 'This prompt', loaded, code: 'chatgpt_web', t });
 
-const shot = (loaded: boolean): DataTableColumn<Row> =>
+const shot = (loaded: boolean, canCapture = true): DataTableColumn<Row> =>
   screenshotColumn<Row>({
     rowOf: (value) => value.facts,
     promptTextOf: () => 'What CRM do small teams choose?',
     loaded,
     platform: { code: 'chatgpt_web', name: 'ChatGPT' },
     timeZone: 'UTC',
+    project: PROJECT,
+    canCapture,
     t,
   });
 
@@ -206,9 +208,16 @@ describe('the Cited pages column', () => {
 });
 
 describe('the Screenshot column', () => {
-  const latest = (screenshot_url: string | null): FactsRow =>
+  const latest = (screenshot_url: string | null, screenshot_state?: ScreenshotState): FactsRow =>
     rowOf(
-      engine('chatgpt_web', { latest: { observation_id: '41', observed_at: '2026-09-28T01:14:00Z', screenshot_url } }),
+      engine('chatgpt_web', {
+        latest: {
+          observation_id: '41',
+          observed_at: '2026-09-28T01:14:00Z',
+          screenshot_url,
+          screenshot_state: screenshot_state ?? (screenshot_url === null ? 'capturable' : 'available'),
+        },
+      }),
     );
 
   it('shows the day of the latest answer on a button named for the platform and the prompt', () => {
@@ -244,10 +253,37 @@ describe('the Screenshot column', () => {
     expect(within(dialog).queryByRole('img', { name: /as the page showed it/ })).not.toBeInTheDocument();
   });
 
-  it('is n/a with its reason when the answer has no stored image: never an invented picture', () => {
+  it('offers Get screenshot, never a picture, when the answer has none stored and the person may spend', () => {
     show(shot(true), row(latest(null)));
+    expect(
+      screen.getByRole('button', {
+        name: 'Get a screenshot of the latest ChatGPT answer for What CRM do small teams choose?',
+      }),
+    ).toHaveTextContent('Get screenshot');
+    expect(tipText()).toBe('');
+  });
+
+  it('says n/a with its reason to a reader, who may see an image but not spend', () => {
+    show(shot(true, false), row(latest(null)));
     expect(cellText()).toBe('n/a');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(tipText()).toBe('No screenshot of the latest answer has been collected yet');
+  });
+
+  it('keeps the image for a reader when one is stored', () => {
+    show(shot(true, false), row(latest(IMAGE)));
+    expect(screen.getByRole('button', { name: /Open the latest ChatGPT answer screenshot/ })).toBeInTheDocument();
+  });
+
+  it('says Expired with the reason for an answer past the window, and n/a for a platform with no page', () => {
+    const first = show(shot(true), row(latest(null, 'expired')));
+    expect(cellText()).toBe('Expired');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(tipText()).toBe('A screenshot can only be taken for an answer less than 7 days old');
+    first.unmount();
+    show(shot(true), row(latest(null, 'unsupported')));
+    expect(cellText()).toBe('n/a');
+    expect(tipText()).toBe('This platform has no page to take a screenshot of');
   });
 
   it('says No answer when the platform has none in the period', () => {
@@ -291,6 +327,7 @@ describe('the entry of the popover columns', () => {
     comparedWindow: null,
     changeWords: { tip: () => '', label: () => '', gap: () => '' },
     project: PROJECT,
+    canCapture: true,
     timeZone: 'UTC',
   });
   const builtIns = [SORT_ID.prompt, SORT_ID.citation, SORT_ID.mention].map((id) =>

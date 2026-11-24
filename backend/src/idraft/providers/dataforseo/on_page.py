@@ -27,6 +27,10 @@ FAMILY: Final = "on_page"
 # The endpoint of the crawl's cost event and its price (migration 0025).
 TASK_POST: Final = "on_page/task_post"
 PAGE_LIMIT: Final = 1000
+# The pause between two hits on a customer's site. The provider's default of 2 seconds halved the
+# crawl speed (60 pages took 139 s against 79 s at 200 ms, measured 2026-11-23); 250 ms is about
+# 4 hits a second at most, and the provider fetches one page at a time anyway.
+CRAWL_DELAY_MS: Final = 250
 _TASK_ID: Final = re.compile(r"[0-9A-Za-z-]{1,64}")
 _COST_STEP: Final = Decimal("0.000001")
 # 200,000 pages (the largest ceiling) at the JavaScript price of $0.0015.
@@ -49,6 +53,8 @@ class CrawlOrder:
     enable_javascript: bool
     allowed_subdomains: tuple[str, ...]
     tag: str
+    # The provider waits this long between two hits on the site (its own default is 2000).
+    crawl_delay_ms: int = CRAWL_DELAY_MS
 
     def body(self) -> dict[str, object]:
         body: dict[str, object] = {
@@ -60,6 +66,7 @@ class CrawlOrder:
             "store_raw_html": True,
             "enable_javascript": self.enable_javascript,
             "allow_subdomains": False,
+            "crawl_delay": self.crawl_delay_ms,
             "tag": self.tag,
         }
         if self.allowed_subdomains:

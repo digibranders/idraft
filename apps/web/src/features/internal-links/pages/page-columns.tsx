@@ -11,6 +11,7 @@ import { col } from '@/components/app/data-table/columns';
 import type { CellTip, DataTableColumn } from '@/components/app/data-table/types';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '../status-badge';
 import { IconButton } from '@/components/ui/icon-button';
 import { formatInteger } from '@/lib/format';
 import type { Comparison } from '@/lib/internal-links/page-extras';
@@ -148,8 +149,8 @@ export function pageColumns(
       (row) =>
         row.status_code === 200 ? (
           <span className="num type-table text-foreground-secondary">200</span>
-        ) : (
-          <Badge tone={(row.status_code ?? 0) >= 400 ? 'negative' : 'warning'}>{String(row.status_code ?? '')}</Badge>
+        ) : row.status_code === null ? null : (
+          <StatusBadge status={row.status_code} />
         ),
       { width: 96, sortValue: (row) => row.status_code },
     ),

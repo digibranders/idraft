@@ -7,7 +7,8 @@
 import { formatDecimal, formatInteger, formatSampleCount } from './vendor/format/number.js';
 import { ENGINES, engineOf } from './prompts-data.js';
 import { MIN_OBSERVATIONS } from './vendor/stats/index.js';
-import { INTENT_TIP, LIST_SIZE, POSITION_MIN_LISTS, SENTIMENT_MIN, addCompetitor, intentOf, isAddedCompetitor, removeCompetitor } from './prompts-extra.js';
+import { LIST_SIZE, POSITION_MIN_LISTS, SENTIMENT_MIN, addCompetitor, intentsOf, isAddedCompetitor, removeCompetitor } from './prompts-extra.js';
+import { intentBadges } from './intent-badges.js';
 import { CELL } from './prompts-cells.js';
 import { NEUTRAL_BADGE, el, insufficient, percent0, plural } from './prompts-parts.js';
 import { state } from './prompts-state.js';
@@ -32,10 +33,8 @@ export function textCell(text, tip) {
 }
 
 export function intentCell(prompt) {
-  const intent = intentOf(prompt);
   const cell = el('td', CELL);
-  cell.append(el('span', 'block truncate text-foreground', intent));
-  cell.dataset.tip = INTENT_TIP[intent];
+  cell.append(intentBadges(intentsOf(prompt)));
   return cell;
 }
 

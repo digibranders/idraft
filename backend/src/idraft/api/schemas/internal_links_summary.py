@@ -42,6 +42,9 @@ class SummaryFlowCell(BaseModel):
 class SummaryWorklist(BaseModel):
     key: SummaryWorklistKey
     count: int
+    may_be_incomplete: bool = Field(
+        description="Some pages refused the crawler, so this count may be incomplete."
+    )
 
 
 class SummaryLostLink(BaseModel):

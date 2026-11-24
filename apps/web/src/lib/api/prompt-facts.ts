@@ -13,7 +13,7 @@ import type {
  * The per-engine facts of the new Prompts columns, as the prompt summary read will carry them.
  *
  * BACKEND REQUEST SHAPE. The generated client (`lib/api/schema.ts`) does not carry any field of this file except the
- * intent enum, which `Prompt` already has. Each field is optional and means "the backend has not built it yet" when it
+ * intent enum, which `Prompt` already has, and `latest` (`LatestAnswer`). Each field is optional and means "the backend has not built it yet" when it
  * is absent; `null` means "the backend answered, and the value does not apply here" (an engine that does not classify
  * sentiment, a prompt with no linked keyword). The pure functions of this folder never turn either into a zero.
  * The exact names, shapes and owners are in `docs/ai-visibility/backend-requests-prompts-page.md`.
@@ -117,12 +117,15 @@ export interface TopLink {
   answers: number;
 }
 
-/** The newest answer of the engine for the row. `screenshot_url` is null when no screenshot was captured. */
-export interface LatestAnswer {
-  observation_id: string;
-  observed_at: string;
-  screenshot_url: string | null;
-}
+/** The newest valid answer of the engine for a prompt row, with the state of its screenshot (`LatestAnswer`). */
+export type LatestAnswer = Schemas['LatestAnswer'];
+
+/**
+ * Whether a screenshot of the answer can be had: `available` (stored, `screenshot_url` is its API path), `capturable`
+ * (none yet, the provider can still make one), `expired` (none, and too late), `unsupported` (the engine has no
+ * platform page to photograph).
+ */
+export type ScreenshotState = LatestAnswer['screenshot_state'];
 
 /**
  * What an engine of a prompt row or a topic row adds to its `EngineSummary`. Tracked brands are not here: they are the
@@ -157,8 +160,12 @@ export type PromptSummaryRowWithFacts = Omit<PromptSummaryRow, 'engines'> &
 export type TopicSummaryRowWithFacts = Omit<TopicSummaryRow, 'engines'> &
   TopicRowFacts & { engines: EngineSummaryWithFacts[] };
 
-/** The prompt summary read when it was asked for `include=entities,facts`. */
-export type PromptsSummaryWithFacts = Omit<PromptsSummary, 'prompts' | 'topics'> & {
+/**
+ * The prompt summary read when it was asked for `include=entities,facts`. `entities` is optional: the Prompts page's own
+ * read, which carries the weekly series, does not ask for the entity cells.
+ */
+export type PromptsSummaryWithFacts = Omit<PromptsSummary, 'prompts' | 'topics' | 'entities'> & {
+  entities?: PromptsSummary['entities'];
   prompts: PromptSummaryRowWithFacts[];
   topics: TopicSummaryRowWithFacts[];
 };

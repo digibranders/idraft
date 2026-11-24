@@ -71,7 +71,7 @@ export interface LinksScope {
   projectId: string;
 }
 
-export type StatusClass = '2xx' | '3xx' | '4xx' | '5xx';
+export type StatusClass = '2xx' | '3xx' | '4xx' | '5xx' | 'blocked';
 export type PageFlagFilter =
   | 'orphan'
   | 'editorial_orphan'

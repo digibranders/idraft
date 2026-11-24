@@ -496,6 +496,74 @@ describe('the raw answer', () => {
   });
 });
 
+describe('the answer screenshot', () => {
+  const dayOf = (iso: string): number => Math.floor(Date.parse(iso) / DAY_MS);
+  const idOf = (): string => observationIdOf(dayOf('2026-11-12T00:00:00Z'), 2, 1);
+  /** The Monday run of 2 November, ten days before NOW: past the provider's window. */
+  const oldId = (): string => observationIdOf(dayOf('2026-11-02T00:00:00Z'), 2, 1);
+  const path = (id: string): string => `${FYNIX}/ai/observations/${id}/screenshot`;
+  const CAPTURE = z.object({
+    created: z.boolean(),
+    truncated: z.boolean(),
+    width: z.number().nullable(),
+    height: z.number().nullable(),
+    url: z.string(),
+  });
+
+  it('is captured once by a member who may run, then served to a viewer, and a second capture costs nothing', async () => {
+    const editor = mockBrowser('editor');
+    expect((await editor.call('GET', path(idOf()))).code).toBe('no_screenshot');
+    const first = await editor.call('POST', path(idOf()));
+    expect(first.status).toBe(201);
+    expect(dataOf(first, CAPTURE)).toMatchObject({ created: true, url: path(idOf()) });
+    const second = await editor.call('POST', path(idOf()));
+    expect(second.status).toBe(200);
+    expect(dataOf(second, CAPTURE).created).toBe(false);
+    const image = await mockBrowser('viewer').call('GET', path(idOf()));
+    expect(image.status).toBe(200);
+    expect(image.headers.get('content-type')).toContain('image/');
+    expect(image.headers.get('cache-control')).toBe('private, max-age=3600');
+  });
+
+  it('is refused to a viewer, who may read but not spend', async () => {
+    expect((await mockBrowser('viewer').call('POST', path(idOf()))).code).toBe('forbidden');
+    expect((await mockBrowser('viewer').call('GET', path(idOf()))).code).toBe('no_screenshot');
+  });
+
+  it('is expired for an answer past the provider window, and not found for a number that is no answer', async () => {
+    const answer = await mockBrowser('editor').call('POST', path(oldId()));
+    expect(answer.status).toBe(410);
+    expect(answer.code).toBe('screenshot_expired');
+    expect((await mockBrowser('editor').call('POST', path('9'))).code).toBe('not_found');
+  });
+
+  it('shows in the summary as the state of the newest answer, and as its path once captured', async () => {
+    const LATEST = z.object({
+      observation_id: z.string(),
+      screenshot_url: z.string().nullable(),
+      screenshot_state: z.enum(['available', 'capturable', 'expired', 'unsupported']),
+    });
+    const SUMMARY_LATEST = z.object({
+      prompts: z.array(z.object({ engines: z.array(z.object({ latest: LATEST.nullable().optional() })) })),
+    });
+    const latestRows = async (): Promise<z.infer<typeof LATEST>[]> =>
+      dataOf(await mockBrowser('viewer').call('GET', `${FYNIX}/ai/prompts-summary?include=facts`), SUMMARY_LATEST)
+        .prompts.flatMap((row) => row.engines.map((engine) => engine.latest))
+        .filter((latest) => latest !== null && latest !== undefined);
+    const before = await latestRows();
+    const [target] = before;
+    expect(target).toMatchObject({ screenshot_state: 'capturable', screenshot_url: null });
+    if (target === undefined) return;
+    expect((await mockBrowser('editor').call('POST', path(target.observation_id))).status).toBe(201);
+    const after = (await latestRows()).find((latest) => latest.observation_id === target.observation_id);
+    expect(after).toEqual({
+      observation_id: target.observation_id,
+      screenshot_url: path(target.observation_id),
+      screenshot_state: 'available',
+    });
+  });
+});
+
 /**
  * The members WP-26 added to the detail (`answer_sha256`, `raw_sha256`, `quote`), read through a shape declared against
  * the generated type: a change to `ObservationDetail` or `CitationOut` breaks this file at compile time.

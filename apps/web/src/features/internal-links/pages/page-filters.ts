@@ -16,7 +16,7 @@ export const MAX_TIERS = 9;
 export const MAX_TAGS = 50;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx'];
+const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx', 'blocked'];
 const FLAGS: readonly (readonly [
   PageFlagFilter,
   'orphan' | 'editorialOrphan' | 'deepOnlyThroughAuto' | 'placementUnknown' | 'hasBrokenOutlinks' | 'genericAnchors',
@@ -61,7 +61,7 @@ export function pageFilterFields(
       kind: 'enum',
       multi: true,
       label: t('filters.status'),
-      options: STATUSES.map((value) => ({ value, label: value })),
+      options: STATUSES.map((value) => ({ value, label: value === 'blocked' ? t('filters.blocked') : value })),
     },
     {
       id: 'idx',

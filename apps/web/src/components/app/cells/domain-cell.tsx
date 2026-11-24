@@ -13,7 +13,7 @@ import { TextLink } from '@/components/ui/text-link';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { components } from '@/lib/api/schema';
 import { normalizeDomain } from '@/lib/domains/normalize';
-import { FAVICON_MIN_WIDTH, faviconUrl } from '@/lib/favicon';
+import { FAVICON_MIN_WIDTH, useFaviconUrl } from '@/lib/favicon';
 import { displayDomain } from '@/lib/format';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
 import { cn } from '@/lib/utils';
@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 export type DomainRole = components['schemas']['CitationRow']['domain_role'];
 
 /**
- * `show`: the site's icon from the app's own endpoint (`faviconUrl`; none yet, so the square), the placeholder
+ * `show`: the site's icon from the app's own endpoint (`faviconUrl`), the placeholder
  * square until it loads and when the app has none or it fails. `hide`: the placeholder square only (the setting is off). Left out of a part's
  * props: no icon slot at all (not a domain-first table, 07-icons.md section 5).
  */
@@ -48,7 +48,7 @@ export interface FaviconProps {
 export function Favicon({ host, mode }: FaviconProps): ReactElement {
   // `normalizeDomain` takes a scheme, a path and a query: only its bare `domain` may be asked of the icon route
   const normalized = mode === 'show' ? normalizeDomain(host) : null;
-  const src = normalized?.ok === true ? faviconUrl(normalized.domain) : null;
+  const src = useFaviconUrl(normalized?.ok === true ? normalized.domain : null);
   return (
     <span data-slot="favicon" aria-hidden="true" className="relative size-icon shrink-0">
       {src === null ? <Square /> : <FaviconImage key={src} src={src} />}

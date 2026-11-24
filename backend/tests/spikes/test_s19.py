@@ -360,8 +360,9 @@ async def test_fetch_sends_only_the_honest_agent_and_accept_and_keeps_no_cookie(
         assert request.headers["user-agent"] == DEFAULT_USER_AGENT
         assert request.headers["accept"] == "text/html"
         # What the HTTP library adds for any request; nothing else, and no cookie.
+        # Sentry's httpx hook adds its trace headers once another test has started the SDK.
         extra = set(request.headers.keys()) - {"user-agent", "accept", "host", "accept-encoding"}
-        assert extra <= {"connection"}
+        assert extra <= {"connection", "sentry-trace", "baggage"}
 
 
 async def test_fetch_uses_the_agent_it_is_given_when_it_is_honest(

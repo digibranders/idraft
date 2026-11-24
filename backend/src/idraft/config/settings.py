@@ -161,8 +161,8 @@ class Settings(_DatabaseSettings):
     process_concurrency: int = Field(default=4, ge=1, le=32)
     # The worker touches this file while it is healthy; the container healthcheck reads its age.
     heartbeat_file: Path | None = None
-    # The worker only. DataForSEO's API login, both or neither: without them the provider is
-    # not registered and nothing is sent to it.
+    # The worker, and the API for AI answer screenshots. DataForSEO's API login, both or neither:
+    # without them the provider is not registered and nothing is sent to it.
     dataforseo_login: SecretStr | None = None
     dataforseo_password: SecretStr | None = None
     # The worker only. The raw payload bucket (docs/23 section 9): R2's S3 endpoint,

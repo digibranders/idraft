@@ -9,7 +9,10 @@ import {
   promptEngineFacts,
   type FactsAnswer,
 } from './prompt-facts';
+import { latestOf } from './answer-screenshots';
 import { NOT_VALID } from './answer-builder';
+
+const SCOPE = { workspaceId: 'w', projectId: 'p', now: Date.parse('2026-11-13T00:00:00Z') };
 
 const answer = (
   id: string,
@@ -86,7 +89,6 @@ describe('enginePieceOf', () => {
     expect(tones).not.toBeNull();
     expect((tones?.positive ?? 0) + (tones?.neutral ?? 0) + (tones?.negative ?? 0) + (tones?.mixed ?? 0)).toBe(2);
     expect(enginePieceOf('p', 'google_ai_mode', answers).sentiment).toBeNull();
-    expect(enginePieceOf('p', 'google_ai_mode', answers).latest?.screenshot_url).toBeNull();
   });
 
   it('draws the same brands every time and never more than the answers it has', () => {
@@ -131,9 +133,10 @@ describe('topicEngineFacts', () => {
       answers: 3,
       by_order: { counts: [1, 0, 1, 0], rank_sum: 4 },
     });
-    expect(topic.latest?.observation_id).toBe('2');
+    // The API leaves `latest` out of topic rows
+    expect(topic.latest).toBeUndefined();
     expect(topic.recommended?.pooled?.trials).toBe(3);
     expect(topic.recommended?.denominator).toBe(2);
-    expect(promptEngineFacts(a).recommended?.denominator).toBe(1);
+    expect(promptEngineFacts(a, (newest) => latestOf(SCOPE, 'chatgpt_web', newest)).recommended?.denominator).toBe(1);
   });
 });

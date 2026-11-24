@@ -37,6 +37,7 @@ import {
 } from './compare';
 import { PlatformSelect, withoutFullPlatformSet } from './engine-select';
 import { factsRequested, indexFacts, type PromptFacts } from './facts';
+import { pageEntitiesRequested } from '@/lib/prompt-facts/request';
 import { groupChoices, groupsOfSummary } from './group-model';
 import { asRecordActions, type PromptAction } from './prompt-action';
 import { usePromptColumns, type PromptRow } from './prompt-columns';
@@ -155,11 +156,13 @@ const VIEW_STATE = {
 
 /**
  * The blocks asked of the summary: the weekly series (the Trend column of Groups, the tooltip of the Mention rate cell
- * and the History tab read it), and, where the API knows them (`factsRequested`), the tracked entities and the facts of
+ * and the History tab read it), and, where the API knows them (`factsRequested`), the facts of (and, from the mocks only, the tracked entities)
  * the Prompts columns, in the same one read. Module level, so the query's key stays the same.
  */
 const SERIES: readonly ['series'] = ['series'];
-const SERIES_AND_FACTS: readonly ['series', 'entities', 'facts'] = ['series', 'entities', 'facts'];
+const SERIES_AND_FACTS: readonly ['series', 'facts'] = ['series', 'facts'];
+/** With the series, `entities` adds a cell per entity to every week of every row: only the mocks are asked for it. */
+const SERIES_ENTITIES_AND_FACTS: readonly ['series', 'entities', 'facts'] = ['series', 'entities', 'facts'];
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
@@ -202,6 +205,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const common = useTranslations('common');
   const locale = useLocale();
   const canWrite = useCan('prompts:write');
+  const canRun = useCan('runs:trigger');
   const { permissions } = useMembership();
   const scope = useMemo((): PromptScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const [view, setView] = useQueryStates(VIEW_STATE, { history: 'replace' });
@@ -253,7 +257,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     ...summaryQuery(scope, range, includeBranded, {
       ...(country === null ? {} : { country }),
       brandedOnly,
-      include: factsRequested() ? SERIES_AND_FACTS : SERIES,
+      include: !factsRequested() ? SERIES : pageEntitiesRequested() ? SERIES_ENTITIES_AND_FACTS : SERIES_AND_FACTS,
       compare,
       compareKind,
     }),
@@ -566,6 +570,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     facts,
     project: scope,
     timeZone: project.timeZone,
+    canCapture: canRun,
   });
   const columnIds = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(() => parseColumns(view.cols, columnIds, ['prompt']), [view.cols, columnIds]);
@@ -707,7 +712,6 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     void setValues({ ...values, topic: { kind: 'enum', values: [key] } });
     void setView({ tab: 'prompts' }, { history: 'push' });
   };
-  const canRun = useCan('runs:trigger');
   // A topic's prompts come from the summary, and an action reads them from the list: until the list is whole (or when
   // it failed) some of them are not in it, so the actions that read them wait
   const listReason = optionsPending ? t('bulk.listLoading') : null;

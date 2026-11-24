@@ -57,6 +57,10 @@ WORKLISTS: Final[tuple[SummaryWorklistKey, ...]] = (
     "links_to_non_indexable",
     "weak_outlinks",
 )
+# The counts that depend on links we may not have seen, when pages refused the crawler.
+UNSEEN_LINKS: Final = frozenset(
+    {"under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "weak_outlinks"}
+)
 _LOOKUP = text(
     "SELECT workspace_id, project_id, created_by, expires_at, revoked_at "
     "FROM core.client_summary_share_by_token(:token_hash)"
@@ -187,7 +191,12 @@ class PublicSummaryService:
                 for cell in flow.cells
             ],
             worklists=[
-                SummaryWorklist(key=key, count=getattr(worklists, key)) for key in WORKLISTS
+                SummaryWorklist(
+                    key=key,
+                    count=getattr(worklists, key),
+                    may_be_incomplete=worklists.may_be_incomplete and key in UNSEEN_LINKS,
+                )
+                for key in WORKLISTS
             ],
             lost=lost,
             important_max_position=summary.important_max_position,

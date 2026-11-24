@@ -128,6 +128,8 @@ export interface PromptColumnOptions {
   project: PromptScope;
   /** The project's time zone. */
   timeZone: string;
+  /** The person may spend on a screenshot of an answer (`runs:trigger`). */
+  canCapture?: boolean;
 }
 
 /** The preview's Location column: 120 px, which holds "United Arab Emirates" cut with its ellipsis. */
@@ -155,7 +157,7 @@ export function usePromptColumns(
   metric: RateMetric,
   /** The window the summary was compared with: the screen builds these columns above its provider of it. */
   comparedWindow?: ComparedWindow,
-  { showLocation, facts, project, timeZone }: PromptColumnOptions = DEFAULT_OPTIONS,
+  { showLocation, facts, project, timeZone, canCapture = false }: PromptColumnOptions = DEFAULT_OPTIONS,
 ): PromptColumns {
   const t = useTranslations('prompts');
   const shell = useTranslations('prompts.shell.columns');
@@ -254,6 +256,7 @@ export function usePromptColumns(
       comparedWindow: compared,
       changeWords,
       project,
+      canCapture,
       timeZone,
     });
     return {
@@ -276,6 +279,7 @@ export function usePromptColumns(
     compared,
     changeWords,
     project,
+    canCapture,
     timeZone,
     mention,
     citation,

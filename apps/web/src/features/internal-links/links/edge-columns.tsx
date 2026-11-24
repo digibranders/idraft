@@ -4,7 +4,7 @@ import type { LinksTranslate } from '../tabs';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { TierBadge } from '@/components/app/tier/tier-badge';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '../status-badge';
 import { PLACEMENT_KEY } from '@/lib/internal-links/scopes';
 import type { EdgeRow } from '@/lib/internal-links/types';
 
@@ -69,11 +69,14 @@ export function edgeColumns(t: LinksTranslate, added?: AddedColumn): Column[] {
         }
         if (status === 200) return <span className="num type-table text-foreground-secondary">200</span>;
         return (
-          <Badge tone={status >= 400 ? 'negative' : 'warning'}>
-            {row.target.redirect_url === null
-              ? String(status)
-              : t('links.columns.redirectsTo', { status, url: row.target.redirect_url })}
-          </Badge>
+          <StatusBadge
+            status={status}
+            label={
+              row.target.redirect_url === null
+                ? String(status)
+                : t('links.columns.redirectsTo', { status, url: row.target.redirect_url })
+            }
+          />
         );
       },
     },

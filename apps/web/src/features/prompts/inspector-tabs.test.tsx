@@ -17,6 +17,7 @@ import { SESSION_COOKIE } from '@/mocks/session';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
+import { leaveOutUnbuiltFacts, rewriteSummary } from '@/test/summary-rewrite';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { readChartTokens } from '@/lib/design/read-tokens';
 
@@ -53,6 +54,7 @@ afterEach(() => {
   vi.useRealTimers();
   restoreWideScreen();
   server.events.removeAllListeners();
+  vi.restoreAllMocks();
 });
 
 function promptsAs(role: Role): ReactElement {
@@ -596,6 +598,8 @@ describe('the History tab', () => {
 
 describe('the Competitors tab', () => {
   it('counts the brands named in the answers of this prompt for each platform on its own, the own brand first', async () => {
+    // The API sends no recommendation facts yet
+    rewriteSummary(leaveOutUnbuiltFacts);
     serveTwoAnswers();
     const { user } = renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();
@@ -628,6 +632,7 @@ describe('the Competitors tab', () => {
   });
 
   it('says the keyword is not collected yet when the facts do not carry it, with no rank', async () => {
+    rewriteSummary(leaveOutUnbuiltFacts);
     serveTwoAnswers();
     renderOn('viewer', openedOn('competitors'));
     const inspector = await panel();

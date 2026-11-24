@@ -91,6 +91,29 @@ async def test_anyone_with_the_link_reads_the_summary_and_nothing_else(
     assert str(project) not in text
 
 
+async def test_a_summary_says_how_many_pages_refused_the_crawler_and_what_that_unsettles(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    _, project, token, _ = await _shared(migrated, resources, worker_db, api)
+
+    clean = (await api.get(f"{PUBLIC}/{token}")).json()["data"]
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET pages_blocked = 4 WHERE project_id = $1", project
+    )
+    walled = (await api.get(f"{PUBLIC}/{token}")).json()["data"]
+
+    assert clean["pages_blocked"] is None
+    assert not any(item["may_be_incomplete"] for item in clean["worklists"])
+    assert walled["pages_blocked"] == 4
+    assert {item["key"] for item in walled["worklists"] if item["may_be_incomplete"]} == {
+        "under_linked_t1",
+        "orphans",
+        "editorial_orphans",
+        "deep_only_through_auto",
+        "weak_outlinks",
+    }
+
+
 async def test_an_unknown_expired_revoked_or_malformed_link_all_answer_the_same(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, worker_db: Sessions
 ) -> None:

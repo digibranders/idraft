@@ -8,7 +8,8 @@ import { UNGROUPED, archiveKeywords, deleteKeywords, groupNames, moveKeywords, r
 import { BUTTON_SM, icon, iconButton, toast } from './perf-ui.js';
 import { confirmDialog } from './kw-dialog.js';
 import { el } from './prompts-parts.js';
-import { addScope, derived, devicesIn, gained, groupOf, isRank, measures, plural, rankText, refresh, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
+import { INTENTS } from './intent-badges.js';
+import { addScope, derived, devicesIn, gained, groupOf, intentsOf, isRank, measures, plural, rankText, refresh, shown, sparkline, state, volumeText } from './kw-grouped-model.js';
 import { openAdd, openRename, confirmDeleteGroup } from './kw-grouped-dialogs.js';
 
 let host = null;
@@ -64,7 +65,7 @@ function keywordBody(keyword) {
   const cards = el('div', 'grid grid-cols-2 gap-3');
   devicesIn().forEach((device) => cards.append(deviceCard(keyword, device)));
   body.append(section('Rank', cards));
-  body.append(section('Metrics', facts([['Search volume', volumeText(keyword.volume)], ['Keyword difficulty', keyword.kd === null ? 'Not collected yet' : String(keyword.kd)], ['CPC (USD)', keyword.cpc ? `$${keyword.cpc.toFixed(2)}` : 'Not collected yet'], ['Intent', keyword.intent[0].toUpperCase() + keyword.intent.slice(1)], ['Priority', String(keyword.priority)], ['Location', keyword.country]])));
+  body.append(section('Metrics', facts([['Search volume', volumeText(keyword.volume)], ['Keyword difficulty', keyword.kd === null ? 'Not collected yet' : String(keyword.kd)], ['CPC (USD)', keyword.cpc ? `$${keyword.cpc.toFixed(2)}` : 'Not collected yet'], ['Intent', intentsOf(keyword).map((key) => INTENTS[key].label).join(', ') || 'Unknown'], ['Priority', String(keyword.priority)], ['Location', keyword.country]])));
   const choose = el('select', 'h-control px-3 pr-8 rounded-md border border-border bg-surface type-body text-foreground w-full');
   choose.setAttribute('aria-label', 'Group');
   [UNGROUPED, ...groupNames()].forEach((name) => {

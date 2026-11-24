@@ -10,7 +10,8 @@ import { formatInteger } from './vendor/format/number.js';
 import { isDetectableDifference } from './vendor/stats/index.js';
 import { COMPETITORS } from './prompts-data.js';
 import { WEEK_LABELS, buildModel, competitorId, groupOf, headToHead, leadsFor, sourcesBehind } from './aiov-data.js';
-import { chartHost, lineOption, mountChart } from './aiov-charts.js';
+import { chartHost, mountChart } from './aiov-charts.js';
+import { richLineOption } from './aiov-rich.js';
 import { segmented } from './aiov-cards-core.js';
 import { state } from './aiov-controls.js';
 import { NEUTRAL_BADGE, cardFrame, el, emptyBody, engineName, pct0, pct1, platformLabel } from './aiov-parts.js';
@@ -171,7 +172,7 @@ function fillOverview(model, index) {
   const byPlatform = cardFrame({ key: 'competitor.platforms', title: 'By platform', meta: 'mention rate, you · them · gap', body: table, flush: true });
 
   target.replaceChildren(summary, trend, byPlatform);
-  disposeTrend = mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines: [{ name: 'You', token: 'chart-1', values: data.series.own }, { name: rival.name, token: rival.token, values: data.series.rival }] }));
+  disposeTrend = mountChart(host, () => richLineOption({ labels: WEEK_LABELS, lines: [{ name: 'You', token: 'chart-1', values: data.series.own }, { name: rival.name, token: rival.token, values: data.series.rival }] }));
 }
 
 // -------------------------------------------------------------------------------------------------

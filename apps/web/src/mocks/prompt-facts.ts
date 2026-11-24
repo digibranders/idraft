@@ -64,8 +64,6 @@ export const OTHER_BRANDS: readonly string[] = [
 
 /** Engines whose answers are classified for sentiment and recommendation (ChatGPT and Gemini, as in the preview). */
 const CLASSIFYING: ReadonlySet<string> = new Set(['chatgpt_web', 'gemini_web']);
-/** Engines that give a screenshot of the answer: the consumer apps, not the search AI. */
-const SCREENSHOTS: ReadonlySet<string> = new Set(['chatgpt_web', 'gemini_web']);
 const LINKS_MAX = 20;
 
 const clamp = (value: number, low: number, high: number): number => Math.min(high, Math.max(low, value));
@@ -132,6 +130,9 @@ export function linkedKeywordOf(promptId: string, topicNames: readonly string[])
 // ---- One prompt on one engine ----------------------------------------------------------------------------------
 
 /** What the answers of one prompt on one engine say, before they become cells. */
+/** The newest valid answer of an engine for a prompt: what `latest` is made from. */
+export type NewestAnswer = Pick<LatestAnswer, 'observation_id' | 'observed_at'>;
+
 export interface EnginePiece {
   /** Every counted answer, valid or not. */
   observations: number;
@@ -141,13 +142,8 @@ export interface EnginePiece {
   recommendedK: number | null;
   others: readonly { name: string; k: number }[];
   links: ReadonlyMap<string, TopLink>;
-  latest: LatestAnswer | null;
+  latest: NewestAnswer | null;
 }
-
-const screenshotOf = (id: string): string =>
-  `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><rect width="640" height="400" fill="lightgray"/><text x="320" y="204" font-family="sans-serif" font-size="18" text-anchor="middle" fill="dimgray">Sample screenshot of answer ${id}</text></svg>`,
-  )}`;
 
 /** Positive, neutral, negative and mixed counts of the mentions on one engine; they always add up to its mentions. */
 function sentimentCounts(promptId: string, code: string, mentions: number): SentimentCounts {
@@ -217,22 +213,15 @@ export function enginePieceOf(promptId: string, code: string, answers: readonly 
       k: clamp(Math.round(valid.length * (0.11 - index * 0.009) * (0.4 + random() * 1.2)), 0, valid.length),
     })).filter((brand) => brand.k > 0),
     links,
-    latest:
-      newest === null
-        ? null
-        : {
-            observation_id: newest.id,
-            observed_at: newest.at,
-            screenshot_url: SCREENSHOTS.has(code) ? screenshotOf(newest.id) : null,
-          },
+    latest: newest === null ? null : { observation_id: newest.id, observed_at: newest.at },
   };
 }
 
 const byLinks = (a: TopLink, b: TopLink): number =>
   b.answers - a.answers || (a.url < b.url ? -1 : a.url > b.url ? 1 : 0);
 
-/** The facts of a prompt row's engine: plain counts of its valid answers. */
-export function promptEngineFacts(piece: EnginePiece): EngineFacts {
+/** The facts of a prompt row's engine: plain counts of its valid answers. `latestOf` adds the screenshot state. */
+export function promptEngineFacts(piece: EnginePiece, latestOf: (newest: NewestAnswer) => LatestAnswer): EngineFacts {
   const { valid, observations } = piece;
   return {
     position: piece.position,
@@ -243,7 +232,7 @@ export function promptEngineFacts(piece: EnginePiece): EngineFacts {
       mentioned: cell(brand.k, valid, observations),
     })),
     top_links: [...piece.links.values()].sort(byLinks).slice(0, LINKS_MAX),
-    latest: piece.latest,
+    latest: piece.latest === null ? null : latestOf(piece.latest),
   };
 }
 
@@ -267,13 +256,6 @@ export function topicEngineFacts(code: string, pieces: readonly EnginePiece[]): 
       links.set(link.url, { ...link, answers: (known?.answers ?? 0) + link.answers });
     }
   }
-  const latest = pieces.reduce<LatestAnswer | null>(
-    (best, piece) =>
-      piece.latest !== null && (best === null || Date.parse(piece.latest.observed_at) > Date.parse(best.observed_at))
-        ? piece.latest
-        : best,
-    null,
-  );
   const classified = CLASSIFYING.has(code);
   return {
     position: {
@@ -305,7 +287,6 @@ export function topicEngineFacts(code: string, pieces: readonly EnginePiece[]): 
       mentioned: weighted((piece) => piece.others.find((brand) => brand.name === name)?.k ?? 0),
     })),
     top_links: [...links.values()].sort(byLinks).slice(0, LINKS_MAX),
-    latest,
   };
 }
 
@@ -316,6 +297,8 @@ export interface FactsBuilderInput {
   prompts: ReadonlyMap<string, FactsPrompt>;
   /** The counted answers of a prompt on an engine in the window. */
   answers: (promptId: string, code: string) => readonly FactsAnswer[];
+  /** The newest answer of an engine as `latest` says it, with the state of its screenshot. */
+  latestOf: (code: string, newest: NewestAnswer) => LatestAnswer;
 }
 
 export interface FactsBuilder {
@@ -328,7 +311,7 @@ export interface FactsBuilder {
  * its facts; a topic row gets its linked keywords (each once) and its engines' facts from the prompts that answered.
  * An engine that has no counted answer for a prompt has the facts of an empty piece: zero counts, no list, no latest.
  */
-export function factsBuilder({ prompts, answers }: FactsBuilderInput): FactsBuilder {
+export function factsBuilder({ prompts, answers, latestOf }: FactsBuilderInput): FactsBuilder {
   const pieceOf = (promptId: string, code: string): EnginePiece =>
     enginePieceOf(promptId, code, answers(promptId, code));
   const withFacts = (engine: EngineSummary, facts: EngineFacts): EngineSummaryWithFacts => ({ ...engine, ...facts });
@@ -341,7 +324,12 @@ export function factsBuilder({ prompts, answers }: FactsBuilderInput): FactsBuil
           ? {}
           : { intent: found.intent, linked_keyword: linkedKeywordOf(row.prompt_id, found.topicNames) }),
         engines: row.engines.map((engine) =>
-          withFacts(engine, promptEngineFacts(pieceOf(row.prompt_id, engine.engine_code))),
+          withFacts(
+            engine,
+            promptEngineFacts(pieceOf(row.prompt_id, engine.engine_code), (newest) =>
+              latestOf(engine.engine_code, newest),
+            ),
+          ),
         ),
       };
     },

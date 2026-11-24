@@ -110,6 +110,10 @@ const PROBLEMS = {
   check_pending: [409, 'A check is already under way'],
   single_valued_violation: [409, 'A keyword has two terms of this vocabulary'],
   raw_expired: [410, 'The raw answer is past its retention'],
+  // AI answer screenshots (backend api/ai/screenshots.py)
+  no_screenshot: [404, 'No screenshot was captured for this answer'],
+  screenshot_unsupported: [409, 'This engine has no platform page to photograph'],
+  screenshot_expired: [410, 'The answer is too old to capture'],
   precondition_failed: [412, 'The resource has changed'],
   payload_too_large: [413, 'Payload too large'],
   unsupported_media_type: [415, 'Unsupported media type'],

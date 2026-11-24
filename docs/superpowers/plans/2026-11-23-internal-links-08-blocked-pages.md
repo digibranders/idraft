@@ -39,3 +39,45 @@ Targeted serial tests only; one builder at a time. `backend/openapi/v1.json` is 
 ## Not in this plan
 
 No change to the crawl order, the paid crawl, the release, or the production database by hand. Task 7 runs only the existing enrich step for finished runs and only with the owner's go.
+
+## Built, with notes (2026-11-23)
+
+- Tasks 1 to 7 are built; Task 8 (web) is il-web's. `pages_blocked` is a stored column on `seo.crawl_runs` (migration 0030, null for a crawl not counted), written when ingest finishes. Migration 0031 recounts finished crawls that have refusals (`idraft.db.blocked_recount`); it runs with the next release, no manual database work.
+- A status class `blocked` joins `2xx` to `5xx` (4xx no longer holds 401, 403, 429); the row flag `blocked` replaces `broken` for those pages; the `broken_and_redirected` worklist and the edges target filter follow.
+- `Worklists.may_be_incomplete` and `SummaryWorklist.may_be_incomplete` (true for under_linked_t1, orphans, editorial_orphans, deep_only_through_auto and weak_outlinks when the crawl has refusals). `ClientSummary.pages_blocked` and `CrawlRun.pages_blocked` carry the coverage; the web builds "read x of y" from `pages_crawled` and `pages_blocked`.
+- The crawl diff leaves out the links of a page that refused the crawler in either crawl, so a refusal is no lost or added link and raises no alert. Known gap: a page linked only from a refused page still shows a lower editorial link count in the page-level changes ("moved pages"); not changed.
+- Crawls whose links were dropped by retention keep the broken counters they had; flags and filters read the status code, so they are right either way.
+- Not done: Task 7's check on the Eventus production crawl (before and after numbers) waits for the release and the owner's go.
+
+## Findings for follow-up A (read-only check, 2026-11-23, no spend)
+
+Sources: the DataForSEO `on_page/task_post` and pricing pages; Cloudflare's Verified bots and Web Bot Auth documentation.
+
+- **What we can set on the provider's crawl:** `custom_user_agent` (the default is the provider's own `Mozilla/5.0 (compatible; RSiteAuditor)`), `enable_javascript`, and `enable_browser_rendering` (which includes JavaScript and resource loading) with `browser_preset`. Nothing about IP addresses or request signing. The crawler's addresses and any bot registration belong to the provider.
+- **Cost of rendering:** about 0.0051 USD per page with browser rendering against 0.00015 USD per page for the plain crawl, roughly 34 times as much. For a 500 page site that is 2.55 USD against 0.08 USD.
+- **How a firewall lets a bot in without the site owner:** Cloudflare's Verified bots list needs honest self-identification, obeying robots.txt, sane request rates, and either validated IP ranges or Web Bot Auth (Ed25519 signed requests, a key directory at `/.well-known/http-message-signatures-directory`, a submission form). Both need an identity that is ours and stable.
+- **So:** with the provider as the crawler we can only change the agent name and turn rendering on. A crawler name of our own helps a little (a named, documented bot is easier to allow than the provider's), but it cannot be verified, so strict firewalls will still refuse it. Being let in by default needs a fetcher we run: fixed addresses, our own bot page, a signature, and the verified bot applications.
+- **Not checked:** whether the Eventus 403 comes from the agent name, the provider's addresses, or rate; a small paid test crawl with a custom agent would tell the first one apart (cost under 0.10 USD for the whole site). I did not probe their site myself.
+
+### Result of the test crawl (2026-11-23, 0.0675 USD)
+
+One provider crawl of www.eventussecurity.com, capped at 450 pages, with the honest custom agent `idraft-crawler/1.0 (+https://idraft.ai)`, nothing stored. It finished with one page: the start page, status 403, and nothing after it. The Nov 19 crawl with the provider's default agent read 439 pages with about 23% refused. So a custom agent name does not unblock Eventus; it was refused harder than the default one. The agent name is not the lever; the provider's addresses or the firewall's treatment of unknown bots are. Not tested (each costs about 0.07 USD): the default agent now (a same-time control, to rule out the site having tightened since Nov 19), and browser rendering (about 2.30 USD for 450 pages).
+
+## Findings: why a crawl of cleanstart.com takes so long (2026-11-23)
+
+Production run (project CleanStart, added 2026-11-23): "found" 611 at 2 min, 632 at 3, 655 at 12, 715 at 14, 732 at 22, 733 at 37. After the first minutes it moved by about 3 pages a minute, then by one page in 15 minutes. The found number is the provider's crawled pages plus its queue, and the queue is filled from the sitemap (528 URLs) at the start, so it says little about progress.
+
+Controlled test on the dev provider account, same site, first 60 pages, nothing stored (0.009 USD each):
+- Our current order (no `crawl_delay`, so the provider default of 2000 ms): 139 s, about 0.5 pages a second after an 18 s start.
+- `crawl_delay` 200 ms: 79 s, about 1 page a second after a 12 s start. All 60 pages answered 200, so the site does not block or throttle at this rate.
+- So: the provider fetches one page at a time at best (about 1 page a second, about 60 a minute); our unset delay halves that. A site of 700 pages needs about 12 minutes at best and about 25 minutes as ordered; 5,000 pages about 85 minutes and 170 minutes. The provider's speed is the floor, our order is the second factor, and cleanstart.com is not the problem for the first 60 pages.
+- The later stall (one page in 15 minutes) is not explained by the delay. The likeliest cause is pages that do not answer: the provider waits up to 120 s for a page. It cannot be confirmed from here (the production task is on the server's provider account).
+- Our code has no time limit on a crawl in state `crawling` (`crawl_runs.py` `_progress_one` only copies the counts), so a stuck crawl stays "Crawling" for ever, and a person cannot get the pages already read; cancelling throws them away.
+
+Fix list (proposed, needs the owner's go on the delay): (1) `crawl_delay` in `CrawlOrder`, 250 ms by default; (2) stall rule: no new crawled page for 5 minutes while some are queued, or 45 minutes in all, then `force_stop` and ingest what was read, marked partial; (3) the progress text shows read of found (il-web, already asked); (4) show the expected time from the sitemap size.
+
+### Correction and the finished CleanStart crawl (2026-11-23)
+
+The production crawl was not stuck. It finished by itself (`stop_reason` `empty_queue`): submitted 14:06:39 UTC, finished 14:44:24 UTC, 38 minutes for 733 pages, about 19 pages a minute under the provider's default 2 second pause. The number the screen showed, "found", is crawled plus queued, so once the whole site was queued it stayed at 733 while the crawled count kept growing out of sight. The earlier reading "one page in 15 minutes" was wrong: only the found number was flat. The stall rule built in this plan does not misfire on it, because it looks at the crawled count, which rose all the time.
+
+Result: 733 pages, all status 200 (no redirects, errors or refusals), 148 not indexable, 584 in the sitemap, the page limit 2000 not reached, provider cost 0.30 USD (the provider charges the page limit, 2000 x 0.00015, not the pages read; the same for the Eventus test crawl, which charged 450 pages for one page read). cleanstart.com does not block the crawler. The slow part is the provider's one-page-at-a-time speed and our unset pause; the screen's missing "read" count made it look broken. Worth a look later: 494 of the 733 pages show as editorial orphans (linked only from menus, footers or generated blocks).

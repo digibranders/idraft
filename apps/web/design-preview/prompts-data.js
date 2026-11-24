@@ -79,6 +79,12 @@ const COMPETITORS = [
   { name: 'Salesforce', domain: 'salesforce.com', swatch: 'bg-chart-4', token: 'chart-4', base: 0.18 },
   { name: 'Zoho', domain: 'zoho.com', swatch: 'bg-chart-5', token: 'chart-5', base: 0.14 },
   { name: 'Freshsales', domain: 'freshworks.com', swatch: 'bg-chart-6', token: 'chart-6', base: 0.1 },
+  // Past the six palette colors a brand has none of its own: `chart-other`, as in the real app
+  { name: 'Monday CRM', domain: 'monday.com', swatch: 'bg-chart-other', token: 'chart-other', base: 0.09 },
+  { name: 'Zendesk Sell', domain: 'zendesk.com', swatch: 'bg-chart-other', token: 'chart-other', base: 0.08 },
+  { name: 'Copper', domain: 'copper.com', swatch: 'bg-chart-other', token: 'chart-other', base: 0.07 },
+  { name: 'Insightly', domain: 'insightly.com', swatch: 'bg-chart-other', token: 'chart-other', base: 0.06 },
+  { name: 'Close', domain: 'close.com', swatch: 'bg-chart-other', token: 'chart-other', base: 0.05 },
 ];
 
 const METRICS = {

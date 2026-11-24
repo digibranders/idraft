@@ -10,12 +10,42 @@ import { formatInteger } from './vendor/format/number.js';
 const charts = window.PreviewCharts;
 const live = new Set();
 
-/** Mounts a chart and keeps it sized and themed. `build` returns the option. */
-export function mountChart(host, build) {
+/**
+ * The pointer over a chart: a ring with a dot and four ticks, with a white edge so it reads on light and dark cards. It
+ * points at a place on the chart rather than at a thing, which is what a chart reading is. It is the one cursor of a chart,
+ * over empty canvas and over marks alike (no hand); `crosshair` is the fallback where an image cursor is refused.
+ */
+const RING_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g fill='none' stroke-linecap='round'><circle cx='14' cy='14' r='7' stroke='white' stroke-width='4'/><circle cx='14' cy='14' r='7' stroke='#1E65E3' stroke-width='2'/><path d='M14 2v4M14 22v4M2 14h4M22 14h4' stroke='white' stroke-width='4'/><path d='M14 2v4M14 22v4M2 14h4M22 14h4' stroke='#1E65E3' stroke-width='2'/></g><circle cx='14' cy='14' r='2.2' fill='#1E65E3' stroke='white' stroke-width='1.2'/></svg>",
+)}") 14 14, crosshair`;
+
+/** Makes the chart's pointer the ring: zrender sets `default` over empty canvas and `pointer` over marks that answer the pointer. */
+function useChartCursor(chart) {
+  const proxy = chart.getZr().handler?.proxy;
+  if (!proxy?.setCursor) return;
+  const set = proxy.setCursor.bind(proxy);
+  proxy.setCursor = (cursor) => set(!cursor || cursor === 'default' || cursor === 'pointer' ? RING_CURSOR : cursor);
+  proxy.setCursor('default');
+}
+
+/**
+ * Mounts a chart and keeps it sized and themed. `build` returns the option. `redrawOnResize` draws the option again when
+ * the host changes size, for charts whose option holds px sizes (rings, columns). `onChart` receives the instance, for events.
+ */
+export function mountChart(host, build, { redrawOnResize = false, onChart } = {}) {
   const chart = echarts.init(host, null, { renderer: 'canvas' });
-  const draw = () => chart.setOption(build(), true);
+  useChartCursor(chart);
+  // A chart that draws px sizes waits until its host has a size, so it does not animate from a zero-width layout
+  const draw = () => {
+    if (redrawOnResize && host.clientWidth === 0) return;
+    chart.setOption(build(), true);
+  };
   draw();
-  const resize = new ResizeObserver(() => chart.resize());
+  onChart?.(chart);
+  const resize = new ResizeObserver(() => {
+    chart.resize();
+    if (redrawOnResize) draw();
+  });
   resize.observe(host);
   const theme = new MutationObserver(draw);
   theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });

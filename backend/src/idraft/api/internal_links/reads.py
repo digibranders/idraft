@@ -1274,6 +1274,16 @@ class LinkReadService:
                 weak_outlinks=0 if scope.links_dropped else await pages("weak_outlinks"),
                 broken_and_redirected=await links("broken_and_redirected"),
                 links_to_non_indexable=await links("links_to_non_indexable"),
+                may_be_incomplete=bool(
+                    (
+                        await db.execute(
+                            select(crawl_runs.c.pages_blocked).where(
+                                crawl_runs.c.workspace_id == access.workspace_id,
+                                crawl_runs.c.id == scope.run_id,
+                            )
+                        )
+                    ).scalar_one_or_none()
+                ),
             )
 
     async def edges(
