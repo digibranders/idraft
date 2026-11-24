@@ -44,7 +44,7 @@ describe('AnswerDialog', () => {
   it('keeps a tall image in a scrollable box of its own, named and reachable by keyboard, so the cited pages stay in reach below it', () => {
     dialog('data:image/png;base64,AAAA');
     const box = screen.getByRole('region', { name: 'Screenshot of the latest ChatGPT answer, scrolls' });
-    expect(box).toHaveClass('overflow-y-auto');
+    expect(box).toHaveClass('overflow-auto');
     expect(box).toHaveAttribute('tabindex', '0');
     expect(within(box).getByRole('img')).toBeInTheDocument();
     expect(within(box).queryByRole('heading', { name: 'Cited pages' })).not.toBeInTheDocument();
@@ -54,5 +54,20 @@ describe('AnswerDialog', () => {
   it('draws no box when there is no image to draw', () => {
     dialog('javascript:alert(1)');
     expect(screen.queryByRole('region', { name: /Screenshot of the latest/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Zoom' })).not.toBeInTheDocument();
+  });
+
+  it('shows the whole width at first and widens the image to the chosen zoom, which scrolls in its box', async () => {
+    const { user } = dialog('data:image/png;base64,AAAA');
+    const image = screen.getByRole('img', { name: /latest ChatGPT answer/ });
+    expect(screen.getByRole('radio', { name: 'Fit' })).toBeChecked();
+    expect(image).toHaveStyle({ width: '100%' });
+    await user.click(screen.getByRole('radio', { name: '200%' }));
+    expect(screen.getByRole('radio', { name: '200%' })).toBeChecked();
+    expect(image).toHaveStyle({ width: '200%' });
+    await user.click(screen.getByRole('radio', { name: '300%' }));
+    expect(image).toHaveStyle({ width: '300%' });
+    await user.click(screen.getByRole('radio', { name: 'Fit' }));
+    expect(image).toHaveStyle({ width: '100%' });
   });
 });

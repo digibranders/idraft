@@ -57,7 +57,7 @@ Statuses = Annotated[list[StatusClass] | None, Commas, Query(alias="filter[statu
 TargetStatuses = Annotated[
     list[StatusClass] | None, Commas, Query(alias="filter[target_status]", max_length=5)
 ]
-Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=6)]
+Flags = Annotated[list[PageFlag] | None, Commas, Query(alias="filter[flags]", max_length=7)]
 Placements = Annotated[
     list[PlacementName] | None, Commas, Query(alias="filter[placement]", max_length=7)
 ]
@@ -112,6 +112,7 @@ async def list_pages(
     status: Statuses = None,
     indexable: Annotated[bool | None, Query(alias="filter[indexable]")] = None,
     flags: Flags = None,
+    include_variants: Annotated[bool, Query(alias="filter[include_variants]")] = False,
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
@@ -128,6 +129,7 @@ async def list_pages(
         status=status,
         indexable=indexable,
         flags=flags,
+        include_variants=include_variants,
         worklist=worklist,
         q=q,
     )

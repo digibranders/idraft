@@ -223,9 +223,11 @@ Response models (every field always present; `null` where shown):
 | Enrichment not done | `enrich_state` `pending` or `running` | `state = "pending"`; extras that need it answer empty |
 | Enrichment failed five times | `enrich_state = 'failed'`; the crawl stays usable | `CrawlRun.enrich_state = "failed"`; the web says changes are unavailable for this crawl |
 | Older crawl whose links were dropped | Pages stay, links gone | `410 links_dropped` on link level reads; `links_available = false` |
-| Search Console not connected or pull not done | No page totals | `gsc.state` `not_connected` or `pending`; clicks null; tier suggestions use rank only |
+| Search Console not connected, pull not done, or no page day stored in the window | No page totals | `gsc.state` `not_connected` or `pending` (`ok` needs one row of `fp.gsc_page_daily` in the window); clicks null; tier suggestions use rank only |
 | No tracked keywords for a page | `keywords.tracked = 0` | counts are 0, average rank null |
-| Opportunity pair no longer in the crawl's mentions | Decision not stored | counted in `matched`, not in `changed` |
+| Opportunity pair the list no longer shows (accept, dismiss) | Decision not stored | in neither `matched` nor `changed`; `matched` is the number of submitted pairs that qualified, `changed` the number whose stored state changed |
+| Opportunity pair with a stored decision that left the list (undo) | Decision deleted | counted in `matched` and `changed` |
+| Crawl whose links are gone | `anchors` extra null in the list; the detail keeps the stored counts, `distinct`, `top` and `matches_keyword` null | `weak_outlinks` filter `410 links_dropped`, its worklist count 0 |
 | Alert channel `email` or `slack` | Refused at the settings patch | `422 validation_failed` `channel_unavailable` |
 
 ## Open points for the owner

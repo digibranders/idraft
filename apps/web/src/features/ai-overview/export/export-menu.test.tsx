@@ -214,6 +214,8 @@ describe('the Export menu of the AI visibility page', () => {
     const asked: string[] = [];
     const listener = ({ request }: { request: Request }): void => {
       const path = new URL(request.url).pathname;
+      // The Insights box reads the third-party domains with their co-citations on its own; that is not the export's read
+      if (new URL(request.url).searchParams.get('include') === 'cited_with') return;
       if (/\/ai\/(sources\/domains|fanout-queries)$/.test(path)) asked.push(path.split('/ai/')[1] ?? path);
     };
     server.events.on('request:start', listener);

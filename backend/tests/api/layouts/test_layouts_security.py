@@ -90,11 +90,13 @@ def test_there_is_no_preset_or_sharing_route() -> None:
         if "layouts" in route.path:
             found.update((method, route.path) for method in route.methods)
 
-    # The client summary links ("/internal-links/shares") share a report, not a layout
+    # The client summary links ("/internal-links/shares") and the client reports' share links
+    # ("/reports/shares") share a report, not a layout
     assert [
         path
         for path in paths
-        if "preset" in path or ("share" in path and "/internal-links/" not in path)
+        if "preset" in path
+        or ("share" in path and "/internal-links/" not in path and "/reports/" not in path)
     ] == []
     assert found == {
         ("GET", f"{WORKSPACE}/layouts/{{screen}}"),

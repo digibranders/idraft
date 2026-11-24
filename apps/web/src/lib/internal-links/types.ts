@@ -78,7 +78,8 @@ export type PageFlagFilter =
   | 'deep_only_through_auto'
   | 'placement_unknown'
   | 'has_broken_outlinks'
-  | 'generic_anchors';
+  | 'generic_anchors'
+  | 'variant';
 export type PageWorklist =
   'under_linked_t1' | 'orphans' | 'editorial_orphans' | 'deep_only_through_auto' | 'lost_links_top' | 'weak_outlinks';
 export type EdgeWorklist = 'broken_and_redirected' | 'links_to_non_indexable';

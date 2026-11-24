@@ -7,6 +7,7 @@
 import { formatInteger, formatInterval, formatSampleCount } from './vendor/format/number.js';
 import { rateState, wilsonInterval } from './vendor/stats/index.js';
 import { COMPETITORS, ENGINES, NOT_CLASSIFIED, OWN, absenceOf, absenceSentence, linkedKeywordOf, relatedKeywordsOf, PROMPT_BY_ID, TYPE_LABEL, WEEKS, answerFor, averageFor, countsOf, engineOf, observationsOf, measures, rollingCounts, seeded, updatedOf } from './prompts-data.js';
+import { initCompareDays } from './prompts-compare.js';
 import { NEUTRAL_BADGE, el, insufficient, keywordRow, percent0, plural } from './prompts-parts.js';
 
 const ui = window.PreviewUI;
@@ -429,6 +430,14 @@ inspector.addEventListener('inspector-tab', (event) => {
 });
 if (window.ResizeObserver) new window.ResizeObserver(() => historyChart?.resize()).observe(historyEl);
 new window.MutationObserver(() => !inspector.hidden && renderHistoryChart()).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+// The History tab opens the day-by-day comparison for the platform the trend chart is showing
+const openCompare = initCompareDays();
+const compareButton = el('button', 'self-start h-control-sm px-2 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover', 'Compare days');
+compareButton.type = 'button';
+compareButton.prepend(icon('columns-3', 'size-icon shrink-0'));
+$('section[data-panel="history"]', inspector).prepend(compareButton);
+compareButton.addEventListener('click', () => openCompare(openPromptId, historyEngine.dataset.value, compareButton));
 
 function fillPrompt(id) {
   const prompt = PROMPT_BY_ID.get(id);

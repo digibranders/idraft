@@ -43,6 +43,52 @@
         "title": "AcceptedInvitationResponse",
         "type": "object"
       },
+      "AcknowledgeBody": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "pattern": "^[0-9]{1,19}$",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "AcknowledgeBody",
+        "type": "object"
+      },
+      "Acknowledged": {
+        "properties": {
+          "acknowledged": {
+            "description": "Alerts that were open and are now acknowledged.",
+            "title": "Acknowledged",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "acknowledged"
+        ],
+        "title": "Acknowledged",
+        "type": "object"
+      },
+      "AcknowledgedResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Acknowledged"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AcknowledgedResponse",
+        "type": "object"
+      },
       "Actor": {
         "properties": {
           "actor_id": {
@@ -1611,6 +1657,339 @@
           "observation_id"
         ],
         "title": "AioStateInfo",
+        "type": "object"
+      },
+      "AlertEvent": {
+        "properties": {
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "acknowledged_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By"
+          },
+          "event_kind": {
+            "$ref": "#/components/schemas/RuleType"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "description": "The counts or ranks before and after: `engine_code`, `run_id`, `before`, `after` and `competitor` for AI alerts; `from_rank`, `to_rank`, `positions_lost` and `positions` for a rank drop.",
+            "title": "Evidence",
+            "type": "object"
+          },
+          "id": {
+            "pattern": "^[0-9]{1,19}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "rule_id": {
+            "format": "uuid",
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "subject_id": {
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_label": {
+            "title": "Subject Label",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "prompt",
+              "keyword"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rule_id",
+          "subject_type",
+          "subject_id",
+          "subject_label",
+          "event_kind",
+          "severity",
+          "evidence",
+          "occurred_at",
+          "acknowledged_by",
+          "acknowledged_at"
+        ],
+        "title": "AlertEvent",
+        "type": "object"
+      },
+      "AlertEventPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AlertEvent"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CursorPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "AlertEventPage",
+        "type": "object"
+      },
+      "AlertRule": {
+        "properties": {
+          "channels": {
+            "items": {
+              "const": "in_app",
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest_mode": {
+            "const": "immediate",
+            "title": "Digest Mode",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "rule_type": {
+            "$ref": "#/components/schemas/RuleType"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RuleScope"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "rule_type",
+          "scope",
+          "params",
+          "channels",
+          "digest_mode",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AlertRule",
+        "type": "object"
+      },
+      "AlertRuleInput": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "description": "Checked against the rule type's `params_schema` (`422 invalid_params`).",
+            "title": "Params",
+            "type": "object"
+          },
+          "rule_type": {
+            "$ref": "#/components/schemas/RuleType"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RuleScope"
+          }
+        },
+        "required": [
+          "name",
+          "rule_type"
+        ],
+        "title": "AlertRuleInput",
+        "type": "object"
+      },
+      "AlertRulePage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRule"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/OffsetPageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "AlertRulePage",
+        "type": "object"
+      },
+      "AlertRuleResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AlertRule"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AlertRuleResponse",
+        "type": "object"
+      },
+      "AlertRuleType": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "default_severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "params_schema": {
+            "additionalProperties": true,
+            "title": "Params Schema",
+            "type": "object"
+          },
+          "rule_type": {
+            "$ref": "#/components/schemas/RuleType"
+          }
+        },
+        "required": [
+          "rule_type",
+          "channel",
+          "default_severity",
+          "params_schema"
+        ],
+        "title": "AlertRuleType",
+        "type": "object"
+      },
+      "AlertRuleTypeList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AlertRuleType"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AlertRuleTypeList",
+        "type": "object"
+      },
+      "AlertRuleUpdate": {
+        "additionalProperties": false,
+        "description": "Any of these; the rule type cannot change.",
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "AlertRuleUpdate",
         "type": "object"
       },
       "AlertSettings": {
@@ -3549,6 +3928,13 @@
         "title": "ChangesSummaryResponse",
         "type": "object"
       },
+      "Channel": {
+        "enum": [
+          "ai",
+          "seo"
+        ],
+        "type": "string"
+      },
       "CheckNow": {
         "additionalProperties": false,
         "description": "Keywords to check at once, each a search of its own through the standard queue.",
@@ -4498,6 +4884,84 @@
           "observations"
         ],
         "title": "CitedWith",
+        "type": "object"
+      },
+      "ClientReport": {
+        "properties": {
+          "brands": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBrand"
+            },
+            "title": "Brands",
+            "type": "array"
+          },
+          "cited_domains": {
+            "description": "Most citations first, at most 10.",
+            "items": {
+              "$ref": "#/components/schemas/ReportDomain"
+            },
+            "title": "Cited Domains",
+            "type": "array"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/ReportEngine"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "prompt_count": {
+            "title": "Prompt Count",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "window_from": {
+            "description": "First project-local day, `YYYY-MM-DD`.",
+            "title": "Window From",
+            "type": "string"
+          },
+          "window_to": {
+            "description": "Last project-local day, `YYYY-MM-DD`.",
+            "title": "Window To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "window_from",
+          "window_to",
+          "timezone",
+          "generated_at",
+          "prompt_count",
+          "engines",
+          "brands",
+          "cited_domains"
+        ],
+        "title": "ClientReport",
+        "type": "object"
+      },
+      "ClientReportResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientReport"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ClientReportResponse",
         "type": "object"
       },
       "ClientSummary": {
@@ -5622,6 +6086,11 @@
             "title": "Links Available",
             "type": "boolean"
           },
+          "pages": {
+            "description": "Pages of the site the crawl found: `pages_crawled` less `pages_variant`.",
+            "title": "Pages",
+            "type": "integer"
+          },
           "pages_blocked": {
             "anyOf": [
               {
@@ -5642,6 +6111,18 @@
             "description": "Crawled and still queued, while it runs.",
             "title": "Pages Found",
             "type": "integer"
+          },
+          "pages_variant": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parameter variants: crawled pages whose canonical is another crawled page (`/blogs?page=2` names `/blogs`). They are not pages of the site and are left out of every count. null for a crawl that was not counted.",
+            "title": "Pages Variant"
           },
           "previous_run_id": {
             "anyOf": [
@@ -5742,6 +6223,8 @@
           "pages_crawled",
           "sitemap_pages",
           "pages_blocked",
+          "pages_variant",
+          "pages",
           "render_javascript",
           "estimated_cost_usd",
           "cost_usd",
@@ -5791,6 +6274,73 @@
           "data"
         ],
         "title": "CrawlRunResponse",
+        "type": "object"
+      },
+      "CreatedReportShare": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ShareState"
+          },
+          "token": {
+            "description": "The secret of the link, shown this once. The public read is `/api/v1/public/reports/{token}` and the web builds its own address.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "created_by",
+          "expires_at",
+          "revoked_at",
+          "state",
+          "token"
+        ],
+        "title": "CreatedReportShare",
+        "type": "object"
+      },
+      "CreatedReportShareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreatedReportShare"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CreatedReportShareResponse",
         "type": "object"
       },
       "CreatedShare": {
@@ -14286,11 +14836,12 @@
                     "deep_only_through_auto",
                     "placement_unknown",
                     "has_broken_outlinks",
-                    "generic_anchors"
+                    "generic_anchors",
+                    "variant"
                   ],
                   "type": "string"
                 },
-                "maxItems": 6,
+                "maxItems": 7,
                 "type": "array"
               },
               {
@@ -14298,6 +14849,12 @@
               }
             ],
             "title": "Flags"
+          },
+          "include_variants": {
+            "default": false,
+            "description": "Parameter variants (a page whose canonical is another crawled page) are left out unless this is true or the `variant` flag is asked for.",
+            "title": "Include Variants",
+            "type": "boolean"
           },
           "indexable": {
             "anyOf": [
@@ -14481,7 +15038,8 @@
                 "blocked",
                 "redirect",
                 "non_indexable",
-                "generic_anchors"
+                "generic_anchors",
+                "variant"
               ],
               "type": "string"
             },
@@ -18370,6 +18928,377 @@
         "title": "RegisterResponse",
         "type": "object"
       },
+      "ReportBrand": {
+        "description": "Your brand or a tracked competitor, by name.",
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBrandEngine"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ReportRole"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "engines"
+        ],
+        "title": "ReportBrand",
+        "type": "object"
+      },
+      "ReportBrandEngine": {
+        "description": "The valid answers that name the brand. Share of voice is not sent: the owner's definition\n(the brand's mentions over every tracked brand's) is worked out from these counts by whoever\nshows it.",
+        "properties": {
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "engine_code",
+          "mentioned"
+        ],
+        "title": "ReportBrandEngine",
+        "type": "object"
+      },
+      "ReportDomain": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "source_share": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "citation_units",
+          "source_share"
+        ],
+        "title": "ReportDomain",
+        "type": "object"
+      },
+      "ReportEngine": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "weeks": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/ReportWeek"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_code",
+          "mentioned",
+          "cited",
+          "weeks"
+        ],
+        "title": "ReportEngine",
+        "type": "object"
+      },
+      "ReportRole": {
+        "enum": [
+          "own",
+          "competitor"
+        ],
+        "type": "string"
+      },
+      "ReportSchedule": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/ReportScheduleFrequency"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last send failed; null after a good one.",
+            "title": "Last Error"
+          },
+          "last_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sent At"
+          },
+          "next_run_at": {
+            "description": "The next send, 06:00 UTC, once the schedule runs.",
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipients",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "frequency",
+          "recipients",
+          "paused",
+          "next_run_at",
+          "last_sent_at",
+          "last_error",
+          "created_by",
+          "created_at"
+        ],
+        "title": "ReportSchedule",
+        "type": "object"
+      },
+      "ReportScheduleCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "frequency": {
+            "$ref": "#/components/schemas/ReportScheduleFrequency"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Recipients",
+            "type": "array"
+          }
+        },
+        "required": [
+          "frequency",
+          "recipients"
+        ],
+        "title": "ReportScheduleCreate",
+        "type": "object"
+      },
+      "ReportScheduleFrequency": {
+        "enum": [
+          "weekly",
+          "monthly"
+        ],
+        "type": "string"
+      },
+      "ReportScheduleList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReportSchedule"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportScheduleList",
+        "type": "object"
+      },
+      "ReportScheduleResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportSchedule"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportScheduleResponse",
+        "type": "object"
+      },
+      "ReportScheduleUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportScheduleFrequency"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused"
+          },
+          "recipients": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipients"
+          }
+        },
+        "title": "ReportScheduleUpdate",
+        "type": "object"
+      },
+      "ReportShareCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_days": {
+            "$ref": "#/components/schemas/ExpiryDays",
+            "default": 30,
+            "description": "Days until the link stops working."
+          }
+        },
+        "title": "ReportShareCreate",
+        "type": "object"
+      },
+      "ReportShareList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Share"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportShareList",
+        "type": "object"
+      },
+      "ReportShareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Share"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportShareResponse",
+        "type": "object"
+      },
+      "ReportWeek": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "is_pooled": {
+            "title": "Is Pooled",
+            "type": "boolean"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "pool_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `is_pooled`: the weeks the point holds, 1 to 4, its own included.",
+            "title": "Pool Weeks"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "is_pooled",
+          "pool_weeks",
+          "mentioned",
+          "cited"
+        ],
+        "title": "ReportWeek",
+        "type": "object"
+      },
       "ReservedProjectSlug": {
         "description": "Words a slug cannot be: they are routes of the web app.",
         "enum": [
@@ -18762,6 +19691,43 @@
         ],
         "title": "RowActionInput",
         "type": "object"
+      },
+      "RuleScope": {
+        "additionalProperties": false,
+        "description": "Who a rule watches; empty means everything in the project.\n\n`group_ids` are the groups of prompts (taxonomy terms) for the AI rule types and the keyword\ngroups for `rank_drop`; `engine_codes` are platforms and only narrow the AI rule types.",
+        "properties": {
+          "engine_codes": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z0-9_]+$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Engine Codes",
+            "type": "array"
+          },
+          "group_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Group Ids",
+            "type": "array"
+          }
+        },
+        "title": "RuleScope",
+        "type": "object"
+      },
+      "RuleType": {
+        "enum": [
+          "ai_mention_gained",
+          "ai_mention_lost",
+          "ai_competitor_appeared",
+          "rank_drop"
+        ],
+        "type": "string"
       },
       "Run": {
         "properties": {
@@ -21196,6 +22162,14 @@
         ],
         "title": "SessionList",
         "type": "object"
+      },
+      "Severity": {
+        "enum": [
+          "info",
+          "warning",
+          "critical"
+        ],
+        "type": "string"
       },
       "Share": {
         "description": "A link as listed. The token is never here: it is shown once, when the link is made.",
@@ -27032,6 +28006,38 @@
         ]
       }
     },
+    "/api/v1/alert-rule-types": {
+      "get": {
+        "description": "Each with its area, default severity and the JSON Schema of its `params`.",
+        "operationId": "list_rule_types_api_v1_alert_rule_types_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRuleTypeList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The rule types a rule can have",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
     "/api/v1/auth/password-reset/confirm": {
       "post": {
         "description": "Ends every session of the user. It does not sign anyone in.",
@@ -28072,6 +29078,50 @@
           }
         },
         "summary": "The client summary of a shared link",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/reports/{token}": {
+      "get": {
+        "description": "Read only, no sign-in, the last 28 project-local days. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached and holds no costs, prompt texts or answer texts.",
+        "operationId": "public_report_api_v1_public_reports__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The AI visibility report of a guest link",
         "tags": [
           "public"
         ]
@@ -37016,6 +38066,551 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events": {
+      "get": {
+        "operationId": "list_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[acknowledged]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Acknowledged]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[rule_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Rule Id]"
+            }
+          },
+          {
+            "description": "`page.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`page.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertEventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The alerts of the project, newest first",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events/acknowledge": {
+      "post": {
+        "description": "At most 500 ids. Ids that are not open alerts of this project count for nothing; `acknowledged` says how many were marked.",
+        "operationId": "acknowledge_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcknowledgedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Mark alerts as seen",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules": {
+      "get": {
+        "operationId": "list_alert_rules_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Is Active]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[rule_type_in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/RuleType"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Rule Type In]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRulePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The project's alert rules, oldest first",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "post": {
+        "description": "`422 invalid_params` when `params` do not fit the rule type: `rank_drop` takes `positions` (a whole number from 1 to 50, default 5), the AI types take none. `scope` may narrow the rule by `group_ids` and, for the AI types, `engine_codes` (platforms).",
+        "operationId": "create_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRuleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRuleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Make an alert rule",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules/{alert_rule_id}": {
+      "delete": {
+        "description": "The alerts it raised are deleted with it.",
+        "operationId": "delete_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alert_rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete an alert rule",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "get": {
+        "operationId": "get_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alert_rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRuleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One alert rule",
+        "tags": [
+          "alerts"
+        ]
+      },
+      "patch": {
+        "description": "Name, scope, parameters or whether it is active; the rule type cannot change. A rule raises alerts only for runs and checks that finish after it is made.",
+        "operationId": "update_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "alert_rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRuleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRuleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change an alert rule",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
       "post": {
         "description": "Nothing is stored. Offsets are UTF-16 code units, as JavaScript indexes the text. `413 payload_too_large` over 100 KB; `422 too_many_matches` over 250,000 matches.",
@@ -39104,7 +40699,8 @@
                       "deep_only_through_auto",
                       "placement_unknown",
                       "has_broken_outlinks",
-                      "generic_anchors"
+                      "generic_anchors",
+                      "variant"
                     ],
                     "type": "string"
                   },
@@ -39114,8 +40710,18 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 6,
+              "maxLength": 7,
               "title": "Filter[Flags]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[include_variants]",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Filter[Include Variants]",
+              "type": "boolean"
             }
           },
           {
@@ -43336,6 +44942,428 @@
         "summary": "Ask a prompt now (a manual run through the provider's standard queue)",
         "tags": [
           "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The scheduled report emails of the project",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "description": "Weekly sends on Monday and monthly on the 1st, at 06:00 UTC. Each email holds a new report link that works for 30 days. At most 10 recipients and 10 schedules a project (`422 schedule_limit`).",
+        "operationId": "create_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportScheduleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Email the report weekly or monthly",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules/{report_schedule_id}": {
+      "delete": {
+        "description": "The links already emailed keep working until they expire or are revoked.",
+        "operationId": "delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "report_schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a scheduled report",
+        "tags": [
+          "reports"
+        ]
+      },
+      "patch": {
+        "operationId": "update_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "report_schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportScheduleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change, pause or resume a scheduled report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares": {
+      "get": {
+        "operationId": "list_shares_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportShareList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The report links of the project, newest first, without their tokens",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "description": "The token in the answer is shown once and is not stored; only its hash is. The link stops working at `expires_at` (7, 30 or 90 days, default 30) or when revoked.",
+        "operationId": "create_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportShareCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedReportShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Make a read-only link to the project's AI visibility report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares/{report_share_id}": {
+      "delete": {
+        "description": "Revoking a link that is already revoked changes nothing.",
+        "operationId": "revoke_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares__report_share_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "report_share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Revoke a report link",
+        "tags": [
+          "reports"
         ]
       }
     },

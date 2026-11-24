@@ -91,7 +91,7 @@ _ANCHORS = text(
         FROM (SELECT target_url_id, regexp_replace(anchor, :edge, '', 'g') AS clean
               FROM seo.crawl_links
               WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
-                AND scope = 'editorial' AND source_url_id <> target_url_id
+                AND scope = 'editorial' AND source_url_id <> target_url_id AND NOT ignored
                 AND target_url_id = ANY(:ids)) edge_trimmed
         GROUP BY target_url_id, lower(clean)
     ), ranked AS (

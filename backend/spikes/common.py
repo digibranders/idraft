@@ -45,7 +45,7 @@ INSTALLATION: Final = "spike"
 PAGE_PRICE: Final = Decimal("0.0006")
 # How long to wait for a standard task before giving up on it.
 READY_WITHIN: Final = timedelta(hours=2)
-POLL_EVERY: Final = timedelta(seconds=30)
+POLL_EVERY = timedelta(seconds=30)
 
 
 class SpendError(RuntimeError):

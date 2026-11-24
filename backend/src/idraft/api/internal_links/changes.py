@@ -69,14 +69,18 @@ _LOST_TO_TOP = text(
 )
 _PAGES_ADDED = text(
     """
-    SELECT count(*) FROM seo.crawl_page_changes
-    WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid) AND is_new
+    SELECT count(*) FROM seo.crawl_page_changes pc
+    JOIN seo.crawl_pages cp ON cp.run_id = pc.run_id AND cp.url_id = pc.url_id
+         AND cp.workspace_id = pc.workspace_id
+    WHERE pc.run_id = CAST(:run_id AS uuid) AND pc.workspace_id = CAST(:workspace_id AS uuid)
+      AND pc.is_new AND cp.variant_of_url_id IS NULL
     """
 )
 _PAGES_LOST = text(
     """
     SELECT count(*) FROM seo.crawl_pages p
     WHERE p.run_id = CAST(:previous_id AS uuid) AND p.workspace_id = CAST(:workspace_id AS uuid)
+      AND p.variant_of_url_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM seo.crawl_pages c
                       WHERE c.run_id = CAST(:run_id AS uuid) AND c.workspace_id = p.workspace_id
                         AND c.url_id = p.url_id)
@@ -126,7 +130,7 @@ _MOVED = text(
     LEFT JOIN core.project_pages pp ON pp.workspace_id = pc.workspace_id
          AND pp.project_id = CAST(:project_id AS uuid) AND pp.url_id = pc.url_id
     WHERE pc.run_id = CAST(:run_id AS uuid) AND pc.workspace_id = CAST(:workspace_id AS uuid)
-      AND NOT pc.is_new AND cp.status_code = 200
+      AND NOT pc.is_new AND cp.status_code = 200 AND cp.variant_of_url_id IS NULL
       AND (coalesce(pc.editorial_in_delta, 0) <> 0 OR coalesce(pc.depth_delta, 0) <> 0
            OR pc.depth_state IS NOT NULL)
     ORDER BY abs(coalesce(pc.editorial_in_delta, 0)) DESC, abs(coalesce(pc.depth_delta, 0)) DESC,

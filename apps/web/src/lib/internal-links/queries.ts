@@ -200,6 +200,8 @@ export function pageFilterOf(query: PageQuery): PageFilter {
     ...(query.flags.length === 0 ? {} : { flags: [...query.flags] }),
     ...(query.worklist === null ? {} : { worklist: query.worklist }),
     ...(query.q === null ? {} : { q: query.q }),
+    // Variants are left out; asking for the `variant` flag lists only them
+    include_variants: false,
   };
 }
 

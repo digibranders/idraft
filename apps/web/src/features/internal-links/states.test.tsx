@@ -36,6 +36,8 @@ const SYSTEM_TEXT = 'Cancelled by the system: the project was paused';
 
 const run = (over: Partial<CrawlRun>): CrawlRun => ({
   pages_blocked: null,
+  pages: 40,
+  pages_variant: null,
   run_id: MOCK_RUN_ID,
   trigger: 'schedule',
   state: 'ready',

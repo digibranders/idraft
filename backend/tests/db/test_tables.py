@@ -55,6 +55,9 @@ DECLARED = {
     "ops.provider_cost_events",
     "ops.provider_price_book",
     "ops.cost_daily",
+    "ops.alert_rules",
+    "ops.alert_events",
+    "ops.alert_cursors",
     "ops.raw_payloads",
     "ops.secrets",
     "fp.connections",
@@ -106,6 +109,8 @@ DECLARED = {
     "core.link_opportunity_decisions",
     "core.tier_suggestion_dismissals",
     "core.client_summary_shares",
+    "core.ai_report_shares",
+    "core.ai_report_schedules",
     "fp.gsc_page_daily",
 }
 # A monthly partition's name ends in `_pYYYYMM`.

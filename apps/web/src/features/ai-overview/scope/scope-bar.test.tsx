@@ -232,6 +232,7 @@ describe('the location control of the scope bar', () => {
       prompt_id: '11111111-1111-4111-8111-111111111111',
       country_iso: 'DE',
       terms: [],
+      current_version: { text: 'best crm for agencies' },
     };
     server.use(
       http.get(PROMPTS, () =>

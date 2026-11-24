@@ -39,6 +39,7 @@ _FLAGS: Final = {
         crawl_pages.c.editorial_anchors >= GENERIC_MIN_LINKS,
         crawl_pages.c.generic_anchors * 2 > crawl_pages.c.editorial_anchors,
     ),
+    "variant": crawl_pages.c.variant_of_url_id.is_not(None),
 }
 # Under-linked T1 pages (spec 7.2): fewer than 3 editorial linking pages, deeper than 3 clicks,
 # or in the lowest quarter of equity share.
@@ -128,6 +129,9 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
         conditions.append(crawl_pages.c.is_indexable.is_(found.indexable))
     for flag in found.flags or ():
         conditions.append(_FLAGS[flag])
+    # A variant is the same page under another address (plan 09): it does not count unless asked.
+    if not found.include_variants and "variant" not in (found.flags or ()):
+        conditions.append(crawl_pages.c.variant_of_url_id.is_(None))
     if found.worklist == "under_linked_t1":
         weak = [
             crawl_pages.c.linking_pages_editorial < UNDER_LINKED_PAGES,
@@ -189,6 +193,7 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
                 crawl_links.c.workspace_id == scope.workspace_id,
                 crawl_links.c.source_url_id == crawl_pages.c.url_id,
                 crawl_links.c.scope == "editorial",
+                crawl_links.c.ignored.is_(False),
                 crawl_links.c.target_url_id != crawl_links.c.source_url_id,
                 or_(
                     target_tier.c.tier_id.is_(None),

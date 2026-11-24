@@ -7,7 +7,9 @@ import { useMemo, type ReactElement, type ReactNode } from 'react';
 import { AI_OVERVIEW_CARDS } from './cards/registry';
 import { CompetitorDrawerHost } from './competitor-drawer';
 import { ExportProvider } from './export/export-registry';
+import { InsightsBox } from './insights/insights-box';
 import { cardMinHeight } from './states/card-min-height';
+
 import { OverviewFreshness } from './header/overview-freshness';
 import { OverviewHeader } from './header/overview-header';
 import { OverviewNotices } from './notices/overview-notices';
@@ -142,6 +144,7 @@ function OverviewBody({ setupSlot }: { setupSlot: ReactNode }): ReactElement {
     <div className={OVERVIEW_PAGE_CLASS}>
       <OverviewHeader filters={scopeFilters} noticeChip={pausedChip} setupSlot={showSetup ? setupSlot : null} />
       {notice?.kind !== 'paused' ? <OverviewNotices notice={notice} settled={settled} /> : null}
+      {scopeEmpty === null && !customizing ? <InsightsBox /> : null}
       {scopeEmpty === null ? (
         <div aria-busy={refetching || undefined}>
           <CustomizableGrid label={t('cards')} cardClassName={minHeightOf} keepCardOrder />

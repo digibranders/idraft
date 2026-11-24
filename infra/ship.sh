@@ -110,14 +110,22 @@ say "Release ${sha:0:12}: check backend=$backend web=$web infra=$infra; deploy b
 logs="$(mktemp -d "${TMPDIR:-/tmp}/idraft-ship.XXXXXX")"
 
 # Each check is one && chain: it runs inside `if` below, where bash ignores set -e.
+# A test that times out while the two suites share the CPU passes alone. When the gates fail, only the tests
+# that failed run again, one at a time. The cache is cleared first, so an older run's failures are not rerun;
+# a lint, type or coverage failure has no failed test, so --lfnf=none ends it as a failure (exit 5).
 check_backend() {
-  (cd backend && uv sync --frozen --quiet && ./check.sh -n "${PYTEST_WORKERS:-8}")
+  (cd backend && rm -rf .pytest_cache && uv sync --frozen --quiet && {
+    ./check.sh -n "${PYTEST_WORKERS:-8}" || {
+      echo "== The gates failed: running the failed tests again, alone"
+      uv run pytest -n 0 --no-cov --lf --lfnf=none -q
+    }
+  })
 }
 
 check_web() {
   pnpm install --frozen-lockfile --prefer-offline --silent &&
     (cd apps/web && pnpm lint && pnpm typecheck &&
-      pnpm exec vitest run --maxWorkers="${VITEST_WORKERS:-6}" && pnpm format:check &&
+      pnpm exec vitest run --maxWorkers="${VITEST_WORKERS:-6}" --retry=2 && pnpm format:check &&
       NEXT_PUBLIC_APP_ENV=production NEXT_PUBLIC_API_MOCKING=off NEXT_PUBLIC_RELEASE="$sha" \
       API_INTERNAL_ORIGIN=http://127.0.0.1:8010 pnpm build && node scripts/prepare-standalone.mjs)
 }

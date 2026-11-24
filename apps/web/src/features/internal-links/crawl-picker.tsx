@@ -64,7 +64,7 @@ export function CrawlPicker({
     if (needsLinks && !item.links_available) return { ...base, disabledReason: t('linksDropped') };
     return {
       ...base,
-      detail: t('detail', { trigger: t(`trigger.${TRIGGER_KEY[item.trigger]}`), count: item.pages_crawled }),
+      detail: t('detail', { trigger: t(`trigger.${TRIGGER_KEY[item.trigger]}`), count: item.pages }),
       onSelect: () => onChoose(item.is_latest ? null : item.run_id),
     };
   });
@@ -74,7 +74,7 @@ export function CrawlPicker({
         align="start"
         trigger={
           <Button variant="ghost" size="sm" icon={History}>
-            {t('crawled', { date: dateOf(chosen), count: chosen.pages_crawled })}
+            {t('crawled', { date: dateOf(chosen), count: chosen.pages })}
           </Button>
         }
         items={items}

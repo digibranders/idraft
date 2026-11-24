@@ -1,13 +1,19 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useId, type MouseEvent, type ReactElement } from 'react';
+import { useId, useState, type MouseEvent, type ReactElement } from 'react';
 
 import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { CitationList, type CitationListItem } from '@/components/app/evidence/citation-list';
 import { Dialog, DialogBody, DialogHeader } from '@/components/ui/dialog';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatTableDateTime } from '@/lib/format';
+
+/** The image width as a share of the box: `fit` shows the whole width, the others scroll sideways as well. */
+const ZOOM_LEVELS = ['fit', '150', '200', '300'] as const;
+type ZoomLevel = (typeof ZOOM_LEVELS)[number];
+const ZOOM_WIDTH_PCT: Readonly<Record<ZoomLevel, number>> = { fit: 100, '150': 150, '200': 200, '300': 300 };
 
 const stop = (event: MouseEvent): void => event.stopPropagation();
 const noop = (): void => undefined;
@@ -67,6 +73,7 @@ export function AnswerDialog({
   const t = useTranslations('prompts.lists.shot');
   const source = imageSource(screenshotUrl);
   const citationPrefix = useId();
+  const [zoom, setZoom] = useState<ZoomLevel>('fit');
   return (
     // The dialog renders in a portal, but a React click still bubbles to the row that holds the cell
     <Dialog open={open} onOpenChange={onOpenChange} size="md" className="sm:w-160" onClick={stop}>
@@ -82,16 +89,34 @@ export function AnswerDialog({
           </div>
           <p className="type-body-strong text-foreground">{promptText}</p>
           {source === null ? null : (
-            // The page is tall: the image scrolls in its own box, so the cited pages below it stay in reach
+            <SegmentedControl
+              semantics="view"
+              size="sm"
+              label={t('zoom')}
+              value={zoom}
+              onValueChange={setZoom}
+              items={ZOOM_LEVELS.map((level) => ({
+                value: level,
+                label: level === 'fit' ? t('zoomFit') : t('zoomPercent', { percent: level }),
+              }))}
+            />
+          )}
+          {source === null ? null : (
+            // The page is tall and, zoomed, wide: the image scrolls in its own box, so the cited pages below it stay in reach
             <div
               role="region"
               tabIndex={0}
               aria-label={t('imageBoxLabel', { platform: platform.name })}
-              className="max-h-160 overflow-y-auto rounded-md border border-border-subtle focus-visible:focus-ring"
+              className="max-h-160 overflow-auto rounded-md border border-border-subtle focus-visible:focus-ring"
             >
               {/* The address is the API's own path of a stored image, which next/image would have to be told to allow and would proxy */}
               {/* eslint-disable-next-line @next/next/no-img-element -- the image comes from the API, whose host the app does not know */}
-              <img src={source} alt={t('imageAlt', { platform: platform.name })} className="w-full" />
+              <img
+                src={source}
+                alt={t('imageAlt', { platform: platform.name })}
+                style={{ width: `${ZOOM_WIDTH_PCT[zoom]}%` }}
+                className="max-w-none"
+              />
             </div>
           )}
           {truncated ? <p className="type-meta">{t('truncated')}</p> : null}

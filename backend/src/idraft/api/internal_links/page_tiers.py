@@ -758,6 +758,8 @@ class PageTierService:
                 .where(
                     crawl_pages.c.workspace_id == scope.workspace_id,
                     crawl_pages.c.run_id == scope.run_id,
+                    # A variant is no page of the site (plan 09): it shares its canonical's path.
+                    crawl_pages.c.variant_of_url_id.is_(None),
                 )
             )
             matching = would = 0
