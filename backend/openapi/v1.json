@@ -7424,7 +7424,7 @@
                 "type": "null"
               }
             ],
-            "description": "With `include=facts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when `facts` was not asked for.",
+            "description": "With `include=facts` or `fact_counts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when neither was asked for.",
             "title": "Position"
           },
           "previous": {
@@ -7448,7 +7448,7 @@
                 "type": "null"
               }
             ],
-            "description": "With `include=facts`: the recommendation rate, valid answers that recommend the own brand over the engine's valid answers, built as `mentioned` is (a recommendation is a kind of mention, so the numerator is at most that of `mentioned`). Null while none of the row's valid answers has been classified yet (derived again after the extractor that classifies them). Left out when `facts` was not asked for.",
+            "description": "With `include=facts` or `fact_counts`: the recommendation rate, valid answers that recommend the own brand over the engine's valid answers, built as `mentioned` is (a recommendation is a kind of mention, so the numerator is at most that of `mentioned`). Null while none of the row's valid answers has been classified yet (derived again after the extractor that classifies them). Left out when neither was asked for.",
             "title": "Recommended"
           },
           "sentiment": {
@@ -7460,7 +7460,7 @@
                 "type": "null"
               }
             ],
-            "description": "With `include=facts`: how many valid answers name the own brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the row names the own brand with a tone. Never one score. Left out when `facts` was not asked for.",
+            "description": "With `include=facts` or `fact_counts`: how many valid answers name the own brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the row names the own brand with a tone. Never one score. Left out when neither was asked for.",
             "title": "Sentiment"
           },
           "series": {
@@ -36623,7 +36623,7 @@
             }
           },
           {
-            "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`.",
+            "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads).",
             "in": "query",
             "name": "include",
             "required": false,
@@ -36637,7 +36637,8 @@
                       "total",
                       "co_mentions",
                       "cells",
-                      "facts"
+                      "facts",
+                      "fact_counts"
                     ],
                     "type": "string"
                   },
@@ -36647,7 +36648,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`.",
+              "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads).",
               "title": "Include"
             }
           },

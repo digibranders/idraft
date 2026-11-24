@@ -88,6 +88,8 @@ def _cases(term: str, rival: uuid.UUID, co_mentions: int) -> list[Case]:
             {"rows": "none"},
             1,
         ),
+        # The counts alone, as the Overview reads them: the places of the own brand.
+        ("include=fact_counts", {"include": "fact_counts"}, {}, 1),
         ("group_by=country", {"group_by": "country"}, {}, 0),
         ("filter[outcome]", {"filter[outcome]": "neither"}, {}, 0),
         ("filter[opportunity]", {"filter[opportunity]": "named_not_cited"}, {}, 0),

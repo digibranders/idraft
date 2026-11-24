@@ -1095,15 +1095,15 @@ class SummaryService:
                 else {}
             )
             names = await repository.topic_names(db, ws, held.keys())
-            window_facts = "facts" in query.include
-            # The Overview asks for the facts without prompt rows (`rows=topics` or `none`): the
-            # keywords, the brands, the pages and the newest answer are cells of those rows, so
-            # they are not read for it. Position, recommendation and sentiment are counts of the
-            # window and serve every row.
-            prompt_facts = window_facts and query.rows is None
+            # `fact_counts` is the counts of `facts` alone: position, recommendation and tone, which
+            # the Overview reads. The keywords, the brands, the pages and the newest answer are
+            # read only for `facts`, and then only for the rows that show them.
+            row_facts = "facts" in query.include
+            window_facts = row_facts or "fact_counts" in query.include
+            prompt_facts = row_facts and query.rows is None
             linked = (
                 await repository.linked_keywords(db, ws, project_id, ids)
-                if window_facts and query.rows != "none"
+                if row_facts and query.rows != "none"
                 else None
             )
             position = (

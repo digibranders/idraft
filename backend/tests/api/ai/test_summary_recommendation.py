@@ -129,7 +129,24 @@ async def test_the_cells_are_left_out_unless_facts_are_asked_for(
     assert "sentiment" not in engine
 
 
-async def test_the_overview_read_without_prompt_rows_has_the_counts_and_no_row_lists(
+async def test_fact_counts_have_the_counts_of_every_row_and_none_of_the_lists(
+    api: httpx.AsyncClient, seeded: Summary, migrated: PostgresServer
+) -> None:
+    await _classify(migrated, seeded)
+
+    data = await summary_data(seeded, api, include="fact_counts,total")
+
+    engine = _engine(prompt_row(data, seeded, "providers"), CHATGPT)
+    assert cell(engine["recommended"])[:2] == (2, 5)
+    assert sum(engine["sentiment"].values()) == 2
+    assert engine["position"]["answers"] == 5
+    for key in ("other_brands", "top_links", "latest"):
+        assert key not in engine
+    assert "linked_keyword" not in prompt_row(data, seeded, "providers")
+    assert _engine(data["total"], CHATGPT)["recommended"] is not None
+
+
+async def test_facts_without_prompt_rows_read_no_row_lists(
     api: httpx.AsyncClient, seeded: Summary, migrated: PostgresServer
 ) -> None:
     await _classify(migrated, seeded)
@@ -140,4 +157,3 @@ async def test_the_overview_read_without_prompt_rows_has_the_counts_and_no_row_l
     assert engine["recommended"] is not None
     assert engine["position"]["answers"] > 0
     assert data["prompts"] == []
-    assert "latest" not in _engine(topic_row(data, "Managed SOC"), CHATGPT)

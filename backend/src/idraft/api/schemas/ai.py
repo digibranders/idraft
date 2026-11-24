@@ -668,7 +668,9 @@ class MetricCell(BaseModel):
     )
 
 
-SummaryInclude = Literal["series", "entities", "total", "co_mentions", "cells", "facts"]
+SummaryInclude = Literal[
+    "series", "entities", "total", "co_mentions", "cells", "facts", "fact_counts"
+]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
 
@@ -951,27 +953,29 @@ class EngineSummary(BaseModel):
         default=NOT_ASKED,
         exclude_if=_not_asked,
         json_schema_extra={"default": None},
-        description="With `include=facts`: where the own brand is named in the engine's valid "
-        "answers, as counts (zeros when there is no valid answer). On a topic, total or country "
-        "row the counts are the sums over its prompts. Left out when `facts` was not asked for.",
+        description="With `include=facts` or `fact_counts`: where the own brand is named in the "
+        "engine's valid answers, as counts (zeros when there is no valid answer). On a topic, "
+        "total or country row the counts are the sums over its prompts. Left out when neither "
+        "was asked for.",
     )
     recommended: MetricCell | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
         json_schema_extra={"default": None},
-        description="With `include=facts`: the recommendation rate, valid answers that "
-        "recommend the own brand over the engine's valid answers, built as `mentioned` is (a "
+        description="With `include=facts` or `fact_counts`: the recommendation rate, valid answers "
+        "that recommend the own brand over the engine's valid answers, built as `mentioned` is (a "
         "recommendation is a kind of mention, so the numerator is at most that of `mentioned`). "
         "Null while none of the row's valid answers has been classified yet (derived again "
-        "after the extractor that classifies them). Left out when `facts` was not asked for.",
+        "after the extractor that classifies them). Left out when neither was asked for.",
     )
     sentiment: SentimentCounts | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
         json_schema_extra={"default": None},
-        description="With `include=facts`: how many valid answers name the own brand in a "
-        "positive, neutral, negative or mixed tone. Null when no valid answer of the row names "
-        "the own brand with a tone. Never one score. Left out when `facts` was not asked for.",
+        description="With `include=facts` or `fact_counts`: how many valid answers name the own "
+        "brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the "
+        "row names the own brand with a tone. Never one score. Left out when neither was asked "
+        "for.",
     )
     other_brands: list[OtherBrand] | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
