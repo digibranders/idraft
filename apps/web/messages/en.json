@@ -5208,7 +5208,8 @@
       "lines": {
         "untracked": {
           "text": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
-          "failed": "Could not count the keywords with a Google AI Overview"
+          "failed": "Could not count the keywords with a Google AI Overview",
+          "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked"
         },
         "gaps": {
           "text": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
@@ -5216,7 +5217,8 @@
         },
         "citingCompetitors": {
           "text": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
-          "failed": "Could not count the domains that cite your competitors"
+          "failed": "Could not count the domains that cite your competitors",
+          "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked"
         },
         "newDomains": {
           "text": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",

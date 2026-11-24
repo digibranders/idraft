@@ -1,6 +1,7 @@
 'use client';
 
 import { Sparkles } from 'lucide-react';
+import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
@@ -31,6 +32,11 @@ const ACTION_KEY = {
   newDomains: 'viewPages',
 } as const satisfies Record<InsightKey, string>;
 
+function hrefOf(lineKey: InsightKey, workspace: string, project: string): Route {
+  const { path, query } = DESTINATIONS[lineKey];
+  return withQuery(projectPath(workspace, project, path), query);
+}
+
 const ROW = 'flex min-h-row flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2';
 
 function LineSkeleton(): ReactElement {
@@ -58,10 +64,22 @@ function Line({ lineKey, read }: { lineKey: InsightKey; read: Read<InsightCount>
       </li>
     );
   }
-  if (read.data === undefined || read.data.count === 0) return null;
+  if (read.data === undefined || (read.data.count === 0 && !read.data.atLeast)) return null;
   const { count, atLeast } = read.data;
-  const { path, query } = DESTINATIONS[lineKey];
-  const href = withQuery(projectPath(workspaceSlug, project.slug, path), query);
+  // A count that is only a floor of zero: say what was not checked, and lead to the page that can
+  if (isUnknown(read.data)) {
+    return (
+      <li className={ROW} data-insight={lineKey}>
+        <span className="min-w-0 flex-1 basis-60 type-body text-foreground-secondary">
+          {t(lineKey === 'citingCompetitors' ? 'lines.citingCompetitors.unknown' : 'lines.untracked.unknown')}
+        </span>
+        <LinkButton render={<Link href={hrefOf(lineKey, workspaceSlug, project.slug)} />} size="sm">
+          {t(ACTION_KEY[lineKey])}
+        </LinkButton>
+      </li>
+    );
+  }
+  const href = hrefOf(lineKey, workspaceSlug, project.slug);
   const sentence = t(`lines.${lineKey}.text`, { count });
   return (
     <li className={ROW} data-insight={lineKey}>

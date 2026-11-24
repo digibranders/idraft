@@ -56,16 +56,17 @@ export function useInsights(): InsightReads {
   );
   // Until the platforms are known no line can be told to be idle: waiting keeps the box from saying "nothing to do"
   const engineGate: Gate = hasEngines ? 'run' : enginesRead.status === 'loading' ? 'waiting' : 'idle';
+  // Entities with data decide; an error with no data at all is shown as a failure by `failure` below
   const competitorGate: Gate =
     engineGate !== 'run'
       ? engineGate
-      : entities.isPending
-        ? 'waiting'
-        : entities.isError
-          ? 'run'
-          : competitorIds.length === 0
-            ? 'idle'
-            : 'run';
+      : entities.data === undefined
+        ? entities.isError
+          ? 'idle'
+          : 'waiting'
+        : competitorIds.length === 0
+          ? 'idle'
+          : 'run';
 
   const keywords = useQuery({
     ...apiQuery(KEYWORDS, {
@@ -115,14 +116,16 @@ export function useInsights(): InsightReads {
     'run',
   );
   const entitiesRead = useRead(entities, 'run');
-  // The competitors could not be read: the two lines that need them fail with that read, so Retry reads it again
-  const noCompetitors = entities.isError && competitorIds.length === 0;
-  const failedWith = <T>(): Read<T> => ({ ...entitiesRead, status: 'error', data: undefined });
-  const gapsOwn = useRead(gaps, competitorGate);
-  const domainsOwn = useRead(domains, competitorGate);
-  const gapsRead = noCompetitors ? failedWith<NonNullable<typeof gapsOwn.data>>() : gapsOwn;
-  const domainsRead = noCompetitors ? failedWith<NonNullable<typeof domainsOwn.data>>() : domainsOwn;
-  const changesRead = useRead(changes, engineGate);
+  // A read a line depends on failed: the line fails with it, so its Retry reads that one again. A retry under way
+  // keeps the status of that read (loading), so the line shows it
+  const failure = <T>(from: Read<unknown>): Read<T> => ({ ...from, data: undefined });
+  const platformsFailed = !hasEngines && enginesRead.status === 'error';
+  const competitorsFailed = engineGate === 'run' && entities.data === undefined && entities.isError;
+  const dependsOn = <T>(own: Read<T>, needsCompetitors: boolean): Read<T> =>
+    platformsFailed ? failure<T>(enginesRead) : needsCompetitors && competitorsFailed ? failure<T>(entitiesRead) : own;
+  const gapsRead = dependsOn(useRead(gaps, competitorGate), true);
+  const domainsRead = dependsOn(useRead(domains, competitorGate), true);
+  const changesRead = dependsOn(useRead(changes, engineGate), false);
   const idSet = useMemo(() => new Set(competitorIds), [competitorIds]);
 
   return useMemo(

@@ -24,12 +24,15 @@ interface World {
   gaps: number;
   domains: { cited_with: { entity_id: string } | null }[];
   newDomains: number;
-  failing?: 'gaps' | 'entities';
+  failing?: 'gaps' | 'entities' | 'engines';
   morePrompts?: boolean;
 }
 
 function serve(world: World): void {
   server.use(
+    ...(world.failing === 'engines'
+      ? [http.get(`${P}/engines`, () => HttpResponse.json({ title: 'Boom', status: 500 }, { status: 500 }))]
+      : []),
     ...(world.failing === 'entities'
       ? [http.get(`${P}/entities`, () => HttpResponse.json({ title: 'Boom', status: 500 }, { status: 500 }))]
       : []),
@@ -135,6 +138,11 @@ describe('InsightsBox', () => {
       expect(document.querySelector('ul')).toHaveAttribute('aria-busy', 'false');
     });
     expect(screen.queryByText('Nothing to act on')).toBeNull();
+    expect(screen.getByText(/were not counted/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Start tracking' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/ai/prompts'),
+    );
   });
 
   it('fails the lines that need the competitors when they cannot be read, and shows a line at zero beside one with a count', async () => {
@@ -145,5 +153,22 @@ describe('InsightsBox', () => {
     expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(2);
     expect(await screen.findByText(/new cited domains this month/)).toBeInTheDocument();
     expect(screen.queryByText(/not tracked as prompts/)).toBeNull();
+  });
+
+  it('fails the lines that need the platforms when they cannot be read, never claiming there is nothing to do', async () => {
+    serve({ keywords: [], prompts: [], gaps: 0, domains: [], newDomains: 0, failing: 'engines' });
+    renderBox();
+    expect(await screen.findByText('Could not count the new cited domains')).toBeInTheDocument();
+    expect(screen.queryByText('Nothing to act on')).toBeNull();
+  });
+
+  it('reads the competitors again on Try again after they failed', async () => {
+    serve({ keywords: [], prompts: [], gaps: 4, domains: [], newDomains: 2, failing: 'entities' });
+    const { user } = renderBox();
+    expect(await screen.findByText('Could not count the citation gaps')).toBeInTheDocument();
+    server.resetHandlers();
+    serve({ keywords: [], prompts: [], gaps: 4, domains: [], newDomains: 2 });
+    await user.click(screen.getAllByRole('button', { name: 'Try again' })[0] as HTMLElement);
+    expect(await screen.findByText(/where a competitor is cited and your site is not/)).toBeInTheDocument();
   });
 });

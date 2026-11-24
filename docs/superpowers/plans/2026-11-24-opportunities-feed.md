@@ -34,7 +34,7 @@ Loading: one skeleton row per line, and the box waits for the platforms before i
 loads and fails alone, with its own message and Try again; if the competitors cannot be read, lines b and c fail
 together and Try again reads them again. A line at zero is left out while another has a count. The box says "Nothing to
 act on" only when every line is settled, none failed and none is unknown (a count cut at its page size that found
-nothing, or prompts cut at 200, is unknown and blocks it). Refetch keeps the last counts.
+nothing, or prompts cut at 200, is unknown and blocks it; such a line says what was not counted and links to the page). If the platforms cannot be read, every line that needs them fails with Try again. Refetch keeps the last counts.
 
 ## Steps
 
