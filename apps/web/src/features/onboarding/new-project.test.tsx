@@ -44,6 +44,19 @@ describe('New project', () => {
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/digibranders/northwind-cafe'));
   });
 
+  it('shows the project as it is typed in the summary, and what is still needed', async () => {
+    const { user } = renderWithProviders(form());
+    const summary = await screen.findByRole('complementary', { name: 'Summary' });
+    expect(within(summary).getByText('Still needed')).toBeInTheDocument();
+    expect(within(summary).getAllByText('Missing')).toHaveLength(3);
+    await user.type(screen.getByLabelText('Name'), 'Northwind Café');
+    await user.type(screen.getByRole('textbox', { name: 'Site' }), 'northwind.example');
+    expect(within(summary).getAllByText('Northwind Café')).not.toHaveLength(0);
+    expect(within(summary).getByText('northwind.example')).toBeInTheDocument();
+    expect(within(summary).getByText('/digibranders/northwind-cafe')).toBeInTheDocument();
+    expect(within(summary).getByText('Ready to create')).toBeInTheDocument();
+  });
+
   it('stops following the name once the address is edited', async () => {
     const { user } = renderWithProviders(form());
     const address = await screen.findByLabelText('Address');

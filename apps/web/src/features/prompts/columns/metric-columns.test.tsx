@@ -1,5 +1,5 @@
-import { cleanup, render } from '@testing-library/react';
-import { createTranslator } from 'next-intl';
+import { cleanup, render, screen } from '@testing-library/react';
+import { createTranslator, NextIntlClientProvider } from 'next-intl';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { projectEngine } from '../compare/change-test-data';
@@ -53,7 +53,11 @@ interface Shown {
 /** What a cell shows and what its tooltip says. */
 function show<TRow>(column: DataTableColumn<TRow>, row: TRow): Shown {
   cleanup();
-  const { container } = render(<>{column.cell(row)}</>);
+  const { container } = render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {column.cell(row)}
+    </NextIntlClientProvider>,
+  );
   const tip = column.cellTip?.(row);
   return {
     text: container.textContent ?? '',
@@ -79,20 +83,23 @@ const rows = {
 describe('intentColumn', () => {
   const column = intentColumn<Row>(t, (row) => row.intent);
 
-  it('is plain text with the meaning in the tooltip, no badge', () => {
+  it('is a letter badge named by the intent, with who searches like that in the tooltip', () => {
     const shown = show(column, { facts: undefined, intent: 'commercial' });
-    expect(shown.text).toBe('Commercial');
-    expect(shown.tip).toBe('The asker is choosing between options');
-    expect(shown.container.querySelector('[data-slot="badge"]')).toBeNull();
+    expect(shown.text).toBe('C');
+    expect(screen.getByRole('listitem', { name: 'Commercial intent' })).toBeTruthy();
+    expect(shown.tip).toBe('Commercial: Searchers who are comparing products or services before they buy.');
     expect(column.header).toBe('Intent');
     expect(column.headerTooltip).toBe('What the asker wants: to learn, to choose, to buy or to find a brand');
   });
 
-  it('names the navigational and local meanings', () => {
-    expect(show(column, { facts: undefined, intent: 'navigational' }).tip).toBe(
-      'The asker is looking for a specific brand',
+  it('gives each of the five intents its own letter', () => {
+    const letters = (['informational', 'commercial', 'transactional', 'navigational', 'local'] as const).map(
+      (intent) => show(column, { facts: undefined, intent }).text,
     );
-    expect(show(column, { facts: undefined, intent: 'local' }).text).toBe('Local');
+    expect(letters).toEqual(['I', 'C', 'T', 'N', 'L']);
+    expect(show(column, { facts: undefined, intent: 'navigational' }).tip).toBe(
+      'Navigational: Searchers who are looking for a specific brand or site.',
+    );
   });
 
   it('is n/a with its reason when the prompt has no intent, and sorts last', () => {
@@ -122,9 +129,10 @@ describe('volumeColumn', () => {
       text: 'n/a',
       tip: 'No linked keyword. Volume is the monthly searches of the keyword a prompt is linked to.',
     });
-    expect(show(column, { facts: undefined, link: link('crm', null) }).tip).toBe(
-      'The linked keyword has no search volume yet',
-    );
+    expect(show(column, { facts: undefined, link: link('crm', null) })).toMatchObject({
+      text: 'Fetching',
+      tip: "The linked keyword's search volume is being collected and shows here once it arrives",
+    });
     expect(show(column, { facts: undefined, link: undefined }).tip).toBe('Not collected yet');
     expect(column.sortValue?.({ facts: undefined, link: null })).toBeNull();
     expect(column.sortValue?.({ facts: undefined, link: link('crm', 90) })).toBe(90);
@@ -140,6 +148,7 @@ describe('volumeColumn', () => {
       'Monthly searches of 3 linked keywords across 5 prompts, each keyword counted once. 1 of them has no volume yet, so the total is a lower bound',
     );
     expect(show(groups, [null, null]).tip).toBe('No prompt in this group has a linked keyword');
+    expect(show(groups, [link('a', null)]).text).toBe('Fetching');
   });
 });
 
@@ -181,7 +190,7 @@ describe('positionColumn', () => {
     expect(shown.text).toBe('1');
     expect(shown.container.querySelector('.bg-insufficient')).not.toBeNull();
     expect(shown.tip).toBe(
-      'Only answers that are an ordered list have a mention position, and a platform needs at least 2. 3 mentions, 1 ordered answer.',
+      'A platform needs at least 2 answers that mention your brand before it has a mention position. 3 mentions, 1 ordered answer.',
     );
     expect(chat.sortValue?.({ facts: rowOf(engine(CHAT, { position: position(1, 1, 3, 10) })) })).toBeNull();
   });

@@ -239,8 +239,8 @@ describe('the Screenshot column', () => {
     expect(
       within(dialog).getByRole('img', { name: 'The latest ChatGPT answer to the prompt, as the page showed it' }),
     ).toHaveAttribute('src', IMAGE);
-    // The first control of the dialog takes the focus: the Zoom choice, set to Fit
-    await waitFor(() => expect(within(dialog).getByRole('radio', { name: 'Fit' })).toHaveFocus());
+    // The first control of the dialog takes the focus: Close, in its header
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Close' })).toHaveFocus());
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Answer screenshot' })).not.toBeInTheDocument());
     await waitFor(() => expect(button).toHaveFocus());

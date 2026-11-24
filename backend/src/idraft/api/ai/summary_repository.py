@@ -21,7 +21,9 @@ from sqlalchemy import Date, Float, Uuid, and_, any_, cast, func, literal, or_, 
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from idraft.api.ai.source_repository import EXCLUDED_FLAGS
 from idraft.db.tables import (
+    ai_citations,
     ai_derivations,
     ai_entity_mentions,
     ai_observation_facts,
@@ -31,11 +33,18 @@ from idraft.db.tables import (
     ai_prompt_terms,
     ai_prompt_versions,
     ai_prompts,
+    domains,
     entities,
+    keyword_metrics_current,
+    keyword_prompt_links,
+    keywords,
     project_entities,
+    projects,
     taxonomy_terms,
     taxonomy_vocabularies,
+    urls,
 )
+from idraft.keywords.prompt_links import prompt_location_id
 from idraft.keywords.trees import descendants
 
 _F, _O = ai_observation_facts.c, ai_observations.c
@@ -439,6 +448,222 @@ async def latest_answers(
     }
 
 
+# The most brands and pages the facts list for one prompt on one engine (backend requests of the
+# Prompts page: at most 20, most named or cited first). Bounds the rows whatever the answers hold.
+FACT_LIST_LIMIT = 20
+
+
+@dataclass(frozen=True, slots=True)
+class PositionSums:
+    """The answers of a prompt on an engine that name the own brand with a place, and the sum of
+    those places."""
+
+    ordered_answers: int = 0
+    rank_sum: int = 0
+
+
+async def position_sums(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> dict[tuple[UUID, str], PositionSums]:
+    """By prompt and engine: the valid answers that name the own brand first, second, ... among
+    the tracked brands (`own_mention_order`, 1 first), and the sum of those places, in one
+    statement. The place is the order among the brands the project tracks: the extraction does
+    not parse lists yet, so `had_structured_list` is never true and is not asked."""
+    if not prompt_ids:
+        return {}
+    placed = and_(_F.is_valid, _F.own_mentioned, _F.own_mention_order.is_not(None))
+    rows = await db.execute(
+        select(
+            _F.prompt_id,
+            _F.engine_code,
+            func.count().filter(placed).label("ordered_answers"),
+            func.coalesce(func.sum(_F.own_mention_order).filter(placed), 0).label("rank_sum"),
+        )
+        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
+        .group_by(_F.prompt_id, _F.engine_code)
+    )
+    return {
+        (row.prompt_id, row.engine_code): PositionSums(row.ordered_answers, int(row.rank_sum))
+        for row in rows
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class BrandNamed:
+    name: str
+    answers: int
+
+
+async def named_brands(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> dict[tuple[UUID, str], list[BrandNamed]]:
+    """By prompt and engine: the brands other than the own that the valid answers name, with
+    how many answers name each, most named first, then by name; at most `FACT_LIST_LIMIT`, in one
+    statement. Only the entities the project tracks leave mentions (the extraction keeps no
+    others): competitors and watched brands. An uncertain mention counts in no rate, so it is not
+    here; nor is a product that counts as its brand (a competitor mention with no order)."""
+    if not prompt_ids:
+        return {}
+    m = ai_entity_mentions.c
+    answers = func.count()
+    place = (
+        func.row_number()
+        .over(
+            partition_by=[_F.prompt_id, _F.engine_code],
+            order_by=[answers.desc(), entities.c.canonical_name, m.entity_id],
+        )
+        .label("place")
+    )
+    ranked = (
+        select(
+            _F.prompt_id,
+            _F.engine_code,
+            entities.c.canonical_name.label("name"),
+            answers.label("answers"),
+            place,
+        )
+        .select_from(
+            ai_observation_facts.join(
+                ai_entity_mentions,
+                and_(
+                    m.observation_id == _F.observation_id,
+                    m.observed_at == _F.observed_at,
+                    m.derivation_id == _F.derivation_id,
+                    m.workspace_id == _F.workspace_id,
+                ),
+            ).join(
+                entities,
+                and_(entities.c.id == m.entity_id, entities.c.workspace_id == m.workspace_id),
+            )
+        )
+        .where(
+            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
+            _F.is_valid,
+            m.project_id == project_id,
+            m.is_current,
+            m.observed_at >= since,
+            m.observed_at < until,
+            m.mention_status == "accepted",
+            m.role != "own",
+            or_(m.mention_order.is_not(None), m.role.in_(("watch", "untracked"))),
+        )
+        .group_by(_F.prompt_id, _F.engine_code, m.entity_id, entities.c.canonical_name)
+        .subquery()
+    )
+    rows = await db.execute(
+        select(ranked)
+        .where(ranked.c.place <= FACT_LIST_LIMIT)
+        .order_by(ranked.c.prompt_id, ranked.c.engine_code, ranked.c.place)
+    )
+    found: dict[tuple[UUID, str], list[BrandNamed]] = {}
+    for row in rows:
+        found.setdefault((row.prompt_id, row.engine_code), []).append(
+            BrandNamed(row.name, row.answers)
+        )
+    return found
+
+
+@dataclass(frozen=True, slots=True)
+class LinkCited:
+    url: str
+    domain: str
+    domain_role: str
+    answers: int
+
+
+async def cited_links(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> dict[tuple[UUID, str], list[LinkCited]]:
+    """By prompt and engine: the pages the valid answers cite, with how many answers cite each
+    (a page counts once per answer), most cited first, then by address; at most
+    `FACT_LIST_LIMIT`, in one statement. The citations the Sources page leaves out by default
+    (`EXCLUDED_FLAGS`) are left out here too."""
+    if not prompt_ids:
+        return {}
+    c = ai_citations.c
+    answers = func.count(c.observation_id.distinct())
+    place = (
+        func.row_number()
+        .over(
+            partition_by=[_F.prompt_id, _F.engine_code],
+            order_by=[answers.desc(), urls.c.canonical_url],
+        )
+        .label("place")
+    )
+    ranked = (
+        select(
+            _F.prompt_id,
+            _F.engine_code,
+            urls.c.canonical_url.label("url"),
+            domains.c.host.label("domain"),
+            c.domain_role.label("domain_role"),
+            answers.label("answers"),
+            place,
+        )
+        .select_from(
+            ai_observation_facts.join(
+                ai_citations,
+                and_(
+                    c.observation_id == _F.observation_id,
+                    c.observed_at == _F.observed_at,
+                    c.workspace_id == _F.workspace_id,
+                ),
+            )
+            .join(urls, urls.c.id == c.url_id)
+            .join(domains, domains.c.id == c.domain_id)
+        )
+        .where(
+            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
+            _F.is_valid,
+            c.project_id == project_id,
+            c.observed_at >= since,
+            c.observed_at < until,
+            ~c.flags.overlap(list(EXCLUDED_FLAGS)),
+        )
+        .group_by(
+            _F.prompt_id,
+            _F.engine_code,
+            c.url_id,
+            urls.c.canonical_url,
+            domains.c.host,
+            c.domain_role,
+        )
+        .subquery()
+    )
+    rows = await db.execute(
+        select(ranked)
+        .where(ranked.c.place <= FACT_LIST_LIMIT)
+        .order_by(ranked.c.prompt_id, ranked.c.engine_code, ranked.c.place)
+    )
+    found: dict[tuple[UUID, str], list[LinkCited]] = {}
+    for row in rows:
+        found.setdefault((row.prompt_id, row.engine_code), []).append(
+            LinkCited(row.url, row.domain, row.domain_role, row.answers)
+        )
+    return found
+
+
 def _detail_columns(answers: Any) -> list[Any]:
     """The small cells' counts of the valid facts (C-9), with the fan-out count of `answers`, the
     answers' own columns."""
@@ -777,3 +1002,69 @@ async def topic_names(
         select(t.id, t.name).where(t.workspace_id == workspace_id, t.id.in_(list(term_ids)))
     )
     return {row.id: row.name for row in rows}
+
+
+@dataclass(frozen=True, slots=True)
+class LinkedRow:
+    keyword: str
+    search_volume: int | None
+
+
+async def linked_keywords(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, prompt_ids: Collection[UUID]
+) -> dict[UUID, LinkedRow]:
+    """The keyword each prompt is linked to, in one statement for all the prompts: the active
+    link with the most searches at the prompt's place (a keyword with no metrics last), then
+    the primary one, then the first by text. A prompt without an active link is absent."""
+    if not prompt_ids:
+        return {}
+    link, k, m = keyword_prompt_links.c, keywords.c, keyword_metrics_current.c
+    volume = func.max(m.search_volume)
+    statement = (
+        select(link.prompt_id, k.text, volume.label("search_volume"))
+        .select_from(
+            keyword_prompt_links.join(
+                keywords, and_(k.id == link.keyword_id, k.workspace_id == link.workspace_id)
+            )
+            .join(
+                ai_prompts,
+                and_(
+                    ai_prompts.c.id == link.prompt_id,
+                    ai_prompts.c.workspace_id == link.workspace_id,
+                ),
+            )
+            .join(
+                projects,
+                and_(
+                    projects.c.id == ai_prompts.c.project_id,
+                    projects.c.workspace_id == ai_prompts.c.workspace_id,
+                ),
+            )
+            .outerjoin(
+                keyword_metrics_current,
+                and_(
+                    m.keyword_id == link.keyword_id,
+                    m.workspace_id == link.workspace_id,
+                    m.language_code == k.language_code,
+                    m.location_id == prompt_location_id(),
+                ),
+            )
+        )
+        .where(
+            link.workspace_id == workspace_id,
+            link.project_id == project_id,
+            link.prompt_id.in_(list(prompt_ids)),
+            link.status == "active",
+        )
+        .group_by(link.id, link.prompt_id, link.is_primary, k.text)
+        .order_by(
+            link.prompt_id,
+            volume.desc().nulls_last(),
+            link.is_primary.desc(),
+            k.text,
+        )
+        .ext(distinct_on(link.prompt_id))
+    )
+    return {
+        row.prompt_id: LinkedRow(row.text, row.search_volume) for row in await db.execute(statement)
+    }

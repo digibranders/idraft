@@ -74,13 +74,20 @@ interface Candidate {
 
 const sameName = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-/** The cell naming a brand on an engine: a tracked entity's, or the one of the brand nobody tracks. */
+/**
+ * The cell naming a brand on an engine. A tracked entity's own cell (`include=entities`) wins. Without it, as on the page's
+ * read that carries the weekly series, the own brand is the engine's Mentioned cell, and any other brand is found in
+ * `other_brands`, whose list is complete for the engine (a brand it does not name was named in none of the answers).
+ */
 function cellOfBrand(engine: EngineSummaryWithFacts, brand: Candidate): MetricCell | undefined {
   if (brand.entityId !== null) {
-    return engine.entities?.find((cells: EntityCells) => cells.entity_id === brand.entityId)?.mentioned;
+    const cell = engine.entities?.find((cells: EntityCells) => cells.entity_id === brand.entityId)?.mentioned;
+    if (cell !== undefined) return cell;
+    // The entity cells were read and hold none for it: added since, unknown until the answers are read again
+    if (engine.entities != null) return undefined;
+    if (brand.own) return engine.mentioned;
   }
   if (engine.other_brands == null) return undefined;
-  // The list is complete for the engine: a brand it does not name was named in none of the engine's answers
   return engine.other_brands.find((other) => sameName(other.name, brand.name))?.mentioned ?? notNamed(engine.mentioned);
 }
 

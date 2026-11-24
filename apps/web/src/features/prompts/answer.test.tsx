@@ -1024,7 +1024,8 @@ describe('the answer viewer: the Formatted view', () => {
     await screen.findByLabelText(/^Fynix mention, your brand/);
     await user.click(modeOf('Formatted'));
     expect(await screen.findByRole('heading', { level: 4, name: 'Compared' })).toBeInTheDocument();
-    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    // Only the answer's own list: the page around the viewer has lists of its own
+    expect(within(await viewer()).getAllByRole('listitem')).toHaveLength(2);
     expect(screen.getByRole('link', { name: 'the guide' })).toHaveAttribute('href', 'https://guide.example/seo');
     expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
     expect(screen.getByText(/^Fynix leads\. See/)).toHaveTextContent('and bad.');

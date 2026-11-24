@@ -1,4 +1,4 @@
-import { FolderOpen, Plus } from 'lucide-react';
+import { ChevronRight, FolderOpen, Globe, ListChecks, Plus, Tag, type LucideIcon } from 'lucide-react';
 import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -8,10 +8,12 @@ import { PageHeader } from '@/components/app/shell/page-header';
 import { ProjectMark } from '@/components/app/shell/project-mark';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
+import { Icon } from '@/components/ui/icon';
 import { LinkButton } from '@/components/ui/link-button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { timeZoneAbbreviation } from '@/lib/format/date';
 import { projectPath } from '@/lib/routes/paths';
+import { cn } from '@/lib/utils';
 
 export interface ListedProject {
   id: string;
@@ -70,19 +72,29 @@ export function ProjectList({
         }
       />
       {projects.length === 0 ? (
-        <EmptyState
-          icon={FolderOpen}
-          headingLevel={2}
-          title={t('empty.title')}
-          reason={t(`empty.${emptyReason}`)}
-          primaryAction={
-            createHref === null ? undefined : (
-              <LinkButton render={<Link href={createHref} />} variant="primary" icon={Plus}>
-                {t('new')}
-              </LinkButton>
-            )
-          }
-        />
+        <div className={cn('grid items-start gap-3', emptyReason === 'creator' && 'lg:grid-cols-3')}>
+          <div
+            className={cn(
+              'rounded-lg border border-border bg-surface py-12',
+              emptyReason === 'creator' && 'lg:col-span-2',
+            )}
+          >
+            <EmptyState
+              icon={FolderOpen}
+              headingLevel={2}
+              title={t('empty.title')}
+              reason={t(`empty.${emptyReason}`)}
+              primaryAction={
+                createHref === null ? undefined : (
+                  <LinkButton render={<Link href={createHref} />} variant="primary" icon={Plus}>
+                    {t('new')}
+                  </LinkButton>
+                )
+              }
+            />
+          </div>
+          {emptyReason === 'creator' ? <SetupSteps /> : null}
+        </div>
       ) : (
         <ul role="list" className={LIST}>
           {projects.map((project) => {
@@ -108,6 +120,7 @@ export function ProjectList({
                   <span className="hidden shrink-0 type-meta sm:block">
                     {t('timeZone', { timeZone: timeZoneAbbreviation(now, project.timeZone) })}
                   </span>
+                  <Icon icon={ChevronRight} size="sm" className="shrink-0 text-foreground-muted" />
                 </Link>
               </li>
             );
@@ -115,6 +128,37 @@ export function ProjectList({
         </ul>
       )}
     </div>
+  );
+}
+
+const STEPS: readonly { key: 'site' | 'brand' | 'track'; icon: LucideIcon }[] = [
+  { key: 'site', icon: Globe },
+  { key: 'brand', icon: Tag },
+  { key: 'track', icon: ListChecks },
+];
+
+/** What creating a project covers, beside the empty state: one panel, one row per part, no illustration. */
+function SetupSteps(): ReactNode {
+  const t = useTranslations('projects.empty.steps');
+  return (
+    <section aria-labelledby="project-setup-steps" className="rounded-lg border border-border bg-surface">
+      <h2 id="project-setup-steps" className="px-4 pt-4 pb-2 type-subsection-title">
+        {t('title')}
+      </h2>
+      <ol role="list" className="flex flex-col divide-y divide-border-subtle">
+        {STEPS.map(({ key, icon }) => (
+          <li key={key} className="flex items-start gap-3 px-4 py-3">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-subtle text-foreground-secondary">
+              <Icon icon={icon} size="sm" />
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="type-body-strong text-foreground">{t(`${key}.title`)}</span>
+              <span className="type-meta">{t(`${key}.body`)}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

@@ -1,16 +1,26 @@
 import { screen, within } from '@testing-library/react';
-import type { ReactElement, ReactNode } from 'react';
+import { Suspense, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import CostsError from './error';
 import CostsLayout from './layout';
 import { ApiProblem } from '@/lib/api/problem';
+import { PermissionProvider } from '@/lib/permissions';
+import { membershipFactory } from '@/mocks/factories/identity';
 import { mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/lib/navigation/hard-navigate', () => ({ hardNavigate: vi.fn() }));
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspace: 'digibranders' }) }));
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ workspace: 'digibranders' }),
+  usePathname: () => '/digibranders/costs',
+}));
+// The frame is an async server component that reads the sidebar cookie; the shell is what it renders
+vi.mock('@/features/shell/workspace-frame', async () => {
+  const { WorkspaceShell } = await import('@/features/shell/workspace-shell');
+  return { WorkspaceFrame: WorkspaceShell };
+});
 // The server's translator, for the layout's breadcrumb
 vi.mock('next-intl/server', () => ({
   getTranslations: () => Promise.resolve((key: string) => (key === 'title' ? 'Costs' : key)),
@@ -45,7 +55,13 @@ afterEach(() => vi.unstubAllGlobals());
 
 /** The layout is the shell the page and its error render inside. */
 async function inLayout(child: ReactNode): Promise<ReactElement> {
-  return <>{await CostsLayout({ children: child, params: Promise.resolve({ workspace: 'digibranders' }) })}</>;
+  const layout = await CostsLayout({ children: child, params: Promise.resolve({ workspace: 'digibranders' }) });
+  // The workspace layout above this segment provides the membership
+  return (
+    <PermissionProvider membership={membershipFactory('admin')}>
+      <Suspense fallback={null}>{layout}</Suspense>
+    </PermissionProvider>
+  );
 }
 
 // The route has no `loading.tsx`: its page redirects, and a loading state would stream that redirect

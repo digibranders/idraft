@@ -2140,6 +2140,41 @@ ai_report_schedules = Table(
     schema="core",
 )
 
+keyword_prompt_links = Table(
+    "keyword_prompt_links",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("keyword_id", Uuid, nullable=False),
+    Column("prompt_id", Uuid, nullable=False),
+    Column("link_type", Text, nullable=False),
+    Column("confidence", Numeric(4, 3)),
+    Column("is_primary", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("status", Text, nullable=False, server_default=FetchedValue()),
+    Column("method_version", SmallInteger),
+    Column("created_by", Uuid, ForeignKey(users.c.id)),
+    _created_at(),
+    UniqueConstraint(
+        "project_id",
+        "keyword_id",
+        "prompt_id",
+        name="keyword_prompt_links_project_id_keyword_id_prompt_id_key",
+    ),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["keyword_id", "workspace_id"], [keywords.c.id, keywords.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["prompt_id", "workspace_id"],
+        [ai_prompts.c.id, ai_prompts.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="core",
+)
+
 tier_suggestion_dismissals = Table(
     "tier_suggestion_dismissals",
     metadata,

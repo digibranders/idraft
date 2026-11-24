@@ -5,7 +5,7 @@ import { Suspense, type ReactNode } from 'react';
 import { ProjectListSkeleton } from '@/features/projects/project-list';
 import { listedProjectsOf } from '@/features/projects/server';
 import { WorkspaceProjects } from '@/features/projects/workspace-projects';
-import { WorkspaceShell } from '@/features/shell/workspace-shell';
+import { WorkspaceFrame } from '@/features/shell/workspace-frame';
 import { requireMembership } from '@/lib/session/server';
 
 export async function generateMetadata({ params }: PageProps<'/[workspace]'>): Promise<Metadata> {
@@ -19,10 +19,10 @@ export default async function WorkspacePage({ params }: PageProps<'/[workspace]'
   const { workspace } = await params;
   const { membership } = await requireMembership(workspace);
   return (
-    <WorkspaceShell workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }}>
+    <WorkspaceFrame workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }}>
       <Suspense fallback={<ProjectListSkeleton />}>
         <WorkspaceProjects membership={membership} projects={listedProjectsOf(membership)} />
       </Suspense>
-    </WorkspaceShell>
+    </WorkspaceFrame>
   );
 }

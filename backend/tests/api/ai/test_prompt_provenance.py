@@ -534,3 +534,29 @@ async def test_a_create_member_out_of_bounds_is_refused(
     )
 
     assert problem(response) == INVALID
+
+
+async def test_an_intent_left_out_comes_from_the_wording_and_one_sent_is_kept(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    ruled = await added(api, workspace, project, editor, "Compare the top 10 SOC providers")
+    sent = await added(
+        api, workspace, project, editor, "Which SOC vendors offer a trial", intent="local"
+    )
+    staged = await added(api, workspace, project, editor, "What is a SOC", funnel_stage="bofu")
+
+    rows = await fetch(
+        migrated,
+        "SELECT id::text, intent, funnel_stage, "
+        "(SELECT count(*) FROM ai.prompt_versions v WHERE v.prompt_id = p.id) AS versions "
+        "FROM ai.prompts p WHERE project_id = $1",
+        project,
+    )
+    found = {row["id"]: (row["intent"], row["funnel_stage"], row["versions"]) for row in rows}
+    assert found[ruled] == ("commercial", "mofu", 1)
+    assert found[sent] == ("local", "unknown", 1)
+    assert found[staged] == ("informational", "bofu", 1)

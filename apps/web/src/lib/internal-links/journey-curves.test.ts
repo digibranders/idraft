@@ -80,6 +80,25 @@ describe('tierRoute edge cases', () => {
   });
 });
 
+describe('curvePath with many lines', () => {
+  const controls = (d: string): number[] =>
+    [...d.matchAll(/(?:C|\s)[\d.]+,(-?[\d.]+)/g)].map((match) => Number(match[1]));
+
+  it('keeps every lean within 36 pixels of the card row, however many links it has', () => {
+    for (const index of [0, 39]) {
+      const [first, second] = controls(curvePath(from, from, index, 40).d);
+      expect(Math.abs((first ?? 0) - 121)).toBeLessThanOrEqual(36);
+      expect(second).toBe(121);
+    }
+  });
+
+  it('leans at the shared target when the lines arrive, so each leaves its own card level', () => {
+    const [first, second] = controls(curvePath(from, to, 0, 40, true).d);
+    expect(first).toBe(121);
+    expect(Math.abs((second ?? 0) - 321)).toBe(36);
+  });
+});
+
 describe('curvePath with a count below the index', () => {
   it('draws as if the card had enough lines for the index', () => {
     expect(curvePath(from, to, 3, 1).d).toBe(curvePath(from, to, 3, 4).d);

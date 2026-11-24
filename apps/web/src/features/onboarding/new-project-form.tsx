@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
+import { FormSection, ProjectSummary } from './new-project-layout';
 import { DomainInput } from '@/components/app/forms/domain-input';
 import { FormField } from '@/components/app/forms/form-field';
 import { LocationCombobox } from '@/components/app/forms/location-combobox';
@@ -276,6 +277,7 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
     }
   });
 
+  const summaryValues = useWatch({ control: form.control });
   const onSubmit = useSubmitOnce(submit);
   const weekdays = WEEKDAYS.map((day, index) => ({ value: String(index), label: days(day) }));
   const languages = [
@@ -284,203 +286,212 @@ export function NewProjectForm({ workspaceId, workspaceSlug }: NewProjectFormPro
   ];
   return (
     <>
-      <form noValidate className="flex flex-col gap-4" onSubmit={onSubmit}>
-        {rootError === undefined ? null : <FormAlert ref={alertRef} tabIndex={-1} live={false} message={rootError} />}
-        <FormField
-          control={form.control}
-          name="name"
-          label={t('name')}
-          render={(field) => (
-            <Input
-              {...field.controlProps}
-              autoComplete="off"
-              size="lg"
-              placeholder={t('namePlaceholder')}
-              value={field.value}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="slug"
-          label={t('slug')}
-          description={t('slugHint', { path: projectPath(workspaceSlug, slug === '' ? t('slugExample') : slug) })}
-          render={(field) => (
-            <Input
-              {...field.controlProps}
-              className="type-mono"
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={SLUG_MAX_LENGTH}
-              value={field.value}
-              size="lg"
-              onValueChange={onSlugChange}
-            />
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="primary_domain"
-          label={t('domain')}
-          render={(field) => (
-            <DomainInput
-              name={field.controlProps.name}
-              inputRef={field.controlProps.ref}
-              onBlur={field.controlProps.onBlur}
-              disabled={field.controlProps.disabled}
-              aria-required={field.controlProps['aria-required']}
-              invalid={field.invalid}
-              description={t('domainHint')}
-              size="lg"
-              value={field.value}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="map_internal_links"
-          render={({ field }) => (
-            <Checkbox
-              name={field.name}
-              checked={hasSite && field.value}
-              disabled={!hasSite}
-              onCheckedChange={(checked) => field.onChange(checked)}
-              label={t('mapLinks')}
-              description={t('mapLinksHint')}
-            />
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="location"
-          label={t('location')}
-          optional
-          description={t('locationHint')}
-          render={(field) => (
-            <LocationCombobox
-              name={field.controlProps.name}
-              inputRef={field.controlProps.ref}
-              onBlur={field.controlProps.onBlur}
-              disabled={field.controlProps.disabled}
-              size="lg"
-              value={field.value}
-              onValueChange={field.onChange}
-              items={locations.items}
-              loading={locations.loading}
-              onQueryChange={locations.onQueryChange}
-            />
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="timezone"
-          label={t('timezone')}
-          description={t('timezoneHint')}
-          render={(field) => (
-            <TimeZoneCombobox
-              name={field.controlProps.name}
-              inputRef={field.controlProps.ref}
-              onBlur={field.controlProps.onBlur}
-              disabled={field.controlProps.disabled}
-              aria-required={field.controlProps['aria-required']}
-              size="lg"
-              value={field.value}
-              onValueChange={field.onChange}
-            />
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="deep_check_weekday"
-          label={t('weekday')}
-          description={t('weekdayHint')}
-          width="medium"
-          render={(field) => (
-            <Select
-              {...field.controlProps}
-              value={field.value}
-              onValueChange={field.onChange}
-              size="lg"
-              placeholder={t('weekday')}
-              options={weekdays}
-            />
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="default_language_code"
-          label={t('language')}
-          width="medium"
-          render={(field) => (
-            <Select
-              {...field.controlProps}
-              value={field.value}
-              onValueChange={field.onChange}
-              size="lg"
-              placeholder={t('language')}
-              options={languages}
-            />
-          )}
-        />
-        <div role="group" aria-labelledby="new-project-brand" className="flex min-w-0 flex-col gap-4 pt-2">
-          <div>
-            <h2 id="new-project-brand" className="type-subsection-title">
-              {t('brandTitle')}
-            </h2>
-            <p className="mt-1 type-meta">{t('brandDescription')}</p>
+      <form noValidate className="flex flex-1 flex-col" onSubmit={onSubmit}>
+        <div className="flex flex-col gap-5 px-3 pt-5 pb-8 md:px-4 lg:px-5">
+          {rootError === undefined ? null : <FormAlert ref={alertRef} tabIndex={-1} live={false} message={rootError} />}
+          <div className="grid items-start gap-5 lg:grid-cols-3">
+            <div className="flex min-w-0 flex-col gap-5 lg:col-span-2">
+              <FormSection id="new-project-basics" title={t('basicsTitle')} description={t('basicsDescription')}>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  label={t('name')}
+                  render={(field) => (
+                    <Input
+                      {...field.controlProps}
+                      autoComplete="off"
+                      size="lg"
+                      placeholder={t('namePlaceholder')}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="slug"
+                  label={t('slug')}
+                  description={t('slugHint', {
+                    path: projectPath(workspaceSlug, slug === '' ? t('slugExample') : slug),
+                  })}
+                  render={(field) => (
+                    <Input
+                      {...field.controlProps}
+                      className="type-mono"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={SLUG_MAX_LENGTH}
+                      value={field.value}
+                      size="lg"
+                      onValueChange={onSlugChange}
+                    />
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="primary_domain"
+                  label={t('domain')}
+                  render={(field) => (
+                    <DomainInput
+                      name={field.controlProps.name}
+                      inputRef={field.controlProps.ref}
+                      onBlur={field.controlProps.onBlur}
+                      disabled={field.controlProps.disabled}
+                      aria-required={field.controlProps['aria-required']}
+                      invalid={field.invalid}
+                      description={t('domainHint')}
+                      size="lg"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
+                  )}
+                />
+                <Controller
+                  control={form.control}
+                  name="map_internal_links"
+                  render={({ field }) => (
+                    <Checkbox
+                      name={field.name}
+                      checked={hasSite && field.value}
+                      disabled={!hasSite}
+                      onCheckedChange={(checked) => field.onChange(checked)}
+                      label={t('mapLinks')}
+                      description={t('mapLinksHint')}
+                    />
+                  )}
+                />
+              </FormSection>
+              <FormSection id="new-project-checks" title={t('checksTitle')} description={t('checksDescription')}>
+                <FormField
+                  control={form.control}
+                  name="location"
+                  label={t('location')}
+                  optional
+                  description={t('locationHint')}
+                  render={(field) => (
+                    <LocationCombobox
+                      name={field.controlProps.name}
+                      inputRef={field.controlProps.ref}
+                      onBlur={field.controlProps.onBlur}
+                      disabled={field.controlProps.disabled}
+                      size="lg"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      items={locations.items}
+                      loading={locations.loading}
+                      onQueryChange={locations.onQueryChange}
+                    />
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="timezone"
+                  label={t('timezone')}
+                  description={t('timezoneHint')}
+                  render={(field) => (
+                    <TimeZoneCombobox
+                      name={field.controlProps.name}
+                      inputRef={field.controlProps.ref}
+                      onBlur={field.controlProps.onBlur}
+                      disabled={field.controlProps.disabled}
+                      aria-required={field.controlProps['aria-required']}
+                      size="lg"
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    />
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="deep_check_weekday"
+                  label={t('weekday')}
+                  description={t('weekdayHint')}
+                  width="medium"
+                  render={(field) => (
+                    <Select
+                      {...field.controlProps}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      size="lg"
+                      placeholder={t('weekday')}
+                      options={weekdays}
+                    />
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="default_language_code"
+                  label={t('language')}
+                  width="medium"
+                  render={(field) => (
+                    <Select
+                      {...field.controlProps}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      size="lg"
+                      placeholder={t('language')}
+                      options={languages}
+                    />
+                  )}
+                />
+              </FormSection>
+              <FormSection id="new-project-brand" title={t('brandTitle')} description={t('brandDescription')}>
+                <FormField
+                  control={form.control}
+                  name="brand"
+                  label={t('brand')}
+                  render={(field) => (
+                    <Input
+                      {...field.controlProps}
+                      autoComplete="off"
+                      size="lg"
+                      value={field.value}
+                      onValueChange={(value) => {
+                        setBrandEdited(true);
+                        field.onChange(value);
+                      }}
+                    />
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="aliases"
+                  label={t('aliases')}
+                  optional
+                  description={t('aliasesHint')}
+                  render={(field) => (
+                    <MultiSelect
+                      inputRef={field.ref}
+                      onBlur={field.onBlur}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      items={[]}
+                      itemToString={(alias) => alias}
+                      itemKey={(alias) => alias.toLocaleLowerCase()}
+                      creatable={{ label: (query) => t('addAlias', { alias: query }), onCreate: (query) => query }}
+                      placeholder={t('aliasPlaceholder')}
+                      emptyText={() => t('aliasHelp')}
+                      chipsLabel={t('aliases')}
+                      removeLabel={(alias) => t('removeAlias', { alias })}
+                      {...multiSelectHints}
+                      className="min-h-control-lg"
+                    />
+                  )}
+                />
+              </FormSection>
+            </div>
+            <ProjectSummary values={summaryValues} workspaceSlug={workspaceSlug} />
           </div>
-          <FormField
-            control={form.control}
-            name="brand"
-            label={t('brand')}
-            render={(field) => (
-              <Input
-                {...field.controlProps}
-                autoComplete="off"
-                size="lg"
-                value={field.value}
-                onValueChange={(value) => {
-                  setBrandEdited(true);
-                  field.onChange(value);
-                }}
-              />
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="aliases"
-            label={t('aliases')}
-            optional
-            description={t('aliasesHint')}
-            render={(field) => (
-              <MultiSelect
-                inputRef={field.ref}
-                onBlur={field.onBlur}
-                value={field.value}
-                onValueChange={field.onChange}
-                items={[]}
-                itemToString={(alias) => alias}
-                itemKey={(alias) => alias.toLocaleLowerCase()}
-                creatable={{ label: (query) => t('addAlias', { alias: query }), onCreate: (query) => query }}
-                placeholder={t('aliasPlaceholder')}
-                emptyText={() => t('aliasHelp')}
-                chipsLabel={t('aliases')}
-                removeLabel={(alias) => t('removeAlias', { alias })}
-                {...multiSelectHints}
-                className="min-h-control-lg"
-              />
-            )}
-          />
         </div>
-        <div className="flex flex-wrap items-center gap-4 pt-2">
-          <Button type="submit" variant="primary" size="lg" loading={create.isPending || created !== null}>
-            {t('create')}
-          </Button>
-          <TextLink render={<Link href={workspacePath(workspaceSlug)} />} className="type-body">
-            {t('cancel')}
-          </TextLink>
+        <div className="sticky bottom-0 z-(--z-sticky) mt-auto border-t border-border bg-surface px-3 py-3 md:px-4 lg:px-5">
+          <div className="flex flex-wrap items-center justify-end gap-4">
+            <TextLink render={<Link href={workspacePath(workspaceSlug)} />} className="type-body">
+              {t('cancel')}
+            </TextLink>
+            <Button type="submit" variant="primary" size="lg" loading={create.isPending || created !== null}>
+              {t('create')}
+            </Button>
+          </div>
         </div>
       </form>
       <DiscardQuestion guard={guard} onLeave={() => setLeft(true)} />

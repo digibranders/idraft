@@ -13,7 +13,7 @@ import type {
  * The per-engine facts of the new Prompts columns, as the prompt summary read will carry them.
  *
  * BACKEND REQUEST SHAPE. The generated client (`lib/api/schema.ts`) does not carry any field of this file except the
- * intent enum, which `Prompt` already has, and `latest` (`LatestAnswer`). Each field is optional and means "the backend has not built it yet" when it
+ * intent enum, which `Prompt` already has, `latest`, `position`, `other_brands` and `top_links`. Each field is optional and means "the backend has not built it yet" when it
  * is absent; `null` means "the backend answered, and the value does not apply here" (an engine that does not classify
  * sentiment, a prompt with no linked keyword). The pure functions of this folder never turn either into a zero.
  * The exact names, shapes and owners are in `docs/ai-visibility/backend-requests-prompts-page.md`.
@@ -79,11 +79,7 @@ export interface OrderCounts {
   rank_sum: number;
 }
 
-export interface PositionCounts {
-  rank_sum: number;
-  ordered_answers: number;
-  mentions: number;
-  answers: number;
+export type PositionCounts = Schemas['PositionCounts'] & {
   /**
    * The order of the brands in the answers that name the own brand with a place (backend request 2 of
    * `docs/ai-visibility/backend-requests-overview.md`): how many name it first, second, third, and fourth or later, and
@@ -91,7 +87,7 @@ export interface PositionCounts {
    * has not built it, and the Overview position card then says so; a distribution is never made up from the mean.
    */
   by_order?: OrderCounts;
-}
+};
 
 /** Counts of the classified mentions of the own brand by tone, on one engine. They add up to its classified mentions. */
 export interface SentimentCounts {
@@ -103,19 +99,11 @@ export interface SentimentCounts {
 
 export type SentimentKey = keyof SentimentCounts;
 
-/** A brand the answers named that is not a tracked entity: its Mentioned cell, built as the tracked entities' cells are. */
-export interface OtherBrand {
-  name: string;
-  mentioned: MetricCell;
-}
+/** A brand other than the own that the answers named, with its Mentioned cell (`OtherBrand`). */
+export type OtherBrand = Schemas['OtherBrand'];
 
-/** A page cited by the answers of one engine, with how many of those answers cited it. */
-export interface TopLink {
-  url: string;
-  domain: string;
-  domain_role: DomainRole;
-  answers: number;
-}
+/** A page cited by the answers of one engine, with how many of those answers cited it (`TopLink`). */
+export type TopLink = Schemas['TopLink'];
 
 /** The newest valid answer of the engine for a prompt row, with the state of its screenshot (`LatestAnswer`). */
 export type LatestAnswer = Schemas['LatestAnswer'];
@@ -151,13 +139,13 @@ export interface PromptRowFacts {
 
 /** What a topic row adds: the keywords its prompts are linked to, each once. */
 export interface TopicRowFacts {
-  linked_keywords?: LinkedKeywordVolume[];
+  linked_keywords?: LinkedKeywordVolume[] | null;
 }
 
-export type PromptSummaryRowWithFacts = Omit<PromptSummaryRow, 'engines'> &
+export type PromptSummaryRowWithFacts = Omit<PromptSummaryRow, 'engines' | 'linked_keyword'> &
   PromptRowFacts & { engines: EngineSummaryWithFacts[] };
 
-export type TopicSummaryRowWithFacts = Omit<TopicSummaryRow, 'engines'> &
+export type TopicSummaryRowWithFacts = Omit<TopicSummaryRow, 'engines' | 'linked_keywords'> &
   TopicRowFacts & { engines: EngineSummaryWithFacts[] };
 
 /**

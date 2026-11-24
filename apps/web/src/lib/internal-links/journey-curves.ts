@@ -18,16 +18,22 @@ const midY = (box: Box): number => box.top + box.height / 2;
 /** A spread around zero for line `index` of `count` leaving one card, so curves do not share a trunk. */
 export const fanOffset = (index: number, count: number): number => (index - (count - 1) / 2) * 14;
 
+/** The most a curve leans, so a card with dozens of links does not throw curves far above and below its row. */
+const MAX_LEAN = 36;
+
 /**
- * A smooth curve from the middle of the source's right edge to the middle of the target's left edge (By step). Its
- * control points lean by `fan` pixels, so the curves of a card with many links separate (spec 7.5 "Layout").
+ * A smooth curve from the middle of the source's right edge to the middle of the target's left edge (By step). The
+ * control point at the shared card (`sharedEnd` false: the source; true: the target) leans, so the curves of a card
+ * with many links separate (spec 7.5 "Layout"); the other control point stays level, so each curve arrives
+ * horizontally, as the arrowhead needs.
  */
-export function curvePath(from: Box, to: Box, index: number, count = 1): Drawn {
+export function curvePath(from: Box, to: Box, index: number, count = 1, sharedEnd = false): Drawn {
   const start = { x: from.left + from.width, y: midY(from) };
   const end = { x: to.left, y: midY(to) };
   const reach = Math.max(48, Math.abs(end.x - start.x) * 0.5);
-  const lean = fanOffset(index, Math.max(count, index + 1));
-  const d = `M${start.x},${start.y} C${start.x + reach},${start.y + lean} ${end.x - reach},${end.y + lean} ${end.x},${end.y}`;
+  const lean = Math.max(-MAX_LEAN, Math.min(MAX_LEAN, fanOffset(index, Math.max(count, index + 1))));
+  const [startLean, endLean] = sharedEnd ? [0, lean] : [lean, 0];
+  const d = `M${start.x},${start.y} C${start.x + reach},${start.y + startLean} ${end.x - reach},${end.y + endLean} ${end.x},${end.y}`;
   return { d, start, end };
 }
 

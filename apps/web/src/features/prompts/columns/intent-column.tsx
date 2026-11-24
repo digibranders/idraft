@@ -1,6 +1,7 @@
 import { intentOf, type PromptIntent } from '../facts';
 import { SORT_ID } from '../prompt-model';
 import type { Translate } from '../seams/shared';
+import { IntentBadges, intentTip } from '@/components/app/intent-badges';
 import { col } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { EMPTY_VALUE } from '@/lib/format';
@@ -9,8 +10,8 @@ import { EMPTY_VALUE } from '@/lib/format';
 const INTENT_WIDTH = 128;
 
 /**
- * Intent: what the asker wants, as plain text (no badge, one line, truncated), the same on every platform. It sorts
- * A to Z by the word shown; a prompt the API has not classified (`unknown`) says so and sorts last. `intentOf` reads
+ * Intent: what the asker wants, as a letter badge (I, C, T, N, L) named by the intent, the same on every platform. It
+ * sorts A to Z by the word, which the badge's name and tooltip say; a prompt the API has not classified (`unknown`) says so and sorts last. `intentOf` reads
  * the row's intent, `undefined` when the row has none.
  */
 export function intentColumn<TRow>(
@@ -44,9 +45,15 @@ export function intentColumn<TRow>(
   );
   return {
     ...base,
+    cell: (row) => {
+      const found = reading(row);
+      return found.state === 'ok' ? <IntentBadges intents={[found.intent]} /> : base.cell(row);
+    },
     cellTip: (row) => {
       const found = reading(row);
-      return found.state === 'ok' ? { content: t(`prompts.metrics.intent.tips.${found.intent}`) } : base.cellTip?.(row);
+      return found.state === 'ok'
+        ? { content: intentTip((part, name) => t(`intentBadges.${part}.${name}`), [found.intent]) }
+        : base.cellTip?.(row);
     },
   };
 }

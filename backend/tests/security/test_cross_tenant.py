@@ -296,6 +296,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
+    ("POST", _W + "/projects/{project_id}/keyword-prompt-links"): {
+        "keyword_id": "{unlinked_keyword_id}",
+        "prompt_id": "{prompt_id}",
+    },
     # WP-45 candidates-api
     # WP-47 alerts-api
     ("POST", _W + "/projects/{project_id}/alert-rules"): {
@@ -413,7 +417,7 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
     # Every option, so the opt-in reads are scanned too.
     ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {
-        "include": "series,entities,total,co_mentions,cells",
+        "include": "series,entities,total,co_mentions,cells,facts",
         "compare": "previous_period",
         "group_by": "country",
     },
@@ -1030,6 +1034,24 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-42 panels-api
 
     # WP-44 links-generate
+    link = await fetchrow(
+        pg,
+        "INSERT INTO core.keyword_prompt_links (workspace_id, project_id, keyword_id, prompt_id, "
+        "link_type, is_primary) SELECT $1, $2, k.id, p.id, 'generated', true "
+        "FROM seo.keywords k, ai.prompts p "
+        "WHERE k.workspace_id = $1 AND p.project_id = $2 LIMIT 1 RETURNING id",
+        workspace.id,
+        project_id,
+    )
+    more_ids["link_id"] = str(link["id"])
+    # A keyword the prompt is not linked to yet, for the route that links one.
+    unlinked = await fetchrow(
+        pg,
+        "INSERT INTO seo.keywords (workspace_id, text, normalized_text, language_code) "
+        "VALUES ($1, 'unlinked keyword', 'unlinked keyword', 'en') RETURNING id",
+        workspace.id,
+    )
+    more_ids["unlinked_keyword_id"] = str(unlinked["id"])
 
     # WP-45 candidates-api
 
@@ -1547,6 +1569,7 @@ _TENANT_ROWS = {
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
+    "core.keyword_prompt_links": "workspace_id",
     # WP-45 candidates-api
     # WP-47 alerts-api
     "ops.alert_rules": "workspace_id",

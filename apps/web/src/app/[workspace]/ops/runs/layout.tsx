@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
-import { WorkspaceShell } from '@/features/shell/workspace-shell';
+import { WorkspaceFrame } from '@/features/shell/workspace-frame';
 import { requireMembership } from '@/lib/session/server';
 
 /**
@@ -17,8 +17,8 @@ export default async function RunsLayout({
   const { workspace } = await params;
   const [{ membership }, t] = await Promise.all([requireMembership(workspace), getTranslations('runs')]);
   return (
-    <WorkspaceShell workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }} page={t('title')}>
+    <WorkspaceFrame workspace={{ slug: membership.workspace.slug, name: membership.workspace.name }} page={t('title')}>
       {children}
-    </WorkspaceShell>
+    </WorkspaceFrame>
   );
 }

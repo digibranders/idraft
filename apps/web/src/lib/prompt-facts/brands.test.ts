@@ -27,6 +27,24 @@ const withBrands = (
   });
 
 describe('brandsOf', () => {
+  it('reads a tracked competitor and the own brand from a row with no entity cells, as the page read sends it', () => {
+    // The page's read carries the weekly series, so it asks for no `entities`: the competitor comes in `other_brands`
+    // and the own brand is the engine's Mentioned cell
+    const row = rowOf(
+      engine('chatgpt_web', {
+        valid: 10,
+        mentioned: cellOf(3, 10),
+        other_brands: [{ name: 'HubSpot', mentioned: cellOf(6, 10) }],
+      }),
+    );
+    const reading = brandsOf([row], ['chatgpt_web'], ENTITIES);
+    expect(reading.state).toBe('ok');
+    expect(reading.shown.map((brand) => [brand.name, brand.rate])).toEqual([
+      ['HubSpot', 0.6],
+      ['Northwind', 0.3],
+    ]);
+  });
+
   it('lists the tracked and the other brands, most named first, with the own brand marked', () => {
     const reading = brandsOf([rowOf(withBrands('chatgpt_web', 10, 3, 6, [['Copper', 4]]))], ['chatgpt_web'], ENTITIES);
     expect(reading.state).toBe('ok');

@@ -2584,6 +2584,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The keywords prompts are linked to
+         * @description The project's active and suggested links, newest first, at most 200 (no cursor yet). `filter[prompt_id]` and `filter[keyword_id]` narrow them.
+         */
+        get: operations["list_links_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links_get"];
+        put?: never;
+        /**
+         * Link a keyword to a prompt
+         * @description A manual, active link between a keyword of the workspace and a prompt of the project (`404` for either that is not found). The prompt's search volume is read from its primary link, so linking does not track the keyword and costs no rank checks. `409 duplicate` when the pair is linked already.
+         */
+        post: operations["create_link_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a link between a keyword and a prompt
+         * @description Only the link goes; the keyword and the prompt stay.
+         */
+        delete: operations["delete_link_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links__link_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls": {
         parameters: {
             query?: never;
@@ -6308,6 +6352,11 @@ export interface components {
             country_iso: string;
             /** Engines */
             engines: components["schemas"]["EngineSummary"][];
+            /**
+             * Linked Keywords
+             * @description With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.
+             */
+            linked_keywords?: components["schemas"]["LinkedKeyword"][] | null;
         };
         /** CrawlCreate */
         CrawlCreate: {
@@ -6868,7 +6917,17 @@ export interface components {
              */
             latest?: components["schemas"]["LatestAnswer"] | null;
             mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Other Brands
+             * @description With `include=facts`, on a prompt row: the brands other than the own that the engine's valid answers name (competitors and watched brands, the only brands the project's extraction keeps), most named first, at most 20; empty when no answer names one. Left out on topic and total rows, and when `facts` was not asked for.
+             */
+            other_brands?: components["schemas"]["OtherBrand"][] | null;
             outcomes: components["schemas"]["OutcomeCells"];
+            /**
+             * Position
+             * @description With `include=facts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when `facts` was not asked for.
+             */
+            position?: components["schemas"]["PositionCounts"] | null;
             /**
              * Previous
              * @description With a compare window: the same cells over `compare_window`. Null when none of the row's prompts has an answer of any status on the engine there (no data is not a rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. Left out when no compare window was asked for.
@@ -6880,6 +6939,11 @@ export interface components {
              */
             series?: components["schemas"]["WeekCells"][] | null;
             share_of_voice: components["schemas"]["MetricCell"];
+            /**
+             * Top Links
+             * @description With `include=facts`, on a prompt row: the pages the engine's valid answers cite, most cited first, then by address, at most 20; empty when no answer cites one. Citations flagged `engine_internal` or `unresolved_redirect` are left out. Left out on topic and total rows, and when `facts` was not asked for.
+             */
+            top_links?: components["schemas"]["TopLink"][] | null;
         };
         /** EngineUnits */
         EngineUnits: {
@@ -8323,6 +8387,62 @@ export interface components {
             data: components["schemas"]["Keyword"][];
             page: components["schemas"]["CursorPageInfo"];
         };
+        /** KeywordPromptLink */
+        KeywordPromptLink: {
+            /** Confidence */
+            confidence: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Is Primary */
+            is_primary: boolean;
+            keyword: components["schemas"]["LinkedKeywordRef"];
+            /**
+             * Link Id
+             * Format: uuid
+             */
+            link_id: string;
+            /**
+             * Link Type
+             * @enum {string}
+             */
+            link_type: "exact_match" | "manual" | "generated" | "semantic" | "cluster" | "ai_suggestion" | "fanout";
+            prompt: components["schemas"]["LinkedPromptRef"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "suggested" | "active" | "rejected";
+        };
+        /** KeywordPromptLinkCreate */
+        KeywordPromptLinkCreate: {
+            /**
+             * Is Primary
+             * @description Make this the keyword the prompt's volume is read from. Left out, the link is primary when the prompt has no primary link yet.
+             */
+            is_primary?: boolean | null;
+            /**
+             * Keyword Id
+             * Format: uuid
+             */
+            keyword_id: string;
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+        };
+        /** KeywordPromptLinkList */
+        KeywordPromptLinkList: {
+            /** Data */
+            data: components["schemas"]["KeywordPromptLink"][];
+        };
+        /** KeywordPromptLinkResponse */
+        KeywordPromptLinkResponse: {
+            data: components["schemas"]["KeywordPromptLink"];
+        };
         /** KeywordRow */
         KeywordRow: {
             /**
@@ -8407,6 +8527,36 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** LinkedKeyword */
+        LinkedKeyword: {
+            /** Keyword */
+            keyword: string;
+            /**
+             * Search Volume
+             * @description The monthly searches from the keyword's latest metrics at the prompt's place; null while it has none (a number, including 0, is never invented).
+             */
+            search_volume: number | null;
+        };
+        /** LinkedKeywordRef */
+        LinkedKeywordRef: {
+            /**
+             * Keyword Id
+             * Format: uuid
+             */
+            keyword_id: string;
+            /** Language Code */
+            language_code: string;
+            /** Text */
+            text: string;
+        };
+        /** LinkedPromptRef */
+        LinkedPromptRef: {
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
         };
         /**
          * LintEstimate
@@ -9420,6 +9570,13 @@ export interface components {
             /** Target Url Id */
             target_url_id: string;
         };
+        /** OtherBrand */
+        OtherBrand: {
+            /** @description Valid answers that name the brand, over the engine's valid answers. */
+            mentioned: components["schemas"]["MetricCell"];
+            /** Name */
+            name: string;
+        };
         /** OutcomeCells */
         OutcomeCells: {
             cited_only: components["schemas"]["MetricCell"];
@@ -9859,6 +10016,33 @@ export interface components {
             successes: number;
             /** Trials */
             trials: number;
+        };
+        /**
+         * PositionCounts
+         * @description Where the own brand is named in the answers of an engine, as counts that add up over
+         *     prompts: the mean place is `rank_sum / ordered_answers`.
+         */
+        PositionCounts: {
+            /**
+             * Answers
+             * @description Valid answers (the denominator of `mentioned`).
+             */
+            answers: number;
+            /**
+             * Mentions
+             * @description Valid answers that name the own brand (`mentioned`).
+             */
+            mentions: number;
+            /**
+             * Ordered Answers
+             * @description Valid answers that name the own brand with a place. The place is the order among the brands the project tracks (`own_mention_order`), not a place in a list the answer gives: the extraction does not parse lists yet.
+             */
+            ordered_answers: number;
+            /**
+             * Rank Sum
+             * @description The sum of the places of the answers counted in `ordered_answers`, 1 being named first.
+             */
+            rank_sum: number;
         };
         /** PreviousUnits */
         PreviousUnits: {
@@ -10784,6 +10968,11 @@ export interface components {
              * @description The newest valid answer counted in the window, on the engines shown; null if none.
              */
             last_valid_at: string | null;
+            /**
+             * Linked Keyword
+             * @description With `include=facts`: the keyword the prompt is linked to, the one with the most searches when it has several; null when it has no active link. Left out when `facts` was not asked for.
+             */
+            linked_keyword?: components["schemas"]["LinkedKeyword"] | null;
             /**
              * Prompt Id
              * Format: uuid
@@ -12851,6 +13040,11 @@ export interface components {
              */
             last_valid_at: string | null;
             /**
+             * Linked Keywords
+             * @description With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.
+             */
+            linked_keywords?: components["schemas"]["LinkedKeyword"][] | null;
+            /**
              * Prompt Count
              * @description The prompts in scope, whatever the engines shown.
              */
@@ -13328,6 +13522,29 @@ export interface components {
              */
             url_id: string;
         };
+        /** TopLink */
+        TopLink: {
+            /**
+             * Answers
+             * @description Valid answers that cite the page (once per answer).
+             */
+            answers: number;
+            /**
+             * Domain
+             * @description The host of the page.
+             */
+            domain: string;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /**
+             * Url
+             * @description The canonical URL of the cited page.
+             */
+            url: string;
+        };
         /** TopicSummaryRow */
         TopicSummaryRow: {
             /** Engines */
@@ -13342,6 +13559,11 @@ export interface components {
              * @description The newest valid answer counted in the window, on the engines shown; null if none.
              */
             last_valid_at: string | null;
+            /**
+             * Linked Keywords
+             * @description With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.
+             */
+            linked_keywords?: components["schemas"]["LinkedKeyword"][] | null;
             /** Name */
             name: string | null;
             /** Prompt Count */
@@ -20304,6 +20526,109 @@ export interface operations {
             };
         };
     };
+    list_links_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links_get: {
+        parameters: {
+            query?: {
+                "filter[prompt_id]"?: string | null;
+                "filter[keyword_id]"?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordPromptLinkList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_link_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordPromptLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordPromptLinkResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_link_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links__link_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                link_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_crawls_api_v1_workspaces__workspace_id__projects__project_id__link_crawls_get: {
         parameters: {
             query?: {
@@ -23390,6 +23715,8 @@ export const keywordImportConfirmDuplicate_actionValues: ReadonlyArray<Flattened
 export const keywordImportCreateSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImportCreate"]["source"]> = ["paste", "api"];
 export const keywordMetricsCompetition_levelAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["competition_level"]> = ["LOW", "MEDIUM", "HIGH"];
 export const keywordMetricsSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordMetrics"]["source"]> = ["dataforseo_labs", "dataforseo_google_ads", "dataforseo_clickstream"];
+export const keywordPromptLinkLink_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordPromptLink"]["link_type"]> = ["exact_match", "manual", "generated", "semantic", "cluster", "ai_suggestion", "fanout"];
+export const keywordPromptLinkStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordPromptLink"]["status"]> = ["suggested", "active", "rejected"];
 export const latestAnswerScreenshot_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LatestAnswer"]["screenshot_state"]> = ["available", "capturable", "expired", "unsupported"];
 export const lintWarningRuleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["rule"]> = ["contains_brand_alias", "engine_limit", "word_count", "multiple_questions", "leading_wording", "language_mismatch", "contains_competitor_alias"];
 export const lintWarningSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["LintWarning"]["severity"]> = ["info", "warning", "error"];
@@ -23524,6 +23851,7 @@ export const tierRulePatchMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<
 export const tierRulePreviewRequestMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRulePreviewRequest"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierRuleViewMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleView"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierSuggestionMetaGsc_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierSuggestionMeta"]["gsc_state"]> = ["ok", "pending", "not_connected"];
+export const topLinkDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TopLink"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];

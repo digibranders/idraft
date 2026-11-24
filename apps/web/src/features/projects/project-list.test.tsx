@@ -139,6 +139,17 @@ describe('ProjectList', () => {
     expect(screen.getByRole('link', { name: 'New project' })).toBeInTheDocument();
   });
 
+  it('lists what a project covers beside the empty state, for a member who can create one only', () => {
+    const { unmount } = renderWithProviders(
+      <ProjectList workspace="digibranders" projects={[]} emptyReason="creator" />,
+    );
+    const steps = screen.getByRole('region', { name: 'What a project covers' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
+    unmount();
+    renderWithProviders(<ProjectList workspace="digibranders" projects={[]} emptyReason="viewer" />);
+    expect(screen.queryByRole('region', { name: 'What a project covers' })).toBeNull();
+  });
+
   it('has no New project for anyone else', () => {
     renderWithProviders(<ProjectList workspace="digibranders" projects={[]} emptyReason="viewer" />);
     expect(screen.queryByRole('link', { name: 'New project' })).toBeNull();

@@ -37,12 +37,14 @@ import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { isApiProblem } from '@/lib/api/problem';
 import { crawlInView } from '@/lib/internal-links/crawl-choice';
 import { failedText } from '@/lib/internal-links/crawl-failure';
-import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
+import type { CrawlRun, LinksScope, PageTier } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';
 
 const CHANGES_QUERY = 'tab=changes';
 const HEADING_ID = 'internal-links-heading';
+/** One empty list for every render: a new one each time re-runs the tabs' effects that depend on the tiers. */
+const NO_TIERS: readonly PageTier[] = [];
 const TAB_LIST_CLASS = 'max-w-full overflow-x-auto scrollbar-none';
 
 export interface InternalLinksProject {
@@ -217,7 +219,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     state,
     crawl: inView,
     setSearch,
-    tiers: tiers.data?.data ?? [],
+    tiers: tiers.data?.data ?? NO_TIERS,
     // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
     inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), setOrder, ...inspected },
     openJourney: (urlId) =>

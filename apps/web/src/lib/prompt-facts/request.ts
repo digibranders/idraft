@@ -8,8 +8,8 @@ const mocked = (): boolean => publicEnv.NEXT_PUBLIC_API_MOCKING === 'all';
 
 /**
  * Whether the Prompts page and its inspector send `include=facts`. The API builds `latest` (the newest answer with
- * the state of its screenshot) for it; the other facts are left out of its rows, and the columns that read them say
- * not collected yet.
+ * the state of its screenshot), `position`, `other_brands` and `top_links` for it; sentiment and recommendation are left
+ * out of its rows, and the columns that read them say not collected yet.
  */
 export const factsRequested = (): boolean => true;
 

@@ -845,6 +845,37 @@ class WeekCells(BaseModel):
     )
 
 
+class PositionCounts(BaseModel):
+    """Where the own brand is named in the answers of an engine, as counts that add up over
+    prompts: the mean place is `rank_sum / ordered_answers`."""
+
+    rank_sum: int = Field(
+        description="The sum of the places of the answers counted in `ordered_answers`, 1 being "
+        "named first."
+    )
+    ordered_answers: int = Field(
+        description="Valid answers that name the own brand with a place. The place is the order "
+        "among the brands the project tracks (`own_mention_order`), not a place in a list the "
+        "answer gives: the extraction does not parse lists yet."
+    )
+    mentions: int = Field(description="Valid answers that name the own brand (`mentioned`).")
+    answers: int = Field(description="Valid answers (the denominator of `mentioned`).")
+
+
+class OtherBrand(BaseModel):
+    name: str
+    mentioned: MetricCell = Field(
+        description="Valid answers that name the brand, over the engine's valid answers."
+    )
+
+
+class TopLink(BaseModel):
+    url: str = Field(description="The canonical URL of the cited page.")
+    domain: str = Field(description="The host of the page.")
+    domain_role: Literal["own", "competitor", "third_party"]
+    answers: int = Field(description="Valid answers that cite the page (once per answer).")
+
+
 class LatestAnswer(BaseModel):
     """The newest valid answer of an engine for a prompt row."""
 
@@ -906,6 +937,32 @@ class EngineSummary(BaseModel):
         "valid answer there. Left out on topic and total rows, and when `facts` was not asked "
         "for.",
     )
+    position: PositionCounts | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`: where the own brand is named in the engine's valid "
+        "answers, as counts (zeros when there is no valid answer). On a topic, total or country "
+        "row the counts are the sums over its prompts. Left out when `facts` was not asked for.",
+    )
+    other_brands: list[OtherBrand] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`, on a prompt row: the brands other than the own that "
+        "the engine's valid answers name (competitors and watched brands, the only brands the "
+        "project's extraction keeps), most named first, at most 20; empty when no answer names "
+        "one. Left out on topic and total rows, and when `facts` was not asked for.",
+    )
+    top_links: list[TopLink] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`, on a prompt row: the pages the engine's valid answers "
+        "cite, most cited first, then by address, at most 20; empty when no answer cites one. "
+        "Citations flagged `engine_internal` or `unresolved_redirect` are left out. Left out on "
+        "topic and total rows, and when `facts` was not asked for.",
+    )
 
 
 _LAST_OBSERVED = (
@@ -913,6 +970,25 @@ _LAST_OBSERVED = (
     "engines shown; null when there is none."
 )
 _LAST_VALID = "The newest valid answer counted in the window, on the engines shown; null if none."
+
+
+class LinkedKeyword(BaseModel):
+    keyword: str
+    search_volume: int | None = Field(
+        description="The monthly searches from the keyword's latest metrics at the prompt's "
+        "place; null while it has none (a number, including 0, is never invented)."
+    )
+
+
+_LINKED_ONE = (
+    "With `include=facts`: the keyword the prompt is linked to, the one with the most searches "
+    "when it has several; null when it has no active link. Left out when `facts` was not asked "
+    "for."
+)
+_LINKED_MANY = (
+    "With `include=facts`: the distinct keywords linked to the prompts of the row, each once "
+    "(a keyword with a null volume is not a 0). Left out when `facts` was not asked for."
+)
 
 
 class PromptSummaryRow(BaseModel):
@@ -923,6 +999,12 @@ class PromptSummaryRow(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
+    linked_keyword: LinkedKeyword | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description=_LINKED_ONE,
+    )
 
 
 class TopicSummaryRow(BaseModel):
@@ -933,6 +1015,12 @@ class TopicSummaryRow(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description=_LINKED_MANY,
+    )
 
 
 class SummaryTotal(BaseModel):
@@ -942,6 +1030,12 @@ class SummaryTotal(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description=_LINKED_MANY,
+    )
 
 
 class CoMentionPair(BaseModel):
@@ -959,6 +1053,12 @@ class EngineCoMentions(BaseModel):
 class CountrySummary(BaseModel):
     country_iso: str
     engines: list[EngineSummary]
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description=_LINKED_MANY,
+    )
 
 
 class SummaryEntity(BaseModel):

@@ -66,7 +66,7 @@ test.describe('setting up the workspace', () => {
   test('an editor creates a project and lands on it', async ({ page }) => {
     await signIn(page, EDITOR);
     await expect(page).toHaveURL(/\/digibranders$/);
-    await page.getByRole('link', { name: 'New project' }).click();
+    await page.getByRole('main').getByRole('link', { name: 'New project' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'New project' })).toBeVisible();
     await expectAccessible(page);
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Northwind Traders');
