@@ -9,8 +9,8 @@ again. Null `pages_variant` means "not counted": crawls finished before this rev
 their counters are recomputed (operator step, see plan 09). The worker may update these columns
 and a link's target, as it already writes the rest of the crawl. Nothing is backfilled here.
 
-Revision ID: 0035
-Revises: 0034
+Revision ID: 0037
+Revises: 0036
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from alembic import op
 
 from idraft.db.ddl import column_grant
 
-revision: str = "0035"
-down_revision: str | None = "0034"
+revision: str = "0037"
+down_revision: str | None = "0036"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None
 

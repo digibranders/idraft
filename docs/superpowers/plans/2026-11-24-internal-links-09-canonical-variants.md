@@ -53,7 +53,7 @@ tier rule preview.
 
 ## Stored crawls: the recount (operator step, needs the owner's go)
 
-Migration 0035 adds columns only. A crawl finished before it has no variants until it is
+Migration 0037 adds columns only. A crawl finished before it has no variants until it is
 recounted: `crawl_ingest.recount_variants(sessions, workspace_id=..., run_id=...)` gives it what a
 fresh ingest gives (counts, flags, depth, equity, anchors, tier flow, run counters) without a new
 crawl. It takes finished crawls whose second job has ended, takes the project lock, can be run

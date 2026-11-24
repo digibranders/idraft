@@ -83,7 +83,7 @@ RUN_WORKER_UPDATE = (
     "pages_blocked",
     # Migration 0032: when the crawl last read a new page.
     "progress_at",
-    # Migration 0035: pages that are variants of another crawled page.
+    # Migration 0037: pages that are variants of another crawled page.
     "pages_variant",
 )
 PAGE_WORKER_UPDATE = (
@@ -113,7 +113,7 @@ PAGE_WORKER_UPDATE = (
     # Migration 0027: editorial anchor counts that drive a flag.
     "editorial_anchors",
     "generic_anchors",
-    # Migration 0035: the canonical page a variant folds into.
+    # Migration 0037: the canonical page a variant folds into.
     "variant_of_url_id",
 )
 
@@ -505,7 +505,7 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         READ,
         access(
             "SELECT, INSERT, DELETE",
-            # Migration 0035: a link to a variant is re-pointed at its canonical page.
+            # Migration 0037: a link to a variant is re-pointed at its canonical page.
             UPDATE=("placement", "scope", "target_url_id", "folded_from_url_id", "ignored"),
         ),
     ),
