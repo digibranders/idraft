@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alert-rule-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The rule types a rule can have
+         * @description Each with its area, default severity and the JSON Schema of its `params`.
+         */
+        get: operations["list_rule_types_api_v1_alert_rule_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/password-reset/confirm": {
         parameters: {
             query?: never;
@@ -473,6 +493,26 @@ export interface paths {
          * @description Read only, no sign-in. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached.
          */
         get: operations["public_summary_api_v1_public_internal_links_summary__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/reports/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The AI visibility report of a guest link
+         * @description Read only, no sign-in, the last 28 project-local days. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached and holds no costs, prompt texts or answer texts.
+         */
+        get: operations["public_report_api_v1_public_reports__token__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1734,6 +1774,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The alerts of the project, newest first */
+        get: operations["list_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark alerts as seen
+         * @description At most 500 ids. Ids that are not open alerts of this project count for nothing; `acknowledged` says how many were marked.
+         */
+        post: operations["acknowledge_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's alert rules, oldest first */
+        get: operations["list_alert_rules_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_get"];
+        put?: never;
+        /**
+         * Make an alert rule
+         * @description `422 invalid_params` when `params` do not fit the rule type: `rank_drop` takes `positions` (a whole number from 1 to 50, default 5), the AI types take none. `scope` may narrow the rule by `group_ids` and, for the AI types, `engine_codes` (platforms).
+         */
+        post: operations["create_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules/{alert_rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One alert rule */
+        get: operations["get_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an alert rule
+         * @description The alerts it raised are deleted with it.
+         */
+        delete: operations["delete_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change an alert rule
+         * @description Name, scope, parameters or whether it is active; the rule type cannot change. A rule raises alerts only for runs and checks that finish after it is made.
+         */
+        patch: operations["update_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__patch"];
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
         parameters: {
             query?: never;
@@ -2832,6 +2955,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The scheduled report emails of the project */
+        get: operations["list_schedules_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_get"];
+        put?: never;
+        /**
+         * Email the report weekly or monthly
+         * @description Weekly sends on Monday and monthly on the 1st, at 06:00 UTC. Each email holds a new report link that works for 30 days. At most 10 recipients and 10 schedules a project (`422 schedule_limit`).
+         */
+        post: operations["create_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules/{report_schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a scheduled report
+         * @description The links already emailed keep working until they expire or are revoked.
+         */
+        delete: operations["delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change, pause or resume a scheduled report */
+        patch: operations["update_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The report links of the project, newest first, without their tokens */
+        get: operations["list_shares_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_get"];
+        put?: never;
+        /**
+         * Make a read-only link to the project's AI visibility report
+         * @description The token in the answer is shown once and is not stored; only its hash is. The link stops working at `expires_at` (7, 30 or 90 days, default 30) or when revoked.
+         */
+        post: operations["create_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares/{report_share_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a report link
+         * @description Revoking a link that is already revoked changes nothing.
+         */
+        delete: operations["revoke_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares__report_share_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs": {
         parameters: {
             query?: never;
@@ -3600,6 +3806,23 @@ export interface components {
         AcceptedInvitationResponse: {
             data: components["schemas"]["AcceptedInvitation"];
         };
+        /** AcknowledgeBody */
+        AcknowledgeBody: {
+            /** Ids */
+            ids: string[];
+        };
+        /** Acknowledged */
+        Acknowledged: {
+            /**
+             * Acknowledged
+             * @description Alerts that were open and are now acknowledged.
+             */
+            acknowledged: number;
+        };
+        /** AcknowledgedResponse */
+        AcknowledgedResponse: {
+            data: components["schemas"]["Acknowledged"];
+        };
         /** Actor */
         Actor: {
             /** Actor Id */
@@ -4324,6 +4547,143 @@ export interface components {
              * @enum {string}
              */
             state: "absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown";
+        };
+        /** AlertEvent */
+        AlertEvent: {
+            /** Acknowledged At */
+            acknowledged_at: string | null;
+            /** Acknowledged By */
+            acknowledged_by: string | null;
+            event_kind: components["schemas"]["RuleType"];
+            /**
+             * Evidence
+             * @description The counts or ranks before and after: `engine_code`, `run_id`, `before`, `after` and `competitor` for AI alerts; `from_rank`, `to_rank`, `positions_lost` and `positions` for a rank drop.
+             */
+            evidence: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Rule Id
+             * Format: uuid
+             */
+            rule_id: string;
+            severity: components["schemas"]["Severity"];
+            /** Subject Id */
+            subject_id: string;
+            /** Subject Label */
+            subject_label: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "prompt" | "keyword";
+        };
+        /** AlertEventPage */
+        AlertEventPage: {
+            /** Data */
+            data: components["schemas"]["AlertEvent"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** AlertRule */
+        AlertRule: {
+            /** Channels */
+            channels: "in_app"[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Digest Mode
+             * @constant
+             */
+            digest_mode: "immediate";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            rule_type: components["schemas"]["RuleType"];
+            scope: components["schemas"]["RuleScope"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AlertRuleInput */
+        AlertRuleInput: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Params
+             * @description Checked against the rule type's `params_schema` (`422 invalid_params`).
+             */
+            params?: {
+                [key: string]: unknown;
+            };
+            rule_type: components["schemas"]["RuleType"];
+            scope?: components["schemas"]["RuleScope"];
+        };
+        /** AlertRulePage */
+        AlertRulePage: {
+            /** Data */
+            data: components["schemas"]["AlertRule"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** AlertRuleResponse */
+        AlertRuleResponse: {
+            data: components["schemas"]["AlertRule"];
+        };
+        /** AlertRuleType */
+        AlertRuleType: {
+            channel: components["schemas"]["Channel"];
+            default_severity: components["schemas"]["Severity"];
+            /** Params Schema */
+            params_schema: {
+                [key: string]: unknown;
+            };
+            rule_type: components["schemas"]["RuleType"];
+        };
+        /** AlertRuleTypeList */
+        AlertRuleTypeList: {
+            /** Data */
+            data: components["schemas"]["AlertRuleType"][];
+        };
+        /**
+         * AlertRuleUpdate
+         * @description Any of these; the rule type cannot change.
+         */
+        AlertRuleUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            scope?: components["schemas"]["RuleScope"] | null;
         };
         /** AlertSettings */
         AlertSettings: {
@@ -5119,6 +5479,8 @@ export interface components {
         ChangesSummaryResponse: {
             data: components["schemas"]["ChangesSummary"];
         };
+        /** @enum {string} */
+        Channel: "ai" | "seo";
         /**
          * CheckNow
          * @description Keywords to check at once, each a search of its own through the standard queue.
@@ -5472,6 +5834,43 @@ export interface components {
              * @description Answers citing it that name the entity.
              */
             observations: number;
+        };
+        /** ClientReport */
+        ClientReport: {
+            /** Brands */
+            brands: components["schemas"]["ReportBrand"][];
+            /**
+             * Cited Domains
+             * @description Most citations first, at most 10.
+             */
+            cited_domains: components["schemas"]["ReportDomain"][];
+            /** Engines */
+            engines: components["schemas"]["ReportEngine"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Host */
+            host: string;
+            /** Prompt Count */
+            prompt_count: number;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Window From
+             * @description First project-local day, `YYYY-MM-DD`.
+             */
+            window_from: string;
+            /**
+             * Window To
+             * @description Last project-local day, `YYYY-MM-DD`.
+             */
+            window_to: string;
+        };
+        /** ClientReportResponse */
+        ClientReportResponse: {
+            data: components["schemas"]["ClientReport"];
         };
         /** ClientSummary */
         ClientSummary: {
@@ -6010,6 +6409,41 @@ export interface components {
         /** CrawlRunResponse */
         CrawlRunResponse: {
             data: components["schemas"]["CrawlRun"];
+        };
+        /** CreatedReportShare */
+        CreatedReportShare: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            state: components["schemas"]["ShareState"];
+            /**
+             * Token
+             * @description The secret of the link, shown this once. The public read is `/api/v1/public/reports/{token}` and the web builds its own address.
+             */
+            token: string;
+        };
+        /** CreatedReportShareResponse */
+        CreatedReportShareResponse: {
+            data: components["schemas"]["CreatedReportShare"];
         };
         /** CreatedShare */
         CreatedShare: {
@@ -10665,6 +11099,150 @@ export interface components {
             user_id: string;
         };
         /**
+         * ReportBrand
+         * @description Your brand or a tracked competitor, by name.
+         */
+        ReportBrand: {
+            /** Engines */
+            engines: components["schemas"]["ReportBrandEngine"][];
+            /** Name */
+            name: string;
+            role: components["schemas"]["ReportRole"];
+        };
+        /**
+         * ReportBrandEngine
+         * @description The valid answers that name the brand. Share of voice is not sent: the owner's definition
+         *     (the brand's mentions over every tracked brand's) is worked out from these counts by whoever
+         *     shows it.
+         */
+        ReportBrandEngine: {
+            /** Engine Code */
+            engine_code: string;
+            mentioned: components["schemas"]["MetricCell"];
+        };
+        /** ReportDomain */
+        ReportDomain: {
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Registrable Domain */
+            registrable_domain: string;
+            source_share: components["schemas"]["MetricCell"];
+        };
+        /** ReportEngine */
+        ReportEngine: {
+            cited: components["schemas"]["MetricCell"];
+            /** Engine Code */
+            engine_code: string;
+            mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Weeks
+             * @description Oldest first.
+             */
+            weeks: components["schemas"]["ReportWeek"][];
+        };
+        /** @enum {string} */
+        ReportRole: "own" | "competitor";
+        /** ReportSchedule */
+        ReportSchedule: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            frequency: components["schemas"]["ReportScheduleFrequency"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Error
+             * @description Why the last send failed; null after a good one.
+             */
+            last_error: string | null;
+            /** Last Sent At */
+            last_sent_at: string | null;
+            /**
+             * Next Run At
+             * Format: date-time
+             * @description The next send, 06:00 UTC, once the schedule runs.
+             */
+            next_run_at: string;
+            /** Paused */
+            paused: boolean;
+            /** Recipients */
+            recipients: string[];
+        };
+        /** ReportScheduleCreate */
+        ReportScheduleCreate: {
+            frequency: components["schemas"]["ReportScheduleFrequency"];
+            /** Recipients */
+            recipients: string[];
+        };
+        /** @enum {string} */
+        ReportScheduleFrequency: "weekly" | "monthly";
+        /** ReportScheduleList */
+        ReportScheduleList: {
+            /** Data */
+            data: components["schemas"]["ReportSchedule"][];
+        };
+        /** ReportScheduleResponse */
+        ReportScheduleResponse: {
+            data: components["schemas"]["ReportSchedule"];
+        };
+        /** ReportScheduleUpdate */
+        ReportScheduleUpdate: {
+            frequency?: components["schemas"]["ReportScheduleFrequency"] | null;
+            /** Paused */
+            paused?: boolean | null;
+            /** Recipients */
+            recipients?: string[] | null;
+        };
+        /** ReportShareCreate */
+        ReportShareCreate: {
+            /**
+             * @description Days until the link stops working.
+             * @default 30
+             */
+            expires_in_days: components["schemas"]["ExpiryDays"];
+        };
+        /** ReportShareList */
+        ReportShareList: {
+            /** Data */
+            data: components["schemas"]["Share"][];
+        };
+        /** ReportShareResponse */
+        ReportShareResponse: {
+            data: components["schemas"]["Share"];
+        };
+        /** ReportWeek */
+        ReportWeek: {
+            cited: components["schemas"]["MetricCell"];
+            /** Is Pooled */
+            is_pooled: boolean;
+            mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Pool Weeks
+             * @description With `is_pooled`: the weeks the point holds, 1 to 4, its own included.
+             */
+            pool_weeks: number | null;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+        };
+        /**
          * @description Words a slug cannot be: they are routes of the web app.
          * @enum {string}
          */
@@ -10778,6 +11356,21 @@ export interface components {
             /** Row No */
             row_no: number;
         };
+        /**
+         * RuleScope
+         * @description Who a rule watches; empty means everything in the project.
+         *
+         *     `group_ids` are the groups of prompts (taxonomy terms) for the AI rule types and the keyword
+         *     groups for `rank_drop`; `engine_codes` are platforms and only narrow the AI rule types.
+         */
+        RuleScope: {
+            /** Engine Codes */
+            engine_codes?: string[];
+            /** Group Ids */
+            group_ids?: string[];
+        };
+        /** @enum {string} */
+        RuleType: "ai_mention_gained" | "ai_mention_lost" | "ai_competitor_appeared" | "rank_drop";
         /** Run */
         Run: {
             /** Actual Cost Usd */
@@ -11640,6 +12233,8 @@ export interface components {
             /** Data */
             data: components["schemas"]["SessionItem"][];
         };
+        /** @enum {string} */
+        Severity: "info" | "warning" | "critical";
         /**
          * Share
          * @description A link as listed. The token is never here: it is shown once, when the link is made.
@@ -13820,6 +14415,35 @@ export interface operations {
             };
         };
     };
+    list_rule_types_api_v1_alert_rule_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleTypeList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     confirm_password_reset_api_v1_auth_password_reset_confirm_post: {
         parameters: {
             query?: never;
@@ -14567,6 +15191,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientSummaryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_report_api_v1_public_reports__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientReportResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -17683,6 +18338,254 @@ export interface operations {
             };
         };
     };
+    list_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_get: {
+        parameters: {
+            query?: {
+                "filter[acknowledged]"?: boolean | null;
+                "filter[rule_id]"?: string | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    acknowledge_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcknowledgeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcknowledgedResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_alert_rules_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_get: {
+        parameters: {
+            query?: {
+                "filter[is_active]"?: boolean | null;
+                "filter[rule_type_in]"?: components["schemas"]["RuleType"][] | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRulePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                alert_rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                alert_rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                alert_rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertRuleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     alias_test_api_v1_workspaces__workspace_id__projects__project_id__alias_test_post: {
         parameters: {
             query?: never;
@@ -20248,6 +21151,243 @@ export interface operations {
             };
         };
     };
+    list_schedules_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                report_schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                report_schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_shares_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportShareList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportShareCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedReportShareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares__report_share_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                report_share_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportShareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get: {
         parameters: {
             query?: {
@@ -22137,6 +23277,7 @@ export const aiMetricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const aioCitationsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioCitations"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioHistoryItemAi_overview_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioHistoryItem"]["ai_overview_state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioStateInfoStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioStateInfo"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
+export const alertEventSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertEvent"]["subject_type"]> = ["prompt", "keyword"];
 export const alertSettingsChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertSettings"]["channel"]> = ["app", "email", "slack"];
 export const alertSettingsPatchChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertSettingsPatch"]["channel"]> = ["app", "email", "slack"];
 export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
@@ -22164,6 +23305,7 @@ export const changeLinkMetaChangeValues: ReadonlyArray<FlattenedDeepRequired<com
 export const changeLinkMetaLink_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["link_scope"]> = ["editorial", "all"];
 export const changeLinkMetaOnlyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["only"]> = ["top", "all"];
 export const changesSummaryStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangesSummary"]["state"]> = ["first_crawl", "pending", "ready", "unavailable"];
+export const channelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Channel"]> = ["ai", "seo"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citedAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
@@ -22295,6 +23437,9 @@ export const promptVersionChange_kindValues: ReadonlyArray<FlattenedDeepRequired
 export const rankCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankCell"]["state"]> = ["ranked", "beyond_depth", "not_checked", "failed"];
 export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankChange"]["label"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
+export const reportDomainDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportDomain"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const reportRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportRole"]> = ["own", "competitor"];
+export const reportScheduleFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportScheduleFrequency"]> = ["weekly", "monthly"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
 export const resolvedLayoutScreenValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["screen"]> = ["overview", "ai_overview", "rankings", "prompts", "citations", "sources", "pages", "inspector.keyword", "inspector.prompt", "inspector.page", "inspector.citation", "inspector.topic"];
@@ -22304,6 +23449,7 @@ export const roleUnitsDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<com
 export const routeStepPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RouteStep"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const routeStepScopeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RouteStep"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const rowActionInputActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RowActionInput"]["action"]> = ["create", "skip", "merge", "force_separate"];
+export const ruleTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RuleType"]> = ["ai_mention_gained", "ai_mention_lost", "ai_competitor_appeared", "rank_drop"];
 export const runStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const runTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
 export const runWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
@@ -22336,6 +23482,7 @@ export const seoSettingsPatchVisibility_weight_schemeValues: ReadonlyArray<Flatt
 export const serpSnapshotDetailAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["titles_source"]> = ["domain_rank_observations", "serp_current_results", "unavailable"];
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
+export const severityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Severity"]> = ["info", "warning", "critical"];
 export const shareStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ShareState"]> = ["active", "expired", "revoked"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];

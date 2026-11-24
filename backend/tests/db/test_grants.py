@@ -384,6 +384,24 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ops.raw_payloads": (NONE, access("SELECT, INSERT", UPDATE=("expires_at",))),
     # Migration 0034: the API records the cost of a screenshot a person captured.
     "ops.provider_cost_events": (access("SELECT, INSERT"), access("SELECT, INSERT")),
+    # Migration 0035: the API manages rules and acknowledges alerts; the worker raises them.
+    "ops.alert_rules": (
+        access(
+            "SELECT, INSERT, DELETE", UPDATE=("name", "scope", "params", "is_active", "updated_at")
+        ),
+        READ,
+    ),
+    "ops.alert_events": (
+        access("SELECT", UPDATE=("acknowledged_by", "acknowledged_at")),
+        access("SELECT, INSERT"),
+    ),
+    "ops.alert_cursors": (
+        READ,
+        access(
+            "SELECT, INSERT",
+            UPDATE=("last_completed_at", "last_rank_event_id", "updated_at"),
+        ),
+    ),
     "ops.cost_daily": (
         READ,
         access("SELECT, INSERT", UPDATE=("request_count", "cost_usd", "subjects")),
@@ -446,7 +464,8 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         READ,
     ),
     "ai.prompt_versions": (access("SELECT, INSERT"), READ),
-    "ai.prompt_terms": (access("SELECT, INSERT, DELETE"), NONE),
+    # Migration 0035: alert evaluation narrows a rule to the prompts of a group.
+    "ai.prompt_terms": (access("SELECT, INSERT, DELETE"), READ),
     "ai.derivations": (READ, access("SELECT, INSERT")),
     "ai.observations": (READ, access("SELECT, INSERT")),
     "ai.citations": (READ, access("SELECT, INSERT")),
@@ -496,6 +515,18 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "core.client_summary_shares": (
         access("SELECT, INSERT", UPDATE=("revoked_at", "revoked_by")),
         NONE,
+    ),
+    # Migration 0036: the API or the digest job makes report links; a revoke is the only update.
+    "core.ai_report_shares": (
+        access("SELECT, INSERT", UPDATE=("revoked_at", "revoked_by")),
+        access("SELECT, INSERT"),
+    ),
+    "core.ai_report_schedules": (
+        access(
+            "SELECT, INSERT, DELETE",
+            UPDATE=("frequency", "recipients", "paused", "next_run_at"),
+        ),
+        access("SELECT", UPDATE=("last_sent_at", "last_error")),
     ),
     # Page totals from Search Console, replaced by the worker a day at a time.
     "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
@@ -612,6 +643,10 @@ FUNCTIONS: dict[str, frozenset[str]] = {
     "auth.current_user_id()": frozenset(ROLES),
     "auth.invitation_by_token(bytea)": frozenset({"app_api"}),
     "core.client_summary_share_by_token(bytea)": frozenset({"app_api"}),
+    "core.ai_report_share_by_token(bytea)": frozenset({"app_api"}),
+    "core.ai_report_schedules_claim_due(timestamp with time zone,integer)": frozenset(
+        {"app_worker"}
+    ),
     # The raw payload of a snapshot of the current workspace (review log F8).
     "seo.serp_snapshot_raw(bigint)": frozenset({"app_api"}),
     # The raw payload of an answer of the current workspace (migration 0018).

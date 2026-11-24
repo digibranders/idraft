@@ -42,6 +42,8 @@ from idraft.api.operations.settings import SettingsService
 from idraft.api.projects.service import ProjectService
 from idraft.api.quotas.service import QuotaService
 from idraft.api.ranks.service import RankService
+from idraft.api.reports.guest import ClientReportService
+from idraft.api.reports.schedules import ReportScheduleService
 from idraft.api.taxonomy.service import TaxonomyService
 from idraft.api.workspaces.invitations import InvitationService
 from idraft.api.workspaces.members import MemberService
@@ -98,6 +100,9 @@ class Resources:
     tier_suggestions: SuggestionService
     route_finder: RouteFinder
     link_shares: ShareService
+    report_shares: ShareService
+    report_schedules: ReportScheduleService
+    client_report: ClientReportService
     public_summary: PublicSummaryService
     crawls: CrawlService
 

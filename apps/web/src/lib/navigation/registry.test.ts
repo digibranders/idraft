@@ -36,7 +36,7 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Competitors, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
       'internalLinks',
@@ -44,6 +44,7 @@ describe('the navigation registry', () => {
       'prompts',
       'citations',
       'competitors',
+      'reports',
       'integrations',
       'runs',
       'costs',
@@ -70,6 +71,7 @@ describe('the navigation registry', () => {
       'prompts',
       'citations',
       'competitors',
+      'reports',
       'integrations',
       'runs',
       'settings',
@@ -81,6 +83,7 @@ describe('the navigation registry', () => {
       'prompts',
       'citations',
       'competitors',
+      'reports',
       'integrations',
       'runs',
       'costs',
@@ -187,7 +190,6 @@ describe('the navigation registry', () => {
       'rankings',
       'pages',
       'discover',
-      'reports',
     ]);
   });
 
