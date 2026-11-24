@@ -372,8 +372,8 @@ would make two of its lines exact. Neither blocks anything.
 25. Ask: `GET {P}/ai/opportunities/untracked-keywords` returning `{ total, data[] }` of tracked keywords whose latest
     check has `aio_state` `present_not_cited` or `present_cited` and whose normalized text no active prompt of the
     project has. Today the web reads one page (200) of `tracked-keywords?filter[aio_state]=...` and one page of
-    `prompts` and matches the normalized text itself, so the count is a floor past 200 keywords and is left out past
-    200 prompts. Matching exact text is also strict: a keyword and the prompt written from it rarely read the same,
+    `prompts` and matches the normalized text itself, so the count is a floor past 200 keywords, and past 200 prompts it is unknown, which keeps the box from saying
+    there is nothing to do. Matching exact text is also strict: a keyword and the prompt written from it rarely read the same,
     so the count is high until a prompt carries its linked keyword (WP-44, the `linked_keyword` fact). The Start
     tracking action needs the keyword list from this route to pre-fill the Add prompts dialog.
 26. Ask: `filter[brand_mentioned]=false` on `sources/domains` (and a `brand_mentioned` count per row): the domains

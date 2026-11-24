@@ -37,15 +37,15 @@ export function normalizeText(text: string): string {
  * Keywords whose latest check shows a Google AI Overview and that no prompt has as its text.
  * shortcut: an exact match on the normalized text, over at most one page of each list, until the API counts it
  * (backend request 25); `moreKeywords` and `morePrompts` mark a list that was cut, which makes the number a floor
- * (cut keywords) or unknown (cut prompts, which could hide a match).
+ * (cut keywords) or unknown, a floor of 0 (cut prompts, which could hide a match).
  */
 export function untrackedCount(
   keywords: readonly string[],
   prompts: readonly string[],
   { moreKeywords, morePrompts }: { moreKeywords: boolean; morePrompts: boolean },
-): InsightCount | null {
-  // Prompts that did not all load could match any keyword: nothing true can be said
-  if (morePrompts) return null;
+): InsightCount {
+  // Prompts that did not all load could match any keyword: nothing true can be said, which is a floor of zero
+  if (morePrompts) return { count: 0, atLeast: true };
   const tracked = new Set(prompts.map(normalizeText));
   const seen = new Set<string>();
   for (const keyword of keywords) {
@@ -73,6 +73,10 @@ export function citingCompetitorsCount(
   ).length;
   return { count, atLeast: more };
 }
+
+/** A count that is only a floor, and a floor of 0 says nothing: the box must not claim there is nothing to do. */
+export const isUnknown = (count: InsightCount | undefined): boolean =>
+  count !== undefined && count.atLeast && count.count === 0;
 
 /** The lines with something to act on, in order; a line still loading or failed is not among them. */
 export function openLines<T extends { count: number }>(

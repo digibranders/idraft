@@ -14,23 +14,27 @@ condition); a line here points at the page, not at a prompt list.
 
 | Line | Words (glossary) | Read that exists | Link |
 |---|---|---|---|
-| a | "{n} keywords show a Google AI Overview and are not tracked as prompts" | `GET keywords?filter[aio_state]=present_not_cited,present_cited` (rows, `limit` 200) matched by text against `GET ai/prompts`. No read says "not tracked as a prompt" | Prompts, action **Start tracking** |
-| b | "{n} prompts where a competitor is cited and your site is not" | `GET ai/citations/gaps` `meta.gaps` (the Citations gap definition: cited on an engine for a competitor, not for you) | Citations, Gaps tab |
-| c | "{n} cited domains that cite your tracked competitors" | `GET ai/sources/domains?filter[domain_role_in]=third_party&include=cited_with`, rows whose `cited_with.entity_id` is a tracked competitor | Citations, Domains tab |
-| d | "{n} new cited domains this month" | `GET ai/sources/changes?kind=new&limit=1`, `page.total`, window first of the month to today | Citations, Domains tab |
+| a | "{n} keywords show a Google AI Overview and are not tracked as prompts" | `GET tracked-keywords?filter[aio_state]=present_not_cited,present_cited` (one page of 200) matched by normalized text against `GET prompts` (one page of 200). No read says "not tracked as a prompt" | Prompts page, action **Start tracking** (the page, not a pre-filled dialog) |
+| b | "{n} prompts where a competitor is cited and your site is not" | `GET ai/citation-gaps` `meta.gaps`, the Citations gap definition, first three tracked competitors, last 4 runs | Citations, `/ai/citations/gaps` |
+| c | "{n} cited domains cite your tracked competitors, last 28 days" | `GET ai/sources/domains?filter[domain_role_in]=third_party&include=cited_with`, rows whose `cited_with.entity_id` is a tracked competitor | Citations, Cited pages with `owner=third` (approximate: the page lists pages, not this set of domains) |
+| d | "{n} new cited domains this month" | `GET ai/sources/changes?kind=new&limit=1`, third-party domains, `page.total`, window first of the month to today | Citations, Cited pages (approximate: it has no "new" view) |
+
+The Citations page has no Domains tab, so c and d link to the nearest view; request 26 asks for the exact one.
 
 Shortcuts, each in code with a `shortcut:` comment and in `backend-requests-open.md`:
 
-- a: a client match of at most 200 keywords against the prompt texts; the server should count it (request 25).
-- b: the brief asks for domains, the gap read counts prompts. A domain count needs a brand filter on `sources/domains` (request 26).
-- c: counted in the 200 most cited domains; shown as "{n}+" when the read has more.
-- d: `page.total` counts one row per domain and role (the same limit as `use-new-sources.ts`).
+- a: a client match of at most 200 keywords against at most 200 prompts, exact text; the server should count it (request 25).
+- b: the brief asks for domains, the gap read counts prompts (request 26).
+- c: counted in the 200 most cited third-party domains; shown as "{n}+" when the read has more.
+- d: `page.total` counts one row per domain and role, here third-party only (request 26).
 
 ## States
 
-Loading: one skeleton row per line. Each line loads and fails alone: a failed line shows "Could not load" with Retry,
-the others stay. Empty (all four lines at zero): "Nothing to act on this month" with the scope reason. A line at zero is
-left out while another has a count. Refetch keeps the last counts.
+Loading: one skeleton row per line, and the box waits for the platforms before it decides a line is idle. Each line
+loads and fails alone, with its own message and Try again; if the competitors cannot be read, lines b and c fail
+together and Try again reads them again. A line at zero is left out while another has a count. The box says "Nothing to
+act on" only when every line is settled, none failed and none is unknown (a count cut at its page size that found
+nothing, or prompts cut at 200, is unknown and blocks it). Refetch keeps the last counts.
 
 ## Steps
 

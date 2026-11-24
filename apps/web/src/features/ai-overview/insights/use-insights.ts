@@ -33,15 +33,6 @@ const NEW_MIN_SUPPORT = 2;
 
 export type InsightReads = Readonly<Record<InsightKey, Read<InsightCount>>>;
 
-const idle = <T>(): Read<T> => ({
-  status: 'idle',
-  data: undefined,
-  errorId: null,
-  stale: false,
-  placeholder: false,
-  refetch: () => undefined,
-});
-
 /**
  * The four lines of the Insights box, each its own read: one that fails or waits leaves the others alone. The box
  * counts the whole project (every enabled platform, every group, branded prompts as the pages count them), so the
@@ -104,7 +95,7 @@ export function useInsights(): InsightReads {
   const changes = useQuery({
     ...sourceChangesQuery(
       source,
-      { ...windows.month, engines },
+      { ...windows.month, engines, roles: ['third_party'] },
       { kind: 'new', minSupport: NEW_MIN_SUPPORT, limit: 1 },
     ),
     enabled: hasEngines,
@@ -123,24 +114,26 @@ export function useInsights(): InsightReads {
     },
     'run',
   );
-  const gapsRead = useRead(gaps, competitorGate);
-  const domainsRead = useRead(domains, competitorGate);
+  const entitiesRead = useRead(entities, 'run');
+  // The competitors could not be read: the two lines that need them fail with that read, so Retry reads it again
+  const noCompetitors = entities.isError && competitorIds.length === 0;
+  const failedWith = <T>(): Read<T> => ({ ...entitiesRead, status: 'error', data: undefined });
+  const gapsOwn = useRead(gaps, competitorGate);
+  const domainsOwn = useRead(domains, competitorGate);
+  const gapsRead = noCompetitors ? failedWith<NonNullable<typeof gapsOwn.data>>() : gapsOwn;
+  const domainsRead = noCompetitors ? failedWith<NonNullable<typeof domainsOwn.data>>() : domainsOwn;
   const changesRead = useRead(changes, engineGate);
   const idSet = useMemo(() => new Set(competitorIds), [competitorIds]);
 
   return useMemo(
     (): InsightReads => ({
-      // A count that cannot be told (the prompts did not all load) is an idle line, not a zero
-      untracked: ((): Read<InsightCount> => {
-        const counted = mapRead(untrackedRead, ({ keywords: k, prompts: p }) =>
-          untrackedCount(
-            k.data.map((row) => row.keyword.text),
-            p.data.map((row) => row.current_version.text),
-            { moreKeywords: k.page.has_more, morePrompts: p.page.has_more },
-          ),
-        );
-        return counted.data === null ? idle() : (counted as Read<InsightCount>);
-      })(),
+      untracked: mapRead(untrackedRead, ({ keywords: k, prompts: p }) =>
+        untrackedCount(
+          k.data.map((row) => row.keyword.text),
+          p.data.map((row) => row.current_version.text),
+          { moreKeywords: k.page.has_more, morePrompts: p.page.has_more },
+        ),
+      ),
       gaps: mapRead(gapsRead, (data) => ({ count: data.meta.gaps, atLeast: false })),
       citingCompetitors: mapRead(domainsRead, (data) =>
         citingCompetitorsCount(data.data, idSet, data.page.total > data.data.length),

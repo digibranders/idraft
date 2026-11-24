@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { citingCompetitorsCount, insightWindows, normalizeText, openLines, untrackedCount } from './insights-model';
+import {
+  citingCompetitorsCount,
+  insightWindows,
+  isUnknown,
+  normalizeText,
+  openLines,
+  untrackedCount,
+} from './insights-model';
 
 describe('insightWindows', () => {
   it('reads the month from its first day and the recent window as 28 days ending today', () => {
@@ -25,9 +32,9 @@ describe('untrackedCount', () => {
     expect(untrackedCount(keywords, ['crm pricing?', ...prompts], none)).toEqual({ count: 2, atLeast: false });
   });
 
-  it('is a floor when the keywords were cut, and unknown when the prompts were', () => {
+  it('is a floor when the keywords were cut, and a floor of 0 (unknown) when the prompts were', () => {
     expect(untrackedCount(['a'], [], { moreKeywords: true, morePrompts: false })).toEqual({ count: 1, atLeast: true });
-    expect(untrackedCount(['a'], [], { moreKeywords: false, morePrompts: true })).toBeNull();
+    expect(untrackedCount(['a'], [], { moreKeywords: false, morePrompts: true })).toEqual({ count: 0, atLeast: true });
   });
 });
 
@@ -51,5 +58,14 @@ describe('openLines', () => {
         newDomains: { count: 1 },
       }),
     ).toEqual(['gaps', 'newDomains']);
+  });
+});
+
+describe('isUnknown', () => {
+  it('is true only for a floor of zero', () => {
+    expect(isUnknown({ count: 0, atLeast: true })).toBe(true);
+    expect(isUnknown({ count: 0, atLeast: false })).toBe(false);
+    expect(isUnknown({ count: 3, atLeast: true })).toBe(false);
+    expect(isUnknown(undefined)).toBe(false);
   });
 });

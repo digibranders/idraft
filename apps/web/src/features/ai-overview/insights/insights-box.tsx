@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
-import { INSIGHT_KEYS, openLines, type InsightCount, type InsightKey } from './insights-model';
+import { INSIGHT_KEYS, isUnknown, openLines, type InsightCount, type InsightKey } from './insights-model';
 import { useInsights, type InsightReads } from './use-insights';
 import { useOverview } from '../overview-context';
 import type { Read } from '../data/read-state';
@@ -110,7 +110,9 @@ export function InsightsBox(): ReactElement {
           <Line key={key} lineKey={key} read={reads[key]} />
         ))}
       </ul>
-      {settled(reads) && open.length === 0 && INSIGHT_KEYS.every((key) => reads[key].status !== 'error') ? (
+      {settled(reads) &&
+      open.length === 0 &&
+      INSIGHT_KEYS.every((key) => reads[key].status !== 'error' && !isUnknown(reads[key].data)) ? (
         <EmptyState variant="card" headingLevel={3} title={t('emptyTitle')} reason={t('emptyReason')} />
       ) : null}
     </section>
