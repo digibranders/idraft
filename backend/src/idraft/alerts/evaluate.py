@@ -17,11 +17,12 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Final
 
 import structlog
-from sqlalchemy import and_, func, insert, select, update
+from sqlalchemy import Select, and_, func, insert, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -42,6 +43,7 @@ from idraft.alerts.detect import (
     rank_drops,
 )
 from idraft.db.tables import (
+    ai_derivations,
     ai_observation_facts,
     ai_observations,
     ai_prompt_terms,
@@ -57,13 +59,16 @@ from idraft.db.tables import (
     rank_events,
     tracked_keywords,
 )
+from idraft.keywords.trees import among_ids, descendants
 
 _log = structlog.get_logger(__name__)
 
 AI_WORKLOAD: Final = "ai_prompt"
 FINISHED: Final = ("completed", "completed_with_errors")
-# Earlier runs looked at to find one with valid answers.
-PREVIOUS_RUNS_LOOKED_AT: Final = 10
+# How far back a previous answer of a prompt and platform is looked for.
+PREVIOUS_WINDOW: Final = timedelta(days=120)
+# Alerts per INSERT statement.
+INSERT_CHUNK: Final = 1000
 # Rank events one pass reads; the rest wait for the next pass.
 RANK_EVENTS_PER_PASS: Final = 5000
 
@@ -157,16 +162,18 @@ async def _evaluate_project(
         drafts += await _rank_alerts(db, workspace_id, project_id, rank_rows, rules)
     raised = 0
     if drafts:
-        raised = len(
-            (
-                await db.execute(
-                    upsert(alert_events)
-                    .values(drafts)
-                    .on_conflict_do_nothing(index_elements=[alert_events.c.dedupe_key])
-                    .returning(alert_events.c.id)
-                )
-            ).all()
-        )
+        # In chunks: one statement holds at most 32767 parameters (about 2900 alerts).
+        for start in range(0, len(drafts), INSERT_CHUNK):
+            raised += len(
+                (
+                    await db.execute(
+                        upsert(alert_events)
+                        .values(drafts[start : start + INSERT_CHUNK])
+                        .on_conflict_do_nothing(index_elements=[alert_events.c.dedupe_key])
+                        .returning(alert_events.c.id)
+                    )
+                ).all()
+            )
     moved: dict[str, Any] = {"updated_at": func.now()}
     if runs:
         moved["last_completed_at"] = runs[-1].completed_at
@@ -224,23 +231,31 @@ async def _new_runs(
     return [_Run(row.id, row.created_at, row.completed_at) for row in rows]
 
 
-async def _facts(
-    db: AsyncSession, workspace_id: uuid.UUID, project_id: uuid.UUID, run: _Run
-) -> list[AnswerFact]:
-    """The current facts of the run's answers to active prompts. The window on `observed_at`
-    keeps the read to the partitions of the run."""
+def _fact_rows(workspace_id: uuid.UUID, project_id: uuid.UUID) -> Select[Any]:
+    """Current facts of answers to active prompts, with the run, the time and the entity
+    configuration they were read under."""
     facts, obs = ai_observation_facts.c, ai_observations.c
-    rows = await db.execute(
+    return (
         select(
             facts.prompt_id,
             facts.engine_code,
             facts.is_valid,
             facts.own_mentioned,
             facts.competitor_mentions,
+            ai_derivations.c.entity_config_version,
+            obs.observed_at,
+            obs.collection_run_id,
         )
         .join(
             ai_observations,
             and_(obs.id == facts.observation_id, obs.observed_at == facts.observed_at),
+        )
+        .join(
+            ai_derivations,
+            and_(
+                ai_derivations.c.id == facts.derivation_id,
+                ai_derivations.c.workspace_id == facts.workspace_id,
+            ),
         )
         .join(
             ai_prompts,
@@ -254,56 +269,94 @@ async def _facts(
             facts.is_current,
             obs.workspace_id == workspace_id,
             obs.project_id == project_id,
-            obs.collection_run_id == run.id,
-            obs.observed_at >= run.created_at,
-            obs.observed_at <= run.completed_at,
             ai_prompts.c.is_active,
             ai_prompts.c.deleted_at.is_(None),
         )
     )
-    return [
-        AnswerFact(
-            row.prompt_id,
-            row.engine_code,
-            row.is_valid,
-            row.own_mentioned,
-            frozenset(row.competitor_mentions),
+
+
+def _answer(row: Any) -> AnswerFact:
+    return AnswerFact(
+        row.prompt_id,
+        row.engine_code,
+        row.is_valid,
+        row.own_mentioned,
+        frozenset(row.competitor_mentions),
+        row.entity_config_version,
+    )
+
+
+async def _facts(
+    db: AsyncSession, workspace_id: uuid.UUID, project_id: uuid.UUID, run: _Run
+) -> tuple[list[AnswerFact], datetime | None]:
+    """The current facts of the run's answers and when its first answer was observed. The window
+    on `observed_at` keeps the read to the partitions of the run."""
+    obs = ai_observations.c
+    rows = (
+        await db.execute(
+            _fact_rows(workspace_id, project_id).where(
+                obs.collection_run_id == run.id,
+                obs.observed_at >= run.created_at,
+                obs.observed_at <= run.completed_at,
+            )
         )
-        for row in rows
-    ]
+    ).all()
+    return [_answer(row) for row in rows], min((row.observed_at for row in rows), default=None)
 
 
 async def _previous(
-    db: AsyncSession, workspace_id: uuid.UUID, project_id: uuid.UUID, run: _Run
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    current: Sequence[AnswerFact],
+    since: datetime,
 ) -> list[AnswerFact]:
-    """The facts of the latest earlier run that has a valid answer; empty when there is none."""
-    earlier = await db.execute(
-        select(collection_runs.c.id, collection_runs.c.created_at, collection_runs.c.completed_at)
-        .where(
-            collection_runs.c.workspace_id == workspace_id,
-            collection_runs.c.project_id == project_id,
-            collection_runs.c.workload == AI_WORKLOAD,
-            collection_runs.c.status.in_(FINISHED),
-            collection_runs.c.completed_at < run.completed_at,
+    """For each prompt and platform of `current`, the answers of the latest earlier run that has
+    a valid one for that pair, observed before `since`. A run of one prompt hides nothing of the
+    others: each pair finds its own previous run."""
+    obs, facts = ai_observations.c, ai_observation_facts.c
+    prompt_ids = {fact.prompt_id for fact in current}
+    window = [obs.observed_at < since, obs.observed_at >= since - PREVIOUS_WINDOW]
+    latest = (
+        await db.execute(
+            _fact_rows(workspace_id, project_id)
+            .where(
+                facts.is_valid,
+                obs.collection_run_id.is_not(None),
+                among_ids(facts.prompt_id, prompt_ids),
+                *window,
+            )
+            .order_by(facts.prompt_id, facts.engine_code, obs.observed_at.desc())
+            .ext(distinct_on(facts.prompt_id, facts.engine_code))
         )
-        .order_by(collection_runs.c.completed_at.desc(), collection_runs.c.id.desc())
-        .limit(PREVIOUS_RUNS_LOOKED_AT)
+    ).all()
+    chosen = {(row.prompt_id, row.engine_code): row.collection_run_id for row in latest}
+    if not chosen:
+        return []
+    rows = await db.execute(
+        _fact_rows(workspace_id, project_id).where(
+            among_ids(obs.collection_run_id, set(chosen.values())),
+            among_ids(facts.prompt_id, prompt_ids),
+            *window,
+        )
     )
-    for row in earlier.all():
-        facts = await _facts(
-            db, workspace_id, project_id, _Run(row.id, row.created_at, row.completed_at)
-        )
-        if any(fact.is_valid for fact in facts):
-            return facts
-    return []
+    return [
+        _answer(row)
+        for row in rows
+        if chosen.get((row.prompt_id, row.engine_code)) == row.collection_run_id
+    ]
 
 
 async def _prompts_in(
     db: AsyncSession, workspace_id: uuid.UUID, group_ids: Sequence[uuid.UUID]
 ) -> set[uuid.UUID]:
+    """The prompts in these groups or in a group under them."""
     rows = await db.execute(
         select(ai_prompt_terms.c.prompt_id).where(
-            ai_prompt_terms.c.workspace_id == workspace_id, ai_prompt_terms.c.term_id.in_(group_ids)
+            ai_prompt_terms.c.workspace_id == workspace_id,
+            ai_prompt_terms.c.term_id.in_(
+                descendants("term", group_ids, workspace_id, "term_tree")
+            ),
         )
     )
     return {row.prompt_id for row in rows}
@@ -334,8 +387,10 @@ async def _ai_alerts(
     ]
     if not wanted:
         return []
-    current = await _facts(db, workspace_id, project_id, run)
-    previous = await _previous(db, workspace_id, project_id, run) if current else []
+    current, since = await _facts(db, workspace_id, project_id, run)
+    previous = (
+        await _previous(db, workspace_id, project_id, current, since) if since is not None else []
+    )
     if not previous:
         return []
     found: list[tuple[_Rule, MentionChange]] = []
@@ -516,7 +571,9 @@ async def _keywords_in(
     rows = await db.execute(
         select(keyword_group_members.c.tracked_keyword_id).where(
             keyword_group_members.c.workspace_id == workspace_id,
-            keyword_group_members.c.group_id.in_(group_ids),
+            keyword_group_members.c.group_id.in_(
+                descendants("group", group_ids, workspace_id, "group_tree")
+            ),
         )
     )
     return {row.tracked_keyword_id for row in rows}

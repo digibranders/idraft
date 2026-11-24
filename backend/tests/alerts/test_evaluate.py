@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.alerts import evaluate
 from idraft.alerts.evaluate import evaluate_alerts
 from tests.alerts.support import (
     CHATGPT,
@@ -15,6 +17,7 @@ from tests.alerts.support import (
     add_rank_event,
     add_tracked_keyword,
     alerts,
+    make_derivation,
     make_rule,
     make_run,
     make_world,
@@ -324,3 +327,189 @@ async def test_a_rank_drop_before_the_first_pass_is_not_raised(
     await evaluate_alerts(worker_db)
 
     assert await alerts(migrated, world.project) == []
+
+
+async def test_a_run_of_one_prompt_does_not_hide_the_changes_of_the_other_prompts(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    world = await make_world(migrated)
+    other = await add_prompt(migrated, world.project, "who provides festival security staff")
+    await make_rule(migrated, world.project, "ai_mention_lost")
+    await set_cursor(migrated, world.project, hours_ago=6)
+    first, first_at = await make_run(migrated, world.project, hours_ago=4)
+    for prompt in (world.prompt, other):
+        await add_answer(migrated, world, first, first_at, mentioned=True, prompt=prompt)
+    # A manual run of the first prompt alone.
+    manual, manual_at = await make_run(migrated, world.project, hours_ago=3)
+    await add_answer(migrated, world, manual, manual_at, mentioned=True)
+    latest, latest_at = await make_run(migrated, world.project, hours_ago=2)
+    for prompt in (world.prompt, other):
+        await add_answer(migrated, world, latest, latest_at, mentioned=False, prompt=prompt)
+
+    await evaluate_alerts(worker_db)
+
+    found = await alerts(migrated, world.project)
+    assert sorted(a["subject_id"] for a in found) == sorted([str(world.prompt.id), str(other.id)])
+    assert {json.loads(a["evidence"])["run_id"] for a in found} == {str(latest)}
+
+
+async def test_runs_that_complete_in_the_same_instant_are_compared_in_order_of_their_answers(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    world = await make_world(migrated)
+    await make_rule(migrated, world.project, "ai_mention_lost")
+    await set_cursor(migrated, world.project, hours_ago=6)
+    first, first_at = await make_run(migrated, world.project, hours_ago=4)
+    await add_answer(migrated, world, first, first_at, mentioned=True)
+    # Two later runs closed together: the second compares with the first, not the lost twice.
+    for _ in range(2):
+        run, at = await make_run(migrated, world.project, hours_ago=2)
+        await add_answer(migrated, world, run, at, mentioned=False)
+
+    await evaluate_alerts(worker_db)
+
+    assert len(await alerts(migrated, world.project)) == 1
+
+
+async def test_answers_read_under_another_entity_configuration_raise_nothing(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    world = await make_world(migrated)
+    await make_rule(migrated, world.project, "ai_mention_lost")
+    await make_rule(migrated, world.project, "ai_competitor_appeared")
+    await set_cursor(migrated, world.project, hours_ago=5)
+    second_configuration = await make_derivation(migrated, world, 2)
+    old, old_at = await make_run(migrated, world.project, hours_ago=3)
+    await add_answer(migrated, world, old, old_at, mentioned=True)
+    new, new_at = await make_run(migrated, world.project, hours_ago=2)
+    await add_answer(
+        migrated,
+        world,
+        new,
+        new_at,
+        mentioned=False,
+        rivals=[world.ai.rival],
+        derivation_id=second_configuration,
+    )
+
+    await evaluate_alerts(worker_db)
+
+    assert await alerts(migrated, world.project) == []
+
+
+async def test_many_alerts_are_inserted_in_chunks_and_the_cursor_moves(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(evaluate, "INSERT_CHUNK", 2)
+    world = await make_world(migrated)
+    await make_rule(migrated, world.project, "ai_mention_lost")
+    await set_cursor(migrated, world.project, hours_ago=5)
+    prompts = [world.prompt] + [
+        await add_prompt(migrated, world.project, f"prompt number {n}") for n in range(4)
+    ]
+    for hours, mentioned in ((3, True), (2, False)):
+        run_id, at = await make_run(migrated, world.project, hours_ago=hours)
+        for prompt in prompts:
+            await add_answer(migrated, world, run_id, at, mentioned=mentioned, prompt=prompt)
+
+    report = await evaluate_alerts(worker_db)
+
+    assert report.raised == 5
+    assert len(await alerts(migrated, world.project)) == 5
+
+
+async def test_a_group_scope_includes_the_groups_under_it(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    world = await make_world(migrated)
+    child_prompt = await add_prompt(migrated, world.project, "who provides festival security")
+    vocabulary = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, name, kind) "
+        "VALUES ($1, 'Groups', 'topic') RETURNING id",
+        world.project.workspace_id,
+    )
+    parent = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'Event', 'event', 'event') RETURNING id",
+        world.project.workspace_id,
+        vocabulary["id"],
+    )
+    child = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, parent_id, name, slug, "
+        "path) VALUES ($1, $2, $3, 'Festival', 'festival', 'event/festival') RETURNING id",
+        world.project.workspace_id,
+        vocabulary["id"],
+        parent["id"],
+    )
+    await execute(
+        migrated,
+        "INSERT INTO ai.prompt_terms (prompt_id, term_id, workspace_id) VALUES ($1, $2, $3)",
+        child_prompt.id,
+        child["id"],
+        world.project.workspace_id,
+    )
+    await make_rule(
+        migrated,
+        world.project,
+        "ai_mention_lost",
+        scope=json.dumps({"group_ids": [str(parent["id"])]}),
+    )
+    await set_cursor(migrated, world.project, hours_ago=5)
+    for hours, mentioned in ((3, True), (2, False)):
+        run_id, at = await make_run(migrated, world.project, hours_ago=hours)
+        for prompt in (world.prompt, child_prompt):
+            await add_answer(migrated, world, run_id, at, mentioned=mentioned, prompt=prompt)
+
+    await evaluate_alerts(worker_db)
+
+    found = await alerts(migrated, world.project)
+    assert [a["subject_id"] for a in found] == [str(child_prompt.id)]
+
+
+async def test_a_keyword_group_scope_includes_the_groups_under_it(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    world = await make_world(migrated)
+    parent = await fetchrow(
+        migrated,
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, name, path) "
+        "VALUES ($1, $2, 'Event', 'event') RETURNING id",
+        world.project.workspace_id,
+        world.project.id,
+    )
+    child = await fetchrow(
+        migrated,
+        "INSERT INTO seo.keyword_groups (workspace_id, project_id, parent_id, name, path) "
+        "VALUES ($1, $2, $3, 'Festival', 'event/festival') RETURNING id",
+        world.project.workspace_id,
+        world.project.id,
+        parent["id"],
+    )
+    inside = await add_tracked_keyword(migrated, world.project, "festival guards")
+    outside = await add_tracked_keyword(migrated, world.project, "other guards")
+    await execute(
+        migrated,
+        "INSERT INTO seo.keyword_group_members (group_id, tracked_keyword_id, project_id, "
+        "workspace_id) VALUES ($1, $2, $3, $4)",
+        child["id"],
+        inside,
+        world.project.id,
+        world.project.workspace_id,
+    )
+    await make_rule(
+        migrated,
+        world.project,
+        "rank_drop",
+        scope=json.dumps({"group_ids": [str(parent["id"])]}),
+    )
+    await evaluate_alerts(worker_db)
+    await add_rank_event(migrated, world, inside, 3, 12)
+    await add_rank_event(migrated, world, outside, 3, 12)
+
+    await evaluate_alerts(worker_db)
+
+    found = await alerts(migrated, world.project)
+    assert [a["subject_id"] for a in found] == [str(inside)]

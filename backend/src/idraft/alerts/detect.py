@@ -1,8 +1,8 @@
 """What changed between two runs, from stored facts only (no database, no provider call).
 
 Per prompt and platform, an entity is present in a run when at least one valid answer mentions
-it. A prompt and platform need a valid answer in both runs, or nothing is said: unknown is never
-zero.
+it. A prompt and platform need a valid answer on both sides, read under the same entity
+configuration, or nothing is said: unknown is never zero.
 """
 
 from __future__ import annotations
@@ -32,6 +32,9 @@ class AnswerFact:
     is_valid: bool
     own_mentioned: bool
     competitor_mentions: frozenset[uuid.UUID]
+    # `ai.derivations.entity_config_version` the facts were read under: after a competitor or
+    # alias is added, answers are read against other entities and cannot be compared with older.
+    config_version: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +100,9 @@ def mention_changes(
         before_by_pair.keys() & after_by_pair.keys(), key=lambda p: (str(p[0]), p[1])
     ):
         before, after = before_by_pair[pair], after_by_pair[pair]
+        versions = {a.config_version for a in before} | {a.config_version for a in after}
+        if len(versions) != 1:
+            continue
         prompt_id, engine_code = pair
         was, now = _own(before), _own(after)
         if now.mentioning and not was.mentioning:

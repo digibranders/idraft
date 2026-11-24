@@ -12,7 +12,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
-from sqlalchemy import delete, func, insert, select, tuple_, update
+from sqlalchemy import and_, delete, func, insert, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.alerts.catalog import (
@@ -55,7 +55,9 @@ from idraft.db.tables import (
     alert_rules,
     keyword_groups,
     taxonomy_terms,
+    taxonomy_vocabularies,
 )
+from idraft.domain.ai_engines import EngineCode
 
 INT64_MAX = 2**63 - 1
 
@@ -154,6 +156,7 @@ class AlertService:
 
     async def get_rule(self, access: WorkspaceAccess, project_id: UUID, rule_id: UUID) -> AlertRule:
         async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
             row = await self._row(db, access, project_id, rule_id)
         return AlertRule.model_validate(row, from_attributes=True)
 
@@ -185,6 +188,7 @@ class AlertService:
         self, access: WorkspaceAccess, project_id: UUID, rule_id: UUID, body: AlertRuleUpdate
     ) -> AlertRule:
         async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
             current = await self._row(db, access, project_id, rule_id, lock=True)
             rule_type: RuleType = current.rule_type
             values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
@@ -213,6 +217,7 @@ class AlertService:
     async def delete_rule(self, access: WorkspaceAccess, project_id: UUID, rule_id: UUID) -> None:
         """Its alerts go with it (the foreign key cascades)."""
         async with self._transaction(access) as db:
+            await live_project(db, access, project_id)
             deleted = await db.execute(
                 delete(alert_rules)
                 .where(
@@ -338,6 +343,11 @@ class AlertService:
                 code="not_for_rule_type",
                 message="Platforms apply to the AI rule types only.",
             )
+        unknown = sorted(set(scope.engine_codes) - {code.value for code in EngineCode})
+        if unknown:
+            raise InvalidParamsError(
+                f"scope.engine_codes: unknown platform {unknown[0]!r}.", rule_type=rule_type
+            )
         if not scope.group_ids:
             return
         wanted = set(scope.group_ids)
@@ -348,9 +358,24 @@ class AlertService:
                 keyword_groups.c.id.in_(wanted),
             )
         else:
-            found_query = select(taxonomy_terms.c.id).where(
-                taxonomy_terms.c.workspace_id == access.workspace_id,
-                taxonomy_terms.c.id.in_(wanted),
+            # A term of this project's vocabularies or of a workspace-wide one.
+            found_query = (
+                select(taxonomy_terms.c.id)
+                .join(
+                    taxonomy_vocabularies,
+                    and_(
+                        taxonomy_vocabularies.c.id == taxonomy_terms.c.vocabulary_id,
+                        taxonomy_vocabularies.c.workspace_id == taxonomy_terms.c.workspace_id,
+                    ),
+                )
+                .where(
+                    taxonomy_terms.c.workspace_id == access.workspace_id,
+                    taxonomy_terms.c.id.in_(wanted),
+                    or_(
+                        taxonomy_vocabularies.c.project_id.is_(None),
+                        taxonomy_vocabularies.c.project_id == project_id,
+                    ),
+                )
             )
         found = {row.id for row in await db.execute(found_query)}
         if found != wanted:

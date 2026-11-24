@@ -27,8 +27,29 @@ def fact(
     rivals: frozenset[uuid.UUID] = frozenset(),
     prompt: uuid.UUID = PROMPT,
     engine: str = "chatgpt_web",
+    version: int = 1,
 ) -> AnswerFact:
-    return AnswerFact(prompt, engine, valid, mentioned, rivals)
+    return AnswerFact(prompt, engine, valid, mentioned, rivals, version)
+
+
+def test_a_pair_derived_under_another_entity_configuration_is_not_compared() -> None:
+    # A competitor was added between the runs: the new answers were read against more entities.
+    before = [fact(version=1), fact(version=1, engine="gemini_web", mentioned=True)]
+    after = [
+        fact(version=2, rivals=frozenset({RIVAL})),
+        fact(version=1, engine="gemini_web"),
+    ]
+
+    found = mention_changes(before, after)
+
+    assert [(c.engine_code, c.kind) for c in found] == [("gemini_web", "ai_mention_lost")]
+
+
+def test_a_pair_with_answers_of_two_configurations_in_one_run_is_not_compared() -> None:
+    before = [fact(version=1, mentioned=True)]
+    after = [fact(version=1), fact(version=2)]
+
+    assert mention_changes(before, after) == []
 
 
 def kinds(changes: list[MentionChange]) -> list[str]:

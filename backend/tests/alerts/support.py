@@ -55,6 +55,21 @@ async def make_world(pg: PostgresServer) -> World:
     return World(ai, prompt, derivation["id"], raw["id"])
 
 
+async def make_derivation(pg: PostgresServer, world: World, config_version: int) -> int:
+    """A derivation made under another entity configuration (a competitor or alias was added)."""
+    row = await fetchrow(
+        pg,
+        "INSERT INTO ai.derivations (workspace_id, project_id, extractor_version, "
+        "entity_config_version, recommendation_version, sentiment_version) "
+        "VALUES ($1, $2, 1, $3, 1, 1) RETURNING id",
+        world.project.workspace_id,
+        world.project.id,
+        config_version,
+    )
+    derivation_id: int = row["id"]
+    return derivation_id
+
+
 async def make_run(
     pg: PostgresServer,
     project: Project,
@@ -91,6 +106,7 @@ async def add_answer(
     valid: bool = True,
     rivals: Sequence[uuid.UUID] = (),
     prompt: Prompt | None = None,
+    derivation_id: int | None = None,
 ) -> None:
     """One answer of the run, 30 minutes before it completed, with its current facts."""
     target = prompt or world.prompt
@@ -128,7 +144,7 @@ async def add_answer(
         "WHERE o.id = $1 AND o.observed_at = $2",
         observation["id"],
         observed_at,
-        world.derivation_id,
+        derivation_id or world.derivation_id,
         project.workspace_id,
         project.id,
         engine,

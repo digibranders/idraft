@@ -383,3 +383,53 @@ async def test_deleting_a_rule_deletes_its_alerts_and_the_database_keeps_version
                 workspace.id,
                 project,
             )
+
+
+async def test_an_unknown_platform_is_invalid_params_and_a_group_of_another_project_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, editor = await _setup(resources, migrated)
+    elsewhere = await keyword_project(migrated, workspace)
+    base = project_url(workspace, project)
+
+    unknown = await api.post(
+        f"{base}/alert-rules",
+        json={"name": "x", "rule_type": "ai_mention_lost", "scope": {"engine_codes": ["bing"]}},
+        headers=editor.headers,
+    )
+    assert problem(unknown) == (422, "invalid_params")
+
+    vocabulary = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_vocabularies (workspace_id, project_id, name, kind) "
+        "VALUES ($1, $2, 'Theirs', 'topic') RETURNING id",
+        workspace.id,
+        elsewhere,
+    )
+    term = await fetchrow(
+        migrated,
+        "INSERT INTO core.taxonomy_terms (workspace_id, vocabulary_id, name, slug, path) "
+        "VALUES ($1, $2, 'Event', 'event', 'event') RETURNING id",
+        workspace.id,
+        vocabulary["id"],
+    )
+    refused = await api.post(
+        f"{base}/alert-rules",
+        json={
+            "name": "x",
+            "rule_type": "ai_mention_lost",
+            "scope": {"group_ids": [str(term["id"])]},
+        },
+        headers=editor.headers,
+    )
+    assert refused.status_code == 422
+    own = await api.post(
+        f"{project_url(workspace, elsewhere)}/alert-rules",
+        json={
+            "name": "x",
+            "rule_type": "ai_mention_lost",
+            "scope": {"group_ids": [str(term["id"])]},
+        },
+        headers=editor.headers,
+    )
+    assert own.status_code == 201
