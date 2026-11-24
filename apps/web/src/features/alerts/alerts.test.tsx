@@ -44,6 +44,7 @@ function screenAs(role: Role): ReactElement {
             workspaceId={MOCK_WORKSPACE.workspace_id}
             projectId={fynix?.project_id ?? ''}
             timeZone="UTC"
+            brandName="Fynix"
           />
         </Suspense>
       </LeaveGuardProvider>
@@ -91,7 +92,7 @@ describe('Settings > Alert rules', () => {
     const alerts = await alertsTable();
     expect(
       await within(alerts).findByText(
-        'Your brand was mentioned in 3 of 5 ChatGPT answers in the previous run and in 0 of 5 in this run.',
+        'Fynix was mentioned in 3 of 5 ChatGPT answers in the previous run and in 0 of 5 in this run.',
       ),
     ).toBeInTheDocument();
     expect(within(alerts).getByText('Rank fell from 4 to 11 (7 positions).')).toBeInTheDocument();
@@ -108,11 +109,9 @@ describe('Settings > Alert rules', () => {
     const bodies = recordBodies('PATCH');
     const { user } = renderWithProviders(screenAs('editor'));
     await rulesTable();
-    await user.click(await screen.findByRole('switch', { name: 'Brand lost in an answer is on' }));
+    await user.click(await screen.findByRole('switch', { name: 'Brand lost in an answer' }));
     await waitFor(() => expect(bodies).toEqual([{ is_active: false }]));
-    await waitFor(() =>
-      expect(screen.getByRole('switch', { name: 'Brand lost in an answer is on' })).not.toBeChecked(),
-    );
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Brand lost in an answer' })).not.toBeChecked());
   });
 
   it('checks the name before it adds a rule, then sends the rule', async () => {
@@ -175,7 +174,7 @@ describe('Settings > Alert rules', () => {
     const rules = await rulesTable();
     expect(screen.getByText(/Owners, admins and editors can change alert rules/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add alert rule' })).toBeNull();
-    expect(within(rules).getByRole('switch', { name: 'Brand lost in an answer is on' })).toHaveAttribute(
+    expect(within(rules).getByRole('switch', { name: 'Brand lost in an answer' })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -206,5 +205,43 @@ describe('Settings > Alert rules', () => {
     renderWithProviders(screenAs('editor'));
     expect(await screen.findByText('No alert rules yet')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add alert rule' })).toBeInTheDocument();
+  });
+
+  it('shows no rule name for an alert while the rules did not load, and not a made-up one', async () => {
+    server.use(http.get(mswPath(`${P}/alert-rules`), () => HttpResponse.json({}, { status: 500 })));
+    renderWithProviders(screenAs('editor'));
+    const alerts = await alertsTable();
+    await within(alerts).findByText('event security guards');
+    expect(within(alerts).queryByText(/deleted rule/i)).toBeNull();
+  });
+
+  it('keeps the loaded alerts and says so beside Show more when the next page fails', async () => {
+    const event = {
+      id: '9',
+      rule_id: '6f1c0000-0000-4000-8000-000000000003',
+      subject_type: 'keyword',
+      subject_id: 'k-9',
+      subject_label: 'first page keyword',
+      event_kind: 'rank_drop',
+      severity: 'warning',
+      evidence: { from_rank: 4, to_rank: 11, positions_lost: 7, positions: 5 },
+      occurred_at: '2026-11-24T06:12:00.000Z',
+      acknowledged_by: null,
+      acknowledged_at: null,
+    };
+    server.use(
+      http.get(mswPath(`${P}/alert-events`), ({ request }) =>
+        new URL(request.url).searchParams.has('cursor')
+          ? HttpResponse.json({}, { status: 500 })
+          : HttpResponse.json({ data: [event], page: { limit: 50, next_cursor: 'next', has_more: true } }),
+      ),
+    );
+    const { user } = renderWithProviders(screenAs('editor'));
+    const alerts = await alertsTable();
+    await within(alerts).findByText('first page keyword');
+    await user.click(await screen.findByRole('button', { name: 'Show more alerts' }));
+    expect(await screen.findByText('More alerts could not be loaded.')).toBeInTheDocument();
+    expect(within(alerts).getByText('first page keyword')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show more alerts' })).toBeInTheDocument();
   });
 });

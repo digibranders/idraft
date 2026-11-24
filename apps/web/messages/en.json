@@ -570,7 +570,7 @@
       "on": "On",
       "actions": "Actions"
     },
-    "switchLabel": "{name} is on",
+    "switchLabel": "{name}",
     "actionsFor": "Actions for {name}",
     "menu": {
       "edit": "Edit",
@@ -676,10 +676,9 @@
       "loadFailed": "The alerts could not be loaded.",
       "loadFailedReason": "The server did not answer. Try again in a moment.",
       "loadMore": "Show more alerts",
-      "ruleDeleted": "Deleted rule"
+      "loadMoreFailed": "More alerts could not be loaded."
     },
     "evidence": {
-      "yourBrand": "Your brand",
       "answers": "answers",
       "answersOn": "{platform} answers",
       "mentionChange": "{subject} was mentioned in {beforeMentioning} of {beforeValid} {answers} in the previous run and in {afterMentioning} of {afterValid} in this run.",

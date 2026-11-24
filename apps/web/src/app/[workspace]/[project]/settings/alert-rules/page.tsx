@@ -25,6 +25,7 @@ export default async function AlertRulesPage({
       workspaceId={membership.workspace.workspace_id}
       projectId={current.project_id}
       timeZone={current.timezone}
+      brandName={current.name}
     />
   );
 }

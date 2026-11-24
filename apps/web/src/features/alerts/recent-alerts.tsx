@@ -28,19 +28,21 @@ export interface RecentAlertsProps {
   /** The project's time zone, which the times are shown in. */
   timeZone: string;
   canWrite: boolean;
+  /** The project's brand, which an evidence sentence names when the counts are about it (final list D16). */
+  brandName: string;
 }
 
 /**
  * The project's recent alerts, newest first: when, what changed (from the evidence), the rule and how serious.
  * A member with `alerts:write` acknowledges one alert, or every open alert shown with one call.
  */
-export function RecentAlerts({ scope, rules, timeZone, canWrite }: RecentAlertsProps): ReactNode {
+export function RecentAlerts({ scope, rules, timeZone, canWrite, brandName }: RecentAlertsProps): ReactNode {
   const t = useTranslations('alerts.recent');
   const common = useTranslations('common');
   const queryClient = useQueryClient();
   const events = useAlertEvents(scope);
   const errorId = useErrorId(events.error);
-  const words = useAlertWords();
+  const words = useAlertWords(brandName);
   const acknowledge = useMutation(ACKNOWLEDGE_ALERTS);
   const [busy, setBusy] = useState(false);
   const rows = events.data?.pages.flatMap((page) => page.data) ?? [];
@@ -88,7 +90,7 @@ export function RecentAlerts({ scope, rules, timeZone, canWrite }: RecentAlertsP
       id: 'rule',
       header: t('columns.rule'),
       wrap: true,
-      cell: (event) => rules.find((rule) => rule.id === event.rule_id)?.name ?? t('ruleDeleted'),
+      cell: (event) => rules.find((rule) => rule.id === event.rule_id)?.name ?? null,
     },
     {
       id: 'severity',
@@ -141,7 +143,7 @@ export function RecentAlerts({ scope, rules, timeZone, canWrite }: RecentAlertsP
           </Button>
         ) : null}
       </div>
-      {events.isError ? (
+      {events.isError && rows.length === 0 ? (
         <InlineError
           title={t('loadFailed')}
           reason={t('loadFailedReason')}
@@ -165,10 +167,15 @@ export function RecentAlerts({ scope, rules, timeZone, canWrite }: RecentAlertsP
         />
       )}
       {hasMore ? (
-        <div>
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="secondary" loading={events.isFetchingNextPage} onClick={() => void events.fetchNextPage()}>
             {t('loadMore')}
           </Button>
+          {events.isFetchNextPageError ? (
+            <p role="alert" className="type-meta text-negative-text">
+              {t('loadMoreFailed')}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>

@@ -16,7 +16,7 @@ export interface AlertWords {
 }
 
 /** The sentences of alerts: they come from the counts in the evidence, since the API sends no text. */
-export function useAlertWords(): AlertWords {
+export function useAlertWords(brandName: string): AlertWords {
   const t = useTranslations('alerts');
   const platformName = (code: string): string | null =>
     isPlatformCode(code) ? t(`platforms.${PLATFORM_KEY[code]}`) : null;
@@ -28,7 +28,7 @@ export function useAlertWords(): AlertWords {
     }
     const platform = evidence.platform === null ? null : platformName(evidence.platform);
     return t('evidence.mentionChange', {
-      subject: evidence.competitor ?? t('evidence.yourBrand'),
+      subject: evidence.competitor ?? brandName,
       beforeMentioning: evidence.before.mentioning,
       beforeValid: evidence.before.valid,
       afterMentioning: evidence.after.mentioning,

@@ -29,6 +29,8 @@ import { useCan } from '@/lib/permissions';
 export interface AlertRulesScreenProps extends AlertScope {
   /** The project's time zone, which the times of the alerts are shown in. */
   timeZone: string;
+  /** The project's brand name, for the sentences of the alerts. */
+  brandName: string;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface AlertRulesScreenProps extends AlertScope {
  * acknowledges alerts; everyone else reads. Writes are pessimistic: the screen waits for the answer and reads
  * again.
  */
-export function AlertRulesScreen({ workspaceId, projectId, timeZone }: AlertRulesScreenProps): ReactNode {
+export function AlertRulesScreen({ workspaceId, projectId, timeZone, brandName }: AlertRulesScreenProps): ReactNode {
   const scope: AlertScope = { workspaceId, projectId };
   const t = useTranslations('alerts');
   const common = useTranslations('common');
@@ -45,7 +47,7 @@ export function AlertRulesScreen({ workspaceId, projectId, timeZone }: AlertRule
   const queryClient = useQueryClient();
   const rules = useQuery(alertRulesQuery(scope));
   const errorId = useErrorId(rules.error);
-  const words = useAlertWords();
+  const words = useAlertWords(brandName);
   const choices = useGroupChoices(scope);
   const update = useMutation(UPDATE_ALERT_RULE);
   const remove = useMutation(DELETE_ALERT_RULE);
@@ -237,7 +239,9 @@ export function AlertRulesScreen({ workspaceId, projectId, timeZone }: AlertRule
           />
         )}
       </section>
-      {forbidden ? null : <RecentAlerts scope={scope} rules={rows} timeZone={timeZone} canWrite={canWrite} />}
+      {forbidden ? null : (
+        <RecentAlerts scope={scope} rules={rows} timeZone={timeZone} canWrite={canWrite} brandName={brandName} />
+      )}
       <AlertRuleDialog scope={scope} rule={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
         open={deleting !== null}
