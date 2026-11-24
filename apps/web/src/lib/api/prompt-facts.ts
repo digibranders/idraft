@@ -151,13 +151,13 @@ export interface PromptRowFacts {
 
 /** What a topic row adds: the keywords its prompts are linked to, each once. */
 export interface TopicRowFacts {
-  linked_keywords?: LinkedKeywordVolume[];
+  linked_keywords?: LinkedKeywordVolume[] | null;
 }
 
-export type PromptSummaryRowWithFacts = Omit<PromptSummaryRow, 'engines'> &
+export type PromptSummaryRowWithFacts = Omit<PromptSummaryRow, 'engines' | 'linked_keyword'> &
   PromptRowFacts & { engines: EngineSummaryWithFacts[] };
 
-export type TopicSummaryRowWithFacts = Omit<TopicSummaryRow, 'engines'> &
+export type TopicSummaryRowWithFacts = Omit<TopicSummaryRow, 'engines' | 'linked_keywords'> &
   TopicRowFacts & { engines: EngineSummaryWithFacts[] };
 
 /**

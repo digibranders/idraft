@@ -5190,8 +5190,9 @@
         "groupMissingTip": "{missing, plural, one {# of them has} other {# of them have}} no volume yet, so the total is a lower bound",
         "noLinkTip": "No linked keyword. Volume is the monthly searches of the keyword a prompt is linked to.",
         "noLinkGroupTip": "No prompt in this group has a linked keyword",
-        "noVolumeTip": "The linked keyword has no search volume yet",
-        "noVolumeGroupTip": "The linked keywords have no search volume yet"
+        "fetching": "Fetching",
+        "noVolumeTip": "The linked keyword's search volume is being collected and shows here once it arrives",
+        "noVolumeGroupTip": "The search volume of the linked keywords is being collected and shows here once it arrives"
       },
       "position": {
         "header": "Mention position",

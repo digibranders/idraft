@@ -129,9 +129,10 @@ describe('volumeColumn', () => {
       text: 'n/a',
       tip: 'No linked keyword. Volume is the monthly searches of the keyword a prompt is linked to.',
     });
-    expect(show(column, { facts: undefined, link: link('crm', null) }).tip).toBe(
-      'The linked keyword has no search volume yet',
-    );
+    expect(show(column, { facts: undefined, link: link('crm', null) })).toMatchObject({
+      text: 'Fetching',
+      tip: "The linked keyword's search volume is being collected and shows here once it arrives",
+    });
     expect(show(column, { facts: undefined, link: undefined }).tip).toBe('Not collected yet');
     expect(column.sortValue?.({ facts: undefined, link: null })).toBeNull();
     expect(column.sortValue?.({ facts: undefined, link: link('crm', 90) })).toBe(90);
@@ -147,6 +148,7 @@ describe('volumeColumn', () => {
       'Monthly searches of 3 linked keywords across 5 prompts, each keyword counted once. 1 of them has no volume yet, so the total is a lower bound',
     );
     expect(show(groups, [null, null]).tip).toBe('No prompt in this group has a linked keyword');
+    expect(show(groups, [link('a', null)]).text).toBe('Fetching');
   });
 });
 
