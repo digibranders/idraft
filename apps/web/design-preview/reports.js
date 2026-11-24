@@ -1,4 +1,4 @@
-/* global document, window, navigator, crypto */
+/* global document, window, navigator, crypto, btoa */
 /**
  * Reports (route #/reports): report links for clients and scheduled report emails, on mock data.
  * A link is a secret address to a read-only report: it is shown once when made, it expires (7, 30 or 90 days) and
