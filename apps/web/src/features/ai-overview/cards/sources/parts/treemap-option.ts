@@ -1,3 +1,4 @@
+import { chartMotion, fadeDown } from '@/lib/charts/rich-style';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { readColorToken } from '@/lib/design/read-tokens';
 
@@ -17,8 +18,9 @@ const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (char) => 
 
 /**
  * The ECharts option of the citation units treemap (OV-CIT-03): the areas partition the units, no breadcrumb and no
- * zoom, 2 px gaps and 3 px radius, each tile labelled with its name and share in the surface colour so it reads on the
- * tile in both themes. The tooltip is the page's own popover look.
+ * zoom, 3 px gaps and 8 px radius, each tile fading toward its base (15-data-visualization.md section 1a) and labelled
+ * with its name and share in the surface colour so it reads on the tile in both themes. The tooltip is the page's own
+ * popover look.
  */
 export function treemapOption(tiles: readonly TreemapTile[], tokens: ChartTokens): Record<string, unknown> {
   const surface = readColorToken('--surface');
@@ -26,7 +28,7 @@ export function treemapOption(tiles: readonly TreemapTile[], tokens: ChartTokens
     slot === 'other' ? tokens.other : (tokens.palette[slot] ?? tokens.other);
   const byName = new Map(tiles.map((tile) => [tile.name, tile.tip]));
   return {
-    animation: false,
+    ...chartMotion(),
     tooltip: {
       backgroundColor: 'transparent',
       borderWidth: 0,
@@ -55,13 +57,13 @@ export function treemapOption(tiles: readonly TreemapTile[], tokens: ChartTokens
         top: 0,
         right: 0,
         bottom: 0,
-        itemStyle: { borderColor: surface, borderWidth: 2, gapWidth: 2, borderRadius: 3 },
-        label: { show: true, fontFamily: tokens.fontFamily, fontSize: 12, color: surface, formatter: '{b}' },
+        itemStyle: { borderColor: surface, borderWidth: 3, gapWidth: 3, borderRadius: 8 },
+        label: { show: true, fontFamily: tokens.fontFamily, fontSize: 12, fontWeight: 600, color: surface, formatter: '{b}' },
         data: tiles.map((tile) => ({
           name: tile.name,
           value: tile.value,
           label: { formatter: tile.label },
-          itemStyle: { color: colorOf(tile.slot) },
+          itemStyle: { color: fadeDown(colorOf(tile.slot), 1, 0.74) },
         })),
       },
     ],

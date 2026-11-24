@@ -23,13 +23,16 @@ Decided by the owner on 2026-11-23, replacing the quiet rules this document had 
 | Stacked areas | Smooth, each layer fading toward the axis, 1.5 px line in its colour |
 | Rings | One plain ring per subject: solid token colours, a thin gap between the segments, no gradient, no shadow, no depth. The number in the middle and the name below are text outside the canvas. The exact shares of every segment are in a table under the rings |
 | Cylinder bars | A ranked list of many brands (share of voice, you and up to 10 competitors) is a list of horizontal bars drawn as cylinders lying down: lit along the top edge, shaded underneath, rounded ends, a soft shadow in the bar's own colour (CSS `bar-cylinder`, so the list keeps its text, tooltips and buttons). You are `chart-1`, every other brand has its own colour, and `chart-other` past the palette |
-| Treemap | Rounded tiles (8 px) with a 3 px gap |
+| Stacked columns | One 100% column per subject, rounded segments (6 px) that fade toward their base, a soft shadow in the segment's colour; the exact shares are in a table under the chart |
+| Sparklines | A smooth 2.25 px line in `chart-1` with a fade under it, a soft shadow and a dot on the latest point (an HTML dot, because a dot in a stretched SVG becomes an ellipse) |
+| Treemap | Rounded tiles (8 px) with a 3 px gap, each tile fading toward its base |
+| Empty trend | The empty state of a line chart has a faint dashed curve behind its words: a drawing of what is coming, not data, hidden from assistive technology |
 | Motion | The entrance animates over 800 ms and updates over 400 ms, unless `prefers-reduced-motion: reduce` is set or motion cannot be asked about, where the chart draws at once (`chartMotion` in `lib/charts/rich-style.ts`) |
 | Pointer | A time chart shows a 2 px line that fades toward the axis under the pointer. Over any chart the cursor is the ring (`public/chart-cursor.svg`, hotspot at its middle, `crosshair` as the fallback), over empty canvas and over marks alike: there is no hand cursor on a chart |
 | Tooltips | Unchanged (section 4) |
 | Still required | Text and table alternative for every chart (section 1, principle 4); colour never carries a number alone; own brand is `chart-1` |
 
-Ported to the app so far: every line chart of `ChartFrame` and small multiples (`categoryChartOption`), the Share of voice cylinder bars and the Outcome split rings. The other cards keep their current marks until they are ported.
+Ported to the app: every line chart of `ChartFrame` and small multiples (`categoryChartOption`), the empty trend curve, the headline ring and metric sparklines, the Outcome split and Sentiment rings, the Mention position stacked columns, the Share of voice cylinder bars, the Share of voice over time bands and the citation type treemap. Not restyled: heat maps, the other bar lists (top cited domains, your pages cited), the run calendar and tables.
 
 ## 2. ChartFrame
 

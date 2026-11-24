@@ -22,7 +22,7 @@ import {
   type Reading,
 } from './headline-model';
 import { describeReading, type Described, type Say, type Words } from './headline-words';
-import { Sparkline, SplitBar, Tile } from './parts';
+import { HeroRing, Sparkline, Tile } from './parts';
 import { useInfoOf } from './use-card-info';
 import { useOverviewSummary as readSummary } from '../../data/use-overview-reads';
 import type { ExportBlock } from '../../export/export-model';
@@ -33,11 +33,9 @@ import { useTopicTree } from '../../scope/use-topic-tree';
 import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { CardInfoButton } from '@/components/app/chart/card-info';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
-import { Tooltip } from '@/components/ui/tooltip';
 import type { CardProps } from '@/features/layouts';
 import type { CsvCell } from '@/lib/csv/csv-write';
 import { formatDecimal, formatInteger, formatList, formatPercent, formatTableDateTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 /** The tiles in the order of the card (OV-HEAD-08). */
 const TILES = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'runs'] as const;
@@ -63,8 +61,6 @@ const SEGMENT_KEYS = {
   cited_only: 'citedOnly',
   neither: 'neither',
 } as const;
-/** A figure with its counts in a tooltip is a tab stop that opens it (DS 20 section 6.2 rule 6). */
-const TAB_STOP = { tabIndex: 0 } as const;
 const percent = (ratio: number): string => formatPercent(ratio, { decimals: 0 });
 
 interface TileModel {
@@ -75,8 +71,6 @@ interface TileModel {
 
 interface Model {
   hero: Hero;
-  /** The weekly visibility, 8 weeks at most; `null` with fewer than two points. */
-  heroSpark: (number | null)[] | null;
   baselineHero: Reading | null;
   tiles: Readonly<Record<CellTile, TileModel>>;
   facts: Readonly<Record<FactTile, Reading>>;
@@ -137,7 +131,6 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
     });
     return {
       hero: buildHero(summary.prompts, platforms, promptCount),
-      heroSpark: sparkOf(summary, platforms, 'visibility'),
       baselineHero: baselinePrompts === undefined ? null : buildHero(baselinePrompts, platforms, null).reading,
       tiles: { mention: tileOf('mention'), sov: tileOf('sov'), citation: tileOf('citation') },
       facts: {
@@ -287,53 +280,33 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
           <h2 className="type-section-title">{t('hero')}</h2>
           <CardInfoButton title={t('hero')} info={infoOf('hero')} />
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            {heroTip === '' ? (
-              <span className="num type-metric text-foreground-tertiary">{heroFace.value}</span>
-            ) : (
-              <Tooltip content={heroTip} purpose="label">
-                <span
-                  {...TAB_STOP}
-                  className={cn('num type-metric', heroFace.known ? 'text-foreground' : 'text-foreground-tertiary')}
-                >
-                  {heroFace.value}
-                  {/* The counts are read with the value, as the preview does (OV-HEAD-03), not only on hover */}
-                  <span className="sr-only">, {heroTip}</span>
-                </span>
-              </Tooltip>
-            )}
-            <span className="block min-h-4 num type-micro text-foreground-tertiary">{projectValue}</span>
-          </div>
-          {model.heroSpark === null || !heroFace.known ? null : (
-            <div className="w-28 shrink-0">
-              <Sparkline
-                points={model.heroSpark}
-                height={32}
-                label={t('spark', { name: t('hero'), count: model.heroSpark.length, value: heroFace.value })}
-              />
-            </div>
-          )}
-        </div>
         {hero.split === null ? (
-          <span className="inline-flex h-6 w-fit items-center rounded-xs bg-insufficient px-1.5 type-label whitespace-nowrap text-foreground-tertiary">
-            {t('tooFew')}
-          </span>
+          <>
+            <span className="num type-metric text-foreground-tertiary">{heroFace.value}</span>
+            <span className="inline-flex h-6 w-fit items-center rounded-xs bg-insufficient px-1.5 type-label whitespace-nowrap text-foreground-tertiary">
+              {t('tooFew')}
+            </span>
+          </>
         ) : (
-          <SplitBar
-            split={hero.split}
-            label={splitLabel()}
-            nameOf={(segment) => t(`segments.${SEGMENT_KEYS[segment]}`)}
-            percent={percent}
-            tipOf={(segment) => {
-              const name = t(`segments.${SEGMENT_KEYS[segment]}`);
-              const share = percent(hero.split?.shares[segment] ?? 0);
-              const counts = hero.split?.counts;
-              return counts === null || counts === undefined || hero.split?.answers == null
-                ? t('tips.segment', { name, share })
-                : t('tips.segmentCounts', { name, share, k: counts[segment], total: hero.split.answers });
-            }}
-          />
+          <>
+            <HeroRing
+              split={hero.split}
+              center={heroFace.value}
+              centerNote={heroTip}
+              label={splitLabel()}
+              nameOf={(segment) => t(`segments.${SEGMENT_KEYS[segment]}`)}
+              percent={percent}
+              tipOf={(segment) => {
+                const name = t(`segments.${SEGMENT_KEYS[segment]}`);
+                const share = percent(hero.split?.shares[segment] ?? 0);
+                const counts = hero.split?.counts;
+                return counts === null || counts === undefined || hero.split?.answers == null
+                  ? t('tips.segment', { name, share })
+                  : t('tips.segmentCounts', { name, share, k: counts[segment], total: hero.split.answers });
+              }}
+            />
+            <span className="block min-h-4 num type-micro text-foreground-tertiary">{projectValue}</span>
+          </>
         )}
       </section>
       <section
