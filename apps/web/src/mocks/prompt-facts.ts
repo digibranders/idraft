@@ -157,9 +157,18 @@ export function aiOverviewCellOf(promptId: string, topicNames: readonly string[]
 export function aiOverviewBlock(rows: readonly { ai_overview?: PromptAiOverview }[]): {
   ai_overview: AiOverviewTotals;
 } {
-  const totals = aiOverviewTotalsOf(rows);
-  if (totals === undefined) throw new Error('the rows carry no Google AI Overview cell');
-  return { ai_overview: totals };
+  // No prompt in scope is a block of zero counts, as the API answers
+  const none = {
+    prompts: 0,
+    linked: 0,
+    tracked: 0,
+    shown: 0,
+    cited_own: 0,
+    keywords_shown: 0,
+    keywords_cited: 0,
+    observed_at: null,
+  };
+  return { ai_overview: aiOverviewTotalsOf(rows) ?? none };
 }
 
 // ---- One prompt on one engine ----------------------------------------------------------------------------------
