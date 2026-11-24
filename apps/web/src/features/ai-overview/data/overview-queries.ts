@@ -108,7 +108,7 @@ export interface SummaryOptions {
    * per-platform fact counts (position, recommendation and sentiment counts, without the per-prompt lists that
    * `facts` adds for the Prompts page).
    */
-  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions' | 'fact_counts')[];
+  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions' | 'fact_counts' | 'ai_overview')[];
   /** `topics` leaves the prompt rows out, `none` both row lists. Left out: every row. */
   rows?: 'topics' | 'none';
 }

@@ -70,6 +70,7 @@ import { enginesQuery, observationQuery, summaryQuery, usePromptList, type Promp
 import { PromptsControls } from './prompts-controls';
 import { PromptsCountryControl } from './prompts-scope';
 import { PromptsStrip } from './prompts-strip';
+import { aiOverviewTotalsOf } from '@/lib/rates/ai-overview';
 import { PROMPT_ACTION_ENTRIES, withActionEntries } from './seams/actions';
 import { PROMPTS_TOOLBAR_ENTRIES, promptsToolbarItems } from './seams/toolbar';
 import { UpdatedRunLink, useUpdatedRunHref } from './updated-run-link';
@@ -160,9 +161,14 @@ const VIEW_STATE = {
  * the Prompts columns, in the same one read. Module level, so the query's key stays the same.
  */
 const SERIES: readonly ['series'] = ['series'];
-const SERIES_AND_FACTS: readonly ['series', 'facts'] = ['series', 'facts'];
+const SERIES_AND_FACTS: readonly ['series', 'facts', 'ai_overview'] = ['series', 'facts', 'ai_overview'];
 /** With the series, `entities` adds a cell per entity to every week of every row: only the mocks are asked for it. */
-const SERIES_ENTITIES_AND_FACTS: readonly ['series', 'entities', 'facts'] = ['series', 'entities', 'facts'];
+const SERIES_ENTITIES_AND_FACTS: readonly ['series', 'entities', 'facts', 'ai_overview'] = [
+  'series',
+  'entities',
+  'facts',
+  'ai_overview',
+];
 const NO_ENTITIES: readonly SummaryEntity[] = [];
 
 const promptRowId = (row: PromptRow): string => row.prompt.prompt_id;
@@ -535,6 +541,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
       rows.map((row) => ({
         topic_term_ids: row.summary?.topic_term_ids ?? topicTermsOf(row.prompt).map((term) => term.term_id),
         engines: row.summary?.engines ?? [],
+        ...(row.summary?.ai_overview === undefined ? {} : { ai_overview: row.summary.ai_overview }),
       })),
     [rows],
   );
@@ -1057,6 +1064,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
           topics={stripGroups}
           status={stripStatus}
           countsFailed={summaryFailed}
+          aiOverview={aiOverviewTotalsOf(stripPrompts)}
           ownEntityIds={ownEntityIdsOf(summaryData?.entities)}
           trackedCount={Array.isArray(summaryData?.entities) ? summaryData.entities.length : undefined}
         />

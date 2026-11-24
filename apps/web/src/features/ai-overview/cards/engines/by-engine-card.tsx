@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import {
+  aiOverviewLongRow,
+  aiOverviewRow,
   buildByEngine,
   longRows,
   type EngineRow,
@@ -19,7 +21,7 @@ import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
 import { useCardDrill, useCardExport } from './use-card-seams';
 import { useFrameState } from './use-frame-state';
-import { compareWord, type CompareWord } from '../../scope/scope-model';
+import { compareWord, singlePlatform, type CompareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { SmallSampleMarker } from '@/components/app/chart/small-sample-marker';
 import { EngineLogo } from '@/components/app/engine/engine-logo';
@@ -31,6 +33,7 @@ import { TextLink } from '@/components/ui/text-link';
 import type { CardProps } from '@/features/layouts';
 import type { CsvCell } from '@/lib/csv/csv-write';
 import { safeText } from '@/lib/csv/csv-write';
+import { aiOverviewFigure, aiOverviewTotalsOf, type AiOverviewFigure } from '@/lib/rates/ai-overview';
 import { EMPTY_VALUE, formatInteger, formatInterval, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
 
 type Translate = ReturnType<typeof useTranslations<'aiOverview.engines.byEngine'>>;
@@ -58,6 +61,8 @@ const STATUS_KEY = {
   over_cap: 'capped',
   branded_only: 'ownBrandedOnly',
   not_read: 'ownNotRead',
+  not_tracked: 'aiNotTracked',
+  no_overview: 'aiNoOverview',
 } as const;
 
 /** The name of the downloaded file, without its extension. */
@@ -72,6 +77,28 @@ function figureText(cell: RateCell, kind: RateKind, t: Translate): string {
   return kind === 'shareOfVoice'
     ? t('figureShare', { value, k: cell.successes, n: cell.answers })
     : t('figure', { value, k: cell.successes, n: cell.answers });
+}
+
+/** The Google AI Overview citation cell: the cited share of the prompts whose keyword shows one, counted in prompts. */
+function AiOverviewCellView({ figure, t }: { figure: AiOverviewFigure; t: Translate }): ReactElement {
+  if (figure.state === 'none') {
+    return (
+      <span className="text-foreground-tertiary">
+        {t(figure.reason === 'notTracked' ? 'aiNotTracked' : 'aiNoOverview')}
+      </span>
+    );
+  }
+  if (figure.state === 'insufficient') {
+    return <span className="type-meta text-foreground-tertiary">{t('aiThin', { count: figure.shown })}</span>;
+  }
+  return (
+    <div className="flex flex-col">
+      <span className="num type-table text-foreground">{formatPercent(figure.value)}</span>
+      <span className="num type-meta">
+        {t('aiCounts', { k: figure.cited, n: figure.shown, keywords: figure.keywords })}
+      </span>
+    </div>
+  );
 }
 
 function RateCellView({
@@ -216,7 +243,13 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
   const common = useTranslations('aiOverview.engines.common');
   const meta = useCardMeta();
   const drill = useCardDrill();
-  const data = useCardData({ previous: 'optional', sources: true, counts: true, subscribed: live });
+  const data = useCardData({
+    previous: 'optional',
+    include: ['ai_overview'],
+    sources: true,
+    counts: true,
+    subscribed: live,
+  });
   const { scope, aggregates } = data;
   const compare = compareWord(scope);
 
@@ -232,7 +265,25 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
     () => (aggregates === null ? null : buildByEngine({ aggregates, sources })),
     [aggregates, sources],
   );
-  const rows = useMemo(() => (model === null ? [] : longRows(model)), [model]);
+  // Google AI Overview is not an answer platform: its row is read from the rank checks of the prompts' linked keywords,
+  // shown only while every platform is in view, and never joins an average
+  const promptRows = data.current.data?.prompts;
+  const overview = useMemo(
+    () => (singlePlatform(scope) === null ? aiOverviewFigure(aiOverviewTotalsOf(promptRows ?? [])) : null),
+    [scope, promptRows],
+  );
+  const overviewLabel = t('aiOverviewLabel');
+  const bodyRows = useMemo(
+    () => [...(model?.rows ?? []), ...(overview === null ? [] : [aiOverviewRow(overview, overviewLabel)])],
+    [model, overview, overviewLabel],
+  );
+  const rows = useMemo(
+    () => [
+      ...(model === null ? [] : longRows(model)),
+      ...(overview === null ? [] : [aiOverviewLongRow(overview, overviewLabel)]),
+    ],
+    [model, overview, overviewLabel],
+  );
 
   const noValidAnswers = model !== null && model.rows.every((row) => row.validAnswers === 0);
   const phase = data.phase === 'ready' && noValidAnswers ? 'empty' : data.phase;
@@ -297,25 +348,45 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
       id: 'mention',
       header: t('mention'),
       wrap: true,
-      cell: (row) => <RateCellView cell={row.mention} kind="mention" t={t} compare={compare} />,
+      cell: (row) =>
+        row.aiOverview === undefined ? (
+          <RateCellView cell={row.mention} kind="mention" t={t} compare={compare} />
+        ) : (
+          <span className="text-foreground-tertiary">{t('notCollected')}</span>
+        ),
     },
     {
       id: 'citation',
       header: t('citation'),
       wrap: true,
-      cell: (row) => <RateCellView cell={row.citation} kind="citation" t={t} compare={compare} />,
+      cell: (row) =>
+        row.aiOverview === undefined ? (
+          <RateCellView cell={row.citation} kind="citation" t={t} compare={compare} />
+        ) : (
+          <AiOverviewCellView figure={row.aiOverview} t={t} />
+        ),
     },
     {
       id: 'shareOfVoice',
       header: t('shareOfVoice'),
       wrap: true,
-      cell: (row) => <RateCellView cell={row.shareOfVoice} kind="shareOfVoice" t={t} compare={compare} />,
+      cell: (row) =>
+        row.aiOverview === undefined ? (
+          <RateCellView cell={row.shareOfVoice} kind="shareOfVoice" t={t} compare={compare} />
+        ) : (
+          <span className="text-foreground-tertiary">{t('notCollected')}</span>
+        ),
     },
     {
       id: 'ownCitation',
       header: t('ownCitation'),
       wrap: true,
-      cell: (row) => <OwnCitationView own={row.ownCitation} t={t} />,
+      cell: (row) =>
+        row.aiOverview === undefined ? (
+          <OwnCitationView own={row.ownCitation} t={t} />
+        ) : (
+          <span className="text-foreground-tertiary">{t('notCollected')}</span>
+        ),
     },
   ];
   const longColumns: readonly PlainColumn<{ row: LongRow; cells: string[] }>[] = header.map((text, index) => ({
@@ -374,7 +445,7 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
         <PlainTable<EngineRow>
           caption={t('title')}
           columns={columns}
-          rows={model?.rows ?? []}
+          rows={bodyRows}
           rowKey={(row) => row.engineCode}
           status="ready"
           errorState={null}

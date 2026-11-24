@@ -8,7 +8,8 @@ import { pooledCounts, promptWeightedRate, rateState, type RateState } from '@/l
  */
 
 /** What the strip reads of a prompt in scope: its topics, and its cells when the summary has a row for it. */
-export type StripPrompt = Pick<PromptSummaryRow, 'topic_term_ids' | 'engines'>;
+export type StripPrompt = Pick<PromptSummaryRow, 'topic_term_ids' | 'engines'> &
+  Pick<Partial<PromptSummaryRow>, 'ai_overview'>;
 
 /** Why a rate is not there; the key of `prompts.rate.reasons`. */
 export type RateReason = 'noAnswers' | 'noneValid' | 'noBrandNamed' | 'notCollected' | 'capped';

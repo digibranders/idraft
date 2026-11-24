@@ -1,4 +1,5 @@
 import { cell, promptWeighted } from './prompt-summary';
+import { aiOverviewTotalsOf, type AiOverviewTotals } from '@/lib/rates/ai-overview';
 import type {
   AnswerFactsExtra,
   EngineFacts,
@@ -19,6 +20,7 @@ import type {
   EngineSummary,
   MetricCell,
   ObservationDetail,
+  PromptAiOverview,
   PromptSummaryRow,
   TopicSummaryRow,
 } from '@/lib/api/types';
@@ -127,6 +129,37 @@ export function linkedKeywordOf(promptId: string, topicNames: readonly string[])
     rank,
     ai_overview: overview === 0 ? null : { cited_position: overview === 1 ? null : (hashText(keyword) % 3) + 1 },
   };
+}
+
+/**
+ * Google AI Overview of a prompt as the API reads it from the rank checks of its linked keyword: the keyword's own
+ * overview state of `linkedKeywordOf`, and some keywords nobody tracks (`not_tracked`), as in a real project.
+ */
+export function aiOverviewCellOf(promptId: string, topicNames: readonly string[]): PromptAiOverview {
+  const link = linkedKeywordOf(promptId, topicNames);
+  const none = { keyword: null, shown: null, cited_own: null, cited_position: null, observed_at: null, checks: 0 };
+  if (link === null) return { ...none, source_state: 'no_linked_keyword' };
+  if (hashText(`${link.keyword}:tracked`) % 4 === 0) return { ...none, source_state: 'not_tracked' };
+  const shown = link.ai_overview !== null && link.ai_overview !== undefined;
+  const position = link.ai_overview?.cited_position ?? null;
+  return {
+    source_state: shown ? 'ok' : 'no_surface',
+    keyword: link.keyword,
+    shown,
+    cited_own: shown ? position !== null : false,
+    cited_position: position,
+    observed_at: '2026-02-04T06:00:00Z',
+    checks: 2,
+  };
+}
+
+/** The `ai_overview` block of a summary: the counts of the rows given (every prompt in scope). */
+export function aiOverviewBlock(rows: readonly { ai_overview?: PromptAiOverview }[]): {
+  ai_overview: AiOverviewTotals;
+} {
+  const totals = aiOverviewTotalsOf(rows);
+  if (totals === undefined) throw new Error('the rows carry no Google AI Overview cell');
+  return { ai_overview: totals };
 }
 
 // ---- One prompt on one engine ----------------------------------------------------------------------------------

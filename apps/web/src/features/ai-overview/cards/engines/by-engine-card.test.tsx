@@ -57,7 +57,12 @@ describe('the AI by platform card', () => {
         .map((header) => header.textContent),
     ).toEqual(['Platform', 'Mention', 'Citation', 'Share of voice', 'Your citations']);
     const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map((row) => within(row).getAllByRole('rowheader')[0]?.textContent)).toEqual(['ChatGPT', 'Gemini']);
+    expect(rows.map((row) => within(row).getAllByRole('rowheader')[0]?.textContent)).toEqual([
+      'ChatGPT',
+      'Gemini',
+      // Read from the rank checks of the linked keywords, in its own row
+      'Google AI Overview',
+    ]);
   });
 
   it('writes the equal-weight line beside the rows: average of 2, the platforms named, each counted once', async () => {
@@ -176,7 +181,7 @@ describe('the AI by platform card', () => {
     const table = await tableOf();
     expect(await screen.findByText('Partial data: the previous period could not be read')).toBeInTheDocument();
     // No change is made up from a window that was not read
-    expect(within(table).queryAllByText(/pts/)).toHaveLength(0);
+    expect(within(table).queryAllByText(/\d pts/)).toHaveLength(0);
   });
 
   it('a window with no valid answers says so, counts the answers that were not valid and offers View runs', async () => {
@@ -251,8 +256,8 @@ describe('the AI by platform card', () => {
       'Change',
     ]);
     const rows = within(long).getAllByRole('row').slice(1);
-    // ChatGPT: mention, citation, share of voice, own citation; then Gemini
-    expect(rows).toHaveLength(8);
+    // ChatGPT: mention, citation, share of voice, own citation; then Gemini; then the one citation line of Google AI Overview
+    expect(rows).toHaveLength(9);
     const first = within(rows[0] as HTMLElement)
       .getAllByRole('cell')
       .map((cell) => cell.textContent);

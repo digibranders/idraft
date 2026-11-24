@@ -45,7 +45,7 @@ export function promptFactsQuery(
         ...(country === undefined ? {} : { 'filter[country_iso]': country }),
         ...(term === undefined ? {} : { 'filter[term]': term }),
         ...(brandedOnly === true ? { branded_only: true } : {}),
-        include: requestFacts ? ['entities', FACTS_INCLUDE] : ['entities'],
+        include: requestFacts ? ['entities', FACTS_INCLUDE, 'ai_overview'] : ['entities'],
         ...compareParams(compare === true, compareKind),
       },
     },
