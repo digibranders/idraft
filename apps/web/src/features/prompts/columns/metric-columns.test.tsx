@@ -1,5 +1,5 @@
-import { cleanup, render } from '@testing-library/react';
-import { createTranslator } from 'next-intl';
+import { cleanup, render, screen } from '@testing-library/react';
+import { createTranslator, NextIntlClientProvider } from 'next-intl';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { projectEngine } from '../compare/change-test-data';
@@ -53,7 +53,11 @@ interface Shown {
 /** What a cell shows and what its tooltip says. */
 function show<TRow>(column: DataTableColumn<TRow>, row: TRow): Shown {
   cleanup();
-  const { container } = render(<>{column.cell(row)}</>);
+  const { container } = render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {column.cell(row)}
+    </NextIntlClientProvider>,
+  );
   const tip = column.cellTip?.(row);
   return {
     text: container.textContent ?? '',
@@ -79,20 +83,23 @@ const rows = {
 describe('intentColumn', () => {
   const column = intentColumn<Row>(t, (row) => row.intent);
 
-  it('is plain text with the meaning in the tooltip, no badge', () => {
+  it('is a letter badge named by the intent, with who searches like that in the tooltip', () => {
     const shown = show(column, { facts: undefined, intent: 'commercial' });
-    expect(shown.text).toBe('Commercial');
-    expect(shown.tip).toBe('The asker is choosing between options');
-    expect(shown.container.querySelector('[data-slot="badge"]')).toBeNull();
+    expect(shown.text).toBe('C');
+    expect(screen.getByRole('listitem', { name: 'Commercial intent' })).toBeTruthy();
+    expect(shown.tip).toBe('Commercial: Searchers who are comparing products or services before they buy.');
     expect(column.header).toBe('Intent');
     expect(column.headerTooltip).toBe('What the asker wants: to learn, to choose, to buy or to find a brand');
   });
 
-  it('names the navigational and local meanings', () => {
-    expect(show(column, { facts: undefined, intent: 'navigational' }).tip).toBe(
-      'The asker is looking for a specific brand',
+  it('gives each of the five intents its own letter', () => {
+    const letters = (['informational', 'commercial', 'transactional', 'navigational', 'local'] as const).map(
+      (intent) => show(column, { facts: undefined, intent }).text,
     );
-    expect(show(column, { facts: undefined, intent: 'local' }).text).toBe('Local');
+    expect(letters).toEqual(['I', 'C', 'T', 'N', 'L']);
+    expect(show(column, { facts: undefined, intent: 'navigational' }).tip).toBe(
+      'Navigational: Searchers who are looking for a specific brand or site.',
+    );
   });
 
   it('is n/a with its reason when the prompt has no intent, and sorts last', () => {
