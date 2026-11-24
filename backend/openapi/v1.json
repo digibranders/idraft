@@ -5961,13 +5961,19 @@
             "type": "array"
           },
           "linked_keywords": {
-            "default": [],
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedKeyword"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.",
-            "items": {
-              "$ref": "#/components/schemas/LinkedKeyword"
-            },
-            "title": "Linked Keywords",
-            "type": "array"
+            "title": "Linked Keywords"
           }
         },
         "required": [
@@ -23909,13 +23915,19 @@
             "title": "Last Valid At"
           },
           "linked_keywords": {
-            "default": [],
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedKeyword"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.",
-            "items": {
-              "$ref": "#/components/schemas/LinkedKeyword"
-            },
-            "title": "Linked Keywords",
-            "type": "array"
+            "title": "Linked Keywords"
           },
           "prompt_count": {
             "description": "The prompts in scope, whatever the engines shown.",
@@ -25146,13 +25158,19 @@
             "title": "Last Valid At"
           },
           "linked_keywords": {
-            "default": [],
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LinkedKeyword"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.",
-            "items": {
-              "$ref": "#/components/schemas/LinkedKeyword"
-            },
-            "title": "Linked Keywords",
-            "type": "array"
+            "title": "Linked Keywords"
           },
           "name": {
             "anyOf": [

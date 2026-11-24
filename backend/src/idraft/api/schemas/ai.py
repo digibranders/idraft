@@ -958,10 +958,10 @@ class TopicSummaryRow(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
-    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] = Field(
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
-        json_schema_extra={"default": []},
+        json_schema_extra={"default": None},
         description=_LINKED_MANY,
     )
 
@@ -973,10 +973,10 @@ class SummaryTotal(BaseModel):
     last_observed_at: datetime | None = Field(description=_LAST_OBSERVED)
     last_valid_at: datetime | None = Field(description=_LAST_VALID)
     engines: list[EngineSummary]
-    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] = Field(
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
-        json_schema_extra={"default": []},
+        json_schema_extra={"default": None},
         description=_LINKED_MANY,
     )
 
@@ -996,10 +996,10 @@ class EngineCoMentions(BaseModel):
 class CountrySummary(BaseModel):
     country_iso: str
     engines: list[EngineSummary]
-    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] = Field(
+    linked_keywords: list[LinkedKeyword] | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,
         exclude_if=_not_asked,
-        json_schema_extra={"default": []},
+        json_schema_extra={"default": None},
         description=_LINKED_MANY,
     )
 
