@@ -31,6 +31,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.ai.intent import classify_prompt_intent
 from idraft.ai.pricing import task_prices
 from idraft.ai.text import text_hash
 from idraft.api import audit
@@ -92,7 +93,7 @@ from idraft.api.schemas.ai_bulk import (
     PromptBulkUpdate,
     PromptSelectionFilter,
 )
-from idraft.api.schemas.keywords import TermAssignment
+from idraft.api.schemas.keywords import FunnelStage, Intent, TermAssignment
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import (
@@ -522,6 +523,15 @@ def _created_snapshot(record: PromptRecord, item: PromptCreate) -> audit.Snapsho
     return snapshot
 
 
+def _intent_and_stage(item: PromptCreate) -> tuple[Intent, FunnelStage]:
+    """What the caller sent; with no intent (`unknown`) the wording rule gives it, and a funnel
+    stage the caller did send is kept. Intent is metadata, never a new version."""
+    if item.intent != "unknown":
+        return item.intent, item.funnel_stage
+    intent, stage = classify_prompt_intent(item.text)
+    return intent, stage if item.funnel_stage == "unknown" else item.funnel_stage
+
+
 async def write(
     db: AsyncSession,
     access: WorkspaceAccess,
@@ -536,6 +546,7 @@ async def write(
     own = own_entities(rules)
     results = await matched(rules, [item.text for item in items])
     # A type left out (absent or null) takes the wording rule; one sent is a person's.
+    stages = [_intent_and_stage(item) for item in items]
     types: list[tuple[PromptType, str]] = [
         (suggest_prompt_type(item.text), "rule")
         if item.prompt_type is None
@@ -552,8 +563,8 @@ async def write(
                 text_hash=text_hash(item.text),
                 language_code=item.language_code,
                 country_iso=item.country_iso,
-                intent=item.intent,
-                funnel_stage=item.funnel_stage,
+                intent=staged[0],
+                funnel_stage=staged[1],
                 prompt_type=typed[0],
                 prompt_type_source=typed[1],
                 importance=item.importance,
@@ -565,7 +576,7 @@ async def write(
                 or ("human" if item.generated_from is None else "template"),
                 term_ids=tuple(sorted(set(item.term_ids))),
             )
-            for item, result, typed in zip(items, results, types, strict=True)
+            for item, result, typed, staged in zip(items, results, types, stages, strict=True)
         ],
         created_by=access.user_id,
         now=datetime.now(UTC),
