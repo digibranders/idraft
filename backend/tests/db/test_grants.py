@@ -539,6 +539,12 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         ),
         access("SELECT", UPDATE=("last_sent_at", "last_error")),
     ),
+    # Migration 0038: the API makes and removes links and changes which is primary or accepted;
+    # the worker reads them to know whose metrics to collect.
+    "core.keyword_prompt_links": (
+        access("SELECT, INSERT, DELETE", UPDATE=("is_primary", "status")),
+        READ,
+    ),
     # Page totals from Search Console, replaced by the worker a day at a time.
     "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
 }

@@ -111,6 +111,7 @@ DECLARED = {
     "core.client_summary_shares",
     "core.ai_report_shares",
     "core.ai_report_schedules",
+    "core.keyword_prompt_links",
     "fp.gsc_page_daily",
 }
 # A monthly partition's name ends in `_pYYYYMM`.

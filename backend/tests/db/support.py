@@ -86,6 +86,7 @@ TENANT_TABLES: dict[str, str] = {
     "core.client_summary_shares": "workspace_id",
     "core.ai_report_shares": "workspace_id",
     "core.ai_report_schedules": "workspace_id",
+    "core.keyword_prompt_links": "workspace_id",
     "ops.alert_rules": "workspace_id",
     "ops.alert_events": "workspace_id",
     "ops.alert_cursors": "workspace_id",
@@ -842,6 +843,14 @@ async def seed_ai(
         prompt_id,
         term_id,
         workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO core.keyword_prompt_links (workspace_id, project_id, keyword_id, prompt_id, "
+        "link_type, is_primary) SELECT $1, $2, k.id, $3, 'generated', true FROM seo.keywords k "
+        "WHERE k.workspace_id = $1 LIMIT 1",
+        workspace_id,
+        project_id,
+        prompt_id,
     )
     derivation_id: int = await db.fetchval(
         "INSERT INTO ai.derivations (workspace_id, project_id, extractor_version, "
