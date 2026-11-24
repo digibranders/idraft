@@ -5163,6 +5163,30 @@
           "noOverview": "No Google AI Overview was shown for “{keyword}” in this period."
         }
       },
+      "aiOverview": {
+        "header": "Google AI Overview",
+        "tip": "What Google showed for the keyword this prompt is linked to at its latest check, and whether it cites your site",
+        "cited": "Cited #{position}",
+        "citedNoPosition": "Cited",
+        "notCited": "Not cited",
+        "none": "None shown",
+        "notTracked": "Not tracked",
+        "tips": {
+          "cited": "A Google AI Overview was shown for “{keyword}” and it cites your site. Latest check: {date}.",
+          "citedAt": "A Google AI Overview was shown for “{keyword}” and lists your site as citation {position}. Latest check: {date}.",
+          "notCited": "A Google AI Overview was shown for “{keyword}” and it does not cite your site. Latest check: {date}.",
+          "none": "No Google AI Overview was shown for “{keyword}” at its latest check: {date}.",
+          "notTracked": "Not tracked: no keyword this prompt is linked to has a check that could read the Google results page.",
+          "noLinkedKeyword": "This prompt has no linked keyword. Google AI Overview is taken from the checks of a linked keyword."
+        },
+        "platform": {
+          "tipOk": "{cited, number} of {shown, number} prompts whose keyword shows a Google AI Overview have one that cites your site, over {keywords, plural, one {# keyword} other {# keywords}}. Latest checks: {date}. Mentions are not collected for it.",
+          "tipThin": "Not enough data: {shown, plural, one {# prompt shows} other {# prompts show}} a Google AI Overview, over {keywords, plural, one {# keyword} other {# keywords}}. A rate needs at least {min, number} keywords. Latest checks: {date}.",
+          "tipNoOverview": "No Google AI Overview was shown for the {tracked, plural, one {# prompt} other {# prompts}} with a check. Latest checks: {date}.",
+          "tipNotTracked": "Not tracked: no keyword linked to these prompts has a check that could read the Google results page.",
+          "noDate": "not known"
+        }
+      },
       "intent": {
         "header": "Intent",
         "tip": "What the asker wants: to learn, to choose, to buy or to find a brand",
@@ -5724,6 +5748,11 @@
         "units": "{k, number} of {n, number} citation units",
         "ownBrandedOnly": "Not available when only branded prompts are shown",
         "ownNotRead": "Your citation share has not been read",
+        "aiOverviewLabel": "Google AI Overview",
+        "aiNotTracked": "Not tracked",
+        "aiNoOverview": "No overview shown",
+        "aiThin": "{count, plural, one {# prompt shows one} other {# prompts show one}}",
+        "aiCounts": "{k, number} of {n, number} prompts, {keywords, plural, one {# keyword} other {# keywords}}",
         "previousText": "{kind, select, year {Same period last year} other {Previous}} {value}, {k, number} of {n, number} answers",
         "shareCount": "{k, number} of {n, number} brand mentions",
         "previousShare": "{kind, select, year {Same period last year} other {Previous}} {value}, {k, number} of {n, number} brand mentions",
@@ -7692,6 +7721,10 @@
         "tooFewNote": "too few mentions",
         "notCollectedChip": "Not collected yet",
         "notCollectedNote": "not collected yet",
+        "orderedChip": "{n, plural, one {# answer with a place} other {# answers with a place}}",
+        "noAnswersChip": "No answers",
+        "noAnswersNote": "no answers",
+        "summaryMean": "{platform}: mean place {mean}, from {n, plural, one {# answer} other {# answers}} that give your brand a place. The split by place is not collected yet.",
         "segmentTip": "{label}: {share}, {k, number} of {n, number} answers that give your brand a place",
         "emptyNoPromptsTitle": "No prompts in this scope",
         "emptyNoPromptsReason": "No prompt matches the filters of this page. Widen them to see answers.",

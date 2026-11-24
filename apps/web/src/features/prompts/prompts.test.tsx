@@ -2512,6 +2512,7 @@ describe('Prompts: rate columns, Top platform, sorting and the metric switcher',
       'Share of voice',
       'Sentiment',
       'Brands',
+      'Google AI Overview',
     ]);
   });
 

@@ -565,6 +565,7 @@ def test_the_api_document_has_the_summary_additions() -> None:
         "cells",
         "facts",
         "fact_counts",
+        "ai_overview",
     }
 
     for name in (

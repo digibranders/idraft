@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildByEngine, longRows } from './by-engine-model';
+import { aiOverviewLongRow, aiOverviewRow, buildByEngine, longRows } from './by-engine-model';
 import { engineCells, promptRow, summaryOf } from './engines.test-fixtures';
 import { buildAggregates, type OverviewAggregates } from '../../data/aggregates';
 import { projectEngine } from '@/features/prompts/topics-by-engine/cells.test-fixtures';
 import type { EngineCode, PromptsSummary, Schemas } from '@/lib/api/types';
+import { aiOverviewFigure } from '@/lib/rates/ai-overview';
 import { engineRates } from '@/lib/rates/strip-model';
 import { isDetectableChange } from '@/lib/stats';
 
@@ -191,5 +192,44 @@ describe('longRows', () => {
     expect(rows[0]?.interval).not.toBeNull();
     expect(rows[1]).toMatchObject({ value: null, k: 1, n: 3, interval: null });
     expect(rows[3]).toMatchObject({ value: null, k: null, n: null });
+  });
+});
+
+describe('the Google AI Overview row', () => {
+  const figure = (shown: number, cited: number, keywords: number, tracked = 10) =>
+    aiOverviewFigure({
+      prompts: 20,
+      linked: 15,
+      tracked,
+      shown,
+      cited_own: cited,
+      keywords_shown: keywords,
+      keywords_cited: cited,
+      observed_at: '2026-11-20T08:00:00Z',
+    });
+
+  it('has no mention or share of voice, and its citation line counts prompts', () => {
+    const found = figure(8, 2, 6);
+    if (found === null) throw new Error('no figure');
+    const row = aiOverviewRow(found, 'Google AI Overview');
+    expect(row.engineCode).toBe('google_ai_overview');
+    expect(row.mention).toMatchObject({ state: 'none', reason: 'notCollected' });
+    expect(row.shareOfVoice).toMatchObject({ state: 'none', reason: 'notCollected' });
+    expect(aiOverviewLongRow(found, 'Google AI Overview')).toMatchObject({
+      metric: 'citation',
+      status: 'ok',
+      value: 0.25,
+      k: 2,
+      n: 8,
+      prompts: 8,
+    });
+  });
+
+  it('says why there is no figure and never writes a 0', () => {
+    const none = figure(0, 0, 0);
+    const untracked = figure(0, 0, 0, 0);
+    if (none === null || untracked === null) throw new Error('no figure');
+    expect(aiOverviewLongRow(none, 'x')).toMatchObject({ status: 'no_overview', value: null, k: null });
+    expect(aiOverviewLongRow(untracked, 'x')).toMatchObject({ status: 'not_tracked', value: null, k: null });
   });
 });

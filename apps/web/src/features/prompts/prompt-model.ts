@@ -95,6 +95,7 @@ export const SORT_ID = {
   links: 'links',
   brands: 'brands',
   screenshot: 'screenshot',
+  aiOverview: 'ai_overview',
 } as const;
 
 /** The id of an engine's column: the metric chosen (`rate`), or its count columns of Mentioned and Cited. */

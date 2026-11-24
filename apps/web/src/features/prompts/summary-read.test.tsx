@@ -70,6 +70,11 @@ describe('the summary read of the Prompts page', () => {
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     // One read of the summary: the strip, both tables, the drawers and the columns of later packages share it
     expect(new Set(asked.map((url) => url.search)).size).toBe(1);
-    expect(asked[0]?.searchParams.get('include')?.split(',').sort()).toEqual(['entities', 'facts', 'series']);
+    expect(asked[0]?.searchParams.get('include')?.split(',').sort()).toEqual([
+      'ai_overview',
+      'entities',
+      'facts',
+      'series',
+    ]);
   });
 });

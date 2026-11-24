@@ -263,6 +263,7 @@ describe('prompts summary with include=total: the generated shape and what is st
       total: 'asked',
       co_mentions: 'asked',
       by_country: 'not built',
+      ai_overview: 'not built',
       compare_window: 'not built',
       previous_answers: 'not built',
     };

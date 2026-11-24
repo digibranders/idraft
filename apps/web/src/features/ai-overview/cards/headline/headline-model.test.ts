@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { engineCells, promptRow, summaryOf, week } from '../engines/engines.test-fixtures';
 import {
   buildHero,
+  FLOOR_OF,
   readAcross,
   readFactTile,
   readTile,
@@ -277,6 +278,35 @@ describe('the tiles read from the facts', () => {
     expect(ok(readFactTile(rows, ONE, 'sentiment')).value).toBeCloseTo(0.6);
     expect(ok(readFactTile(rows, ALL, 'sentiment')).value).toBeCloseTo(0.4);
     expect(ok(readFactTile(rows, ALL, 'recommendation')).value).toBeCloseTo(0.3);
+  });
+
+  it('read the mean position from the position counts alone, as the API sends them (no counts by place)', () => {
+    const counts = (rank_sum: number, ordered_answers: number): PositionCounts => ({
+      rank_sum,
+      ordered_answers,
+      mentions: ordered_answers,
+      answers: 10,
+    });
+    const rows = [
+      rowOf(engine('chatgpt_web', { position: counts(6, 3) }), engine('gemini_web', { position: counts(1, 1) })),
+      rowOf(engine('chatgpt_web', { position: counts(3, 2) }), engine('gemini_web', { position: counts(0, 0) })),
+    ];
+    // ChatGPT: (6 + 3) / (3 + 2) = 1.8 over 5 ordered answers
+    const one = ok(readFactTile(rows, ONE, 'position'));
+    expect(one.value).toBeCloseTo(1.8);
+    expect(one.basis).toMatchObject({ kind: 'counts', n: 5, noun: 'orderedAnswers' });
+    // Gemini has 1 ordered answer, under the floor of 2: it takes no part, so All platforms is ChatGPT's mean
+    const all = ok(readFactTile(rows, ALL, 'position'));
+    expect(all.value).toBeCloseTo(1.8);
+    expect(all.basis).toEqual({ kind: 'average', codes: ['chatgpt_web'] });
+  });
+
+  it('say too few, with the floor of 2, when one ordered answer is all there is', () => {
+    const one = [
+      rowOf(engine('chatgpt_web', { position: { rank_sum: 1, ordered_answers: 1, mentions: 1, answers: 10 } })),
+    ];
+    expect(readFactTile(one, ONE, 'position')).toEqual({ state: 'insufficient', n: 1, noun: 'orderedAnswers' });
+    expect(FLOOR_OF.orderedAnswers).toBe(2);
   });
 
   it('say not collected when the rows carry no facts, never a zero', () => {

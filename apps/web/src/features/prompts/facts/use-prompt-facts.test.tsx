@@ -44,7 +44,7 @@ describe('usePromptFacts', () => {
     const reads = recordSummaryReads();
     const { result } = renderHook(() => usePromptFacts(scope, RANGE, true, { requestFacts: true }), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(reads).toEqual(['entities,facts']);
+    expect(reads).toEqual(['entities,facts,ai_overview']);
     const facts = result.current.data;
     expect(facts?.requested).toBe(true);
     expect(facts?.prompts.size).toBeGreaterThan(20);
@@ -77,9 +77,11 @@ describe('usePromptFacts', () => {
     expect(result.current.data).toBe(first);
   });
 
-  it('asks for the facts include by default, with the entities and no weekly series', () => {
+  it('asks for the facts include by default, with the entities, the AI Overview and no weekly series', () => {
     expect(factsRequested()).toBe(true);
-    expect(promptFactsQuery(scope, RANGE, true).queryKey.at(-1)).toMatchObject({ include: ['entities', 'facts'] });
+    expect(promptFactsQuery(scope, RANGE, true).queryKey.at(-1)).toMatchObject({
+      include: ['entities', 'facts', 'ai_overview'],
+    });
   });
 
   it('keys the two reads apart so one never serves the other', () => {

@@ -175,9 +175,9 @@ export interface SummaryScope {
    * Blocks to add. `series` gives each engine a point for each week the window touches (Monday start, in the
    * project's zone, at most 14); `entities` gives each engine a Mentioned and a Share of voice cell per tracked entity;
    * `facts` adds the per-platform facts of the Prompts columns: the API builds `latest` so far, the mocks build the
-   * rest (`factsRequested`).
+   * rest (`factsRequested`); `ai_overview` adds Google AI Overview per prompt and the counts behind its figure.
    */
-  include?: readonly ('series' | 'entities' | 'facts')[];
+  include?: readonly ('series' | 'entities' | 'facts' | 'ai_overview')[];
   /** Ask for the previous period (`compare=previous_period`): each engine of each row then carries `previous`. */
   compare?: boolean;
   /** What `compare` is with; the period before when left out. */

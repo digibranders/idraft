@@ -13,10 +13,18 @@ import { ENGINE_ORDER } from '@/components/app/engine/order';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { ProjectEngine } from '@/lib/api/types';
-import { EMPTY_VALUE, formatDateRange, formatInteger } from '@/lib/format';
+import {
+  browserTimeZone,
+  EMPTY_VALUE,
+  formatDateRange,
+  formatInteger,
+  formatPercent,
+  formatTableDate,
+} from '@/lib/format';
+import { aiOverviewFigure, type AiOverviewFigure, type AiOverviewTotals } from '@/lib/rates/ai-overview';
 import { brandMentionCountsOver } from '@/lib/rates/brand-mentions';
 import { engineRates, type RateFigure, type StripPrompt } from '@/lib/rates/strip-model';
-import { rateState } from '@/lib/stats';
+import { MIN_OBSERVATIONS, rateState } from '@/lib/stats';
 import { visibilityOfPrompts } from '@/lib/rates/visibility-model';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +44,11 @@ export interface PromptsStripProps {
   ownEntityIds?: ReadonlySet<string> | undefined;
   /** How many brands the read tracks: entity cells at the cap of 20 with a longer set cut y short. */
   trackedCount?: number | undefined;
+  /**
+   * Google AI Overview over the prompts in scope, from the latest rank checks of their linked keywords: not an answer
+   * count and not in any average. `undefined` while the read does not carry it.
+   */
+  aiOverview?: AiOverviewTotals | undefined;
 }
 
 /** The platforms the product names, by API code, and the key of their name in the catalog. */
@@ -126,11 +139,13 @@ export function PromptsStrip({
   countsFailed,
   ownEntityIds,
   trackedCount,
+  aiOverview,
 }: PromptsStripProps): ReactElement {
   const t = useTranslations('prompts.strip');
   const shell = useTranslations('prompts.shell.strip');
   const names = useTranslations('prompts.shell.platform.names');
   const tc = useTranslations('prompts.compare');
+  const ai = useTranslations('prompts.metrics.aiOverview.platform');
   const words = useRateWords();
   const changeWords = useChangeWords();
   const { compare } = useCompare();
@@ -172,12 +187,50 @@ export function PromptsStrip({
     return key === undefined ? code : names(key);
   };
 
+  /** The Google AI Overview slot: the cited share of the prompts whose keyword shows one, with the counts in its tooltip. */
+  const aiOverviewSlot = (
+    code: string,
+    figure: AiOverviewFigure,
+    label: ReactElement,
+    quiet: boolean,
+  ): ReactElement => {
+    const date = figure.observedAt === null ? ai('noDate') : formatTableDate(figure.observedAt, browserTimeZone());
+    const tip =
+      figure.state === 'ok'
+        ? ai('tipOk', { cited: figure.cited, shown: figure.shown, keywords: figure.keywords, date })
+        : figure.state === 'insufficient'
+          ? ai('tipThin', { shown: figure.shown, keywords: figure.keywords, min: MIN_OBSERVATIONS, date })
+          : figure.reason === 'noOverview'
+            ? ai('tipNoOverview', { tracked: figure.tracked, date })
+            : ai('tipNotTracked');
+    return (
+      <Slot
+        key={code}
+        id={code}
+        label={label}
+        value={
+          figure.state === 'ok'
+            ? formatPercent(figure.value ?? 0, { decimals: 0 })
+            : figure.state === 'insufficient'
+              ? formatInteger(figure.shown)
+              : EMPTY_VALUE
+        }
+        unknown={figure.state === 'ok' ? null : figure.state}
+        quiet={quiet}
+        loading={loading}
+        tip={tip}
+      />
+    );
+  };
+
   const platformSlot = (code: string): ReactElement => {
     const engine = engines.find((entry) => entry.engine.engine_code === code);
     const name = engine?.engine.label ?? nameOf(code);
     const label = <EngineLogo engine={code} name={name} truncate />;
     const quiet = inView !== undefined && !inView.includes(code);
     const quietNote = quiet && engine !== undefined ? shell('quietNote') : undefined;
+    const overview = engine === undefined && code === 'google_ai_overview' ? aiOverviewFigure(aiOverview) : null;
+    if (overview !== null && !countsFailed) return aiOverviewSlot(code, overview, label, quiet);
     if (engine === undefined || countsFailed) {
       return (
         <Slot

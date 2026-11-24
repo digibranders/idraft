@@ -65,7 +65,7 @@ describe('the summary read of the Prompts page against the real API', () => {
     await within(grid).findAllByRole('row');
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(new Set(asked.map((url) => url.searchParams.get('include')?.split(',').sort().join(',')))).toEqual(
-      new Set(['facts,series']),
+      new Set(['ai_overview,facts,series']),
     );
   });
 });

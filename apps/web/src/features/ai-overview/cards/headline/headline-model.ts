@@ -3,7 +3,8 @@ import { projectWeeks, type WeekMetric } from '../engines/trend-model';
 import type { EngineCode, PromptsSummary, PromptSummaryRow, Run } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 import {
-  orderDistribution,
+  POSITION_MIN_LISTS,
+  positionOf,
   recommendedOf,
   SENTIMENT_KEYS,
   SENTIMENT_MIN,
@@ -230,22 +231,19 @@ export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms,
   const scope = factScope(platforms);
   const single = platforms.single !== null;
   if (tile === 'position') {
-    // The Mention position card's own reading, so the tile and the card never differ (R12)
-    const orders = scope.map((code) => ({ code, order: orderDistribution(prompts, code) }));
-    const rated = orders.flatMap(({ code, order }) => (order.state === 'ok' ? [{ code, order }] : []));
-    const average = equalWeightAverage(rated.map(({ order }) => order.mean));
-    if (average.value !== null) {
+    // The Prompts column's own reading (R12): each platform's mean over its ordered answers, then the equal-weight
+    // average of the platforms that have one
+    const reading = positionOf(prompts, scope);
+    if (reading.state === 'ok') {
       const basis: Basis = single
-        ? { kind: 'counts', k: null, n: rated[0]?.order.ordered ?? 0, noun: 'orderedAnswers', prompts: 0 }
-        : { kind: 'average', codes: rated.map(({ code }) => code) };
-      return { state: 'ok', value: average.value, basis };
+        ? { kind: 'counts', k: null, n: reading.ordered_answers, noun: 'orderedAnswers', prompts: 0 }
+        : { kind: 'average', codes: reading.codes };
+      return { state: 'ok', value: reading.value, basis };
     }
-    if (orders.every(({ order }) => order.state === 'not_collected')) return NOT_COLLECTED;
-    return {
-      state: 'insufficient',
-      n: Math.max(0, ...orders.map(({ order }) => order.ordered)),
-      noun: 'orderedAnswers',
-    };
+    if (reading.reason === 'not_collected') return NOT_COLLECTED;
+    if (reading.reason === 'unobserved') return { state: 'none' };
+    // Named in too few ordered answers, or not named yet: the count that fell short is said, never a position
+    return { state: 'insufficient', n: reading.ordered_answers, noun: 'orderedAnswers' };
   }
   if (tile === 'recommendation') {
     const recommended = recommendedOf(prompts, scope);
@@ -280,7 +278,7 @@ export function readFactTile(prompts: readonly FactsRow[], platforms: Platforms,
 export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
   answers: MIN_OBSERVATIONS,
   brandMentions: MIN_OBSERVATIONS,
-  orderedAnswers: MIN_OBSERVATIONS,
+  orderedAnswers: POSITION_MIN_LISTS,
   judgedMentions: SENTIMENT_MIN,
 };
 

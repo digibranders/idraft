@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from functools import partial
 from typing import Any, Final, Literal, cast
@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.api.ai import aio_summary
 from idraft.api.ai import summary_repository as repository
 from idraft.api.ai.screenshots import screenshot_path
 from idraft.api.ai.summary_repository import Counts, EntityCounts, SummaryPrompt, TrackedEntity
@@ -23,6 +24,7 @@ from idraft.api.ranks.repository import project_zone
 from idraft.api.ranks.service import instants
 from idraft.api.schemas.ai import (
     NOT_ASKED,
+    AiOverviewTotals,
     CoMentionPair,
     CountrySummary,
     EngineCells,
@@ -41,6 +43,7 @@ from idraft.api.schemas.ai import (
     PointPool,
     Pooled,
     PositionCounts,
+    PromptAiOverview,
     PromptsSummary,
     PromptSummaryRow,
     SentimentCounts,
@@ -517,6 +520,8 @@ class _Read:
     position: Mapping[tuple[UUID, str], repository.PositionSums] | None = None
     brands: Mapping[tuple[UUID, str], list[repository.BrandNamed]] | None = None
     links: Mapping[tuple[UUID, str], list[repository.LinkCited]] | None = None
+    # With `include=ai_overview`: the Google AI Overview cell of every prompt in scope.
+    aio: Mapping[UUID, aio_summary.AioCell] | None = None
 
 
 def _entity_cells(
@@ -836,6 +841,18 @@ def _linked_of(members: Collection[UUID], read: _Read) -> list[LinkedKeyword] | 
     return [_linked(row) for row in ordered]
 
 
+def _aio_cell(cell: aio_summary.AioCell) -> PromptAiOverview:
+    return PromptAiOverview(
+        source_state=cell.state,
+        keyword=cell.keyword,
+        shown=cell.shown,
+        cited_own=cell.cited_own,
+        cited_position=cell.cited_position,
+        observed_at=cell.observed_at,
+        checks=cell.checks,
+    )
+
+
 def _prompt_row(
     prompt: SummaryPrompt, engine_codes: Sequence[str], read: _Read
 ) -> PromptSummaryRow:
@@ -851,6 +868,7 @@ def _prompt_row(
         linked_keyword=NOT_ASKED
         if read.linked is None
         else (_linked(row) if (row := read.linked.get(prompt.id)) is not None else None),
+        ai_overview=NOT_ASKED if read.aio is None else _aio_cell(read.aio[prompt.id]),
     )
 
 
@@ -1131,6 +1149,11 @@ class SummaryService:
                 if prompt_facts
                 else None
             )
+            aio = (
+                aio_summary.prompt_cells(ids, await aio_summary.check_rows(db, ws, project_id, ids))
+                if "ai_overview" in query.include
+                else None
+            )
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
             code
@@ -1156,6 +1179,7 @@ class SummaryService:
             position=position,
             brands=brands,
             links=links,
+            aio=aio,
         )
         # The filters choose prompt rows and nothing else: every other block reads every prompt
         # in scope (C-5, C-6).
@@ -1229,4 +1253,7 @@ class SummaryService:
                 _co_mentions(shown, by_prompt, pairs) if "co_mentions" in query.include else None
             ),
             by_country=_countries(prompts, shown, read) if query.group_by == "country" else None,
+            ai_overview=None
+            if aio is None
+            else AiOverviewTotals(**asdict(aio_summary.totals(aio))),
         )

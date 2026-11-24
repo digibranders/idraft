@@ -44,7 +44,7 @@ import { popoverColumns } from '../columns/popover-columns';
 // import { volatilityColumn } from '../columns/volatility-column';
 
 // WP-65 aio-xch-web
-// import { aiOverviewColumn } from '../columns/ai-overview-column';
+import { aiOverviewColumnEntry } from '../columns/ai-overview-column';
 
 export interface PromptColumnContext {
   /** The engines shown, in order: the ones the Platform select leaves in. */
@@ -109,7 +109,7 @@ export const PROMPT_COLUMN_ENTRIES: readonly PromptColumnEntry[] = [
   // WP-59 stats-web (WB-PRM-19)
   // volatilityColumn,
   // WP-65 aio-xch-web (WB-PRM-24)
-  // aiOverviewColumn,
+  aiOverviewColumnEntry,
 ];
 
 /**

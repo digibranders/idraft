@@ -17,7 +17,7 @@ import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table
 import type { CardProps } from '@/features/layouts';
 import { safeText, type CsvTable } from '@/lib/csv/csv-write';
 import { formatDecimal, formatInteger, formatList } from '@/lib/format';
-import { orderDistribution, type OrderReading } from '@/lib/prompt-facts';
+import { orderDistribution, positionOf, type OrderReading, type PositionReading } from '@/lib/prompt-facts';
 
 const PARTS = ['first', 'second', 'third', 'later'] as const;
 type Part = (typeof PARTS)[number];
@@ -32,14 +32,29 @@ const PART_TOKENS: Readonly<Record<Part, ShareToken>> = {
 
 interface PlatformOrder {
   code: string;
+  /** The counts of answers by place, when the API sends them: they draw the bars. */
   reading: OrderReading;
+  /** The mean over the ordered answers, from the position counts the API sends: it needs no counts by place. */
+  position: PositionReading;
 }
+
+const positionNotCollected = ({ position }: PlatformOrder): boolean =>
+  position.state === 'unknown' && position.reason === 'not_collected';
+
+/** The answers that give the brand a place on the platform, from whichever read has them. */
+const orderedOf = ({ reading, position }: PlatformOrder): number =>
+  reading.state === 'not_collected' ? position.ordered_answers : reading.ordered;
+
+/** The mean place, from the counts by place when there are enough of them, else from the position counts. */
+const meanOf = ({ reading, position }: PlatformOrder): number | null =>
+  reading.state === 'ok' ? reading.mean : position.state === 'ok' ? position.value : null;
 
 /**
  * OV-PT-01 and OV-PT-02: where the brand comes in the order of the brands named, as shares of the answers that name it
  * with a place, one bar per platform and never pooled. The shares come from the counts of answers by place (backend
- * request 2); until the API sends them the card says "Not collected yet", because a distribution cannot be made from a
- * mean. A platform with fewer than 4 answers that give the brand a place keeps its line with a chip and no bar.
+ * request 2), which the API does not send yet: a distribution cannot be made from a mean. Until it does, a platform
+ * shows its mean place (the Prompts column's own reading, from at least 2 answers that give the brand a place) and the
+ * number of answers it rests on, with no bar. A platform with fewer than 4 answers by place keeps its line with a chip.
  */
 export default function PositionDistributionCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sourcesTracking.position');
@@ -51,12 +66,19 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
   const prompts = data.current.data?.prompts;
   const orders = useMemo(
     (): PlatformOrder[] =>
-      prompts === undefined ? [] : data.asked.map((code) => ({ code, reading: orderDistribution(prompts, code) })),
+      prompts === undefined
+        ? []
+        : data.asked.map((code) => ({
+            code,
+            reading: orderDistribution(prompts, code),
+            position: positionOf(prompts, [code]),
+          })),
     [prompts, data.asked],
   );
   const nameOf = (code: string): string => engineLabel(code) ?? common('unknownEngine');
   const ready = data.phase === 'ready' || data.phase === 'refetching';
-  const nothingCollected = ready && orders.every((order) => order.reading.state === 'not_collected');
+  const nothingCollected =
+    ready && orders.every((order) => order.reading.state === 'not_collected' && positionNotCollected(order));
 
   const empty = ((): ChartEmpty | null => {
     if (data.asked.length === 0) return unavailable;
@@ -71,10 +93,24 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
 
   const segments: ShareSegment[] = PARTS.map((part) => ({ id: part, name: t(part), token: PART_TOKENS[part] }));
   const meanText = (mean: number): string => t('mean', { mean: formatDecimal(mean, 1) });
-  const rows = orders.map(({ code, reading }): ShareRow => {
+  const rows = orders.map((order): ShareRow => {
+    const { code, reading, position } = order;
     const base = { id: code, label: nameOf(code), icon: <EngineLogo engine={code} name="" /> };
     if (reading.state === 'not_collected') {
-      return { ...base, note: t('notCollectedNote'), body: { kind: 'chip', text: t('notCollectedChip') } };
+      if (position.state === 'ok') {
+        return {
+          ...base,
+          note: meanText(position.value),
+          body: { kind: 'chip', text: t('orderedChip', { n: position.ordered_answers }) },
+        };
+      }
+      if (position.reason === 'not_collected') {
+        return { ...base, note: t('notCollectedNote'), body: { kind: 'chip', text: t('notCollectedChip') } };
+      }
+      if (position.reason === 'unobserved') {
+        return { ...base, note: t('noAnswersNote'), body: { kind: 'chip', text: t('noAnswersChip') } };
+      }
+      return { ...base, note: t('tooFewNote'), body: { kind: 'chip', text: t('tooFewChip') } };
     }
     if (reading.state === 'too_few') {
       return { ...base, note: t('tooFewNote'), body: { kind: 'chip', text: t('tooFewChip') } };
@@ -108,12 +144,15 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
     {
       id: 'ordered',
       header: t('answersHeader'),
-      cell: (order) => (order.reading.state === 'not_collected' ? '' : formatInteger(order.reading.ordered)),
+      cell: (order) => (orderedOf(order) === 0 ? '' : formatInteger(orderedOf(order))),
     },
     {
       id: 'mean',
       header: t('meanHeader'),
-      cell: (order) => (order.reading.state === 'ok' ? formatDecimal(order.reading.mean, 1) : ''),
+      cell: (order) => {
+        const mean = meanOf(order);
+        return mean === null ? '' : formatDecimal(mean, 1);
+      },
     },
     ...PARTS.map((part, index): PlainColumn<PlatformOrder> => ({
       id: part,
@@ -138,19 +177,23 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
       'fourth_or_later',
       'status',
     ],
-    rows: orders.map(({ code, reading }) => [
-      safeText(nameOf(code)),
-      reading.state === 'not_collected' ? null : reading.ordered,
-      reading.state === 'ok' ? Math.round(reading.mean * 10) / 10 : null,
-      ...[0, 1, 2, 3].map((index) => reading.counts?.[index] ?? null),
-      reading.state,
-    ]),
+    rows: orders.map((order) => {
+      const mean = meanOf(order);
+      const { code, reading, position } = order;
+      return [
+        safeText(nameOf(code)),
+        reading.state === 'not_collected' && positionNotCollected(order) ? null : orderedOf(order),
+        mean === null ? null : Math.round(mean * 10) / 10,
+        ...[0, 1, 2, 3].map((index) => reading.counts?.[index] ?? null),
+        reading.state === 'not_collected' && position.state === 'ok' ? 'mean_only' : reading.state,
+      ];
+    }),
   };
   useCardExport(item.id, () => (prompts === undefined || !ready ? null : { id: item.id, ...csv }));
 
   const summary = [
     t('summary'),
-    ...orders.map(({ code, reading }) =>
+    ...orders.map(({ code, reading, position }) =>
       reading.state === 'ok'
         ? t('summaryPlatform', {
             platform: nameOf(code),
@@ -160,7 +203,13 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
               ),
             ),
           })
-        : t('summaryNone', { platform: nameOf(code) }),
+        : position.state === 'ok'
+          ? t('summaryMean', {
+              platform: nameOf(code),
+              mean: formatDecimal(position.value, 1),
+              n: position.ordered_answers,
+            })
+          : t('summaryNone', { platform: nameOf(code) }),
     ),
   ].join(' ');
 

@@ -129,7 +129,8 @@ async def prompts_summary(
             description="Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, "
             "`facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and "
             "`sentiment` on every row, without the lists, the newest answer and the linked "
-            "keywords: what the Overview reads)."
+            "keywords: what the Overview reads), `ai_overview` (Google AI Overview per "
+            "prompt and the counts behind its figure, from the latest rank checks)."
         ),
     ] = None,
     compare: Annotated[

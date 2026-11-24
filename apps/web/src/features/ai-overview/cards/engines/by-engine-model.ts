@@ -2,6 +2,7 @@ import type { EngineAggregate, OverviewAggregates, Change } from '../../data/agg
 import type { EngineCode } from '@/lib/api/types';
 import { deltaInput, type RateChange, type Side } from '@/lib/compare/change-model';
 import type { MetricDeltaInput } from '@/lib/format';
+import type { AiOverviewFigure } from '@/lib/rates/ai-overview';
 import type { RateFigure, RateReason } from '@/lib/rates/strip-model';
 import { equalWeightAverage, wilsonInterval, type Interval, type RateState } from '@/lib/stats';
 
@@ -40,8 +41,11 @@ export type OwnCitation =
   | { status: 'read'; state: RateState; value: number | null; k: number; n: number }
   | { status: 'brandedOnly' | 'notRead' };
 
+/** The platform the rank checks stand in for: not an engine the API collects answers on. */
+export type RowCode = EngineCode | 'google_ai_overview';
+
 export interface EngineRow {
-  engineCode: EngineCode;
+  engineCode: RowCode;
   label: string;
   mention: RateCell;
   citation: RateCell;
@@ -49,6 +53,8 @@ export interface EngineRow {
   ownCitation: OwnCitation;
   validAnswers: number;
   allAnswers: number;
+  /** Google AI Overview only: its figure, counted in prompts and read from rank checks, never in an average. */
+  aiOverview?: AiOverviewFigure | undefined;
 }
 
 /** The equal-weight average of the engines that have a rate, with the engines it is made of. */
@@ -58,8 +64,11 @@ export interface EngineAverage {
   engines: EngineCode[];
 }
 
+/** A row of an engine the API collects answers on. */
+export type AnswerRow = EngineRow & { engineCode: EngineCode };
+
 export interface ByEngineModel {
-  rows: EngineRow[];
+  rows: AnswerRow[];
   /** One for each rate that at least 2 engines show; one engine's rate is no average. */
   averages: EngineAverage[];
   /** The prompts in scope; `null` while the prompt rows are not read. */
@@ -142,7 +151,7 @@ export function buildByEngine({
 }): ByEngineModel {
   const rows = aggregates.engines
     .filter((engine) => engine.asked)
-    .map((engine): EngineRow => ({
+    .map((engine): AnswerRow => ({
       engineCode: engine.engineCode,
       label: engine.label,
       mention: cellOf('mention', engine),
@@ -160,9 +169,59 @@ export function buildByEngine({
   return { rows, averages, promptCount: aggregates.promptCount };
 }
 
+const NOT_COLLECTED_CELL: RateCell = {
+  state: 'none',
+  value: null,
+  answers: 0,
+  successes: null,
+  prompts: 0,
+  reason: 'notCollected',
+  interval: null,
+  change: deltaInput(null),
+  previous: null,
+};
+
+/**
+ * The Google AI Overview row: its own figure, the cited share of the prompts whose keyword shows one, from the latest
+ * rank checks. Mention and share of voice are not collected for it (the overview text is not stored). The row is
+ * never in `averages`: they are over answers, and this is a count of prompts.
+ */
+export function aiOverviewRow(figure: AiOverviewFigure, label: string): EngineRow {
+  return {
+    engineCode: 'google_ai_overview',
+    label,
+    mention: NOT_COLLECTED_CELL,
+    citation: NOT_COLLECTED_CELL,
+    shareOfVoice: NOT_COLLECTED_CELL,
+    ownCitation: { status: 'notRead' },
+    validAnswers: 0,
+    allAnswers: 0,
+    aiOverview: figure,
+  };
+}
+
+/** The citation line of the Google AI Overview row in the long table and the file. */
+export function aiOverviewLongRow(figure: AiOverviewFigure, label: string): LongRow {
+  const status =
+    figure.state === 'none' ? (figure.reason === 'notTracked' ? 'not_tracked' : 'no_overview') : figure.state;
+  return {
+    engineCode: 'google_ai_overview',
+    label,
+    metric: 'citation',
+    status,
+    value: figure.value,
+    k: figure.state === 'none' ? null : figure.cited,
+    n: figure.state === 'none' ? null : figure.shown,
+    prompts: figure.state === 'none' ? null : figure.shown,
+    interval: null,
+    change: null,
+    previous: null,
+  };
+}
+
 /** A row of the Table view and the export: one engine and one rate, with everything its percent rests on. */
 export interface LongRow {
-  engineCode: EngineCode;
+  engineCode: RowCode;
   label: string;
   metric: RateKind | 'ownCitation';
   /** `ok`, `insufficient`, `no_answers`, `no_valid_answers`, `no_brand_named`, `branded_only` or `not_read`. */
