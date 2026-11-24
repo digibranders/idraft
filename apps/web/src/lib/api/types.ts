@@ -163,6 +163,7 @@ export type PointPool = Schemas['PointPool'];
 export type RunBulkMeta = Schemas['RunBulkMeta'];
 export type RunSkip = Schemas['RunSkip'];
 export type PromptSummaryRow = Schemas['PromptSummaryRow'];
+export type PromptAiOverview = Schemas['PromptAiOverview'];
 export type TopicSummaryRow = Schemas['TopicSummaryRow'];
 export type PromptsSummary = Schemas['PromptsSummary'];
 export type SummaryEntity = Schemas['SummaryEntity'];

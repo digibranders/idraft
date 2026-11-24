@@ -4520,6 +4520,53 @@ export interface components {
             /** @description The scope the numbers were computed over. */
             meta: components["schemas"]["AiMetricMeta"];
         };
+        /**
+         * AiOverviewTotals
+         * @description The counts the Google AI Overview figure rests on, over the prompts in scope. It is the
+         *     state of the latest rank checks, not a window, and not an answer count.
+         */
+        AiOverviewTotals: {
+            /**
+             * Cited Own
+             * @description Of those, the prompts whose overview cites the own site.
+             */
+            cited_own: number;
+            /**
+             * Keywords Cited
+             * @description The distinct keywords behind `cited_own`.
+             */
+            keywords_cited: number;
+            /**
+             * Keywords Shown
+             * @description The distinct keywords behind `shown` (prompts can share one keyword).
+             */
+            keywords_shown: number;
+            /**
+             * Linked
+             * @description Prompts with an active linked keyword.
+             */
+            linked: number;
+            /**
+             * Observed At
+             * @description When the newest check counted was made.
+             */
+            observed_at: string | null;
+            /**
+             * Prompts
+             * @description The prompts in scope.
+             */
+            prompts: number;
+            /**
+             * Shown
+             * @description Of those, the prompts whose keyword shows an AI Overview.
+             */
+            shown: number;
+            /**
+             * Tracked
+             * @description Prompts whose linked keyword has a rank check that could read the page.
+             */
+            tracked: number;
+        };
         /** AiSeriesResponse */
         AiSeriesResponse: {
             /**
@@ -10546,6 +10593,49 @@ export interface components {
             updated_at: string;
         };
         /**
+         * PromptAiOverview
+         * @description What Google showed for the keyword a prompt is linked to at its latest rank check
+         *     (`include=ai_overview`). Read from the rank checks; nothing is asked of Google for it.
+         */
+        PromptAiOverview: {
+            /**
+             * Checks
+             * @description The tracked variants of the keyword (devices) read together: shown and cited are true when any of them says so.
+             */
+            checks: number;
+            /**
+             * Cited Own
+             * @description The overview cites a page of the own site; null when not known. False when none was shown.
+             */
+            cited_own: boolean | null;
+            /**
+             * Cited Position
+             * @description The place of the own site among the sources of the overview, the best place of the keyword's checks; null when not cited or not known.
+             */
+            cited_position: number | null;
+            /**
+             * Keyword
+             * @description The linked keyword the state is read from (the prompt's `linked_keyword` may be another one); null without a rank check.
+             */
+            keyword: string | null;
+            /**
+             * Observed At
+             * @description When the newest check read was made.
+             */
+            observed_at: string | null;
+            /**
+             * Shown
+             * @description Google showed an AI Overview; null when not known.
+             */
+            shown: boolean | null;
+            /**
+             * Source State
+             * @description `no_linked_keyword`: the prompt has no active link. `not_tracked`: none of its linked keywords has a rank check that could read the results page, so nothing is known. `no_surface`: the check read the page and Google showed no AI Overview. `ok`: Google showed one.
+             * @enum {string}
+             */
+            source_state: "no_linked_keyword" | "not_tracked" | "no_surface" | "ok";
+        };
+        /**
          * PromptBulkArchive
          * @description The project's prompts to archive (`archive: true`) or bring back (`false`).
          */
@@ -10969,6 +11059,11 @@ export interface components {
         };
         /** PromptSummaryRow */
         PromptSummaryRow: {
+            /**
+             * Ai Overview
+             * @description With `include=ai_overview`: Google AI Overview for the prompt, read from the rank checks of its linked keyword. Left out otherwise.
+             */
+            ai_overview?: components["schemas"]["PromptAiOverview"];
             /** Engines */
             engines: components["schemas"]["EngineSummary"][];
             /** Is Branded */
@@ -11054,6 +11149,8 @@ export interface components {
         };
         /** PromptsSummary */
         PromptsSummary: {
+            /** @description With `include=ai_overview`: the counts behind the Google AI Overview figure over every prompt in scope (it does not depend on `rows`). Left out otherwise. */
+            ai_overview?: components["schemas"]["AiOverviewTotals"] | null;
             /**
              * Branded Only
              * @description Only branded prompts are counted.
@@ -18209,8 +18306,8 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
-                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads). */
-                include?: ("series" | "entities" | "total" | "co_mentions" | "cells" | "facts" | "fact_counts")[] | null;
+                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads), `ai_overview` (Google AI Overview per prompt and the counts behind its figure, from the latest rank checks). */
+                include?: ("series" | "entities" | "total" | "co_mentions" | "cells" | "facts" | "fact_counts" | "ai_overview")[] | null;
                 /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window`, `previous_answers` and `previous` cells. */
                 compare?: "none" | "previous_period" | "previous_year";
                 /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
@@ -23572,7 +23669,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricGe
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricBreakdownGetParametersQueryDimensionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown"]["get"]["parameters"]["query"]["dimension"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells", "facts", "fact_counts"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells", "facts", "fact_counts", "ai_overview"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryRowsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["rows"]> = ["topics", "none"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryFilterOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["filter[outcome]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
@@ -23794,6 +23891,7 @@ export const promptIntentValues: ReadonlyArray<FlattenedDeepRequired<components>
 export const promptIs_branded_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["is_branded_source"]> = ["computed", "override"];
 export const promptPrompt_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type"]> = ["question", "comparison", "recommendation", "how_to", "definition", "local", "transactional", "other"];
 export const promptPrompt_type_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Prompt"]["prompt_type_source"]> = ["rule", "person"];
+export const promptAiOverviewSource_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptAiOverview"]["source_state"]> = ["no_linked_keyword", "not_tracked", "no_surface", "ok"];
 export const promptBulkCreateOn_duplicateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkCreate"]["on_duplicate"]> = ["skip", "error"];
 export const promptBulkSetFunnel_stageValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["funnel_stage"]> = ["tofu", "mofu", "bofu", "retention", "unknown"];
 export const promptBulkSetIntentValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PromptBulkSet"]["intent"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
