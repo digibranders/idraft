@@ -43,7 +43,7 @@ interface PlatformTone {
 export default function SentimentCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.sourcesTracking.sentiment');
   const common = useTranslations('aiOverview.engines.common');
-  const data = useCardData({ previous: 'none', include: ['facts'], subscribed: live });
+  const data = useCardData({ previous: 'none', include: ['fact_counts'], subscribed: live });
   const title = t('title');
   const unavailable = useScopeUnavailable(title);
 

@@ -75,6 +75,14 @@ describe('include=facts of the prompts summary', () => {
     expect((await mockBrowser('viewer').call('GET', `${SUMMARY_URL}?include=entities,facts`)).status).toBe(200);
   });
 
+  it('answers include=fact_counts with the same counts', async () => {
+    const summary = await summaryOf('?include=fact_counts');
+    expect(summary.prompts.length).toBeGreaterThan(0);
+    for (const row of summary.prompts) {
+      for (const engine of row.engines) expect(engine.position?.answers).toBe(engine.mentioned.denominator);
+    }
+  });
+
   it('leaves every fact out when it is not asked for', async () => {
     const summary = await summaryOf('?include=entities');
     expect(summary.prompts.length).toBeGreaterThan(0);

@@ -13,9 +13,9 @@ import type {
  * The per-engine facts of the new Prompts columns, as the prompt summary read will carry them.
  *
  * BACKEND REQUEST SHAPE. The generated client (`lib/api/schema.ts`) does not carry any field of this file except the
- * intent enum, which `Prompt` already has, `latest`, `position`, `other_brands` and `top_links`. Each field is optional and means "the backend has not built it yet" when it
- * is absent; `null` means "the backend answered, and the value does not apply here" (an engine that does not classify
- * sentiment, a prompt with no linked keyword). The pure functions of this folder never turn either into a zero.
+ * intent enum, which `Prompt` already has, `latest`, `position`, `recommended`, `sentiment`, `other_brands` and `top_links`. Each field is optional and means "the backend has not built it yet" when it
+ * is absent; `null` means "the backend answered, and the value does not apply here" (no answer of the row is classified yet,
+ * a prompt with no linked keyword). The pure functions of this folder never turn either into a zero.
  * The exact names, shapes and owners are in `docs/ai-visibility/backend-requests-prompts-page.md`.
  */
 
@@ -94,13 +94,8 @@ export type PositionCounts = Schemas['PositionCounts'] & {
   by_order?: OrderCounts;
 };
 
-/** Counts of the classified mentions of the own brand by tone, on one engine. They add up to its classified mentions. */
-export interface SentimentCounts {
-  positive: number;
-  neutral: number;
-  negative: number;
-  mixed: number;
-}
+/** Counts of the valid answers that name the own brand, by the tone of the sentences that name it, on one engine. */
+export type SentimentCounts = Schemas['SentimentCounts'];
 
 export type SentimentKey = keyof SentimentCounts;
 
@@ -127,7 +122,7 @@ export type ScreenshotState = LatestAnswer['screenshot_state'];
 export interface EngineFacts {
   position?: PositionCounts | null;
   sentiment?: SentimentCounts | null;
-  /** The recommendation rate: a cell like `mentioned`, null on an engine whose answers are not classified for it. */
+  /** The recommendation rate: a cell like `mentioned`, null while no answer of the row is classified. */
   recommended?: MetricCell | null;
   other_brands?: OtherBrand[] | null;
   top_links?: TopLink[] | null;
