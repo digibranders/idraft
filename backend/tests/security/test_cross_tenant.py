@@ -417,7 +417,7 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/costs"): {"from": "2026-01-01", "to": "2026-12-31", "group_by": "project"},
     # Every option, so the opt-in reads are scanned too.
     ("GET", _W + "/projects/{project_id}/ai/prompts-summary"): {
-        "include": "series,entities,total,co_mentions,cells,facts",
+        "include": "series,entities,total,co_mentions,cells,facts,fact_counts",
         "compare": "previous_period",
         "group_by": "country",
     },

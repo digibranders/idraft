@@ -2,7 +2,6 @@ import { addDays, isBeforeFirstDay } from '@/components/app/date-range/business-
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { EngineCode } from '@/lib/api/types';
 import { compareParams } from '@/lib/compare/compare-model';
-import { overviewFactsRequested } from '@/lib/prompt-facts/request';
 import { brandedParams, type DateWindow, type OverviewScope } from '../scope/scope-model';
 
 /**
@@ -106,9 +105,10 @@ export interface SummaryOptions {
   period?: 'current' | 'previous';
   /**
    * Blocks to add: a point per week, a cell per tracked entity, the one-row total, the co-mention pair counts, and the
-   * per-platform facts (position counts, sentiment counts). `facts` is sent only where the API builds them (`overviewFactsRequested`).
+   * per-platform fact counts (position, recommendation and sentiment counts, without the per-prompt lists that
+   * `facts` adds for the Prompts page).
    */
-  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions' | 'facts')[];
+  include?: readonly ('series' | 'entities' | 'total' | 'co_mentions' | 'fact_counts')[];
   /** `topics` leaves the prompt rows out, `none` both row lists. Left out: every row. */
   rows?: 'topics' | 'none';
 }
@@ -133,7 +133,6 @@ export function overviewSummaryQuery(
 ): ApiQueryOptions<typeof SUMMARY> {
   const { scope } = read;
   const window = period === 'previous' ? scope.previous : scope.range;
-  const asked = include.filter((block) => block !== 'facts' || overviewFactsRequested());
   return apiQuery(SUMMARY, {
     params: {
       path: pathOf(project),
@@ -143,7 +142,7 @@ export function overviewSummaryQuery(
         ...brandedParams(scope.branded),
         ...engineFilter(read),
         ...scopeFilters(scope),
-        ...(asked.length === 0 ? {} : { include: [...asked].sort() }),
+        ...(include.length === 0 ? {} : { include: [...include].sort() }),
         ...(rows === undefined ? {} : { rows }),
       },
     },

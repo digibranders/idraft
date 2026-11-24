@@ -192,7 +192,8 @@ describe('useGroupedColumns', () => {
       renderCell('keyword', groupRow());
       const cell = screen.getByTestId('cell');
       expect(cell).toHaveTextContent('Path / crm');
-      expect(cell).toHaveTextContent('2 keywords');
+      expect(cell).toHaveTextContent('2');
+      expect(within(cell).getByLabelText('2 keywords')).toBeInTheDocument();
       expect(within(cell).queryByRole('button')).toBeNull();
       expect(columnById('keyword').cellLabel?.(groupRow())).toBe('Path / crm, 2 keywords');
       expect(columnById('keyword').cellTip?.(groupRow())).toBeUndefined();
@@ -204,8 +205,7 @@ describe('useGroupedColumns', () => {
       const row = rowsOf([only])[0];
       if (row === undefined) throw new Error('No row');
       renderCell('keyword', row);
-      expect(screen.getByTestId('cell')).toHaveTextContent('1 keyword');
-      expect(screen.getByTestId('cell')).not.toHaveTextContent('1 keywords');
+      expect(within(screen.getByTestId('cell')).getByLabelText('1 keyword')).toHaveTextContent('1');
     });
 
     it('says how many keywords are in the top 10, muted at zero', () => {

@@ -493,7 +493,8 @@ describe('Bulk actions', () => {
     dialog = await screen.findByRole('alertdialog', { name: 'Delete 12,000 keywords?' });
     expect(await axe(document.body)).toHaveNoViolations();
     await closeWith(dialog);
-  }, 30_000);
+    // Three axe scans over a large table take about 24s alone, so the limit leaves room for a busy machine
+  }, 90_000);
 
   it('draws Delete destructive and last, with no Set priority, Refresh metrics or Archive before it', async () => {
     const { user } = renderWithProviders(as('editor'));

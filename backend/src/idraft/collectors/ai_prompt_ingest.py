@@ -58,6 +58,8 @@ from idraft.extraction.ai_facts import (
     extract_answer_facts,
 )
 from idraft.extraction.aliases import TooManyMatchesError
+from idraft.extraction.recommendation import RECOMMENDATION_VERSION
+from idraft.extraction.sentiment import SENTIMENT_VERSION
 from idraft.extraction.urls import CANONICALIZER_VERSION
 from idraft.providers.dataforseo.ai import ADAPTER_VERSION
 from idraft.providers.dataforseo.ai_parse import (
@@ -75,9 +77,6 @@ SUBJECT_TYPE: Final = "prompt_version"
 # Fetched tasks one pass reads.
 INGEST_LIMIT: Final = 2000
 SCHEMA_MISMATCH: Final = "schema_mismatch"
-# Slice 1 classifies neither recommendation nor sentiment: version 0 is "no classifier".
-RECOMMENDATION_VERSION: Final = 0
-SENTIMENT_VERSION: Final = 0
 # What a smallint column holds.
 _SMALLINT_MAX: Final = 32_767
 _log = structlog.get_logger(__name__)
@@ -413,6 +412,30 @@ async def _insert_mentions(
     derivation_id: int,
     facts: AnswerFacts,
 ) -> None:
+    await insert_mentions(
+        db,
+        workspace_id=task.workspace_id,
+        project_id=task.project_id,
+        engine_code=subject.engine_code,
+        observation_id=observation_id,
+        observed_at=observed_at,
+        derivation_id=derivation_id,
+        facts=facts,
+    )
+
+
+async def insert_mentions(
+    db: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    engine_code: str,
+    observation_id: int,
+    observed_at: datetime,
+    derivation_id: int,
+    facts: AnswerFacts,
+) -> None:
+    """The entity mentions of one answer under one derivation (also used to derive them again)."""
     if not facts.mentions:
         return
     await db.execute(
@@ -423,9 +446,9 @@ async def _insert_mentions(
                 "observed_at": observed_at,
                 "entity_id": mention.entity_id,
                 "derivation_id": derivation_id,
-                "workspace_id": task.workspace_id,
-                "project_id": task.project_id,
-                "engine_code": subject.engine_code,
+                "workspace_id": workspace_id,
+                "project_id": project_id,
+                "engine_code": engine_code,
                 "role": mention.role,
                 "mention_count": min(mention.mention_count, _SMALLINT_MAX),
                 "first_char_offset": mention.first_char_offset,
@@ -476,13 +499,13 @@ async def _insert_fact(
             is_valid=fact.is_valid,
             own_mentioned=fact.own_mentioned,
             own_domain_cited=fact.own_domain_cited,
-            own_recommended=None,
+            own_recommended=fact.own_recommended,
             own_structured_rank=None,
             own_prominence=None
             if fact.own_prominence is None
             else Decimal(str(fact.own_prominence)),
             own_mention_order=fact.own_mention_order,
-            own_sentiment=None,
+            own_sentiment=fact.own_sentiment,
             own_citation_count=min(fact.own_citation_count, _SMALLINT_MAX),
             total_citation_count=min(fact.total_citation_count, _SMALLINT_MAX),
             tracked_entities_mentioned=min(fact.tracked_entities_mentioned, _SMALLINT_MAX),

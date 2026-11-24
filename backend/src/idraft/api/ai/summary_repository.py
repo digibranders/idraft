@@ -69,6 +69,15 @@ class Counts:
     # Valid answers that name a given competitor and not the own brand; read only when asked
     # for (`counts_by_prompt(lost_to=...)`), 0 otherwise.
     lost_to: int = 0
+    # Valid answers that recommend the own brand, and those whose recommendation is classified at
+    # all (an answer of an earlier extractor has none, and is neither).
+    recommended: int = 0
+    recommendation_classified: int = 0
+    # Valid answers that name the own brand, by the tone of the sentences that name it.
+    positive: int = 0
+    neutral: int = 0
+    negative: int = 0
+    mixed: int = 0
     # The small cells' counts (C-9), read only with `counts_by_prompt(detail=True)`, 0 otherwise:
     # valid answers with a citation, and of them those that cite the own domain; the own and all
     # citation units of the valid answers; valid answers that name the own brand first; valid
@@ -123,6 +132,12 @@ def _counts_columns(c: Any = _F) -> list[Any]:
         count(valid, ~c.own_mentioned, c.own_domain_cited).label("cited_only"),
         count(valid, ~c.own_mentioned, ~c.own_domain_cited).label("neither"),
         count(valid, c.tracked_entities_mentioned >= 1).label("sov_answers"),
+        count(valid, c.own_recommended.is_(True)).label("recommended"),
+        count(valid, c.own_recommended.is_not(None)).label("recommendation_classified"),
+        count(valid, c.own_mentioned, c.own_sentiment == "positive").label("positive"),
+        count(valid, c.own_mentioned, c.own_sentiment == "neutral").label("neutral"),
+        count(valid, c.own_mentioned, c.own_sentiment == "negative").label("negative"),
+        count(valid, c.own_mentioned, c.own_sentiment == "mixed").label("mixed"),
         # The own share of an answer is the sum of sov_o(e) over the own entities (docs/16
         # section 5): each one named is 1 / |M_o|, and |M_o| counts every tracked entity named,
         # so the own entities are the tracked ones that are not competitors. A project may own
@@ -162,6 +177,12 @@ def _counts(row: Any) -> Counts:
         cited_only=row.cited_only,
         neither=row.neither,
         sov_answers=row.sov_answers,
+        recommended=row.recommended,
+        recommendation_classified=row.recommendation_classified,
+        positive=row.positive,
+        neutral=row.neutral,
+        negative=row.negative,
+        mixed=row.mixed,
         sov_share=float(row.sov_share),
         last_observed_at=row.last_observed_at,
         last_valid_at=row.last_valid_at,

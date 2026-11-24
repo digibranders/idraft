@@ -97,7 +97,7 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const { workspaceId, project, scope, enabledEngines } = useOverview();
   // The tiles are read from the prompt rows and their facts; the weekly lines and the share of voice counts come from the
   // lean weekly read of the total (the one the weekly cards share), so the rows carry no weekly points of their own
-  const data = useCardData({ previous: 'none', include: ['facts'], counts: 'weekly', subscribed: live });
+  const data = useCardData({ previous: 'none', include: ['fact_counts'], counts: 'weekly', subscribed: live });
   const infoOf = useInfoOf();
   const unavailable = useScopeUnavailable(t('label'));
   const { tree } = useTopicTree();

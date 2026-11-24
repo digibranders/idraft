@@ -23,6 +23,11 @@ The keyword is not tracked, so it costs no rank checks. With `--relink` it first
 keywords that leaves unused. With `--queue-metrics` it also queues one keyword metrics run
 a project for the linked keywords that have no metrics yet (about 0.0004 USD a keyword, paid when
 the worker plans the run). It connects as `migrator`, and a second run links nothing new.
+
+`rederive-facts --project UUID` derives the facts of every stored AI answer of a project again with
+the current extractor (recommendation, sentiment and the mentions, from the answer text kept in the
+database; no provider is called). `--dry-run` writes nothing and prints what a real run would
+change. It connects as `migrator`, and a second run finds nothing to do.
 """
 
 from __future__ import annotations
@@ -39,7 +44,9 @@ from pathlib import Path
 
 import asyncpg
 from pydantic import TypeAdapter, ValidationError
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from idraft.ai.keyword_phrase import MeasuredKeyword, pick_keyword
 from idraft.api.auth.passwords import (
@@ -51,6 +58,7 @@ from idraft.api.auth.passwords import (
     hash_password,
 )
 from idraft.api.schemas.common import Email, Name
+from idraft.collectors.ai_rederive import ProjectNotFoundError, RederiveReport, rederive_project
 from idraft.config.settings import load_migrator_settings, load_settings
 from idraft.devseed.guard import NotDevelopmentError, check_development
 
@@ -299,6 +307,49 @@ def _backfill_prompt_intent(arguments: argparse.Namespace) -> int:
         return _fail(f"This command must connect as {OWNER_ROLE}. Check DATABASE_URL.")
     lines = [f"{intent}: {count}" for intent, count in sorted(changed.items())]
     sys.stdout.write("\n".join([*lines, f"changed {sum(changed.values())} prompts"]) + "\n")
+    return 0
+
+
+async def rederive_facts(
+    sqlalchemy_url: str, project_id: uuid.UUID, *, dry_run: bool
+) -> RederiveReport | None:
+    """The facts of a project's stored answers, derived again; None when the role is not the
+    owner."""
+    engine = create_async_engine(sqlalchemy_url, connect_args={"timeout": CONNECT_TIMEOUT_SECONDS})
+    try:
+        async with engine.connect() as connection:
+            role: str = (await connection.execute(text("SELECT current_user"))).scalar_one()
+        if role != OWNER_ROLE:
+            return None
+        return await rederive_project(
+            async_sessionmaker(engine, expire_on_commit=False), project_id, dry_run=dry_run
+        )
+    finally:
+        await engine.dispose()
+
+
+def _rederive_facts(arguments: argparse.Namespace) -> int:
+    settings = load_migrator_settings()
+    try:
+        report = asyncio.run(
+            rederive_facts(settings.sqlalchemy_url, arguments.project, dry_run=arguments.dry_run)
+        )
+    except ProjectNotFoundError:
+        return _fail("The project is not there.")
+    except (OSError, TimeoutError, SQLAlchemyError) as error:
+        return _fail(_database_problem(error))
+    if report is None:
+        return _fail(f"This command must connect as {OWNER_ROLE}. Check DATABASE_URL.")
+    sentiment = ", ".join(f"{tone} {count}" for tone, count in sorted(report.sentiment.items()))
+    lines = [
+        f"{'dry run: nothing written' if arguments.dry_run else 'derived again'}",
+        f"answers to derive: {report.candidates}",
+        f"answers derived: {report.rederived}",
+        f"answers whose own brand mention changes: {report.mention_changes}",
+        f"valid answers that recommend the own brand: {report.recommended}",
+        f"valid answers by tone of the own brand: {sentiment or 'none'}",
+    ]
+    sys.stdout.write("\n".join(lines) + "\n")
     return 0
 
 
@@ -602,6 +653,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="set intent and funnel stage from the wording of every prompt whose intent is unknown",
     )
     backfill.set_defaults(run=_backfill_prompt_intent)
+    rederive = commands.add_parser(
+        "rederive-facts",
+        help="derive the facts of a project's stored AI answers again with the current extractor",
+    )
+    rederive.add_argument("--project", type=uuid.UUID, required=True)
+    rederive.add_argument(
+        "--dry-run", action="store_true", help="write nothing, print what a run would change"
+    )
+    rederive.set_defaults(run=_rederive_facts)
     link = commands.add_parser(
         "link-prompt-keywords",
         help="link every live prompt without a keyword to a keyword that has a search volume",

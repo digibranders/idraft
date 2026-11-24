@@ -97,8 +97,8 @@ const hasCode = (value: unknown): value is ValidationItem =>
 const INCLUDE_MESSAGE = "Input should be 'series' or 'entities'";
 
 /**
- * The summary's `include`: a comma list or repeated parameters of `series`, `entities`, `total`, `co_mentions` and `facts` (the Prompts page facts of
- * ../prompt-facts.ts, which the API does not carry yet), the
+ * The summary's `include`: a comma list or repeated parameters of `series`, `entities`, `total`, `co_mentions`, `facts` (the Prompts page facts of
+ * ../prompt-facts.ts) and `fact_counts` (their counts), the
  * blocks built. Any other value (`cells` too, which the API has and the mock does not build) is refused, one error for
  * each (Pydantic's `literal_error` at the value's place in the list).
  */
@@ -110,7 +110,12 @@ function includeOf(
     .flatMap((value) => value.split(','))
     .filter((value) => value !== '');
   const errors = values.flatMap((value, place) =>
-    value === 'series' || value === 'entities' || value === 'total' || value === 'co_mentions' || value === 'facts'
+    value === 'series' ||
+    value === 'entities' ||
+    value === 'total' ||
+    value === 'co_mentions' ||
+    value === 'facts' ||
+    value === 'fact_counts'
       ? []
       : [queryError(`include.${String(place)}`, 'literal_error', INCLUDE_MESSAGE)],
   );
@@ -121,7 +126,8 @@ function includeOf(
         series: values.includes('series'),
         total: values.includes('total'),
         coMentions: values.includes('co_mentions'),
-        facts: values.includes('facts'),
+        // The mock builds the same facts for the counts alone: the Overview reads only the counts of them
+        facts: values.includes('facts') || values.includes('fact_counts'),
       };
 }
 

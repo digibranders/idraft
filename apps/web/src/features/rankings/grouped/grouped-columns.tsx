@@ -1,5 +1,6 @@
 'use client';
 
+import { Folder } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactNode } from 'react';
 
@@ -10,6 +11,7 @@ import { GscTrendCell, gscTrendWords, type GscTrendWords } from '../gsc-trend-ce
 import { RANK_COLUMN_IDS } from '../rank-columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { Truncate } from '@/components/ui/truncate';
 import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
 import { CELL_CONTROL } from '@/lib/tables/grid-focus';
@@ -39,10 +41,14 @@ export function useGroupedColumns(
   const trendT = useTranslations('rankings.gscTrend');
   return useMemo(() => {
     const identityCell = (group: GroupData): ReactNode => (
-      <span className="flex min-w-0 items-baseline gap-2">
+      <span className="flex min-w-0 items-center gap-2">
+        <Icon icon={Folder} size="sm" className="shrink-0 text-foreground" />
         <Truncate text={group.label} className="text-foreground" />
-        <span className="shrink-0 num font-normal text-foreground-tertiary">
-          {t('keywordCount', { count: group.measures.size })}
+        <span
+          aria-label={t('keywordCount', { count: group.measures.size })}
+          className="shrink-0 rounded-full bg-surface-hover px-2 num type-label font-normal text-foreground-secondary"
+        >
+          {group.measures.size}
         </span>
       </span>
     );
