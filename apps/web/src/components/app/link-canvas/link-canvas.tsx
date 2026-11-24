@@ -300,7 +300,8 @@ const EdgeLayer = memo(function EdgeLayer({
   return (
     <svg
       aria-hidden="true"
-      className="pointer-events-none absolute top-0 left-0"
+      // The layer is the size of the columns; return arrows dip 40 px under the last card and fanned curves lean past the row
+      className="pointer-events-none absolute top-0 left-0 overflow-visible"
       width={edges.width}
       height={edges.height}
     >

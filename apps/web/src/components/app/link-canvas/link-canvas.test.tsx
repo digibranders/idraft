@@ -478,6 +478,12 @@ describe('LinkCanvas, behaviour found in review', () => {
     expect(view.y).toBeCloseTo(368 - 30 / scale, 6);
   });
 
+  it('lets the lines draw past the edge layer, so return arrows under the last card are not cut off', () => {
+    stubGeometry();
+    const { container } = canvas();
+    expect(container.querySelector('svg.overflow-visible')).not.toBeNull();
+  });
+
   it('sets the first view once per focus page, when the journey has a size', () => {
     stubGeometry();
     const onViewChange = vi.fn();
