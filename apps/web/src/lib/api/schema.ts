@@ -6925,7 +6925,7 @@ export interface components {
             outcomes: components["schemas"]["OutcomeCells"];
             /**
              * Position
-             * @description With `include=facts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when `facts` was not asked for.
+             * @description With `include=facts` or `fact_counts`: where the own brand is named in the engine's valid answers, as counts (zeros when there is no valid answer). On a topic, total or country row the counts are the sums over its prompts. Left out when neither was asked for.
              */
             position?: components["schemas"]["PositionCounts"] | null;
             /**
@@ -6935,12 +6935,12 @@ export interface components {
             previous?: components["schemas"]["EngineCells"] | null;
             /**
              * Recommended
-             * @description With `include=facts`: the recommendation rate, valid answers that recommend the own brand over the engine's valid answers, built as `mentioned` is (a recommendation is a kind of mention, so the numerator is at most that of `mentioned`). Null while none of the row's valid answers has been classified yet (derived again after the extractor that classifies them). Left out when `facts` was not asked for.
+             * @description With `include=facts` or `fact_counts`: the recommendation rate, valid answers that recommend the own brand over the engine's valid answers, built as `mentioned` is (a recommendation is a kind of mention, so the numerator is at most that of `mentioned`). Null while none of the row's valid answers has been classified yet (derived again after the extractor that classifies them). Left out when neither was asked for.
              */
             recommended?: components["schemas"]["MetricCell"] | null;
             /**
              * Sentiment
-             * @description With `include=facts`: how many valid answers name the own brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the row names the own brand with a tone. Never one score. Left out when `facts` was not asked for.
+             * @description With `include=facts` or `fact_counts`: how many valid answers name the own brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the row names the own brand with a tone. Never one score. Left out when neither was asked for.
              */
             sentiment?: components["schemas"]["SentimentCounts"] | null;
             /**
@@ -18209,8 +18209,8 @@ export interface operations {
                 "filter[country_iso]"?: string | null;
                 /** @description The prompts given the term or one under it. */
                 "filter[term]"?: string | null;
-                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`. */
-                include?: ("series" | "entities" | "total" | "co_mentions" | "cells" | "facts")[] | null;
+                /** @description Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads). */
+                include?: ("series" | "entities" | "total" | "co_mentions" | "cells" | "facts" | "fact_counts")[] | null;
                 /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window`, `previous_answers` and `previous` cells. */
                 compare?: "none" | "previous_period" | "previous_year";
                 /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
@@ -23572,7 +23572,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricGe
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiMetricsMetricBreakdownGetParametersQueryDimensionValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/metrics/{metric}/breakdown"]["get"]["parameters"]["query"]["dimension"]> = ["topic", "intent", "funnel_stage", "engine", "country", "language", "persona", "prompt_type"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["complete", "partial", "empty", "refused", "error"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiObservationsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/observations"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells", "facts"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["include"]> = ["series", "entities", "total", "co_mentions", "cells", "facts", "fact_counts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryRowsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["rows"]> = ["topics", "none"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiPromptsSummaryGetParametersQueryFilterOutcomeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/prompts-summary"]["get"]["parameters"]["query"]["filter[outcome]"]> = ["mentioned_and_cited", "mentioned_only", "cited_only", "neither"];
