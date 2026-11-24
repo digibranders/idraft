@@ -564,6 +564,7 @@ def test_the_api_document_has_the_summary_additions() -> None:
         "co_mentions",
         "cells",
         "facts",
+        "fact_counts",
     }
 
     for name in (
