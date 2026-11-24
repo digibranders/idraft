@@ -654,6 +654,16 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links"): (
+        "data:read"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links"): (
+        "prompts:write"
+    ),
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links/{link_id}",
+    ): "prompts:write",
     # WP-45 candidates-api
     # WP-47 alerts-api
     ("GET", "/api/v1/alert-rule-types"): "authenticated",
@@ -822,6 +832,8 @@ PATH_PARAMETERS = {
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
+    # Inside one project, after `{project_id}`: the service finds the link within that project.
+    "link_id",
     # WP-45 candidates-api
     # WP-47 alerts-api
     "alert_rule_id",

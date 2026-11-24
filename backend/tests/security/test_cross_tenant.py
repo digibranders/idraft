@@ -296,6 +296,10 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
+    ("POST", _W + "/projects/{project_id}/keyword-prompt-links"): {
+        "keyword_id": "{keyword_id}",
+        "prompt_id": "{prompt_id}",
+    },
     # WP-45 candidates-api
     # WP-47 alerts-api
     ("POST", _W + "/projects/{project_id}/alert-rules"): {
@@ -1030,6 +1034,12 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-42 panels-api
 
     # WP-44 links-generate
+    link = await fetchrow(
+        pg,
+        "SELECT id FROM core.keyword_prompt_links WHERE project_id = $1 LIMIT 1",
+        project_id,
+    )
+    more_ids["link_id"] = str(link["id"])
 
     # WP-45 candidates-api
 
@@ -1547,6 +1557,7 @@ _TENANT_ROWS = {
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
+    "core.keyword_prompt_links": "workspace_id",
     # WP-45 candidates-api
     # WP-47 alerts-api
     "ops.alert_rules": "workspace_id",
