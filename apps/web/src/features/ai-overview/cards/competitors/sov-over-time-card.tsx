@@ -30,6 +30,7 @@ import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary } from '@/lib/api/types';
 import { boundaryMarkLines, type ChartBoundary } from '@/lib/charts/boundaries';
 import { escapeHtml, type CategorySeries } from '@/lib/charts/category-chart';
+import { fadeDown } from '@/lib/charts/rich-style';
 import { tipRowHtml, tipTitleHtml } from '@/lib/charts/tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { formatChartDate, formatDateRange, formatList, formatPercent } from '@/lib/format';
@@ -105,7 +106,7 @@ interface WeekTip {
 
 /**
  * The layers as an area of a whole: the axis is 0 to 1 in quarters, each layer is stacked on the last, a 1 px line in
- * the surface colour keeps neighbours apart, your layer is the most opaque. A week with no share leaves a gap.
+ * the layer's colour, each layer fading toward the axis, your layer is the most opaque. A week with no share leaves a gap.
  */
 function stackedAreaOption(
   base: Record<string, unknown>,
@@ -127,9 +128,19 @@ function stackedAreaOption(
   const layers = shown.map((entry) => ({
     ...entry,
     stack: 'share',
+    // Smooth bands that fade toward the axis (15-data-visualization.md section 1a); no shadow, so the bands stay apart
+    smooth: 0.25,
     showSymbol: false,
-    lineStyle: { width: 1, color: tokens.surfaceElevated },
-    areaStyle: { color: entry.color, opacity: entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY },
+    lineStyle: { width: 1.5, color: entry.color },
+    areaStyle: {
+      color: fadeDown(
+        entry.color ?? tokens.other,
+        entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY,
+        (entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY) * 0.55,
+      ),
+    },
+    // The end labels of the line style do not belong to a stacked band
+    endLabel: { show: false },
     emphasis: { focus: 'series' },
   }));
   const formatter = (params: readonly TooltipParam[]): string => {

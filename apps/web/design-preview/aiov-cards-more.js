@@ -24,7 +24,8 @@ import {
   trafficFor,
   unlinkedPrompts,
 } from './aiov-data.js';
-import { chartHost, lineOption, mountChart, treemapOption } from './aiov-charts.js';
+import { chartHost, mountChart } from './aiov-charts.js';
+import { chartWithTable, plain, richLineOption, richTreemapOption, ringsOption, ringTable, stackedColumnsOption } from './aiov-rich.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { segmented } from './aiov-cards-core.js';
 import { NEUTRAL_BADGE, barList, cardFrame, countsText, el, emptyBody, engineName, gapIcon, gapSentence, heatBin, icon, insufficientText, orderText, pct0, plural, platformLabel, sampleBadge, shareCountsText, stackedRows } from './aiov-parts.js';
@@ -251,17 +252,18 @@ export function groupPromptsCard(ctx) {
 // -------------------------------------------------------------------------------------------------
 // Citations
 
+// As in the real app: a third party is most rows, so it carries no badge; only your site and a competitor are named, in a small tag
+const SMALL_TAG = 'inline-flex h-4 items-center px-1.5 rounded-sm type-micro whitespace-nowrap';
 const ROLE_BADGE = {
-  'Your site': 'h-badge inline-flex items-center px-2 rounded-sm bg-primary-subtle text-primary-text type-micro whitespace-nowrap',
-  Competitor: NEUTRAL_BADGE,
-  'Third party': NEUTRAL_BADGE,
+  'Your site': `${SMALL_TAG} bg-primary-subtle text-primary-text`,
+  Competitor: `${SMALL_TAG} bg-neutral-subtle text-foreground-secondary`,
 };
 
 export function domainsCard(ctx) {
   const domains = domainsFor(ctx.model);
   if (domains.rows.length === 0) return cardFrame({ key: 'sources.top_domains', title: 'Top cited domains', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
   const rows = domains.rows.slice(0, 8).map((row) => {
-    const badge = row.role === 'Third party' ? undefined : el('span', ROLE_BADGE[row.role], row.role);
+    const badge = ROLE_BADGE[row.role] === undefined ? undefined : el('span', ROLE_BADGE[row.role], row.role);
     return { label: row.domain, value: row.share, strong: row.role === 'Your site', badge, barToken: row.role === 'Your site' ? 'chart-1' : 'chart-bar-neutral', valueText: (v) => `${(v * 100).toFixed(1)}%` };
   });
   return cardFrame({
@@ -276,7 +278,7 @@ export function sourceTypesCard(ctx) {
   const domains = domainsFor(ctx.model);
   if (domains.rows.length === 0) return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Citations by domain type', body: emptyBody('No citations yet', 'No answers cited a page in this scope.') });
   const host = chartHost(232, `Citation units by domain type:${domains.types.map((entry) => `${entry.type} ${((entry.units / domains.total) * 100).toFixed(0)}%`).join(', ')}`);
-  mountChart(host, () => treemapOption({ types: domains.types, total: domains.total }));
+  mountChart(host, () => richTreemapOption({ types: domains.types, total: domains.total }));
   return cardFrame({ key: 'ai.citation_share_by_domain_type', title: 'Citations by domain type', meta: 'area is share of citation units', body: host });
 }
 
@@ -340,11 +342,21 @@ export function positionCard(ctx) {
     if (cell.state !== 'ok') return { label: platformLabel(code), shares: null, note: 'too few mentions' };
     return { label: platformLabel(code), shares: positionShares(cell.value), note: `mean ${orderText(cell.value)}` };
   });
+  // Stacked columns are the picture; the Table view keeps the bars with their exact shares under them
+  const { body, toggle } = chartWithTable({
+    drawChart: (node) => {
+      const host = chartHost(300, `Mention position by platform: ${rows.map((row) => (row.shares === null ? `${plain(row.label)} too few mentions` : `${plain(row.label)} ${POSITION_SEGMENTS.map((segment, at) => `${segment.label} ${pct0(row.shares[at])}`).join(', ')}`)).join('; ')}`);
+      node.append(host);
+      return mountChart(host, () => stackedColumnsOption({ rows: rows.map((row) => ({ ...row, label: plain(row.label) })), segments: POSITION_SEGMENTS }), { redrawOnResize: true });
+    },
+    drawTable: (node) => node.append(stackedRows({ segments: POSITION_SEGMENTS, rows, empty: 'Too few mentions' })),
+  });
   return cardFrame({
     key: 'ai.position_distribution',
     title: 'Mention position',
     meta: 'order among tracked brands',
-    body: stackedRows({ segments: POSITION_SEGMENTS, rows, empty: 'Too few mentions' }),
+    tools: [toggle],
+    body,
   });
 }
 
@@ -367,12 +379,18 @@ export function sentimentCard(ctx) {
   if (rows.every((row) => row.shares === null)) {
     return cardFrame({ key: 'ai.sentiment_by_engine', title: 'Sentiment by platform', body: emptyBody('Not classified on this platform', 'Sentiment is classified on ChatGPT and Gemini answers. Pick another platform to see it.') });
   }
+  // One ring per platform with the positive share in the middle; the table under the rings holds every share
+  const rings = rows.map((row) => ({ label: plain(row.label), shares: row.shares, center: row.shares === null ? 'n/a' : pct0(row.shares[0]) }));
+  const host = chartHost(176, `Sentiment by platform: ${rings.map((ring) => (ring.shares === null ? `${ring.label} not available` : `${ring.label} ${ring.center} positive`)).join(', ')}`);
+  mountChart(host, () => ringsOption({ rows: rings, segments: SENTIMENT_SEGMENTS, width: host.clientWidth, height: 176, unit: 'mentions' }), { redrawOnResize: true });
+  const body = el('div', 'flex flex-col gap-3');
+  body.append(host, ringTable({ rows: rings, segments: SENTIMENT_SEGMENTS }));
   return cardFrame({
     key: 'ai.sentiment_by_engine',
     title: 'Sentiment by platform',
     meta: 'tone of the mentions',
     tools: [sampleBadge()],
-    body: stackedRows({ segments: SENTIMENT_SEGMENTS, rows, empty: 'Not classified' }),
+    body,
   });
 }
 
@@ -384,7 +402,7 @@ export function referralCard(ctx) {
   if (traffic.unavailable) return null;
   const lines = traffic.sources.map((source) => ({ name: source.name, token: ENGINE_TOKEN[source.code], values: source.series }));
   const host = chartHost(200, `AI referral visits by platform over the last 8 weeks: ${traffic.sources.map((source) => `${source.name} ${formatInteger(source.sessions)}`).join(', ')}`);
-  mountChart(host, () => lineOption({ labels: WEEK_LABELS, lines, min: 0, format: (value) => formatInteger(value), tooltipFormat: (value) => (value === null ? 'n/a' : formatInteger(value)) }));
+  mountChart(host, () => richLineOption({ labels: WEEK_LABELS, lines, min: 0, format: (value) => formatInteger(value), tooltipFormat: (value) => (value === null ? 'n/a' : formatInteger(value)) }));
   const legend = el('div', 'mt-2 flex flex-wrap gap-x-4 gap-y-1');
   traffic.sources.forEach((source) => {
     const item = el('span', 'inline-flex items-center gap-1.5 type-meta num');

@@ -34,10 +34,13 @@ BOTTOM_UI: Final = 300
 # A blank gap larger than this ends the answer. Gaps inside answers measured up to about 400 px;
 # the gap between a short answer and the prompt box of a 9,999 px capture is thousands.
 GAP: Final = 1000
-# A real capture is 1,920 px wide and at most 9,999 px high. Larger is refused from its header,
-# before any pixel is decoded (a decompression bomb claims a small file and a huge image).
+# A real capture is 1,920 px wide, at most 9,999 px high for ChatGPT and Gemini, and as tall as the
+# page for Google AI Mode (10,117 px seen on 2026-11-24). A capture is refused from its header,
+# before any pixel is decoded, when it is wider than `MAX_WIDTH` or holds more than `MAX_PIXELS`
+# (a decompression bomb claims a small file and a huge image). 40 million pixels decode to about
+# 120 MB, and are a page 20,800 px high at 1,920 px wide.
 MAX_WIDTH: Final = 4000
-MAX_HEIGHT: Final = 10_000
+MAX_PIXELS: Final = 40_000_000
 
 
 class CaptureError(ValueError):
@@ -76,7 +79,7 @@ def trim_capture(data: bytes, *, requested_height: int) -> Trimmed:
     `browser_screen_height` the capture was asked for."""
     try:
         image = Image.open(io.BytesIO(data))
-        if image.width > MAX_WIDTH or image.height > MAX_HEIGHT:
+        if image.width > MAX_WIDTH or image.width * image.height > MAX_PIXELS:
             raise CaptureError(f"the capture is too large ({image.width} by {image.height})")
         image.load()
     except Image.DecompressionBombError as error:

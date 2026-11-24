@@ -42,6 +42,9 @@ cost and stores nothing; the person can press again (and pays again).
   the structured data next to the image.
 - **`truncated`.** An answer whose content reaches the bottom of the 9,999 px capture, or ends within 1,000 px of the prompt box, is
   stored whole and flagged `truncated`. Very unlikely.
+- **Page height.** ChatGPT and Gemini captures are 9,999 px high; a Google AI Mode capture is as tall as the page (10,117 px seen).
+  A capture is refused ("Try again", a 502 in the API log with `error_kind: CaptureError`, and the $0.004 is still spent) when it is
+  wider than 4,000 px or holds more than 40 million pixels (about 20,800 px high at 1,920 px wide).
 - **Double press from two replicas.** Both could pay; the second upload overwrites the first (same key). No lock is built.
 
 ## Where the images live

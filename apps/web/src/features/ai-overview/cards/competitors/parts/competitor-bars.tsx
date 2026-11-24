@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -54,8 +54,8 @@ export interface CompetitorBarsProps {
 
 /**
  * The brands of a card as a list: a dot, the name, a bar and the share. A competitor's name is a button that opens its
- * drawer; your own row is text. Bars share one scale from 0, your bar is `chart-1` and the others neutral (DS 15). The
- * bar column is hidden under 24 rem of card width, where the share stays.
+ * drawer; your own row is text. Bars are cylinders (DS 15 section 1a) on one scale from 0, your bar in `chart-1` and each
+ * other brand in its own colour. The bar column is hidden under 24 rem of card width, where the share stays.
  */
 export function CompetitorBars({ rows, caption, onOpen }: CompetitorBarsProps): ReactElement {
   const top = Math.max(0.0001, ...rows.map((row) => row.value ?? 0));
@@ -87,10 +87,19 @@ export function CompetitorBars({ rows, caption, onOpen }: CompetitorBarsProps): 
                   <div
                     aria-hidden="true"
                     data-slot="competitor-bar"
-                    className={cn('h-5 rounded-2xs', row.own ? 'bg-chart-1' : 'bg-chart-bar-neutral')}
-                    style={{
-                      width: row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
-                    }}
+                    className={cn('bar-cylinder', (row.value === null || row.value === 0) && 'invisible')}
+                    style={
+                      {
+                        // The brand's own colour; `chart-other` for a brand past the palette
+                        '--bar-color': row.own
+                          ? 'var(--chart-1)'
+                          : `var(--chart-${row.slot === null ? 'other' : String(row.slot)})`,
+                        // A share too small to show as a cylinder is still a round dot, never a sliver
+                        minWidth: row.value === null || row.value === 0 ? undefined : '0.875rem',
+                        width:
+                          row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
+                      } as CSSProperties
+                    }
                   />
                 </div>
                 <span

@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { engineLabel } from './engine-role';
-import { OutcomeBars, type OutcomeRow, type OutcomeSegment, type OutcomeToken } from './outcome-bars';
+import { OutcomeRings, type OutcomeRow, type OutcomeSegment, type OutcomeToken } from './outcome-rings';
 import { OUTCOME_PARTS, outcomeMix, type EngineOutcome, type OutcomePart } from './outcome-model';
 import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
@@ -65,6 +65,8 @@ export default function OutcomeMixCard({ item, live }: CardProps): ReactElement 
     label: nameOf(mix.engineCode),
     icon: <EngineLogo engine={mix.engineCode} name="" />,
     answersText: t('answers', { count: mix.answers }),
+    // Mentioned or cited: 100% minus the answers that did neither
+    center: formatPercent(1 - (mix.shares.find((entry) => entry.part === 'neither')?.share ?? 0), { decimals: 0 }),
     shares: mix.shares.map((entry) => ({
       segmentId: entry.part,
       share: entry.share,
@@ -171,7 +173,7 @@ export default function OutcomeMixCard({ item, live }: CardProps): ReactElement 
       footnote={t('footnote')}
       height={240}
       summary={ready && empty === null ? summary : ''}
-      body={<OutcomeBars segments={segments} rows={rows} caption={t('caption')} />}
+      body={<OutcomeRings segments={segments} rows={rows} caption={t('caption')} label={summary} />}
       table={
         <PlainTable<Ok>
           caption={t('caption')}

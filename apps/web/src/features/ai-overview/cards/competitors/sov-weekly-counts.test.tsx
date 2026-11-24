@@ -84,6 +84,10 @@ function withoutBrandCells(summary: PromptsSummary): PromptsSummary {
   return { ...summary, total: { ...total, engines } };
 }
 
+/** The charts that draw data: the faint curve behind an empty state is a drawing and does not count. */
+const dataCharts = (): HTMLElement[] =>
+  screen.queryAllByTestId('echart-canvas').filter((node) => node.closest('[data-slot="ghost-trend"]') === null);
+
 describe('the share of voice over time card writes x of y brand mentions', () => {
   it('beside each brand in the tooltip of a week, for one platform', async () => {
     serveWorld(weeklySummary(), entityRows());
@@ -202,7 +206,7 @@ describe('the share of voice over time card writes x of y brand mentions', () =>
     serveWorld(cappedSummary(), entityRows());
     renderCard('ai.sov_over_time', SovOverTimeCard, {}, { searchParams: ONE_PLATFORM });
     expect(await screen.findByText('More than 20 tracked brands')).toBeInTheDocument();
-    expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
+    expect(dataCharts()).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
   });
 
@@ -210,7 +214,7 @@ describe('the share of voice over time card writes x of y brand mentions', () =>
     serveWorld(withoutBrandCells(weeklySummary()), entityRows());
     renderCard('ai.sov_over_time', SovOverTimeCard, {}, { searchParams: ONE_PLATFORM });
     expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
-    expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
+    expect(dataCharts()).toHaveLength(0);
   });
 });
 
