@@ -46,6 +46,10 @@ afterEach(() => {
 });
 
 /** Serves `summary` and gives the URL of every summary read, in order. */
+/** The charts that draw data: the faint curve behind an empty state is a drawing and does not count. */
+const dataCharts = (): HTMLElement[] =>
+  screen.queryAllByTestId('echart-canvas').filter((node) => node.closest('[data-slot="ghost-trend"]') === null);
+
 function serveRecording(summary: PromptsSummary): URL[] {
   const urls: URL[] = [];
   server.use(
@@ -191,7 +195,7 @@ describe('the rate trend with the metric Share of voice', () => {
     serveRecording({ ...summary, total: { ...total, engines } });
     renderCard('ai.rate_trend_by_engine', RateTrendCard, {}, { searchParams: 'cmp=off&metric=sov' });
     expect(await screen.findByText('More than 20 tracked brands')).toBeInTheDocument();
-    expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
+    expect(dataCharts()).toHaveLength(0);
   });
 
   it('says Not collected yet, with no line, when the weekly points hold no cell for a tracked brand', async () => {
@@ -203,6 +207,6 @@ describe('the rate trend with the metric Share of voice', () => {
     serveRecording({ ...summary, total: { ...total, engines } });
     renderCard('ai.rate_trend_by_engine', RateTrendCard, {}, { searchParams: 'cmp=off&metric=sov' });
     expect(await screen.findByText('Not collected yet')).toBeInTheDocument();
-    expect(screen.queryByTestId('echart-canvas')).not.toBeInTheDocument();
+    expect(dataCharts()).toHaveLength(0);
   });
 });

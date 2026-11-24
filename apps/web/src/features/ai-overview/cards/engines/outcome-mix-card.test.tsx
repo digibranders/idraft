@@ -55,39 +55,37 @@ function renderCard(searchParams: string) {
 }
 
 describe('the outcome split card', () => {
-  it('draws a 100% bar for each platform of the scope, with the answers and the four exact shares', async () => {
+  it('draws a ring for each platform of the scope, with its visibility rate in the middle, the answers and the four exact shares', async () => {
     serve(platform('chatgpt_web', 50, [6, 5, 4, 35]), platform('gemini_web', 20, [2, 2, 2, 14]));
     renderCard('cmp=off');
-    const bar = await screen.findByRole('img', {
-      name: 'Mentioned and cited 12%, Mentioned only 10%, Cited only 8%, Neither 70%',
-    });
-    const row = bar.closest('[data-slot="outcome-row"]') as HTMLElement;
-    expect(within(row).getByText('50 answers')).toBeInTheDocument();
-    expect(within(row).getByText('ChatGPT')).toBeInTheDocument();
+    // The rings are one picture that says every platform's four shares in words
+    const rings = await screen.findByRole('img', { name: /ChatGPT.*Mentioned and cited 12%.*Neither 70%/ });
+    expect(rings).toHaveAccessibleName(/Gemini.*Neither 70%/);
+    // Mentioned or cited is 100% minus neither: 30% in the middle of each ring
+    expect(within(rings).getAllByText('30%')).toHaveLength(2);
+    expect(within(rings).getByText('ChatGPT')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Outcome split by platform' })).toBeInTheDocument();
-    expect(
-      screen.getAllByRole('img').filter((node) => node.getAttribute('aria-label')?.includes('Neither')),
-    ).toHaveLength(2);
+    // The exact shares and the answers behind them are text under the rings
+    expect(screen.getByText('50 answers')).toBeInTheDocument();
+    expect(screen.getByText('20 answers')).toBeInTheDocument();
+    expect(screen.getAllByText('70%')).toHaveLength(2);
+    expect(screen.getByText('12%')).toBeInTheDocument();
   });
 
-  it('keeps the four shares at 100% of the valid answers', async () => {
+  it('draws the rings as plain rings: no bar of segments is left in the card', async () => {
     serve(platform('chatgpt_web', 50, [6, 5, 4, 35]));
     renderCard('cmp=off&engine=chatgpt_web');
-    const bar = await screen.findByRole('img', { name: /Neither 70%/ });
-    const segments = bar.querySelectorAll('[data-slot="outcome-segment"]');
-    const total = [...segments].reduce((sum, node) => sum + Number.parseFloat((node as HTMLElement).style.width), 0);
-    expect(total).toBeCloseTo(100);
-    expect(screen.getByText('ChatGPT', { selector: 'span' })).toBeInTheDocument();
+    await screen.findByRole('img', { name: /Neither 70%/ });
+    expect(document.querySelector('[data-slot="outcome-segment"]')).toBeNull();
+    expect(screen.getByText('50 answers')).toBeInTheDocument();
   });
 
-  it('leaves out a platform with fewer than 4 valid answers instead of drawing an empty row', async () => {
+  it('leaves out a platform with fewer than 4 valid answers instead of drawing an empty ring', async () => {
     serve(platform('chatgpt_web', 50, [6, 5, 4, 35]), platform('gemini_web', 3, [1, 1, 0, 1]));
     renderCard('cmp=off');
     await screen.findByRole('img', { name: /Neither 70%/ });
-    expect(
-      screen.getAllByRole('img').filter((node) => node.getAttribute('aria-label')?.includes('Neither')),
-    ).toHaveLength(1);
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument();
+    expect(screen.queryByText('3 answers')).not.toBeInTheDocument();
   });
 
   it('says there is no rate yet when no platform has enough valid answers, and draws no bar', async () => {

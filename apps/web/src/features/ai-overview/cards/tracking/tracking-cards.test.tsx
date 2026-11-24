@@ -62,16 +62,20 @@ const POSITION: PositionCounts = {
 };
 
 describe('the mention position card', () => {
-  it('draws one bar per platform from the counts by place, with the mean and the exact shares', async () => {
+  it('draws one stacked column per platform from the counts by place, with the mean and the exact shares', async () => {
     serve(platform('chatgpt_web', { position: POSITION }), platform('gemini_web', { position: POSITION }));
     renderCard(PositionDistributionCard, 'cmp=off');
-    const bars = await screen.findAllByRole('img', {
-      name: 'Mentioned first 50%, Mentioned second 25%, Mentioned third 15%, Fourth or later 10%',
+    // The columns are one picture that says every platform's shares in words
+    const columns = await screen.findByRole('img', {
+      name: /ChatGPT.*Mentioned first 50%.*Gemini.*Mentioned first 50%/,
     });
-    expect(bars).toHaveLength(2);
+    expect(columns).toHaveAccessibleName(/Mentioned second 25%.*Mentioned third 15%.*Fourth or later 10%/);
+    // The exact shares are text under the chart, one cell per platform and place
     expect(screen.getAllByText('mean 1.7')).toHaveLength(2);
+    expect(screen.getAllByText('50%')).toHaveLength(2);
     expect(screen.getByText('order among tracked brands')).toBeInTheDocument();
-    expect(screen.getByText('Mentioned first', { selector: 'li' })).toBeInTheDocument();
+    expect(screen.getByText('Mentioned first', { selector: 'th' })).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="share-segment"]')).toBeNull();
   });
 
   it('says Not collected yet, and draws no shares, when the counts by place are not sent, whatever the mean says', async () => {
@@ -115,16 +119,17 @@ describe('the mention position card', () => {
 const TONE: SentimentCounts = { positive: 12, neutral: 6, negative: 2, mixed: 2 };
 
 describe('the sentiment by platform card', () => {
-  it('draws the four shares of each platform that classifies, never one score, with the share of mentions classified', async () => {
+  it('draws a ring of the four shares for each platform that classifies, never one score, with the share of mentions classified', async () => {
     serve(
       platform('chatgpt_web', { position: POSITION, sentiment: TONE }),
       platform('gemini_web', { position: POSITION, sentiment: TONE }),
     );
     renderCard(SentimentCard, 'cmp=off');
-    const bars = await screen.findAllByRole('img', {
-      name: 'Positive 55%, Neutral 27%, Negative 9%, Mixed 9%',
-    });
-    expect(bars).toHaveLength(2);
+    // The rings are one picture that says every platform's four shares in words
+    const rings = await screen.findByRole('img', { name: /ChatGPT.*Positive 55%.*Neutral 27%.*Negative 9%.*Mixed 9%/ });
+    expect(rings).toHaveAccessibleName(/Gemini.*Positive 55%/);
+    // The positive share is in the middle of each ring: 55% twice, and again in the table under them
+    expect(within(rings).getAllByText('55%')).toHaveLength(2);
     expect(screen.getAllByText('100% of mentions classified').length).toBeGreaterThan(0);
     expect(screen.queryByText('Sample data')).not.toBeInTheDocument();
   });
@@ -143,8 +148,8 @@ describe('the sentiment by platform card', () => {
     );
     renderCard(SentimentCard, 'cmp=off');
     await screen.findByRole('img', { name: /Positive 55%/ });
-    const chip = screen.getByText('Not classified');
-    expect(chip).toBeInTheDocument();
+    // Said under the empty ring and once in the table
+    expect(screen.getAllByText('Not classified').length).toBeGreaterThan(0);
     expect(screen.getByText('not classified')).toBeInTheDocument();
   });
 
@@ -157,16 +162,16 @@ describe('the sentiment by platform card', () => {
     ).toBeInTheDocument();
   });
 
-  it('has no bar under 4 classified mentions and says why', async () => {
+  it('has no ring under 4 classified mentions and says why', async () => {
     serve(
       platform('chatgpt_web', { position: POSITION, sentiment: TONE }),
       platform('gemini_web', { position: POSITION, sentiment: { positive: 1, neutral: 1, negative: 0, mixed: 0 } }),
     );
     renderCard(SentimentCard, 'cmp=off');
-    await screen.findByRole('img', { name: /Positive 55%/ });
+    const rings = await screen.findByRole('img', { name: /Positive 55%/ });
     expect(screen.getByText('too few mentions')).toBeInTheDocument();
-    const rows = document.querySelectorAll('[data-slot="share-row"]');
-    expect(rows).toHaveLength(2);
-    expect(within(rows[1] as HTMLElement).queryByRole('img')).not.toBeInTheDocument();
+    // The platform is named but has no shares in the picture
+    expect(rings).not.toHaveAccessibleName(/Gemini.*Positive/);
+    expect(within(rings).getByText('Gemini')).toBeInTheDocument();
   });
 });
