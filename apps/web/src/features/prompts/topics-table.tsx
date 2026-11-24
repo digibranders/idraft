@@ -297,7 +297,7 @@ export function TopicsTable({
               <Tooltip content={count} purpose="label">
                 <span
                   aria-label={count}
-                  className="shrink-0 rounded-full bg-surface-hover px-2 type-label num font-normal text-foreground-secondary"
+                  className="shrink-0 rounded-full bg-surface-hover px-2 num type-label font-normal text-foreground-secondary"
                 >
                   {row.promptCount}
                 </span>

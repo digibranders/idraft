@@ -46,7 +46,7 @@ export function useGroupedColumns(
         <Truncate text={group.label} className="text-foreground" />
         <span
           aria-label={t('keywordCount', { count: group.measures.size })}
-          className="shrink-0 rounded-full bg-surface-hover px-2 type-label num font-normal text-foreground-secondary"
+          className="shrink-0 rounded-full bg-surface-hover px-2 num type-label font-normal text-foreground-secondary"
         >
           {group.measures.size}
         </span>

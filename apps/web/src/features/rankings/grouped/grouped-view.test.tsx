@@ -254,10 +254,18 @@ describe('Keywords By group', () => {
   it('counts the groups again for the device shown', async () => {
     const { user } = renderWithProviders(byDefault());
     const tree = await loadedTree();
-    expect(within(within(groupRow(tree, /Local/)).getByRole('rowheader')).getByLabelText('10 keywords')).toBeInTheDocument();
+    expect(
+      within(within(groupRow(tree, /Local/)).getByRole('rowheader')).getByLabelText('10 keywords'),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: 'Mobile' }));
-    await waitFor(() => expect(within(within(groupRow(tree, /Local/)).getByRole('rowheader')).getByLabelText('1 keyword')).toBeInTheDocument());
-    expect(within(within(groupRow(tree, /SEO audits/)).getByRole('rowheader')).getByLabelText('1 keyword')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(within(groupRow(tree, /Local/)).getByRole('rowheader')).getByLabelText('1 keyword'),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      within(within(groupRow(tree, /SEO audits/)).getByRole('rowheader')).getByLabelText('1 keyword'),
+    ).toBeInTheDocument();
   });
 
   it('shows the flat table with By group disabled when the list is in server mode', async () => {
