@@ -141,7 +141,11 @@ export function GuestReportView({ report }: { report: ClientReport }): ReactElem
   ];
   const domainColumns: PlainColumn<ClientReport['cited_domains'][number]>[] = [
     { id: 'domain', header: t('columns.domain'), cell: (domain) => domain.registrable_domain },
-    { id: 'type', header: t('columns.type'), cell: (domain) => t(`domainType.${domain.domain_role}`) },
+    {
+      id: 'type',
+      header: t('columns.type'),
+      cell: (domain) => t(`domainType.${domain.domain_role === 'third_party' ? 'thirdParty' : domain.domain_role}`),
+    },
     {
       id: 'citations',
       header: t('columns.citations'),

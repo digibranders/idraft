@@ -88,7 +88,7 @@ describe('Reports: scheduled emails', () => {
 
     await user.type(recipients, 'anita@client.com bad');
     await user.click(screen.getByRole('button', { name: 'Add schedule', hidden: false }));
-    expect(await screen.findByText('"bad" is not an email address.')).toBeInTheDocument();
+    expect(await screen.findByText('“bad” is not an email address.')).toBeInTheDocument();
 
     await user.clear(recipients);
     await user.type(recipients, 'Anita@Client.com{enter}ops@client.com');

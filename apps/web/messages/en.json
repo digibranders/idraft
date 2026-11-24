@@ -8414,7 +8414,7 @@
       "recipientsHint": "One address per line, up to {max}.",
       "recipientsEmpty": "Enter at least one email address.",
       "recipientsTooMany": "Enter at most {max} addresses.",
-      "recipientsInvalid": "\"{address}\" is not an email address.",
+      "recipientsInvalid": "“{address}” is not an email address.",
       "add": "Add schedule",
       "save": "Save changes",
       "added": "Schedule added",
@@ -8455,7 +8455,7 @@
       "domainType": {
         "own": "Your site",
         "competitor": "Competitor",
-        "third_party": "Other"
+        "thirdParty": "Other"
       },
       "figure": {
         "noAnswers": "No valid answers yet",
