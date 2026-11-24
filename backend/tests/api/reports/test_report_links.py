@@ -283,6 +283,18 @@ async def test_a_link_stops_with_its_maker_and_with_its_workspace(
         seeded.owner.user_id,
     )
     left = await api.get(f"{PUBLIC}/{token}")
+    await execute(
+        migrated,
+        "INSERT INTO auth.memberships (workspace_id, user_id, role) VALUES ($1, $2, 'owner')",
+        seeded.workspace.id,
+        seeded.owner.user_id,
+    )
+    assert (await api.get(f"{PUBLIC}/{token}")).status_code == 200
+    await execute(
+        migrated, "UPDATE auth.users SET disabled_at = now() WHERE id = $1", seeded.owner.user_id
+    )
+    disabled = await api.get(f"{PUBLIC}/{token}")
 
     assert problem(suspended) == (404, "not_found")
     assert problem(left) == (404, "not_found")
+    assert problem(disabled) == (404, "not_found")

@@ -161,6 +161,11 @@ class ReportScheduleService:
             ).first()
             if found is None:
                 raise NotFoundError
+            # Saying what is already true changes nothing, and is not audited as a change
+            if body.paused == found.paused:
+                values.pop("paused", None)
+            if body.frequency is not None and body.frequency == found.frequency:
+                values.pop("frequency", None)
             if (body.frequency is not None and body.frequency != found.frequency) or (
                 body.paused is False and found.paused
             ):

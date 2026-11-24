@@ -393,12 +393,20 @@ async def test_the_claim_moves_a_schedule_to_the_same_slot_the_api_would_give(
     # Whatever the time zone of the session, the slot is in UTC
     async with connection(migrated) as db:
         await db.execute("SET TIME ZONE 'Asia/Kolkata'")
-        rows = await db.fetch(
-            "SELECT id, next_run_at FROM core.ai_report_schedules_claim_due($1, 1000)", now
-        )
+        # Rolled back: the claim must not move the schedules of the tests that share this database
+        transaction = db.transaction()
+        await transaction.start()
+        try:
+            rows = await db.fetch(
+                "SELECT id, next_run_at FROM core.ai_report_schedules_claim_due($1, 1000)", now
+            )
+        finally:
+            await transaction.rollback()
 
     claimed = {str(row["id"]): row["next_run_at"] for row in rows}
     assert claimed[schedule_id] == next_slot(frequency, now)  # type: ignore[arg-type]
+    # Still due at 2000: not left for the digest tests
+    await api.delete(f"{base}/{schedule_id}", headers=editor.headers)
 
 
 async def test_a_resume_of_a_schedule_that_is_not_paused_keeps_its_next_email(
