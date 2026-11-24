@@ -9,11 +9,20 @@ describe('smoothPath', () => {
   });
 
   it('is a straight line for two points: both control points sit on it', () => {
-    expect(smoothPath([{ x: 0, y: 0 }, { x: 60, y: 30 }])).toBe('M0,0 C10,5 50,25 60,30');
+    expect(
+      smoothPath([
+        { x: 0, y: 0 },
+        { x: 60, y: 30 },
+      ]),
+    ).toBe('M0,0 C10,5 50,25 60,30');
   });
 
   it('passes through every point, in order', () => {
-    const path = smoothPath([{ x: 0, y: 10 }, { x: 50, y: 0 }, { x: 100, y: 10 }]);
+    const path = smoothPath([
+      { x: 0, y: 10 },
+      { x: 50, y: 0 },
+      { x: 100, y: 10 },
+    ]);
     expect(path.startsWith('M0,10 ')).toBe(true);
     expect(path.split('C')).toHaveLength(3);
     expect(path.endsWith(' 100,10')).toBe(true);
@@ -21,6 +30,11 @@ describe('smoothPath', () => {
   });
 
   it('rounds to two decimals', () => {
-    expect(smoothPath([{ x: 0, y: 0 }, { x: 1 / 3, y: 2 / 3 }])).toBe('M0,0 C0.06,0.11 0.28,0.56 0.33,0.67');
+    expect(
+      smoothPath([
+        { x: 0, y: 0 },
+        { x: 1 / 3, y: 2 / 3 },
+      ]),
+    ).toBe('M0,0 C0.06,0.11 0.28,0.56 0.33,0.67');
   });
 });

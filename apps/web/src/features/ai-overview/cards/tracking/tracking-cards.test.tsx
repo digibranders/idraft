@@ -66,7 +66,9 @@ describe('the mention position card', () => {
     serve(platform('chatgpt_web', { position: POSITION }), platform('gemini_web', { position: POSITION }));
     renderCard(PositionDistributionCard, 'cmp=off');
     // The columns are one picture that says every platform's shares in words
-    const columns = await screen.findByRole('img', { name: /ChatGPT.*Mentioned first 50%.*Gemini.*Mentioned first 50%/ });
+    const columns = await screen.findByRole('img', {
+      name: /ChatGPT.*Mentioned first 50%.*Gemini.*Mentioned first 50%/,
+    });
     expect(columns).toHaveAccessibleName(/Mentioned second 25%.*Mentioned third 15%.*Fourth or later 10%/);
     // The exact shares are text under the chart, one cell per platform and place
     expect(screen.getAllByText('mean 1.7')).toHaveLength(2);

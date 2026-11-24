@@ -29,7 +29,12 @@ const SEGMENTS: RingSegment[] = [
 ];
 
 const ROWS: RingRow[] = [
-  { id: 'chatgpt', label: 'ChatGPT', shares: [0.4, 0.6], tips: ['Mentioned and cited: 40%, 4 of 10', 'Neither: 60%, 6 of 10'] },
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    shares: [0.4, 0.6],
+    tips: ['Mentioned and cited: 40%, 4 of 10', 'Neither: 60%, 6 of 10'],
+  },
   { id: 'gemini', label: 'Gemini', shares: null, tips: [] },
 ];
 
@@ -41,7 +46,9 @@ interface PieSeries {
   data: { name: string; value: number; itemStyle: { color: string } }[];
 }
 
-const seriesOf = (rows: RingRow[] = ROWS): PieSeries[] => (ringsOption({ rows, segments: SEGMENTS, tokens: TOKENS, width: 380, height: 176 }) as { series: PieSeries[] }).series;
+const seriesOf = (rows: RingRow[] = ROWS): PieSeries[] =>
+  (ringsOption({ rows, segments: SEGMENTS, tokens: TOKENS, width: 380, height: 176 }) as { series: PieSeries[] })
+    .series;
 
 describe('ringCenterX', () => {
   it('puts each centre in the middle of its column', () => {
@@ -81,7 +88,10 @@ describe('ringsOption', () => {
   it('sets the ring size in px from the width of the canvas', () => {
     const [first] = seriesOf();
     // Four rings in 380 px would each be 95 px wide; here two share it, so each ring can be 2 x 73 px wide at most
-    expect((first as unknown as { radius: number[] }).radius).toEqual([Math.round(ringRadius(2, 380, 176) * 0.69), Math.round(ringRadius(2, 380, 176))]);
+    expect((first as unknown as { radius: number[] }).radius).toEqual([
+      Math.round(ringRadius(2, 380, 176) * 0.69),
+      Math.round(ringRadius(2, 380, 176)),
+    ]);
   });
 
   it('draws a row with no rate as an empty ring that answers no pointer', () => {
@@ -92,7 +102,9 @@ describe('ringsOption', () => {
 
   it('says the segment under the pointer in its tooltip, escaped, and nothing for a mark it does not know', () => {
     const rows: RingRow[] = [{ id: 'x', label: '<i>Chat</i>', shares: [0.4, 0.6], tips: ['a & b', 'c'] }];
-    const { tooltip } = ringsOption({ rows, segments: SEGMENTS, tokens: TOKENS, width: 380, height: 176 }) as { tooltip: { formatter: (param: object) => string } };
+    const { tooltip } = ringsOption({ rows, segments: SEGMENTS, tokens: TOKENS, width: 380, height: 176 }) as {
+      tooltip: { formatter: (param: object) => string };
+    };
     const html = tooltip.formatter({ seriesIndex: 0, dataIndex: 0 });
     expect(html).toContain('&#60;i&#62;Chat&#60;/i&#62;');
     expect(html).toContain('Mentioned and cited');

@@ -40,11 +40,22 @@ export interface RingsChartProps {
  * One plain ring per row with its number in the middle and its name below (15-data-visualization.md section 1a). The
  * numbers and names are text in equal columns over and under the canvas, so the page's font and wrapping apply to them.
  */
-export function RingsChart({ rows, segments, label, height, names = true, emphasis = false }: RingsChartProps): ReactElement {
+export function RingsChart({
+  rows,
+  segments,
+  label,
+  height,
+  names = true,
+  emphasis = false,
+}: RingsChartProps): ReactElement {
   // The caller builds `rows` on every render; the chart redraws, and so animates, only when what it shows changes
-  const signature = JSON.stringify([rows.map(({ id, label: name, shares, tips }) => ({ id, name, shares, tips })), segments]);
+  const signature = JSON.stringify([
+    rows.map(({ id, label: name, shares, tips }) => ({ id, name, shares, tips })),
+    segments,
+  ]);
   const stable = useMemo(
-    () => JSON.parse(signature) as [{ id: string; name: string; shares: number[] | null; tips: string[] }[], RingSegment[]],
+    () =>
+      JSON.parse(signature) as [{ id: string; name: string; shares: number[] | null; tips: string[] }[], RingSegment[]],
     [signature],
   );
   const [wrapper, width] = useElementWidth<HTMLDivElement>();

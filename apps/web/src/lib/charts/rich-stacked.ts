@@ -86,7 +86,13 @@ export function stackedColumnsOption({ rows, segments, tokens }: StackedInput): 
         barMaxWidth: 64,
         // A row with nothing to show has no datum for any segment
         data: rows.map((row) => (row.shares === null ? null : (row.shares[at] ?? 0))),
-        itemStyle: { color: fadeDown(color, 1, 0.72), borderRadius: 6, borderColor: tokens.surfaceElevated, borderWidth: 1.5, ...softShadow(color, 0.4) },
+        itemStyle: {
+          color: fadeDown(color, 1, 0.72),
+          borderRadius: 6,
+          borderColor: tokens.surfaceElevated,
+          borderWidth: 1.5,
+          ...softShadow(color, 0.4),
+        },
         emphasis: { focus: 'series' },
       };
     }),

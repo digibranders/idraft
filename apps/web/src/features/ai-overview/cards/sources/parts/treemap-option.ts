@@ -58,7 +58,14 @@ export function treemapOption(tiles: readonly TreemapTile[], tokens: ChartTokens
         right: 0,
         bottom: 0,
         itemStyle: { borderColor: surface, borderWidth: 3, gapWidth: 3, borderRadius: 8 },
-        label: { show: true, fontFamily: tokens.fontFamily, fontSize: 12, fontWeight: 600, color: surface, formatter: '{b}' },
+        label: {
+          show: true,
+          fontFamily: tokens.fontFamily,
+          fontSize: 12,
+          fontWeight: 600,
+          color: surface,
+          formatter: '{b}',
+        },
         data: tiles.map((tile) => ({
           name: tile.name,
           value: tile.value,

@@ -47,7 +47,9 @@ export function SharesTable({ segments, columns, caption }: SharesTableProps): R
                 {column.icon}
                 <span className="sr-only">{column.label}</span>
               </span>
-              {column.sub === undefined ? null : <span className="block num text-foreground-tertiary">{column.sub}</span>}
+              {column.sub === undefined ? null : (
+                <span className="block num text-foreground-tertiary">{column.sub}</span>
+              )}
             </th>
           ))}
         </tr>
@@ -66,11 +68,7 @@ export function SharesTable({ segments, columns, caption }: SharesTableProps): R
             {columns.map((column) => {
               const cell = column.cells?.[index];
               return (
-                <td
-                  key={column.id}
-                  className="py-1 pl-1 text-right num text-foreground"
-                  title={cell?.tip}
-                >
+                <td key={column.id} className="py-1 pl-1 text-right num text-foreground" title={cell?.tip}>
                   {column.cells === null ? (index === 0 ? column.noneText : '') : cell?.text}
                 </td>
               );

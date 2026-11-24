@@ -133,7 +133,11 @@ function stackedAreaOption(
     showSymbol: false,
     lineStyle: { width: 1.5, color: entry.color },
     areaStyle: {
-      color: fadeDown(entry.color ?? tokens.other, entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY, (entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY) * 0.55),
+      color: fadeDown(
+        entry.color ?? tokens.other,
+        entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY,
+        (entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY) * 0.55,
+      ),
     },
     // The end labels of the line style do not belong to a stacked band
     endLabel: { show: false },

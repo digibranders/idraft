@@ -28,7 +28,13 @@ const SEGMENTS: StackedSegment[] = [
   { id: 'later', name: 'Fourth or later', token: 'chart-bar-neutral' },
 ];
 const ROWS: StackedRow[] = [
-  { id: 'chatgpt', label: 'ChatGPT', note: 'mean 1.4', shares: [0.7, 0.3], tips: ['Mentioned first: 70%, 7 of 10', 'Fourth or later: 30%, 3 of 10'] },
+  {
+    id: 'chatgpt',
+    label: 'ChatGPT',
+    note: 'mean 1.4',
+    shares: [0.7, 0.3],
+    tips: ['Mentioned first: 70%, 7 of 10', 'Fourth or later: 30%, 3 of 10'],
+  },
   { id: 'gemini', label: 'Gemini', note: '', shares: null, tips: [] },
 ];
 
@@ -39,7 +45,9 @@ interface BarSeries {
   itemStyle: { color: { type: string }; borderRadius: number };
 }
 
-const optionOf = (rows: StackedRow[] = ROWS): { xAxis: { data: string[] }; series: BarSeries[]; tooltip: { formatter: (param: object) => string } } =>
+const optionOf = (
+  rows: StackedRow[] = ROWS,
+): { xAxis: { data: string[] }; series: BarSeries[]; tooltip: { formatter: (param: object) => string } } =>
   stackedColumnsOption({ rows, segments: SEGMENTS, tokens: TOKENS }) as ReturnType<typeof optionOf>;
 
 describe('stackedColumnsOption', () => {
@@ -51,12 +59,15 @@ describe('stackedColumnsOption', () => {
     const { series } = optionOf();
     expect(series).toHaveLength(2);
     expect(series.map((entry) => entry.stack)).toEqual(['share', 'share']);
-    expect(series.map((entry) => entry.data)).toEqual([[0.7, null], [0.3, null]]);
+    expect(series.map((entry) => entry.data)).toEqual([
+      [0.7, null],
+      [0.3, null],
+    ]);
     expect(series[0]?.itemStyle).toMatchObject({ borderRadius: 6, color: { type: 'linear' } });
   });
 
   it('says the segment under the pointer in its tooltip, escaped, and nothing for a mark it does not know', () => {
-    const { tooltip } = optionOf([{ ...ROWS[0] as StackedRow, label: '<b>Chat</b>', tips: ['a & b', 'c'] }]);
+    const { tooltip } = optionOf([{ ...(ROWS[0] as StackedRow), label: '<b>Chat</b>', tips: ['a & b', 'c'] }]);
     const html = tooltip.formatter({ dataIndex: 0, seriesIndex: 0 });
     expect(html).toContain('&#60;b&#62;Chat&#60;/b&#62;');
     expect(html).toContain('Mentioned first');

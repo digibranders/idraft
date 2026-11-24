@@ -29,7 +29,8 @@ export function shade(color: string, amount: number): string {
   const channels = zrColor.parse(color);
   if (!channels) return color;
   const target = amount < 0 ? 0 : 255;
-  const mix = (channel: number | undefined): number => Math.round((channel ?? 0) + (target - (channel ?? 0)) * Math.abs(amount));
+  const mix = (channel: number | undefined): number =>
+    Math.round((channel ?? 0) + (target - (channel ?? 0)) * Math.abs(amount));
   return zrColor.stringify([mix(channels[0]), mix(channels[1]), mix(channels[2]), channels[3] ?? 1], 'rgba');
 }
 
@@ -49,7 +50,10 @@ export function fadeDown(color: string, from: number, to: number): LinearGradien
 }
 
 /** The soft shadow under a mark that gives it depth. */
-export function softShadow(color: string, strength = 1): { shadowColor: string; shadowBlur: number; shadowOffsetY: number } {
+export function softShadow(
+  color: string,
+  strength = 1,
+): { shadowColor: string; shadowBlur: number; shadowOffsetY: number } {
   return { shadowColor: withAlpha(color, 0.4), shadowBlur: 12 * strength, shadowOffsetY: 5 * strength };
 }
 
@@ -61,12 +65,26 @@ export function prefersReducedMotion(): boolean {
 }
 
 /** Entrance and update motion of a chart; off for people who ask for less motion (and wherever motion cannot be asked about). */
-export function chartMotion(): { animation: boolean; animationDuration: number; animationDurationUpdate: number; animationEasing: string } {
-  return { animation: !prefersReducedMotion(), animationDuration: 800, animationDurationUpdate: 400, animationEasing: 'cubicOut' };
+export function chartMotion(): {
+  animation: boolean;
+  animationDuration: number;
+  animationDurationUpdate: number;
+  animationEasing: string;
+} {
+  return {
+    animation: !prefersReducedMotion(),
+    animationDuration: 800,
+    animationDurationUpdate: 400,
+    animationEasing: 'cubicOut',
+  };
 }
 
 /** The axis pointer of a time chart: a 2 px line, bright at the top and fading out toward the axis. */
-export function fadingPointer(color: string): { type: 'line'; z: number; lineStyle: { width: number; type: 'solid'; color: LinearGradient } } {
+export function fadingPointer(color: string): {
+  type: 'line';
+  z: number;
+  lineStyle: { width: number; type: 'solid'; color: LinearGradient };
+} {
   return { type: 'line', z: 0, lineStyle: { width: 2, type: 'solid', color: fadeDown(color, 0.7, 0) } };
 }
 

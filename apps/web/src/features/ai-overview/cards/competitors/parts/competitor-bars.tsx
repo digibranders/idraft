@@ -88,13 +88,18 @@ export function CompetitorBars({ rows, caption, onOpen }: CompetitorBarsProps): 
                     aria-hidden="true"
                     data-slot="competitor-bar"
                     className={cn('bar-cylinder', (row.value === null || row.value === 0) && 'invisible')}
-                    style={{
-                      // The brand's own colour; `chart-other` for a brand past the palette
-                      '--bar-color': row.own ? 'var(--chart-1)' : `var(--chart-${row.slot === null ? 'other' : String(row.slot)})`,
-                      // A share too small to show as a cylinder is still a round dot, never a sliver
-                      minWidth: row.value === null || row.value === 0 ? undefined : '0.875rem',
-                      width: row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
-                    } as CSSProperties}
+                    style={
+                      {
+                        // The brand's own colour; `chart-other` for a brand past the palette
+                        '--bar-color': row.own
+                          ? 'var(--chart-1)'
+                          : `var(--chart-${row.slot === null ? 'other' : String(row.slot)})`,
+                        // A share too small to show as a cylinder is still a round dot, never a sliver
+                        minWidth: row.value === null || row.value === 0 ? undefined : '0.875rem',
+                        width:
+                          row.value === null ? '0%' : `${String(Math.max(1, Math.round((row.value / top) * 100)))}%`,
+                      } as CSSProperties
+                    }
                   />
                 </div>
                 <span

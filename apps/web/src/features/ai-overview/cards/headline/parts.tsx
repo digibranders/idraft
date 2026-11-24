@@ -57,7 +57,12 @@ export function Sparkline({
   const spots: PathPoint[] = points.flatMap((value, index) =>
     value === null
       ? []
-      : [{ x: (index / (points.length - 1)) * SPARK_WIDTH, y: height - pad - ((value - low) / span) * (height - 2 * pad) }],
+      : [
+          {
+            x: (index / (points.length - 1)) * SPARK_WIDTH,
+            y: height - pad - ((value - low) / span) * (height - 2 * pad),
+          },
+        ],
   );
   const first = spots[0];
   const last = spots[spots.length - 1];
@@ -78,7 +83,10 @@ export function Sparkline({
             <stop offset="1" style={{ stopColor: 'var(--chart-1)', stopOpacity: 0 }} />
           </linearGradient>
         </defs>
-        <path d={`${line} L${String(last.x)},${String(height)} L${String(first.x)},${String(height)} Z`} fill={`url(#${fade})`} />
+        <path
+          d={`${line} L${String(last.x)},${String(height)} L${String(first.x)},${String(height)} Z`}
+          fill={`url(#${fade})`}
+        />
         <path
           d={line}
           fill="none"
@@ -86,7 +94,7 @@ export function Sparkline({
           strokeLinejoin="round"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
-          className="spark-glow stroke-chart-1"
+          className="stroke-chart-1 spark-glow"
         />
       </svg>
       <span

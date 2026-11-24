@@ -80,7 +80,14 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
     aria: { enabled: true, label: { enabled: false }, decal: { show: patterns } },
     // The padding bounds the axis labels too: the plot shrinks until the y labels ("30,000", "1.2M") and the
     // x labels fit inside it, so no width of label is cut at the card's edge
-    grid: { left: 4, right: kind === 'line' ? 56 : 16, top: 8, bottom: 4, outerBoundsMode: 'same', outerBoundsContain: 'axisLabel' },
+    grid: {
+      left: 4,
+      right: kind === 'line' ? 56 : 16,
+      top: 8,
+      bottom: 4,
+      outerBoundsMode: 'same',
+      outerBoundsContain: 'axisLabel',
+    },
     textStyle: label,
     xAxis: {
       type: 'category',
