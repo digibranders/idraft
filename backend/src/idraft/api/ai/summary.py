@@ -778,7 +778,9 @@ def _last_answers(
 
 
 def _linked(row: repository.LinkedRow) -> LinkedKeyword:
-    return LinkedKeyword(keyword=row.keyword, search_volume=row.search_volume)
+    return LinkedKeyword(
+        keyword=row.keyword, search_volume=row.search_volume, measured=row.measured
+    )
 
 
 def _linked_of(members: Collection[UUID], read: _Read) -> list[LinkedKeyword] | _NotAsked:

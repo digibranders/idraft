@@ -108,11 +108,30 @@ async def test_a_linked_keyword_without_metrics_has_a_null_volume_and_zero_stays
     assert pending["prompts"][0]["linked_keyword"] == {
         "keyword": "managed soc",
         "search_volume": None,
+        "measured": False,
     }
     await execute(migrated, "DELETE FROM core.keyword_prompt_links")
     await _link(migrated, recent_world, prompt_id, "managed soc zero", 0, primary=True)
     zero = await _data(api, recent_world, include="facts")
     assert zero["prompts"][0]["linked_keyword"]["search_volume"] == 0
+
+
+async def test_a_keyword_measured_without_a_volume_is_told_apart_from_one_not_yet_measured(
+    api: httpx.AsyncClient, recent_world: ShotWorld, migrated: PostgresServer
+) -> None:
+    prompt_id = await _prompt(migrated, recent_world)
+    await _link(migrated, recent_world, prompt_id, "managed soc service providers india", 5)
+    await execute(
+        migrated,
+        "UPDATE seo.keyword_metrics_current SET search_volume = NULL; "
+        "UPDATE seo.keyword_metric_snapshots SET search_volume = NULL",
+    )
+    data = await _data(api, recent_world, include="facts")
+    assert data["prompts"][0]["linked_keyword"] == {
+        "keyword": "managed soc service providers india",
+        "search_volume": None,
+        "measured": True,
+    }
 
 
 async def test_the_keyword_with_the_most_searches_wins_and_lists_count_each_keyword_once(
@@ -124,9 +143,19 @@ async def test_the_keyword_with_the_most_searches_wins_and_lists_count_each_keyw
     await _link(migrated, recent_world, prompt_id, "no metrics yet")
     await _link(migrated, recent_world, prompt_id, "rejected one", 9000, status="rejected")
     data = await _data(api, recent_world, include="facts,total", group_by="country")
-    assert data["prompts"][0]["linked_keyword"] == {"keyword": "managed soc", "search_volume": 1190}
+    assert data["prompts"][0]["linked_keyword"] == {
+        "keyword": "managed soc",
+        "search_volume": 1190,
+        "measured": True,
+    }
     for row in (data["topics"][0], data["total"], data["by_country"][0]):
-        assert row["linked_keywords"] == [{"keyword": "managed soc", "search_volume": 1190}]
+        assert row["linked_keywords"] == [
+            {
+                "keyword": "managed soc",
+                "search_volume": 1190,
+                "measured": True,
+            }
+        ]
 
 
 async def test_linked_keywords_are_left_out_unless_facts_are_asked_for(
