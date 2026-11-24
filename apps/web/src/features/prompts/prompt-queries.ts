@@ -221,6 +221,31 @@ export const observationsQuery = (
   });
 
 /**
+ * `GET {P}/ai/observations` for the valid answers of one prompt on one engine over `range`, newest first, 200 at most:
+ * the answers the Compare days page picks its days from. Asked for one engine, so another engine's answers never use
+ * up the page.
+ */
+export const engineAnswersQuery = (
+  scope: PromptScope,
+  promptId: string,
+  engineCode: string,
+  range: DateRange,
+): ApiQueryOptions<typeof OBSERVATIONS> =>
+  apiQuery(OBSERVATIONS, {
+    params: {
+      path: pathOf(scope),
+      query: {
+        'filter[prompt_id]': promptId,
+        'filter[engine_code_in]': [engineCode],
+        'filter[is_valid]': true,
+        from: range.from,
+        to: range.to,
+        limit: ANSWERS_PAGE,
+      },
+    },
+  });
+
+/**
  * `GET {P}/ai/observations` for the newest answer of one prompt on one engine over `range`, the one row: the newest
  * valid one with `validOnly`, else the newest of any status (which tells why an engine has no valid one).
  */

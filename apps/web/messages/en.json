@@ -5184,6 +5184,52 @@
     },
     "groupRates": {
       "avgTip": "Equal weight average of {engines}, each platform and each prompt counting once"
+    },
+    "dayCompare": {
+      "title": "Compare days",
+      "titleFallback": "Prompt",
+      "back": "Back to prompts",
+      "meta": "Last 4 days with a valid answer",
+      "note": "One valid answer for each day, the newest of the day. Brands are in the order the answer mentioned them.",
+      "platform": "Platform",
+      "platformTrigger": "Platform: {value}",
+      "platformList": "Platform in view",
+      "brands": "Brands mentioned",
+      "sources": "Cited domains",
+      "noBrands": "No brand mentioned.",
+      "noSources": "No domain cited.",
+      "you": "{name} (you)",
+      "entered": "New",
+      "left": "Mentioned on {date}, not on this day: {names}",
+      "reading": {
+        "namedAndCited": "Mentioned and cited",
+        "namedOnly": "Mentioned only",
+        "citedOnly": "Cited only",
+        "neither": "Neither"
+      },
+      "empty": {
+        "title": "No valid answer on {platform} yet",
+        "reason": "A card appears for each day the prompt got a valid answer on this platform in the last 90 days."
+      },
+      "noEngines": {
+        "title": "No platform is on",
+        "reason": "Turn a platform on in the project settings to see its answers here."
+      },
+      "loadFailed": {
+        "title": "The answers could not be loaded",
+        "reason": "Try again in a moment."
+      },
+      "notFound": {
+        "title": "This prompt does not exist or you do not have access to it",
+        "reason": "Check the link, or go back to the prompts.",
+        "toList": "Go to the prompts"
+      },
+      "noAccess": {
+        "title": "You do not have access to this page",
+        "reason": "Ask a workspace admin for access to project data.",
+        "toOverview": "Go to the project"
+      },
+      "open": "Compare days"
     }
   },
   "aiOverview": {

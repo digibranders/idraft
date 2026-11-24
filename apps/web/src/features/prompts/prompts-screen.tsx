@@ -119,7 +119,7 @@ import { useCountries } from '@/lib/locations/countries';
 import { useCan, useMembership } from '@/lib/permissions';
 import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 import type { StripPrompt } from '@/lib/rates/strip-model';
-import { projectPath } from '@/lib/routes/paths';
+import { projectPath, promptPath } from '@/lib/routes/paths';
 import { formatColumns, formatSort, parseColumns, parseSort, sameSort, type SortKey } from '@/lib/tables/table-state';
 
 export interface PromptsProject {
@@ -1290,6 +1290,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         key={project.id}
         scope={scope}
         promptId={openPrompt}
+        pageHref={promptPath(workspaceSlug, project.slug, openPrompt)}
         timeZone={project.timeZone}
         range={range}
         engines={enabled}
