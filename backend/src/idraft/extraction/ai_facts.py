@@ -27,8 +27,11 @@ so the parent takes the product's earlier order, and the product's own row (kept
 is not a member of the set. A product whose brand is not tracked, or is only watched, counts as
 itself. A competitor's product with its own domain rule can split that competitor's citations
 across two ids (`competitor_cited`); share of voice is unaffected, it comes from mentions.
-Recommendation, sentiment, prominence beyond the first offset and structured lists are later
-slices: `had_structured_list` is always false.
+Recommendation (stage 9, `recommendation.py`) and sentiment (stage 10, `sentiment.py`) read the
+accepted spans of the own brand: `own_recommended` is a plain bool for every answer (an answer that
+does not name the brand does not recommend it), `own_sentiment` is None when it is not named.
+Prominence beyond the first offset and structured lists are later slices: `had_structured_list`
+is always false and no structured rank is derived.
 """
 
 from __future__ import annotations
@@ -41,9 +44,12 @@ from typing import Final, Literal
 
 from idraft.extraction.aliases import AliasMatcher, MatchMethod
 from idraft.extraction.domains import DomainResolver, DomainRole, ProjectRole
+from idraft.extraction.recommendation import is_recommended
+from idraft.extraction.sentiment import Sentiment, classify_sentiment
 from idraft.extraction.urls import CanonicalUrl
 
-EXTRACTOR_VERSION: Final = 1
+# 2: stages 9 and 10 (recommendation and sentiment).
+EXTRACTOR_VERSION: Final = 2
 # `[text](target "title")`: a markdown link or image. The text may hold one level of brackets
 # (AI Mode's `[[1]](url)`), the target may be `<...>`, the title may use either kind of quote.
 _LINK: Final = re.compile(
@@ -100,6 +106,8 @@ class ObservationFact:
     own_domain_cited: bool
     own_mention_order: int | None
     own_prominence: float | None
+    own_recommended: bool
+    own_sentiment: Sentiment | None
     own_citation_count: int
     total_citation_count: int
     tracked_entities_mentioned: int
@@ -140,12 +148,20 @@ def extract_answer_facts(
         and citation.role_entity_id is not None
         and roles.get(citation.role_entity_id) == "competitor"
     )
+    own_spans = [span for mention in own for span in mention.evidence_spans]
+    shown = blank_link_targets(text) if text else ""
     fact = ObservationFact(
         is_valid=is_valid,
         own_mentioned=bool(own),
         own_domain_cited=bool(own_cited),
         own_mention_order=None if first_own is None else first_own.mention_order,
         own_prominence=None if first_own is None else first_own.prominence,
+        own_recommended=is_recommended(
+            shown,
+            own_spans,
+            [span for mention in competitors for span in mention.evidence_spans],
+        ),
+        own_sentiment=classify_sentiment(shown, own_spans),
         own_citation_count=len(own_cited),
         total_citation_count=len(citations),
         tracked_entities_mentioned=len(own) + len(competitors),

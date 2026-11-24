@@ -157,7 +157,12 @@ async def test_a_stored_answer_becomes_its_observation_citations_mentions_and_fa
     derivation = await fetchrow(
         migrated, "SELECT * FROM ai.derivations WHERE id = $1", facts["derivation_id"]
     )
-    assert (derivation["extractor_version"], derivation["entity_config_version"]) == (1, 1)
+    assert (derivation["extractor_version"], derivation["entity_config_version"]) == (2, 1)
+    assert (derivation["recommendation_version"], derivation["sentiment_version"]) == (1, 1)
+    # Stages 9 and 10 ran: the answer names the brand, so it has a tone; never a structured rank.
+    assert isinstance(facts["own_recommended"], bool)
+    assert facts["own_sentiment"] in {"positive", "neutral", "negative", "mixed"}
+    assert facts["own_structured_rank"] is None
 
 
 async def test_ingesting_twice_writes_one_observation(
