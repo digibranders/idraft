@@ -25,14 +25,16 @@ export interface TopBarControlsProps {
   accountSettings: ReactElement;
   /** The shortcuts of the page besides `?`, for the shortcuts dialog. */
   shortcuts: readonly ShortcutEntry[];
+  /** The notification bell, which only a project has; it sits before the theme switch. */
+  notifications?: ReactNode;
 }
 
 /**
- * The right side of the top bar (11-navigation.md section 4): the theme switch from 1440 px, Help, and the
+ * The right side of the top bar (11-navigation.md section 4): the notification bell of a project, the theme switch from 1440 px, Help, and the
  * account menu (with the theme below 1440 px, Account settings and Sign out), and the keyboard shortcuts
  * dialog that Help and `?` open.
  */
-export function TopBarControls({ accountSettings, shortcuts }: TopBarControlsProps): ReactNode {
+export function TopBarControls({ accountSettings, shortcuts, notifications = null }: TopBarControlsProps): ReactNode {
   const t = useTranslations('shell');
   const common = useTranslations('common');
   const { user } = useMe();
@@ -56,6 +58,7 @@ export function TopBarControls({ accountSettings, shortcuts }: TopBarControlsPro
 
   return (
     <>
+      {notifications}
       <ThemeSwitch
         resolvedTheme={theme.resolved}
         onToggle={(next, origin) => theme.change(next, origin)}

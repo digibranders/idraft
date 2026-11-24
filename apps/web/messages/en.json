@@ -542,12 +542,160 @@
       "schedules": "Schedules",
       "retention": "Data retention",
       "links": "Internal links",
+      "alertRules": "Alert rules",
       "workspace": "General",
       "members": "Members and roles",
       "budgets": "Budgets and usage",
       "tiers": "Page tiers",
       "costs": "Costs",
       "operations": "Operations"
+    }
+  },
+  "alerts": {
+    "title": "Alert rules",
+    "description": "An alert shows here after a run or a check finds a change. Each alert says what changed since the one before.",
+    "newRule": "Add alert rule",
+    "readOnlyLead": "Read only:",
+    "readOnly": "Owners, admins and editors can change alert rules and acknowledge alerts.",
+    "forbidden": "You do not have permission to see the alerts of this project. Ask an admin of this workspace.",
+    "loadFailed": "The alert rules could not be loaded.",
+    "loadFailedReason": "The server did not answer. Try again in a moment.",
+    "emptyTitle": "No alert rules yet",
+    "emptyReason": "Add a rule to hear about changes after each run.",
+    "emptyReasonReadOnly": "Owners, admins and editors can add alert rules.",
+    "tableLabel": "Alert rules of this project",
+    "columns": {
+      "rule": "Rule",
+      "appliesTo": "Applies to",
+      "on": "On",
+      "actions": "Actions"
+    },
+    "switchLabel": "{name}",
+    "actionsFor": "Actions for {name}",
+    "menu": {
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "turnedOn": "{name} is on.",
+    "turnedOff": "{name} is off.",
+    "toggleFailed": "{name} could not be changed. Try again.",
+    "gone": "{name} was deleted by someone else.",
+    "created": "{name} added",
+    "saved": "{name} saved",
+    "deleted": "{name} deleted",
+    "deleteTitle": "Delete {name}?",
+    "deleteDescription": "Its alerts are deleted too. This cannot be undone.",
+    "deleteConfirm": "Delete rule",
+    "deleteFailed": "The rule was not deleted. Try again in a moment.",
+    "types": {
+      "aiMentionGained": {
+        "label": "Brand mentioned in an answer",
+        "hint": "A prompt starts to mention your brand."
+      },
+      "aiMentionLost": {
+        "label": "Brand no longer mentioned in an answer",
+        "hint": "A prompt stops mentioning your brand."
+      },
+      "aiCompetitorAppeared": {
+        "label": "Competitor mentioned in an answer",
+        "hint": "A competitor is mentioned for a prompt where it was not in the previous run."
+      },
+      "rankDrop": {
+        "label": "Keyword rank drops",
+        "hint": "A keyword falls by the number of positions you set in one check."
+      }
+    },
+    "rankDropOf": "Keyword rank drops by {positions, plural, one {# position} other {# positions}} or more",
+    "allGroups": "All groups",
+    "allPlatforms": "All platforms",
+    "removedGroup": "Deleted group",
+    "appliesBoth": "{groups}, {platforms}",
+    "platforms": {
+      "chatgptWeb": "ChatGPT",
+      "geminiWeb": "Gemini",
+      "googleAiMode": "Google AI Mode"
+    },
+    "dialog": {
+      "createTitle": "Add alert rule",
+      "createDescription": "A rule checks every run or check that finishes after you add it.",
+      "editTitle": "Edit {name}",
+      "discardDescription": "Your changes to this rule are not saved.",
+      "name": "Name",
+      "nameRequired": "Name the rule so you can find it in the list.",
+      "nameTooLong": "Use at most {max} characters.",
+      "type": "Alert me when",
+      "typeFixed": "The type of a rule cannot change. Add a new rule for another type.",
+      "groups": "Groups",
+      "groupsAiHint": "Only prompts in these groups count. Leave empty for every group.",
+      "groupsSeoHint": "Only keywords in these groups count. Leave empty for every group.",
+      "groupsPlaceholder": "All groups",
+      "groupsEmpty": "No group matches “{query}”",
+      "groupsChips": "Chosen groups",
+      "platforms": "Platforms",
+      "platformsHint": "Leave empty for every platform.",
+      "platformsPlaceholder": "All platforms",
+      "platformsEmpty": "No platform matches “{query}”",
+      "platformsChips": "Chosen platforms",
+      "removeValue": "Remove {value}",
+      "positions": "Drops by at least (positions)",
+      "positionsHint": "Compares one check with the one before it.",
+      "positionsInvalid": "Use a whole number from {min} to {max}.",
+      "sent": "Sent: in the app, after each run. Email and Slack come later.",
+      "create": "Add rule",
+      "readFailed": "The groups could not be loaded. Try again.",
+      "saveFailed": "The rule was not saved. Try again in a moment.",
+      "invalidParams": "These settings do not fit this type of rule.",
+      "forbidden": "You do not have permission to change alert rules."
+    },
+    "bell": {
+      "title": "Notifications",
+      "label": "{count, plural, =0 {Notifications} other {Notifications, # unread}}",
+      "labelMore": "Notifications, {count} or more unread",
+      "badgeMore": "{count}+",
+      "badgeCap": "99+",
+      "unread": "Unread.",
+      "list": "Recent alerts",
+      "empty": "No alerts yet. The next run checks every rule.",
+      "rulesLink": "Alert rules",
+      "openRules": "Open Alert rules"
+    },
+    "recent": {
+      "title": "Recent alerts",
+      "toAcknowledge": "{count, plural, one {# alert} other {# alerts}} to acknowledge.",
+      "toAcknowledgeMore": "{count, plural, one {# alert} other {# alerts}} to acknowledge, and more below.",
+      "nothingOpen": "Every alert shown is acknowledged.",
+      "tableLabel": "Recent alerts of this project",
+      "columns": {
+        "when": "When",
+        "what": "What changed",
+        "rule": "Rule",
+        "severity": "Severity",
+        "status": "Status"
+      },
+      "severity": {
+        "info": "Info",
+        "warning": "Warning",
+        "critical": "Critical"
+      },
+      "acknowledge": "Acknowledge",
+      "acknowledgeLabel": "Acknowledge alert: {subject}",
+      "acknowledged": "Acknowledged",
+      "acknowledgeAll": "Acknowledge all",
+      "acknowledgedDone": "{count, plural, one {# alert acknowledged} other {# alerts acknowledged}}",
+      "acknowledgeFailed": "The alerts were not acknowledged. Try again.",
+      "emptyTitle": "No alerts yet",
+      "emptyReason": "The next run checks every rule that is on.",
+      "loadFailed": "The alerts could not be loaded.",
+      "loadFailedReason": "The server did not answer. Try again in a moment.",
+      "loadMore": "Show more alerts",
+      "loadMoreFailed": "More alerts could not be loaded."
+    },
+    "evidence": {
+      "answers": "answers",
+      "answersOn": "{platform} answers",
+      "mentionChange": "{subject} was mentioned in {beforeMentioning} of {beforeValid} {answers} in the previous run and in {afterMentioning} of {afterValid} in this run.",
+      "rankDrop": "Rank fell from {from} to {to} ({positions, plural, one {# position} other {# positions}}).",
+      "unknown": "Changed since the previous run."
     }
   },
   "projectSettings": {
@@ -5184,6 +5332,52 @@
     },
     "groupRates": {
       "avgTip": "Equal weight average of {engines}, each platform and each prompt counting once"
+    },
+    "dayCompare": {
+      "title": "Compare days",
+      "titleFallback": "Prompt",
+      "back": "Back to prompts",
+      "meta": "Last 4 days with a valid answer",
+      "note": "One valid answer for each day, the newest of the day. Brands are in the order the answer mentioned them.",
+      "platform": "Platform",
+      "platformTrigger": "Platform: {value}",
+      "platformList": "Platform in view",
+      "brands": "Brands mentioned",
+      "sources": "Cited domains",
+      "noBrands": "No brand mentioned.",
+      "noSources": "No domain cited.",
+      "you": "{name} (you)",
+      "entered": "New",
+      "left": "Mentioned on {date}, not on this day: {names}",
+      "reading": {
+        "namedAndCited": "Mentioned and cited",
+        "namedOnly": "Mentioned only",
+        "citedOnly": "Cited only",
+        "neither": "Neither"
+      },
+      "empty": {
+        "title": "No valid answer on {platform} yet",
+        "reason": "A card appears for each day the prompt got a valid answer on this platform in the last 90 days."
+      },
+      "noEngines": {
+        "title": "No platform is on",
+        "reason": "Turn a platform on in the project settings to see its answers here."
+      },
+      "loadFailed": {
+        "title": "The answers could not be loaded",
+        "reason": "Try again in a moment."
+      },
+      "notFound": {
+        "title": "This prompt does not exist or you do not have access to it",
+        "reason": "Check the link, or go back to the prompts.",
+        "toList": "Go to the prompts"
+      },
+      "noAccess": {
+        "title": "You do not have access to this page",
+        "reason": "Ask a workspace admin for access to project data.",
+        "toOverview": "Go to the project"
+      },
+      "open": "Compare days"
     }
   },
   "aiOverview": {
@@ -5195,6 +5389,37 @@
     "linkCopied": "Link copied",
     "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
+    "insights": {
+      "title": "Insights",
+      "meta": "Whole project",
+      "retry": "Try again",
+      "atLeastMark": "+",
+      "startTracking": "Start tracking",
+      "viewGaps": "View gaps",
+      "viewPages": "View pages",
+      "emptyTitle": "Nothing to act on",
+      "emptyReason": "Every keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.",
+      "lines": {
+        "untracked": {
+          "text": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
+          "failed": "Could not count the keywords with a Google AI Overview",
+          "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked"
+        },
+        "gaps": {
+          "text": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
+          "failed": "Could not count the citation gaps"
+        },
+        "citingCompetitors": {
+          "text": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
+          "failed": "Could not count the domains that cite your competitors",
+          "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked"
+        },
+        "newDomains": {
+          "text": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
+          "failed": "Could not count the new cited domains"
+        }
+      }
+    },
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The platforms of this project could not be read",
     "enginesFailedReason": "The server did not answer. Try again in a moment.",
@@ -8088,8 +8313,170 @@
       }
     }
   },
-  "alerts": {},
-  "reports": {},
+  "reports": {
+    "title": "Reports",
+    "meta": "{project}",
+    "links": {
+      "title": "Report links",
+      "description": "Share a read-only report with a client. It shows no costs, and each link can be revoked.",
+      "needsRole": "Your role cannot make or revoke links. You can see the list.",
+      "new": "New link",
+      "columns": {
+        "made": "Made",
+        "expires": "Expires",
+        "state": "State",
+        "actions": "Actions"
+      },
+      "state": {
+        "active": "Active",
+        "expired": "Expired",
+        "revoked": "Revoked"
+      },
+      "revokedOn": "Revoked {date}",
+      "revoke": "Revoke",
+      "revokeLabel": "Revoke the link made on {date}",
+      "revokeTitle": "Revoke this link?",
+      "revokeText": "Anyone who opens it afterwards finds nothing. You cannot undo this, but you can make a new link.",
+      "revokeConfirm": "Revoke link",
+      "revoked": "Link revoked",
+      "revokeFailedReason": "The link was not revoked. Try again.",
+      "empty": "No links yet. Make a link to share this project's report.",
+      "loadFailed": "Could not load the links",
+      "loadFailedReason": "The server returned an error. Nothing was changed."
+    },
+    "newLink": {
+      "title": "New report link",
+      "description": "A read-only report of this project: Mention rate, Citation rate, Share of voice, competitors and cited domains.",
+      "expiryLabel": "Link works for",
+      "expiryOption": "{days} days",
+      "make": "Make link",
+      "madeTitle": "Your report link",
+      "madeDescription": "Copy it now. For safety it is shown only once, and anyone who has it can read the report until it expires or you revoke it.",
+      "addressLabel": "Link",
+      "worksUntil": "Works until {date}.",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "open": "Open report",
+      "done": "Done",
+      "failedReason": "The link was not made. Try again."
+    },
+    "schedules": {
+      "title": "Scheduled emails",
+      "description": "Email the report to your client every week or month. Each email holds a new link that works for 30 days.",
+      "add": "Add schedule",
+      "columns": {
+        "frequency": "How often",
+        "recipients": "Recipients",
+        "next": "Next email",
+        "status": "Status",
+        "actions": "Actions"
+      },
+      "nextDescription": "Emails go out at 06:00 UTC, so the date is in UTC.",
+      "frequency": {
+        "weekly": "Weekly, on Monday",
+        "monthly": "Monthly, on the 1st"
+      },
+      "notScheduled": "Paused",
+      "stateRunning": "Running",
+      "statePaused": "Paused",
+      "lastSent": "Last sent {date}",
+      "lastFailed": "Last send failed: {reason}",
+      "edit": "Edit",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete",
+      "paused": "Schedule paused",
+      "resumed": "Schedule resumed",
+      "toggleFailed": "Could not change the schedule",
+      "failedReason": "Nothing was changed. Try again.",
+      "deleteTitle": "Delete this schedule?",
+      "deleteText": "No more emails are sent. Links already emailed keep working until they expire or you revoke them.",
+      "deleteConfirm": "Delete schedule",
+      "deleted": "Schedule deleted",
+      "deleteFailedReason": "The schedule was not deleted. Try again.",
+      "empty": "No scheduled emails. Add one to send this report without opening the app.",
+      "loadFailed": "Could not load the schedules",
+      "loadFailedReason": "The server returned an error. Nothing was changed."
+    },
+    "schedule": {
+      "addTitle": "Add scheduled email",
+      "editTitle": "Edit scheduled email",
+      "description": "Each email holds a new report link that works for 30 days. Emails go out at 06:00 UTC.",
+      "frequencyLabel": "How often",
+      "frequency": {
+        "weekly": "Weekly, on Monday",
+        "monthly": "Monthly, on the 1st"
+      },
+      "recipientsLabel": "Recipients",
+      "recipientsHint": "One address per line, up to {max}.",
+      "recipientsEmpty": "Enter at least one email address.",
+      "recipientsTooMany": "Enter at most {max} addresses.",
+      "recipientsInvalid": "\"{address}\" is not an email address.",
+      "add": "Add schedule",
+      "save": "Save changes",
+      "added": "Schedule added",
+      "saved": "Schedule saved",
+      "failedReason": "The schedule was not saved. Try again.",
+      "recipientsPlaceholder": "name@client.com"
+    },
+    "guest": {
+      "loading": "Loading the report",
+      "title": "AI visibility report for {host}",
+      "period": "{range}, {prompts, plural, one {# prompt} other {# prompts}}, as answered by AI platforms.",
+      "numbers": "Mention rate, Citation rate and Share of voice",
+      "numbersNote": "Each percent is shown with the answers behind it. Platforms are never added together.",
+      "weekly": "Mention rate by week",
+      "weeklyNote": "One bar for each week, as tall as that week's Mention rate. Point at a bar for its counts.",
+      "weekLabel": "Week of {date}: {figure}",
+      "weekPooledLabel": "{weeks, plural, one {Week of {date}, too few prompts answered to stand alone: {figure}} other {# weeks to the week of {date}, too few prompts answered in that week alone: {figure}}}",
+      "emptyTitle": "No answers to report yet",
+      "emptyText": "This project has no answers in this period. Check back after the next run.",
+      "brands": "Your brand and its competitors",
+      "brandsNote": "The share of the answers on each platform that mention the brand.",
+      "domains": "Cited domains",
+      "domainsNote": "The websites AI answers cite most, with their share of all citations.",
+      "competitor": "Competitor",
+      "footer": "Read only. This link stops working when it expires or its owner revokes it.",
+      "columns": {
+        "platform": "Platform",
+        "mentionRate": "Mention rate",
+        "citationRate": "Citation rate",
+        "shareOfVoice": "Share of voice",
+        "brand": "Brand",
+        "platformMention": "{platform} mention rate",
+        "domain": "Domain",
+        "type": "Type",
+        "citations": "Citations",
+        "citationShare": "Citation share"
+      },
+      "domainType": {
+        "own": "Your site",
+        "competitor": "Competitor",
+        "third_party": "Other"
+      },
+      "figure": {
+        "noAnswers": "No valid answers yet",
+        "noMentions": "No brand was mentioned",
+        "capped": "Not counted: more brands are tracked than this report holds",
+        "notCollected": "Not collected",
+        "answers": {
+          "rate": "{percent} ({successes} of {answers} answers)",
+          "tooFew": "Too few answers ({successes} of {answers})"
+        },
+        "mentions": {
+          "rate": "{percent} ({successes} of {answers} brand mentions)",
+          "tooFew": "Too few mentions ({successes} of {answers})"
+        }
+      },
+      "goneTitle": "This link is no longer available",
+      "goneText": "It may have expired or been revoked. Ask the person who sent it for a new one.",
+      "busyTitle": "Too many requests",
+      "busyText": "Wait a little and try again.",
+      "busyTextWait": "Try again in {minutes, plural, one {# minute} other {# minutes}}.",
+      "failedTitle": "The report could not be loaded",
+      "failedText": "Something went wrong on our side. Try again."
+    }
+  },
   "promptDetail": {},
   "sources": {},
   "notes": {},

@@ -31,6 +31,14 @@ export const onboardingPath = (workspace: string): Route => `/${encodeURICompone
 export const projectPath = (workspace: string, project: string, rest: '' | `/${string}` = ''): Route =>
   `/${encodeURIComponent(workspace)}/${encodeURIComponent(project)}${rest}` as Route;
 
+/** AI > Topics & Prompts of a project. */
+export const promptsPath = (workspace: string, project: string): Route =>
+  projectPath(workspace, project, '/ai/prompts');
+
+/** The page of one prompt (`promptId` is its uuid), the child of Topics & Prompts. */
+export const promptPath = (workspace: string, project: string, promptId: string): Route =>
+  projectPath(workspace, project, `/ai/prompts/${encodeURIComponent(promptId)}`);
+
 /** SEO > Keywords of a project. */
 export const rankingsPath = (workspace: string, project: string): Route =>
   projectPath(workspace, project, '/seo/keywords');

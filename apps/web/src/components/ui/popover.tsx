@@ -43,7 +43,7 @@ const WIDTH_CLASS: Readonly<Record<PopoverWidth, string>> = {
   content: cn('max-w-[min(var(--size-popover-max),var(--available-width))] min-w-popover-min'),
   min: cn('w-popover-min'),
   max: cn('w-popover-max'),
-  notifications: cn('w-95'),
+  notifications: cn('max-h-[min(35rem,var(--available-height))] w-95'),
   'date-range': cn('w-162'),
   // The popup is already capped by `max-w-(--available-width)`
   narrow: cn('w-64'),

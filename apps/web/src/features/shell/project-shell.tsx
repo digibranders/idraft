@@ -40,6 +40,8 @@ export interface ProjectShellProps {
   /** The projects the member can open, for the switcher. */
   projects: readonly ShellProject[];
   sidebarPreference: SidebarPreference;
+  /** The notification bell of the project, which a feature supplies: the shell cannot import one. */
+  notifications?: ReactNode;
   children: ReactNode;
 }
 
@@ -57,6 +59,7 @@ export function ProjectShell({
   project,
   projects,
   sidebarPreference,
+  notifications = null,
   children,
 }: ProjectShellProps): ReactNode {
   const t = useTranslations('shell');
@@ -201,6 +204,7 @@ export function ProjectShell({
                 <TopBarControls
                   accountSettings={<Link href={projectPath(workspace.slug, project.slug, '/settings/profile')} />}
                   shortcuts={[{ id: SIDEBAR_SHORTCUT, label: t('shortcuts.toggleSidebar'), keys: ['['] }]}
+                  notifications={notifications}
                 />
               }
             />

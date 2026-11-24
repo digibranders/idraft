@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, Play } from 'lucide-react';
+import type { Route } from 'next';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, type ReactElement } from 'react';
 
@@ -88,6 +89,8 @@ export interface PromptInspectorProps {
    * the time of the answer's row, which the viewer hands the API to find the answer's month.
    */
   onOpenAnswer?: ((observationId: string, observedAt: string) => void) | undefined;
+  /** The page of the prompt (Compare days); the History tab links to it. Left out where the host knows no project slugs. */
+  pageHref?: Route | undefined;
 }
 
 /**
@@ -115,6 +118,7 @@ export function PromptInspector({
   onTabChange,
   onClose,
   onOpenAnswer,
+  pageHref,
 }: PromptInspectorProps): ReactElement {
   const t = useTranslations('prompts.inspector');
   const root = useTranslations();
@@ -366,6 +370,7 @@ export function PromptInspector({
           labelOf={labelOf}
           noCountsReason={countsReason}
           onOpenAnswer={onOpenAnswer}
+          compareHref={pageHref}
         />
       ),
     },

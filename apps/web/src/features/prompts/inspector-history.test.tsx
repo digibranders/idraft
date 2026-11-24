@@ -9,6 +9,7 @@ import type { ChartTokens } from '@/lib/design/read-tokens';
 import { readChartTokens } from '@/lib/design/read-tokens';
 import { formatTableDateTime } from '@/lib/format';
 import { ENGINE_FACTS } from '@/mocks/prompt-fixtures';
+import { promptPath } from '@/lib/routes/paths';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
 // jsdom has no canvas: the option the frame gives the chart is what these tests read
@@ -98,6 +99,19 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('the link to Compare days', () => {
+  it('opens the page of the prompt when the host knows its address, and is absent otherwise', () => {
+    const first = renderHistory({ compareHref: promptPath('digibranders', 'fynix', 'p1') });
+    expect(screen.getByRole('link', { name: 'Compare days' })).toHaveAttribute(
+      'href',
+      '/digibranders/fynix/ai/prompts/p1',
+    );
+    first.unmount();
+    renderHistory();
+    expect(screen.queryByRole('link', { name: 'Compare days' })).toBeNull();
+  });
 });
 
 describe('the events of the History tab', () => {

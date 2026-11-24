@@ -358,3 +358,25 @@ then the candidate store, then screenshots after the spike.
   mention.
 - The Prompts file says request 17 builds on "request 15 above", which is consistent, but 15 is a table row with no title
   of its own; here it has an entry.
+
+## 6. Added 2026-11-24: Insights box on the Overview (feature 4 of the SE Ranking roadmap)
+
+The box works today from reads that exist (see `docs/superpowers/plans/2026-11-24-opportunities-feed.md`). Two reads
+would make two of its lines exact. Neither blocks anything.
+
+| Number | Title | Status | Blocks which screen |
+|---|---|---|---|
+| 25 | Count of tracked keywords that show a Google AI Overview and are not tracked as a prompt | open | Overview Insights, line "keywords show a Google AI Overview and are not tracked as prompts" |
+| 26 | Brand filter on `GET ai/sources/domains`: cited domains in answers that do not name your brand | open | Overview Insights, a line by cited domain instead of by prompt |
+
+25. Ask: `GET {P}/ai/opportunities/untracked-keywords` returning `{ total, data[] }` of tracked keywords whose latest
+    check has `aio_state` `present_not_cited` or `present_cited` and whose normalized text no active prompt of the
+    project has. Today the web reads one page (200) of `tracked-keywords?filter[aio_state]=...` and one page of
+    `prompts` and matches the normalized text itself, so the count is a floor past 200 keywords, and past 200 prompts it is unknown, which keeps the box from saying
+    there is nothing to do. Matching exact text is also strict: a keyword and the prompt written from it rarely read the same,
+    so the count is high until a prompt carries its linked keyword (WP-44, the `linked_keyword` fact). The Start
+    tracking action needs the keyword list from this route to pre-fill the Add prompts dialog.
+26. Ask: `filter[brand_mentioned]=false` on `sources/domains` (and a `brand_mentioned` count per row): the domains
+    cited only in answers that do not name any own brand. The Citations gap definition is per prompt, so the line
+    reads "prompts where a competitor is cited and your site is not" until this exists. Also `meta.total_domains`
+    (a count of domains, not of domain and role rows) for the "new cited domains" and "cite your competitors" lines.

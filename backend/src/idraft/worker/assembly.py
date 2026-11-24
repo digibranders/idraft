@@ -17,6 +17,7 @@ import structlog
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.alerts.evaluate import evaluate_alerts
 from idraft.collectors.ai_prompt import AiPromptWorkload
 from idraft.collectors.ai_prompt_ingest import ingest as ingest_ai_answers
 from idraft.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
@@ -57,12 +58,14 @@ from idraft.providers.dataforseo.locations import fetch_locations
 from idraft.providers.dataforseo.on_page import OnPage, OnPageApi
 from idraft.providers.dataforseo.provider import CODE as DATAFORSEO
 from idraft.providers.dataforseo.provider import DataForSeo
+from idraft.providers.email import build_email_sender
 from idraft.providers.google.client import GoogleClient
 from idraft.providers.pauses import RedisPauses
 from idraft.vault.envelope import EnvelopeCipher
 from idraft.worker.app import WorkerContext
 from idraft.worker.limiter import RedisCallGate
 from idraft.worker.queues import Queues
+from idraft.worker.report_digest import send_due_reports
 from idraft.worker.ticks import Tick
 
 # docs/21-scheduler-workers.md sections 3 and 4: the planner every 60 seconds, the dispatcher
@@ -95,6 +98,8 @@ COSTS_REBUILT_AT = "37 1 * * *"
 BALANCE_CHECK_AT = "*/15 * * * *"
 # Failed rank checks and stale keywords into the keyword state (docs/21 section 9).
 RANK_HEALTH_EVERY = timedelta(minutes=10)
+# The scheduled report emails go out at 06:00 UTC; a quarter of an hour is the longest one waits.
+REPORT_DIGEST_EVERY = timedelta(minutes=15)
 COST_RECONCILE_AT = "45 0 * * *"
 # Search Console syncs due now, and passes left unfinished (docs/18 section 13).
 GSC_PLAN_EVERY = timedelta(seconds=60)
@@ -408,6 +413,30 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             _log.info("rank health refreshed", **asdict(report))
 
     context.queues.register_scheduled("rank_health", rank_health, every=RANK_HEALTH_EVERY)
+
+    async def report_digest() -> None:
+        """The scheduled report emails that are due (client reports plan)."""
+        if context.http is None:
+            return
+        settings = context.settings
+        sender = build_email_sender(
+            context.http,
+            provider=settings.email_provider,
+            api_key=None
+            if settings.email_api_key is None
+            else settings.email_api_key.get_secret_value(),
+            sender=settings.email_from,
+        )
+        report = await send_due_reports(
+            context.sessions,
+            sender,
+            origin=settings.app_origin,
+            now=await database_time(context.sessions),
+        )
+        if report.claimed:
+            _log.info("report emails sent", **asdict(report))
+
+    context.queues.register_scheduled("report_digest", report_digest, every=REPORT_DIGEST_EVERY)
     context.queues.register_scheduled("balance_check", balance_check, cron=BALANCE_CHECK_AT)
     context.queues.register_scheduled("cost_reconcile", cost_reconcile, cron=COST_RECONCILE_AT)
 
@@ -490,6 +519,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if not written.quiet:
             _log.info("keyword imports written", **asdict(written))
 
+    async def raise_alerts() -> None:
+        """Alerts for runs and rank checks since each project's cursor; stored facts only."""
+        report = await evaluate_alerts(context.sessions)
+        if not report.quiet:
+            _log.info("alerts raised", **asdict(report))
+
     async def send() -> None:
         now = await database_time(context.sessions)
         report = await dispatch(context.sessions, parts, sender, pauses, now=now)
@@ -544,6 +579,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             name="ai_prompt_ingest",
             interval=INGEST_EVERY,
             action=ingest_ai_prompt_answers,
+            lock_ttl=INGEST_LOCK,
+        ),
+        Tick(
+            name="evaluate_alerts",
+            interval=INGEST_EVERY,
+            action=raise_alerts,
             lock_ttl=INGEST_LOCK,
         ),
         Tick(

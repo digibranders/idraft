@@ -14,6 +14,7 @@ import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, 
 import { initCompetitorDrawer, openCompetitor, refreshCompetitorDrawer } from './aiov-competitor.js';
 import { createCustomizer } from './aiov-customize.js';
 import { cardFrame, el, emptyBody, engineName, icon } from './aiov-parts.js';
+import { insightsBox } from './aiov-insights.js';
 import { cardDef } from './aiov-registry.js';
 
 const ui = window.PreviewUI;
@@ -73,7 +74,8 @@ toolbar.setAttribute('aria-label', 'Scope and actions');
 const right = el('div', 'flex items-center gap-x-4 min-w-0 xl:ml-auto');
 right.append(status, actions);
 toolbar.append(title, scopeBar, right);
-view.replaceChildren(toolbar, grid, footnote, custom.bar, custom.live);
+const insights = el('div', 'min-w-0');
+view.replaceChildren(toolbar, insights, grid, footnote, custom.bar, custom.live);
 
 // -------------------------------------------------------------------------------------------------
 // Drawing
@@ -100,6 +102,7 @@ function render() {
   custom.updateBar();
 
   grid.replaceChildren();
+  insights.replaceChildren(...(model.prompts.length === 0 || custom.customizing() ? [] : [insightsBox()]));
   if (model.prompts.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'No prompts in this scope', body: emptyBody('Nothing to show', 'No prompts match this group and branded setting. Reset the scope.') });
     empty.className += ' md:col-span-12';

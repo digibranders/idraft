@@ -45,12 +45,16 @@ NOT_PATH_SCOPED: dict[tuple[str, str], str] = {
     "address, tests/api/workspaces/test_invitations.py",
     ("GET", "/api/v1/locations"): "a global dictionary, no tenant data (plan decision D1)",
     ("GET", "/api/v1/domain-categories"): "a global dictionary, no tenant data",
+    ("GET", "/api/v1/alert-rule-types"): "the rule types of the product, no tenant data",
     (
         "GET",
         "/api/v1/public/internal-links/summary/{token}",
     ): "no sign-in: scoped by the hash of an "
     "unguessable token, one project's report and nothing else, "
     "tests/api/internal_links/test_public_summary.py",
+    ("GET", "/api/v1/public/reports/{token}"): "no sign-in: scoped by the hash of an unguessable "
+    "token, one project's AI visibility report and nothing else, "
+    "tests/api/reports/test_report_links.py",
     ("GET", "/api/v1/oauth/google/callback"): "scoped by a single-use state that names the user, "
     "workspace and project; a state made for another user or workspace is refused, "
     "tests/api/integrations/test_connect.py",
