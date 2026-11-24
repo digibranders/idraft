@@ -412,6 +412,30 @@ async def _insert_mentions(
     derivation_id: int,
     facts: AnswerFacts,
 ) -> None:
+    await insert_mentions(
+        db,
+        workspace_id=task.workspace_id,
+        project_id=task.project_id,
+        engine_code=subject.engine_code,
+        observation_id=observation_id,
+        observed_at=observed_at,
+        derivation_id=derivation_id,
+        facts=facts,
+    )
+
+
+async def insert_mentions(
+    db: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    engine_code: str,
+    observation_id: int,
+    observed_at: datetime,
+    derivation_id: int,
+    facts: AnswerFacts,
+) -> None:
+    """The entity mentions of one answer under one derivation (also used to derive them again)."""
     if not facts.mentions:
         return
     await db.execute(
@@ -422,9 +446,9 @@ async def _insert_mentions(
                 "observed_at": observed_at,
                 "entity_id": mention.entity_id,
                 "derivation_id": derivation_id,
-                "workspace_id": task.workspace_id,
-                "project_id": task.project_id,
-                "engine_code": subject.engine_code,
+                "workspace_id": workspace_id,
+                "project_id": project_id,
+                "engine_code": engine_code,
                 "role": mention.role,
                 "mention_count": min(mention.mention_count, _SMALLINT_MAX),
                 "first_char_offset": mention.first_char_offset,
