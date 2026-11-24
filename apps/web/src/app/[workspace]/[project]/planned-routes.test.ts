@@ -23,7 +23,6 @@ const PLANNED: ReadonlyArray<readonly [string, () => Promise<PlannedPage>]> = [
   ['/ai/prompts/[promptId]', () => import('./ai/prompts/[promptId]/page')],
   ['/discover/[tab]', () => import('./discover/[tab]/page')],
   ['/reports', () => import('./reports/page')],
-  ['/settings/alert-rules', () => import('./settings/alert-rules/page')],
   ['/matrix', () => import('./matrix/page')],
 ];
 

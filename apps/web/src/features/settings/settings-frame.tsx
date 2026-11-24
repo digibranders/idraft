@@ -23,7 +23,17 @@ import {
  * leads to, for the members who may open them.
  */
 const ACCOUNT = ['profile', 'security', 'preferences'] as const satisfies readonly WorkspaceSettingsSection[];
-const PROJECT = ['general', 'entities', 'domains', 'taxonomy', 'engines', 'schedules', 'retention', 'links'] as const;
+const PROJECT = [
+  'general',
+  'entities',
+  'domains',
+  'taxonomy',
+  'engines',
+  'schedules',
+  'retention',
+  'links',
+  'alert-rules',
+] as const;
 const WORKSPACE = ['workspace', 'members', 'budgets', 'tiers'] as const satisfies readonly WorkspaceSettingsSection[];
 
 export type SettingsSection = (typeof ACCOUNT | typeof PROJECT | typeof WORKSPACE)[number];
@@ -57,7 +67,7 @@ export function SettingsFrame({
     items: [
       ...sections.map((section) => {
         const id: SettingsSection = section;
-        return { id, label: t(`items.${id}`), href: href(section) };
+        return { id, label: t(`items.${id === 'alert-rules' ? 'alertRules' : id}`), href: href(section) };
       }),
       ...pages,
     ],

@@ -107,6 +107,7 @@ const PROBLEMS = {
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],
   schedule_in_use: [409, 'Schedule is in use'],
+  invalid_params: [422, 'Parameters do not fit the rule type'],
   check_pending: [409, 'A check is already under way'],
   single_valued_violation: [409, 'A keyword has two terms of this vocabulary'],
   raw_expired: [410, 'The raw answer is past its retention'],
