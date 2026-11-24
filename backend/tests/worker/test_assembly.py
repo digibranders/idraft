@@ -280,6 +280,10 @@ async def test_rank_checks_are_registered_only_where_their_answers_can_be_kept(
         ticks["keyword_metrics_ingest"].interval,
         ticks["keyword_metrics_ingest"].lock_ttl,
     )
+    assert (ticks["evaluate_alerts"].interval, ticks["evaluate_alerts"].lock_ttl) == (
+        ticks["keyword_metrics_ingest"].interval,
+        ticks["keyword_metrics_ingest"].lock_ttl,
+    )
 
 
 def test_without_credentials_nothing_is_registered_so_the_worker_spends_nothing(

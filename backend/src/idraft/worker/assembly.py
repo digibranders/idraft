@@ -17,6 +17,7 @@ import structlog
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.alerts.evaluate import evaluate_alerts
 from idraft.collectors.ai_prompt import AiPromptWorkload
 from idraft.collectors.ai_prompt_ingest import ingest as ingest_ai_answers
 from idraft.collectors.costs import DAILY_DAYS, HOURLY_DAYS, roll_up_costs
@@ -490,6 +491,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
         if not written.quiet:
             _log.info("keyword imports written", **asdict(written))
 
+    async def raise_alerts() -> None:
+        """Alerts for runs and rank checks since each project's cursor; stored facts only."""
+        report = await evaluate_alerts(context.sessions)
+        if not report.quiet:
+            _log.info("alerts raised", **asdict(report))
+
     async def send() -> None:
         now = await database_time(context.sessions)
         report = await dispatch(context.sessions, parts, sender, pauses, now=now)
@@ -544,6 +551,12 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             name="ai_prompt_ingest",
             interval=INGEST_EVERY,
             action=ingest_ai_prompt_answers,
+            lock_ttl=INGEST_LOCK,
+        ),
+        Tick(
+            name="evaluate_alerts",
+            interval=INGEST_EVERY,
+            action=raise_alerts,
             lock_ttl=INGEST_LOCK,
         ),
         Tick(

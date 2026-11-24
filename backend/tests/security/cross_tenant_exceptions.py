@@ -45,6 +45,7 @@ NOT_PATH_SCOPED: dict[tuple[str, str], str] = {
     "address, tests/api/workspaces/test_invitations.py",
     ("GET", "/api/v1/locations"): "a global dictionary, no tenant data (plan decision D1)",
     ("GET", "/api/v1/domain-categories"): "a global dictionary, no tenant data",
+    ("GET", "/api/v1/alert-rule-types"): "the rule types of the product, no tenant data",
     (
         "GET",
         "/api/v1/public/internal-links/summary/{token}",

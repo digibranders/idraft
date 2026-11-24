@@ -626,6 +626,26 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-44 links-generate
     # WP-45 candidates-api
     # WP-47 alerts-api
+    ("GET", "/api/v1/alert-rule-types"): "authenticated",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules"): "data:read",
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules"): "alerts:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules/{alert_rule_id}",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules/{alert_rule_id}",
+    ): "alerts:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules/{alert_rule_id}",
+    ): "alerts:write",
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events"): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events/acknowledge",
+    ): "alerts:write",
     # WP-49 saved-views
     # WP-50 exports
     # WP-51 reports
@@ -771,6 +791,7 @@ PATH_PARAMETERS = {
     # WP-44 links-generate
     # WP-45 candidates-api
     # WP-47 alerts-api
+    "alert_rule_id",
     # WP-49 saved-views
     # WP-50 exports
     # WP-51 reports

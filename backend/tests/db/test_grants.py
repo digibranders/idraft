@@ -384,6 +384,24 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     "ops.raw_payloads": (NONE, access("SELECT, INSERT", UPDATE=("expires_at",))),
     # Migration 0034: the API records the cost of a screenshot a person captured.
     "ops.provider_cost_events": (access("SELECT, INSERT"), access("SELECT, INSERT")),
+    # Migration 0035: the API manages rules and acknowledges alerts; the worker raises them.
+    "ops.alert_rules": (
+        access(
+            "SELECT, INSERT, DELETE", UPDATE=("name", "scope", "params", "is_active", "updated_at")
+        ),
+        READ,
+    ),
+    "ops.alert_events": (
+        access("SELECT", UPDATE=("acknowledged_by", "acknowledged_at")),
+        access("SELECT, INSERT"),
+    ),
+    "ops.alert_cursors": (
+        READ,
+        access(
+            "SELECT, INSERT",
+            UPDATE=("last_completed_at", "last_rank_event_id", "updated_at"),
+        ),
+    ),
     "ops.cost_daily": (
         READ,
         access("SELECT, INSERT", UPDATE=("request_count", "cost_usd", "subjects")),
@@ -446,7 +464,8 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         READ,
     ),
     "ai.prompt_versions": (access("SELECT, INSERT"), READ),
-    "ai.prompt_terms": (access("SELECT, INSERT, DELETE"), NONE),
+    # Migration 0035: alert evaluation narrows a rule to the prompts of a group.
+    "ai.prompt_terms": (access("SELECT, INSERT, DELETE"), READ),
     "ai.derivations": (READ, access("SELECT, INSERT")),
     "ai.observations": (READ, access("SELECT, INSERT")),
     "ai.citations": (READ, access("SELECT, INSERT")),
