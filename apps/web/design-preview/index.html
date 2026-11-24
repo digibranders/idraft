@@ -1123,6 +1123,12 @@
   </form>
 </div>
 
+<!-- Compare days: one prompt and platform, a column per run. Built in prompts-compare.js -->
+<div id="dlg-compare-days" role="dialog" aria-modal="true" aria-labelledby="dlg-compare-title" hidden class="fixed inset-0 z-(--z-dialog) flex items-start justify-center px-4 data-top-offset">
+  <div data-scrim class="absolute inset-0 bg-(--scrim)"></div>
+  <div data-dialog-panel class="relative max-w-full rounded-xl bg-surface-elevated shadow-dialog flex flex-col"></div>
+</div>
+
 <!-- Layout customization (docs/superpowers/specs/2026-09-30-layout-customization-design.md) -->
 <p id="layout-live" role="status" aria-live="polite" class="sr-only"></p>
 <p id="layout-drag-help" hidden>Press Space to pick up, the arrow keys to move, Space to drop, Escape to put it back.</p>
