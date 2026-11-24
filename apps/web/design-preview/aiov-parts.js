@@ -304,6 +304,9 @@ export function barList(rows, { max, valueText: text = pct0, always = false, cyl
     bar.setAttribute('aria-hidden', 'true');
     bar.style.width = `${Math.max(1, Math.round(((row.value ?? 0) / top) * 100))}%`;
     const color = `var(--${row.barToken ?? (row.strong ? 'chart-1' : 'chart-bar-neutral')})`;
+    // A share too small to show as a cylinder is still a round dot, never a sliver; no share or 0% draws nothing
+    if (cylinder && row.value) bar.style.minWidth = '14px';
+    if (cylinder && !row.value) bar.style.visibility = 'hidden';
     if (row.value === null) bar.style.background = 'transparent';
     else if (cylinder) bar.style.setProperty('--bar-color', color);
     else bar.style.background = color;
