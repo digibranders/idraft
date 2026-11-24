@@ -1,9 +1,10 @@
 'use client';
 
-import { ArrowUpRight } from 'lucide-react';
+import { Link as LinkIcon } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
+import { IntentBadges, intentTip } from '@/components/app/intent-badges';
 import { col, type UnknownValue } from '@/components/app/data-table/columns';
 import type { DataTableColumn } from '@/components/app/data-table/types';
 import { Icon } from '@/components/ui/icon';
@@ -83,6 +84,7 @@ export function useKeywordColumns(
 ): readonly DataTableColumn<PairedRow>[] {
   const t = useTranslations('rankings.columns');
   const common = useTranslations('common');
+  const intentT = useTranslations('intentBadges');
   const targetT = useTranslations('rankings.target');
   const trendT = useTranslations('rankings.gscTrend');
   const ranks = useRankColumns(timeZone);
@@ -128,6 +130,26 @@ export function useKeywordColumns(
           return buckets === null ? undefined : gscTrendWords(trendT, buckets, metric).tip;
         },
       });
+    // Intent as letter badges; a keyword with none shows what it did before (Pending, or Unknown)
+    const intentBase = col.text<TrackedKeywordRow>(
+      'intent',
+      (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)),
+      {
+        header: t('intent'),
+        priority: 3,
+        width: 96,
+        sortable: false,
+        unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
+      },
+    );
+    const intentColumn: DataTableColumn<TrackedKeywordRow> = {
+      ...intentBase,
+      cell: (row) => (row.intent === 'unknown' ? intentBase.cell(row) : <IntentBadges intents={[row.intent]} />),
+      cellTip: (row) =>
+        row.intent === 'unknown'
+          ? intentBase.cellTip?.(row)
+          : { content: intentTip((part, name) => intentT(`${part}.${name}`), [row.intent]) },
+    };
     const columns: DataTableColumn<PairedRow>[] = [
       col.keyword<TrackedKeywordRow>('keyword', keywordText, {
         header: t('keyword'),
@@ -156,7 +178,7 @@ export function useKeywordColumns(
               onClick={(e) => e.stopPropagation()}
               className="flex h-7 min-w-7 shrink-0 items-center justify-center gap-0.5 rounded-md px-1 text-foreground-muted hover:bg-surface-hover hover:text-foreground"
             >
-              <Icon icon={ArrowUpRight} size="default" />
+              <Icon icon={LinkIcon} size="default" />
               {count > 1 ? <span className="num type-micro text-warning-text">{count}</span> : null}
             </a>
           );
@@ -190,13 +212,7 @@ export function useKeywordColumns(
         width: 72,
         unknown: missing,
       }),
-      col.text<TrackedKeywordRow>('intent', (row) => (row.intent === 'unknown' ? null : t(`intents.${row.intent}`)), {
-        header: t('intent'),
-        priority: 3,
-        width: 96,
-        sortable: false,
-        unknown: (row) => (metrics(row) === null ? pending : { label: t('intentUnknown') }),
-      }),
+      intentColumn,
       ranks.features,
       ranks.aio,
       col.currency<TrackedKeywordRow>(
@@ -245,5 +261,5 @@ export function useKeywordColumns(
       }),
     ];
     return columns;
-  }, [t, targetT, trendT, common, timeZone, ranks, competitorColumns, device, countryNames]);
+  }, [t, targetT, intentT, trendT, common, timeZone, ranks, competitorColumns, device, countryNames]);
 }

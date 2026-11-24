@@ -236,6 +236,23 @@
       }
     }
   },
+  "intentBadges": {
+    "badge": "{intent} intent",
+    "names": {
+      "informational": "Informational",
+      "commercial": "Commercial",
+      "transactional": "Transactional",
+      "navigational": "Navigational",
+      "local": "Local"
+    },
+    "tips": {
+      "informational": "Searchers who want specific information or are doing research.",
+      "commercial": "Searchers who are comparing products or services before they buy.",
+      "transactional": "Searchers who are ready to buy or sign up.",
+      "navigational": "Searchers who are looking for a specific brand or site.",
+      "local": "Searchers who are looking for services in a specific area."
+    }
+  },
   "auth": {
     "fields": {
       "name": "Your name",

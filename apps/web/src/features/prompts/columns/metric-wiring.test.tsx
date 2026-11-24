@@ -103,7 +103,7 @@ describe('the metric columns on the Prompts tab', () => {
   it('draw their cells from the facts of the summary read', () => {
     renderWithProviders(<Probe withFacts />);
     const text = (id: string): string | null => screen.getByTestId(`cell-${id}`).textContent;
-    expect(text('intent')).toBe('Commercial');
+    expect(text('intent')).toBe('C');
     expect(text('volume')).toBe('1,190');
     expect(text('position')).toBe('2.3');
     expect(text('recommendation')).toBe('50%');
@@ -116,7 +116,7 @@ describe('the metric columns on the Prompts tab', () => {
     renderWithProviders(<Probe withFacts={false} />);
     const text = (id: string): string | null => screen.getByTestId(`cell-${id}`).textContent;
     expect(['volume', 'position', 'recommendation', 'sentiment'].map(text)).toEqual(['n/a', 'n/a', 'n/a', 'n/a']);
-    expect(text('intent')).toBe('Commercial');
+    expect(text('intent')).toBe('C');
   });
 
   it('say the prompt has no answers when the facts were read and hold no row for it', () => {
