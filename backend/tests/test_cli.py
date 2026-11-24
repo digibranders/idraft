@@ -569,8 +569,8 @@ def test_link_prompt_keywords_links_each_prompt_once_without_tracking_and_queues
         )
     )
     assert {row["prompt_id"]: row["normalized_text"] for row in links} == {
-        ids["a"]: "managed soc service providers india",
-        ids["b"]: "managed soc service providers india",
+        ids["a"]: "managed soc india",
+        ids["b"]: "managed soc india",
         ids["d"]: "siem tools",
     }
     assert {(row["link_type"], row["is_primary"], row["status"]) for row in links} == {
