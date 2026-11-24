@@ -7439,6 +7439,30 @@
             "description": "With a compare window: the same cells over `compare_window`. Null when none of the row's prompts has an answer of any status on the engine there (no data is not a rate of 0); with answers but no valid one, cells with a denominator of 0 and no value. Left out when no compare window was asked for.",
             "title": "Previous"
           },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricCell"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=facts`: the recommendation rate, valid answers that recommend the own brand over the engine's valid answers, built as `mentioned` is (a recommendation is a kind of mention, so the numerator is at most that of `mentioned`). Null while none of the row's valid answers has been classified yet (derived again after the extractor that classifies them). Left out when `facts` was not asked for.",
+            "title": "Recommended"
+          },
+          "sentiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=facts`: how many valid answers name the own brand in a positive, neutral, negative or mixed tone. Null when no valid answer of the row names the own brand with a tone. Never one score. Left out when `facts` was not asked for.",
+            "title": "Sentiment"
+          },
           "series": {
             "anyOf": [
               {
@@ -21484,6 +21508,35 @@
           }
         },
         "title": "Selector",
+        "type": "object"
+      },
+      "SentimentCounts": {
+        "description": "The tone of the answers of an engine that name the own brand, as counts that add up over\nprompts. They add up to the classified mentions of the engine.",
+        "properties": {
+          "mixed": {
+            "title": "Mixed",
+            "type": "integer"
+          },
+          "negative": {
+            "title": "Negative",
+            "type": "integer"
+          },
+          "neutral": {
+            "title": "Neutral",
+            "type": "integer"
+          },
+          "positive": {
+            "title": "Positive",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "positive",
+          "neutral",
+          "negative",
+          "mixed"
+        ],
+        "title": "SentimentCounts",
         "type": "object"
       },
       "SeoSettings": {

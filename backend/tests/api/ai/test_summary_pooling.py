@@ -428,12 +428,14 @@ def test_sum_counts_adds_every_count_and_keeps_the_newest_times() -> None:
     first = Counts(
         1, 2, 3, 4, 5, 6, 7, 8, 9, 0.5, last_observed_at=older, last_valid_at=older, lost_to=11,
         n_citing=12, citing_own=13, own_units=14, all_units=15, first_mentions=16,
-        fanout_answers=17, fanout_queries=18,
+        fanout_answers=17, fanout_queries=18, recommended=19, recommendation_classified=21,
+        positive=22, neutral=23, negative=24, mixed=25,
     )  # fmt: skip
     second = Counts(
         10, 20, 30, 40, 50, 60, 70, 80, 90, 1.5, last_observed_at=newer, lost_to=110,
         n_citing=120, citing_own=130, own_units=140, all_units=150, first_mentions=160,
-        fanout_answers=170, fanout_queries=180,
+        fanout_answers=170, fanout_queries=180, recommended=190, recommendation_classified=210,
+        positive=220, neutral=230, negative=240, mixed=250,
     )  # fmt: skip
     # A count a later task adds to `Counts` must be given a value here and be summed.
     assert all(

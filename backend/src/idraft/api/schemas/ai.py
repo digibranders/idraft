@@ -862,6 +862,16 @@ class PositionCounts(BaseModel):
     answers: int = Field(description="Valid answers (the denominator of `mentioned`).")
 
 
+class SentimentCounts(BaseModel):
+    """The tone of the answers of an engine that name the own brand, as counts that add up over
+    prompts. They add up to the classified mentions of the engine."""
+
+    positive: int
+    neutral: int
+    negative: int
+    mixed: int
+
+
 class OtherBrand(BaseModel):
     name: str
     mentioned: MetricCell = Field(
@@ -944,6 +954,24 @@ class EngineSummary(BaseModel):
         description="With `include=facts`: where the own brand is named in the engine's valid "
         "answers, as counts (zeros when there is no valid answer). On a topic, total or country "
         "row the counts are the sums over its prompts. Left out when `facts` was not asked for.",
+    )
+    recommended: MetricCell | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`: the recommendation rate, valid answers that "
+        "recommend the own brand over the engine's valid answers, built as `mentioned` is (a "
+        "recommendation is a kind of mention, so the numerator is at most that of `mentioned`). "
+        "Null while none of the row's valid answers has been classified yet (derived again "
+        "after the extractor that classifies them). Left out when `facts` was not asked for.",
+    )
+    sentiment: SentimentCounts | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=facts`: how many valid answers name the own brand in a "
+        "positive, neutral, negative or mixed tone. Null when no valid answer of the row names "
+        "the own brand with a tone. Never one score. Left out when `facts` was not asked for.",
     )
     other_brands: list[OtherBrand] | SkipJsonSchema[_NotAsked] | None = Field(
         default=NOT_ASKED,

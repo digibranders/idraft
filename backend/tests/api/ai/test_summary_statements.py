@@ -73,6 +73,21 @@ def _cases(term: str, rival: uuid.UUID, co_mentions: int) -> list[Case]:
         # The newest valid answers, the linked keywords, the places of the own brand, the brands
         # named and the pages cited: one statement each.
         ("include=facts", {"include": "facts"}, {}, 5),
+        # The Overview's facts read has no prompt rows: only the linked keywords of the topics and
+        # the places of the own brand are read, the recommendation and tone counts are columns of
+        # the counts statement.
+        (
+            "include=facts with rows=topics",
+            {"include": "facts", "rows": "topics"},
+            {"rows": "topics"},
+            2,
+        ),
+        (
+            "include=facts with rows=none",
+            {"include": "facts", "rows": "none"},
+            {"rows": "none"},
+            1,
+        ),
         ("group_by=country", {"group_by": "country"}, {}, 0),
         ("filter[outcome]", {"filter[outcome]": "neither"}, {}, 0),
         ("filter[opportunity]", {"filter[opportunity]": "named_not_cited"}, {}, 0),

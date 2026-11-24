@@ -43,6 +43,7 @@ from idraft.api.schemas.ai import (
     PositionCounts,
     PromptsSummary,
     PromptSummaryRow,
+    SentimentCounts,
     SummaryCompare,
     SummaryDetailContext,
     SummaryEntity,
@@ -333,6 +334,12 @@ def sum_counts(parts: Sequence[Counts]) -> Counts:
         cited_only=sum(part.cited_only for part in parts),
         neither=sum(part.neither for part in parts),
         sov_answers=sum(part.sov_answers for part in parts),
+        recommended=sum(part.recommended for part in parts),
+        recommendation_classified=sum(part.recommendation_classified for part in parts),
+        positive=sum(part.positive for part in parts),
+        neutral=sum(part.neutral for part in parts),
+        negative=sum(part.negative for part in parts),
+        mixed=sum(part.mixed for part in parts),
         sov_share=sum(part.sov_share for part in parts),
         last_observed_at=max(observed, default=None),
         last_valid_at=max(valid, default=None),
@@ -501,6 +508,8 @@ class _Read:
     # it. None: not asked for, so a prompt row carries no `latest`; asked for, a prompt and
     # engine without a valid answer is absent here and its `latest` is null.
     latest: Mapping[tuple[UUID, str], LatestAnswer] | None = None
+    # `include=facts` was asked: the recommendation and sentiment cells are built from the counts.
+    facts: bool = False
     # With `include=facts`: the keyword each prompt is linked to; a prompt without one is absent.
     linked: Mapping[UUID, repository.LinkedRow] | None = None
     # With `include=facts`: the places of the own brand, the brands the answers name and the pages
@@ -682,9 +691,39 @@ def _engine_row(
         if read.latest is None or topic
         else read.latest.get((next(iter(prompt_ids)), code)),
         position=_position(code, prompt_ids, current, read),
+        recommended=_recommended(current, read, topic=topic),
+        sentiment=_sentiment(current, read),
         other_brands=_other_brands(code, prompt_ids, current, read, topic=topic),
         top_links=_top_links(code, prompt_ids, read, topic=topic),
     )
+
+
+def _recommended(
+    current: Sequence[Counts], read: _Read, *, topic: bool
+) -> MetricCell | _NotAsked | None:
+    """The recommendation rate of the row's valid answers on the engine, built as `mentioned` is;
+    null while none of them is classified (answers of an earlier extractor are not)."""
+    if not read.facts:
+        return NOT_ASKED
+    if sum(counts.recommendation_classified for counts in current) == 0:
+        return None
+    if topic:
+        return _weighted(current, lambda counts: counts.recommended)
+    counts = current[0]
+    return _cell(counts.recommended, counts.n_valid, counts.n_observations)
+
+
+def _sentiment(current: Sequence[Counts], read: _Read) -> SentimentCounts | _NotAsked | None:
+    """How many of the row's valid answers name the own brand in each tone; null when none does."""
+    if not read.facts:
+        return NOT_ASKED
+    tones = SentimentCounts(
+        positive=sum(counts.positive for counts in current),
+        neutral=sum(counts.neutral for counts in current),
+        negative=sum(counts.negative for counts in current),
+        mixed=sum(counts.mixed for counts in current),
+    )
+    return tones if tones.positive + tones.neutral + tones.negative + tones.mixed else None
 
 
 def _position(
@@ -1056,12 +1095,17 @@ class SummaryService:
                 else {}
             )
             names = await repository.topic_names(db, ws, held.keys())
+            window_facts = "facts" in query.include
+            # The Overview asks for the facts without prompt rows (`rows=topics` or `none`): the
+            # keywords, the brands, the pages and the newest answer are cells of those rows, so
+            # they are not read for it. Position, recommendation and sentiment are counts of the
+            # window and serve every row.
+            prompt_facts = window_facts and query.rows is None
             linked = (
                 await repository.linked_keywords(db, ws, project_id, ids)
-                if "facts" in query.include
+                if window_facts and query.rows != "none"
                 else None
             )
-            window_facts = "facts" in query.include
             position = (
                 await repository.position_sums(db, ws, project_id, ids, **window)
                 if window_facts
@@ -1069,12 +1113,12 @@ class SummaryService:
             )
             brands = (
                 await repository.named_brands(db, ws, project_id, ids, **window)
-                if window_facts
+                if prompt_facts
                 else None
             )
             links = (
                 await repository.cited_links(db, ws, project_id, ids, **window)
-                if window_facts
+                if prompt_facts
                 else None
             )
             latest = (
@@ -1084,7 +1128,7 @@ class SummaryService:
                     project_id,
                     now=datetime.now(UTC),
                 )
-                if "facts" in query.include
+                if prompt_facts
                 else None
             )
         seen = {engine for _, engine in by_prompt}
@@ -1107,6 +1151,7 @@ class SummaryService:
             previous_named=previous_named,
             detail="cells" in query.include,
             latest=latest,
+            facts=window_facts,
             linked=linked,
             position=position,
             brands=brands,
