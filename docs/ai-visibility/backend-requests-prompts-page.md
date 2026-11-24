@@ -179,3 +179,20 @@ drawer's Citations tab read no comparison while last year is chosen, and say so.
 | #   | What the web would call                                                                  | What the backend does                                                                                                         |
 | --- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | 23  | `compare=previous_year` on `ai/sources/domains` and `ai/sources/pages`, and the same for `ai/sources/changes` | The same dates a year earlier (29 February becomes 28 February), as the summary does, with `meta.compare_window` and `previous` on each row. |
+
+## Google AI Overview from the rank checks (built 2026-11-25, WP-64 slice)
+
+`GET .../ai/prompts-summary?include=ai_overview` adds `ai_overview` to every prompt row and an `ai_overview` block of counts
+to the summary. It reads `seo.tracked_keyword_state` (the latest rank check of each tracked keyword) through the prompt's
+active links: nothing is collected for it and no keyword is tracked for it.
+
+- Row cell: `{ source_state, keyword, shown, cited_own, cited_position, observed_at, checks }`. `source_state` is
+  `no_linked_keyword`, `not_tracked` (no linked keyword has a check that could read the results page, so `shown` and
+  `cited_own` are null), `no_surface` (the check read the page and Google showed no overview) or `ok`.
+- The keyword that speaks for a prompt is the one of its active links with an active Google tracked keyword of the project and a
+  readable check, preferring a keyword tracked at the prompt's place, then the primary link, then the text. Its tracked variants
+  (desktop, mobile) are read together: shown and cited when any says so. A tracked keyword at another place is used when none is
+  tracked at the prompt's own place (shortcut, see `api/ai/aio_summary.py`).
+- Block counts: `prompts`, `linked`, `tracked`, `shown`, `cited_own`, `keywords_shown`, `keywords_cited`, `observed_at`. It is the
+  state of the latest checks, not a window. The web holds its 4-sample floor to `keywords_shown`, because prompts can share a keyword.
+- Not built: the brand named in the overview text (the text is not stored), and the share by rank bucket (BE-AIO-04).

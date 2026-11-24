@@ -1442,6 +1442,71 @@
         "title": "AiOverviewResponse",
         "type": "object"
       },
+      "AiOverviewTotals": {
+        "description": "The counts the Google AI Overview figure rests on, over the prompts in scope. It is the\nstate of the latest rank checks, not a window, and not an answer count.",
+        "properties": {
+          "cited_own": {
+            "description": "Of those, the prompts whose overview cites the own site.",
+            "title": "Cited Own",
+            "type": "integer"
+          },
+          "keywords_cited": {
+            "description": "The distinct keywords behind `cited_own`.",
+            "title": "Keywords Cited",
+            "type": "integer"
+          },
+          "keywords_shown": {
+            "description": "The distinct keywords behind `shown` (prompts can share one keyword).",
+            "title": "Keywords Shown",
+            "type": "integer"
+          },
+          "linked": {
+            "description": "Prompts with an active linked keyword.",
+            "title": "Linked",
+            "type": "integer"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the newest check counted was made.",
+            "title": "Observed At"
+          },
+          "prompts": {
+            "description": "The prompts in scope.",
+            "title": "Prompts",
+            "type": "integer"
+          },
+          "shown": {
+            "description": "Of those, the prompts whose keyword shows an AI Overview.",
+            "title": "Shown",
+            "type": "integer"
+          },
+          "tracked": {
+            "description": "Prompts whose linked keyword has a rank check that could read the page.",
+            "title": "Tracked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompts",
+          "linked",
+          "tracked",
+          "shown",
+          "cited_own",
+          "keywords_shown",
+          "keywords_cited",
+          "observed_at"
+        ],
+        "title": "AiOverviewTotals",
+        "type": "object"
+      },
       "AiSeriesResponse": {
         "properties": {
           "data": {
@@ -17226,6 +17291,99 @@
         "title": "Prompt",
         "type": "object"
       },
+      "PromptAiOverview": {
+        "description": "What Google showed for the keyword a prompt is linked to at its latest rank check\n(`include=ai_overview`). Read from the rank checks; nothing is asked of Google for it.",
+        "properties": {
+          "checks": {
+            "description": "The tracked variants of the keyword (devices) read together: shown and cited are true when any of them says so.",
+            "title": "Checks",
+            "type": "integer"
+          },
+          "cited_own": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The overview cites a page of the own site; null when not known. False when none was shown.",
+            "title": "Cited Own"
+          },
+          "cited_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The place of the own site among the sources of the overview, the best place of the keyword's checks; null when not cited or not known.",
+            "title": "Cited Position"
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked keyword the state is read from (the prompt's `linked_keyword` may be another one); null without a rank check.",
+            "title": "Keyword"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the newest check read was made.",
+            "title": "Observed At"
+          },
+          "shown": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Google showed an AI Overview; null when not known.",
+            "title": "Shown"
+          },
+          "source_state": {
+            "description": "`no_linked_keyword`: the prompt has no active link. `not_tracked`: none of its linked keywords has a rank check that could read the results page, so nothing is known. `no_surface`: the check read the page and Google showed no AI Overview. `ok`: Google showed one.",
+            "enum": [
+              "no_linked_keyword",
+              "not_tracked",
+              "no_surface",
+              "ok"
+            ],
+            "title": "Source State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_state",
+          "keyword",
+          "shown",
+          "cited_own",
+          "cited_position",
+          "observed_at",
+          "checks"
+        ],
+        "title": "PromptAiOverview",
+        "type": "object"
+      },
       "PromptBulkArchive": {
         "additionalProperties": false,
         "description": "The project's prompts to archive (`archive: true`) or bring back (`false`).",
@@ -18325,6 +18483,11 @@
       },
       "PromptSummaryRow": {
         "properties": {
+          "ai_overview": {
+            "$ref": "#/components/schemas/PromptAiOverview",
+            "description": "With `include=ai_overview`: Google AI Overview for the prompt, read from the rank checks of its linked keyword. Left out otherwise.",
+            "title": "Ai Overview"
+          },
           "engines": {
             "items": {
               "$ref": "#/components/schemas/EngineSummary"
@@ -18502,6 +18665,17 @@
       },
       "PromptsSummary": {
         "properties": {
+          "ai_overview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiOverviewTotals"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=ai_overview`: the counts behind the Google AI Overview figure over every prompt in scope (it does not depend on `rows`). Left out otherwise."
+          },
           "branded_only": {
             "description": "Only branded prompts are counted.",
             "title": "Branded Only",
@@ -36623,7 +36797,7 @@
             }
           },
           {
-            "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads).",
+            "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads), `ai_overview` (Google AI Overview per prompt and the counts behind its figure, from the latest rank checks).",
             "in": "query",
             "name": "include",
             "required": false,
@@ -36638,7 +36812,8 @@
                       "co_mentions",
                       "cells",
                       "facts",
-                      "fact_counts"
+                      "fact_counts",
+                      "ai_overview"
                     ],
                     "type": "string"
                   },
@@ -36648,7 +36823,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads).",
+              "description": "Blocks to add: `series`, `entities`, `total`, `co_mentions`, `cells`, `facts`, `fact_counts` (the counts of `facts`, `position`, `recommended` and `sentiment` on every row, without the lists, the newest answer and the linked keywords: what the Overview reads), `ai_overview` (Google AI Overview per prompt and the counts behind its figure, from the latest rank checks).",
               "title": "Include"
             }
           },

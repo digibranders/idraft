@@ -669,7 +669,7 @@ class MetricCell(BaseModel):
 
 
 SummaryInclude = Literal[
-    "series", "entities", "total", "co_mentions", "cells", "facts", "fact_counts"
+    "series", "entities", "total", "co_mentions", "cells", "facts", "fact_counts", "ai_overview"
 ]
 SummaryCompare = Literal["none", "previous_period", "previous_year"]
 SummaryRows = Literal["topics", "none"]
@@ -1017,6 +1017,54 @@ class LinkedKeyword(BaseModel):
     )
 
 
+class PromptAiOverview(BaseModel):
+    """What Google showed for the keyword a prompt is linked to at its latest rank check
+    (`include=ai_overview`). Read from the rank checks; nothing is asked of Google for it."""
+
+    source_state: Literal["no_linked_keyword", "not_tracked", "no_surface", "ok"] = Field(
+        description="`no_linked_keyword`: the prompt has no active link. `not_tracked`: none of "
+        "its linked keywords has a rank check that could read the results page, so nothing is "
+        "known. `no_surface`: the check read the page and Google showed no AI Overview. `ok`: "
+        "Google showed one."
+    )
+    keyword: str | None = Field(
+        description="The linked keyword the state is read from (the prompt's `linked_keyword` "
+        "may be another one); null without a rank check."
+    )
+    shown: bool | None = Field(description="Google showed an AI Overview; null when not known.")
+    cited_own: bool | None = Field(
+        description="The overview cites a page of the own site; null when not known. False when "
+        "none was shown."
+    )
+    cited_position: int | None = Field(
+        description="The place of the own site among the sources of the overview, the best "
+        "place of the keyword's checks; null when not cited or not known."
+    )
+    observed_at: datetime | None = Field(description="When the newest check read was made.")
+    checks: int = Field(
+        description="The tracked variants of the keyword (devices) read together: shown and "
+        "cited are true when any of them says so."
+    )
+
+
+class AiOverviewTotals(BaseModel):
+    """The counts the Google AI Overview figure rests on, over the prompts in scope. It is the
+    state of the latest rank checks, not a window, and not an answer count."""
+
+    prompts: int = Field(description="The prompts in scope.")
+    linked: int = Field(description="Prompts with an active linked keyword.")
+    tracked: int = Field(
+        description="Prompts whose linked keyword has a rank check that could read the page."
+    )
+    shown: int = Field(description="Of those, the prompts whose keyword shows an AI Overview.")
+    cited_own: int = Field(description="Of those, the prompts whose overview cites the own site.")
+    keywords_shown: int = Field(
+        description="The distinct keywords behind `shown` (prompts can share one keyword)."
+    )
+    keywords_cited: int = Field(description="The distinct keywords behind `cited_own`.")
+    observed_at: datetime | None = Field(description="When the newest check counted was made.")
+
+
 _LINKED_ONE = (
     "With `include=facts`: the keyword the prompt is linked to, the one with the most searches "
     "when it has several; null when it has no active link. Left out when `facts` was not asked "
@@ -1041,6 +1089,13 @@ class PromptSummaryRow(BaseModel):
         exclude_if=_not_asked,
         json_schema_extra={"default": None},
         description=_LINKED_ONE,
+    )
+    ai_overview: PromptAiOverview | SkipJsonSchema[_NotAsked] = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=ai_overview`: Google AI Overview for the prompt, read from "
+        "the rank checks of its linked keyword. Left out otherwise.",
     )
 
 
@@ -1177,6 +1232,12 @@ class PromptsSummary(BaseModel):
         description="With `include=total`: every prompt in scope as one row, aggregated as a "
         "topic row is, and carrying the blocks the rows carry when asked. It does not depend on "
         "`rows`. Left out otherwise.",
+    )
+    ai_overview: AiOverviewTotals | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=ai_overview`: the counts behind the Google AI Overview "
+        "figure over every prompt in scope (it does not depend on `rows`). Left out otherwise.",
     )
     co_mentions: list[EngineCoMentions] | None = Field(
         default=None,
