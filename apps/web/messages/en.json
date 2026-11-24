@@ -8235,6 +8235,7 @@
       "weekly": "Mention rate by week",
       "weeklyNote": "One bar for each week, as tall as that week's Mention rate. Point at a bar for its counts.",
       "weekLabel": "Week of {date}: {figure}",
+      "weekPooledLabel": "Four weeks to the week of {date}, too few answers a week to stand alone: {figure}",
       "brands": "Your brand and its competitors",
       "brandsNote": "The share of the answers on each platform that mention the brand.",
       "domains": "Cited domains",

@@ -229,3 +229,33 @@ async def test_another_project_of_the_workspace_never_shows_in_the_report(
     after = (await api.get(f"{PUBLIC}/{token}")).json()["data"]
 
     assert {**after, "generated_at": None} == {**before, "generated_at": None}
+
+
+async def test_a_link_to_a_project_with_no_answers_yet_opens_an_empty_report(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    from tests.api.auth.support import make_workspace
+    from tests.api.keywords.support import keyword_project
+
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    owner = await member(resources, migrated, workspace, "owner")
+    made = await api.post(
+        project_url(workspace, project, "reports", "shares"), json={}, headers=owner.headers
+    )
+
+    response = await api.get(f"{PUBLIC}/{made.json()['data']['token']}")
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert (data["engines"], data["cited_domains"], data["prompt_count"]) == ([], [], 0)
+
+
+async def test_a_refused_read_is_as_private_as_a_good_one(
+    api: httpx.AsyncClient,
+) -> None:
+    response = await api.get(f"{PUBLIC}/{'a' * 43}")
+
+    assert problem(response) == (404, "not_found")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"

@@ -17,16 +17,24 @@ from typing import Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import insert, select, text, update
+from sqlalchemy import exists, insert, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.auth.mail import plain_name
 from idraft.db.engine import workspace_transaction
-from idraft.db.tables import ai_report_schedules, ai_report_shares, projects
+from idraft.db.tables import (
+    ai_report_schedules,
+    ai_report_shares,
+    memberships,
+    projects,
+    workspaces,
+)
 from idraft.providers.email import EmailMessage, EmailSender, EmailSendError
 
 _log = structlog.get_logger(__name__)
 CLAIM_LIMIT: Final = 50
+GONE_MAKER: Final = "the person who made it can no longer send it"
+GONE_PROJECT: Final = "the project no longer exists"
 LINK_DAYS: Final = 30
 ERROR_MAX: Final = 200
 _CLAIM = text(
@@ -70,17 +78,22 @@ async def send_due_reports(
         due = (await db.execute(_CLAIM, {"now": now, "limit": CLAIM_LIMIT})).all()
     sent = failed = 0
     for schedule in due:
-        error = await _send_one(
-            sessions,
-            sender,
-            origin=origin,
-            now=now,
-            workspace_id=schedule.workspace_id,
-            project_id=schedule.project_id,
-            schedule_id=schedule.id,
-            created_by=schedule.created_by,
-            recipients=schedule.recipients,
-        )
+        try:
+            error = await _send_one(
+                sessions,
+                sender,
+                origin=origin,
+                now=now,
+                workspace_id=schedule.workspace_id,
+                project_id=schedule.project_id,
+                schedule_id=schedule.id,
+                created_by=schedule.created_by,
+                recipients=schedule.recipients,
+            )
+        except Exception:
+            # One failure never costs the others their send: the claim already moved them on
+            _log.exception("report email failed", schedule_id=str(schedule.id))
+            error = await _record_failure(sessions, schedule.workspace_id, schedule.id, now)
         if error is None:
             sent += 1
         else:
@@ -114,7 +127,27 @@ async def _send_one(
         ).first()
         if project is None:
             # The project is gone; there is nothing to report on.
-            return await _record(db, schedule_id, now, "the project no longer exists")
+            return await _record(db, schedule_id, now, GONE_PROJECT)
+        # Mail goes to outside addresses in the name of whoever made the schedule: it stops with
+        # their membership and with the workspace
+        active = (
+            await db.execute(
+                select(
+                    exists().where(
+                        workspaces.c.id == workspace_id,
+                        workspaces.c.status == "active",
+                    ),
+                    exists().where(
+                        memberships.c.workspace_id == workspace_id,
+                        memberships.c.user_id == created_by,
+                    ),
+                )
+            )
+        ).one()
+        if not all(active):
+            return await _record(
+                db, schedule_id, now, "the person who made it can no longer send it"
+            )
         token = secrets.token_urlsafe(32)
         await db.execute(
             insert(ai_report_shares).values(
@@ -142,18 +175,40 @@ async def _send_one(
             failures += 1
     reason = None if failures == 0 else f"{failures} of {len(recipients)} emails were not sent"
     async with workspace_transaction(sessions, workspace_id) as db:
-        return await _record(db, schedule_id, now, reason)
+        return await _record(db, schedule_id, now, reason, delivered=failures < len(recipients))
+
+
+async def _record_failure(
+    sessions: async_sessionmaker[AsyncSession],
+    workspace_id: UUID,
+    schedule_id: UUID,
+    now: datetime,
+) -> str:
+    """Says an unexpected error stopped the send; the reason never carries the error's text."""
+    reason = "the report could not be sent"
+    try:
+        async with workspace_transaction(sessions, workspace_id) as db:
+            await _record(db, schedule_id, now, reason)
+    except Exception:
+        _log.exception("report email failure not recorded", schedule_id=str(schedule_id))
+    return reason
 
 
 async def _record(
-    db: AsyncSession, schedule_id: UUID, now: datetime, reason: str | None
+    db: AsyncSession,
+    schedule_id: UUID,
+    now: datetime,
+    reason: str | None,
+    *,
+    delivered: bool = False,
 ) -> str | None:
+    """Notes the outcome. `delivered`: someone got the email even though `reason` is set."""
     await db.execute(
         update(ai_report_schedules)
         .where(ai_report_schedules.c.id == schedule_id)
         .values(
             last_error=None if reason is None else reason[:ERROR_MAX],
-            last_sent_at=now if reason is None else ai_report_schedules.c.last_sent_at,
+            last_sent_at=now if reason is None or delivered else ai_report_schedules.c.last_sent_at,
         )
     )
     return reason

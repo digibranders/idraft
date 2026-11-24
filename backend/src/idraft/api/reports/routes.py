@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Path, Response
 from idraft.api.access import public
 from idraft.api.internal_links.shares import ShareService
 from idraft.api.permissions import Permission
-from idraft.api.problems import NotFoundError
+from idraft.api.problems import NotFoundError, ProblemError
 from idraft.api.reports.guest import ClientReportService
 from idraft.api.reports.schedules import ReportScheduleService
 from idraft.api.request_info import Info
@@ -35,6 +35,11 @@ from idraft.api.schemas.ai_reports import (
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 
+GUEST_HEADERS = {
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+    "X-Robots-Tag": "noindex, nofollow",
+}
 PROJECT = "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports"
 router = APIRouter(prefix=PROJECT, tags=["reports"])
 public_router = APIRouter(
@@ -173,10 +178,13 @@ async def delete_schedule(
 async def public_report(
     token: Annotated[str, Path(max_length=200)], guest: Guest, info: Info, response: Response
 ) -> ClientReportResponse:
-    report = await guest.read(token, ip=info.throttle_ip)
+    try:
+        report = await guest.read(token, ip=info.throttle_ip)
+    except ProblemError as error:
+        # A refusal (429) is as private as the report: it is never cached and never leaks a referrer
+        error.headers.update(GUEST_HEADERS)
+        raise
     if report is None:
-        raise NotFoundError
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        raise NotFoundError(headers=GUEST_HEADERS)
+    response.headers.update(GUEST_HEADERS)
     return ClientReportResponse(data=report)

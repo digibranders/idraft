@@ -198,7 +198,7 @@ async def test_the_digest_sends_a_due_schedule_once_with_a_working_link(
     )
     assert row["last_sent_at"] is not None
     assert row["last_error"] is None
-    assert row["next_run_at"] > now
+    assert row["next_run_at"] == next_slot("weekly", now)
     shares = await fetch(
         migrated,
         "SELECT expires_at - created_at AS span FROM core.ai_report_shares WHERE project_id = $1",
@@ -244,7 +244,8 @@ async def test_a_failed_send_is_recorded_not_retried_and_a_paused_schedule_is_le
         "SELECT last_sent_at, last_error FROM core.ai_report_schedules WHERE id = $1::uuid",
         ids[0],
     )
-    assert live["last_sent_at"] is None
+    # One of the two got it: it was sent, and the failure is still said
+    assert live["last_sent_at"] is not None
     assert live["last_error"] == "1 of 2 emails were not sent"
     idle = await fetchrow(
         migrated,
@@ -253,3 +254,102 @@ async def test_a_failed_send_is_recorded_not_retried_and_a_paused_schedule_is_le
         ids[1],
     )
     assert (idle["last_error"], idle["still_due"]) == (None, True)
+
+
+async def _due_schedule(
+    api: httpx.AsyncClient, resources: Any, migrated: PostgresServer, who: str
+) -> tuple[Any, str]:
+    base, workspace, _ = await _base(migrated)
+    caller = await member(resources, migrated, workspace, who)
+    made = await api.post(
+        base, json={"frequency": "weekly", "recipients": ["a@example.com"]}, headers=caller.headers
+    )
+    schedule_id = made.json()["data"]["id"]
+    await execute(
+        migrated,
+        "UPDATE core.ai_report_schedules SET next_run_at = now() - interval '1 hour' "
+        "WHERE id = $1::uuid",
+        schedule_id,
+    )
+    return (workspace, caller), schedule_id
+
+
+async def test_one_schedule_that_breaks_never_costs_the_others_their_email(
+    api: httpx.AsyncClient, resources: Any, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    _, broken = await _due_schedule(api, resources, migrated, "editor")
+    _, fine = await _due_schedule(api, resources, migrated, "editor")
+
+    class Exploding(Recorder):
+        async def send(self, message: EmailMessage) -> None:
+            if not self.sent:
+                self.sent.append(message)  # the first schedule's only mail goes through...
+                raise RuntimeError("provider client blew up")  # ...after an unexpected error
+            await super().send(message)
+
+    report = await send_due_reports(
+        worker_db, Exploding(), origin="https://app.example", now=datetime.now(UTC)
+    )
+
+    assert (report.claimed, report.failed) == (2, 1)
+    assert report.sent == 1
+    rows = await fetch(
+        migrated,
+        "SELECT id::text, last_error FROM core.ai_report_schedules WHERE id = ANY($1::uuid[])",
+        [broken, fine],
+    )
+    errors = {row["id"]: row["last_error"] for row in rows}
+    assert sorted(value is None for value in errors.values()) == [False, True]
+    assert "blew up" not in str(errors)
+
+
+async def test_a_schedule_stops_when_the_person_who_made_it_leaves_the_workspace(
+    api: httpx.AsyncClient, resources: Any, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    (workspace, caller), schedule_id = await _due_schedule(api, resources, migrated, "editor")
+    await execute(
+        migrated,
+        "DELETE FROM auth.memberships WHERE workspace_id = $1 AND user_id = $2",
+        workspace.id,
+        caller.user_id,
+    )
+    sender = Recorder()
+
+    report = await send_due_reports(
+        worker_db, sender, origin="https://app.example", now=datetime.now(UTC)
+    )
+
+    assert (report.claimed, report.sent, report.failed) == (1, 0, 1)
+    assert sender.sent == []
+    row = await fetchrow(
+        migrated,
+        "SELECT last_error FROM core.ai_report_schedules WHERE id = $1::uuid",
+        schedule_id,
+    )
+    assert row["last_error"] == "the person who made it can no longer send it"
+
+
+async def test_editing_the_recipients_does_not_move_the_next_email(
+    api: httpx.AsyncClient, resources: Any, migrated: PostgresServer
+) -> None:
+    base, workspace, _ = await _base(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    made = await api.post(
+        base, json={"frequency": "weekly", "recipients": ["a@example.com"]}, headers=editor.headers
+    )
+    schedule = made.json()["data"]
+    await execute(
+        migrated,
+        "UPDATE core.ai_report_schedules SET next_run_at = now() - interval '1 minute' "
+        "WHERE id = $1::uuid",
+        schedule["id"],
+    )
+
+    edited = await api.patch(
+        f"{base}/{schedule['id']}",
+        json={"frequency": "weekly", "recipients": ["b@example.com"]},
+        headers=editor.headers,
+    )
+
+    # Still due: the edit changed who gets it, not when
+    assert edited.json()["data"]["next_run_at"] < datetime.now(UTC).isoformat()

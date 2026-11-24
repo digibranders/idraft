@@ -71,14 +71,17 @@ function Trend({ engine, name }: { engine: ReportEngine; name: string }): ReactE
     <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
       <p className="type-body-strong">{name}</p>
       <ul className="flex h-16 items-end gap-2">
-        {weeks.map(({ weekStart, figure, height }) => (
+        {weeks.map(({ weekStart, pooled, figure, height }) => (
           <li
             key={weekStart}
             className="flex-1 rounded-sm bg-primary"
             style={{ height: `${String(Math.max(6, Math.round(height * 100)))}%` }}
             role="img"
-            aria-label={t('weekLabel', { date: weekStart, figure: text(figure, 'answers') })}
-            title={t('weekLabel', { date: weekStart, figure: text(figure, 'answers') })}
+            aria-label={t(pooled ? 'weekPooledLabel' : 'weekLabel', {
+              date: weekStart,
+              figure: text(figure, 'answers'),
+            })}
+            title={t(pooled ? 'weekPooledLabel' : 'weekLabel', { date: weekStart, figure: text(figure, 'answers') })}
           />
         ))}
       </ul>

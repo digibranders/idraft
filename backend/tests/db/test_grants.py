@@ -624,6 +624,10 @@ FUNCTIONS: dict[str, frozenset[str]] = {
     "auth.current_user_id()": frozenset(ROLES),
     "auth.invitation_by_token(bytea)": frozenset({"app_api"}),
     "core.client_summary_share_by_token(bytea)": frozenset({"app_api"}),
+    "core.ai_report_share_by_token(bytea)": frozenset({"app_api"}),
+    "core.ai_report_schedules_claim_due(timestamp with time zone,integer)": frozenset(
+        {"app_worker"}
+    ),
     # The raw payload of a snapshot of the current workspace (review log F8).
     "seo.serp_snapshot_raw(bigint)": frozenset({"app_api"}),
     # The raw payload of an answer of the current workspace (migration 0018).

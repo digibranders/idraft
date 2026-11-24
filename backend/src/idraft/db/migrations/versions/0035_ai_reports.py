@@ -89,12 +89,18 @@ CREATE FUNCTION core.ai_report_schedules_claim_due(p_now timestamptz, p_limit in
         UPDATE core.ai_report_schedules s
            SET next_run_at = CASE s.frequency
                    WHEN 'weekly' THEN
-                       (date_trunc('week', p_now AT TIME ZONE 'UTC')
-                        + interval '1 week' + interval '6 hours') AT TIME ZONE 'UTC'
+                       CASE WHEN date_trunc('week', p_now AT TIME ZONE 'UTC') + interval '6 hours'
+                                 > p_now AT TIME ZONE 'UTC'
+                            THEN date_trunc('week', p_now AT TIME ZONE 'UTC') + interval '6 hours'
+                            ELSE date_trunc('week', p_now AT TIME ZONE 'UTC')
+                                 + interval '1 week' + interval '6 hours' END
                    ELSE
-                       (date_trunc('month', p_now AT TIME ZONE 'UTC')
-                        + interval '1 month' + interval '6 hours') AT TIME ZONE 'UTC'
-               END
+                       CASE WHEN date_trunc('month', p_now AT TIME ZONE 'UTC') + interval '6 hours'
+                                 > p_now AT TIME ZONE 'UTC'
+                            THEN date_trunc('month', p_now AT TIME ZONE 'UTC') + interval '6 hours'
+                            ELSE date_trunc('month', p_now AT TIME ZONE 'UTC')
+                                 + interval '1 month' + interval '6 hours' END
+               END AT TIME ZONE 'UTC'
          WHERE s.id IN (
                    SELECT d.id FROM core.ai_report_schedules d
                     WHERE NOT d.paused AND d.next_run_at <= p_now

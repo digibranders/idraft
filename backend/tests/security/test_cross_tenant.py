@@ -355,6 +355,14 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     },
     # A client summary link, which would be made and show a report to anyone holding it
     ("POST", _W + "/projects/{project_id}/internal-links/shares"): {"expires_in_days": 7},
+    ("POST", _W + "/projects/{project_id}/reports/shares"): {"expires_in_days": 7},
+    ("POST", _W + "/projects/{project_id}/reports/schedules"): {
+        "frequency": "weekly",
+        "recipients": ["client@example.com"],
+    },
+    ("PATCH", _W + "/projects/{project_id}/reports/schedules/{report_schedule_id}"): {
+        "paused": True
+    },
     # A page that is no suggestion of the tenant's crawl changes nothing; the test below uses
     # a page that is one.
     ("POST", _W + "/projects/{project_id}/internal-links/tier-suggestions/accept"): {

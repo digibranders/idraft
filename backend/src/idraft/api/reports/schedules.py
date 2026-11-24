@@ -159,7 +159,9 @@ class ReportScheduleService:
             found = (await db.execute(select(schedules.c.frequency).where(*where))).first()
             if found is None:
                 raise NotFoundError
-            if body.frequency is not None or body.paused is False:
+            if (
+                body.frequency is not None and body.frequency != found.frequency
+            ) or body.paused is False:
                 # A new rhythm, or a schedule that runs again, waits for its next slot: it never
                 # sends at once for a slot that passed while it was paused.
                 values["next_run_at"] = next_slot(

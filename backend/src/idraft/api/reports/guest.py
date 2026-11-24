@@ -159,8 +159,8 @@ class ClientReportService:
             project_id,
             SummaryQuery(include=frozenset({"total", "entities", "series"}), rows="none"),
         )
-        if data.total is None:
-            return None
+        # A project with no answers yet is still a working link: the report is empty, not missing
+        engines = [] if data.total is None else data.total.engines
         domains = await self._sources.domains(
             access,
             project_id,
@@ -168,14 +168,13 @@ class ClientReportService:
             sort="-citation_units",
             page=OffsetParams(offset=0, limit=DOMAINS_MAX),
         )
-        engines = data.total.engines
         return ClientReport(
             host=project.primary_host or project.name,
             window_from=data.window.from_,
             window_to=data.window.to,
             timezone=data.window.timezone,
             generated_at=datetime.now(UTC),
-            prompt_count=data.total.prompt_count,
+            prompt_count=0 if data.total is None else data.total.prompt_count,
             engines=[_engine(engine) for engine in engines],
             brands=_brands(data, engines),
             cited_domains=[
