@@ -528,3 +528,83 @@ def test_backfill_prompt_intent_refuses_to_run_as_any_role_but_migrator(
 
     assert (code, out) == (1, "")
     assert err == "This command must connect as migrator. Check DATABASE_URL.\n"
+
+
+def test_link_prompt_keywords_links_each_prompt_once_without_tracking_and_queues_metrics(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = asyncio.run(make_tenant(migrated))
+    texts = {
+        "a": "Who are the best Managed SOC service providers in India?",
+        "b": "Top managed soc service providers in India",
+        "c": "Who is the best?",
+        "d": "Best SIEM tools",
+    }
+
+    async def seed() -> dict[str, uuid.UUID]:
+        ids = {name: (await add_prompt(migrated, project, text)).id for name, text in texts.items()}
+        ids["archived"] = (await add_prompt(migrated, project, "Old SOC", active=False)).id
+        return ids
+
+    ids = asyncio.run(seed())
+    arguments = ["link-prompt-keywords", "--queue-metrics", "--project", str(project.id)]
+
+    code, out, err = _run(monkeypatch, capsys, arguments, database_url=migrated.url("migrator"))
+
+    assert (code, err) == (0, "")
+    report = dict(line.split(": ") for line in out.splitlines())
+    assert report["prompts"] == "4"
+    assert (report["linked"], report["skipped"]) == ("3", "1")
+    # a and b share one keyword; d has its own.
+    assert (report["keywords_made"], report["keywords_reused"]) == ("2", "1")
+    assert (report["runs_queued"], report["keywords_queued"]) == ("1", "2")
+    assert report["estimated_usd"] == "0.0008"
+    links = asyncio.run(
+        fetch(
+            migrated,
+            "SELECT l.prompt_id, k.normalized_text, l.link_type, l.is_primary, l.status "
+            "FROM core.keyword_prompt_links l JOIN seo.keywords k ON k.id = l.keyword_id "
+            "WHERE l.project_id = $1",
+            project.id,
+        )
+    )
+    assert {row["prompt_id"]: row["normalized_text"] for row in links} == {
+        ids["a"]: "managed soc service providers india",
+        ids["b"]: "managed soc service providers india",
+        ids["d"]: "siem tools",
+    }
+    assert {(row["link_type"], row["is_primary"], row["status"]) for row in links} == {
+        ("generated", True, "active")
+    }
+    runs = asyncio.run(
+        fetch(
+            migrated,
+            "SELECT status, trigger, created_by_type FROM ops.collection_runs "
+            "WHERE project_id = $1 AND workload = 'keyword_metrics'",
+            project.id,
+        )
+    )
+    assert [(r["status"], r["trigger"], r["created_by_type"]) for r in runs] == [
+        ("planned", "manual", "system")
+    ]
+    tracked = asyncio.run(
+        fetch(migrated, "SELECT 1 FROM seo.tracked_keywords WHERE project_id = $1", project.id)
+    )
+    assert tracked == []
+
+    code, out, err = _run(monkeypatch, capsys, arguments, database_url=migrated.url("migrator"))
+
+    # Nothing new to link, and the planned run is not queued twice.
+    report = dict(line.split(": ") for line in out.splitlines())
+    assert (code, err, report["linked"], report["runs_queued"]) == (0, "", "0", "0")
+
+
+def test_link_prompt_keywords_refuses_to_run_as_any_role_but_migrator(
+    migrated: PostgresServer, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, out, err = _run(
+        monkeypatch, capsys, ["link-prompt-keywords"], database_url=migrated.url("app_api")
+    )
+
+    assert (code, out) == (1, "")
+    assert err == "This command must connect as migrator. Check DATABASE_URL.\n"
