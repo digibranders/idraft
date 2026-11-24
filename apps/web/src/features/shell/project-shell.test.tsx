@@ -43,7 +43,7 @@ function viewport(width: number): void {
 /** One key a page lists in the dialog; a constant, because the seam takes entries that keep their identity. */
 const PAGE_KEYS = [{ id: 'page', label: 'Do the page thing', keys: ['x'] }];
 
-function shell(role: Role = 'editor'): ReactElement {
+function shell(role: Role = 'editor', notifications?: ReactElement): ReactElement {
   return (
     <PermissionProvider membership={membershipFactory(role)}>
       <Suspense fallback={null}>
@@ -52,6 +52,7 @@ function shell(role: Role = 'editor'): ReactElement {
           project={FYNIX}
           projects={[FYNIX, CLEANSTART]}
           sidebarPreference="expanded"
+          notifications={notifications}
         >
           <h1>Profile</h1>
         </ProjectShell>
@@ -285,6 +286,13 @@ describe('ProjectShell', () => {
     await screen.findByRole('heading', { name: 'Profile' });
     const links = within(screen.getByRole('navigation', { name: 'Primary' })).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual(['Costs', 'Settings']);
+  });
+
+  it('puts the notifications a feature supplies before the theme switch, Help and the account menu', async () => {
+    renderWithProviders(shell('editor', <button type="button">Bell stand-in</button>));
+    const bell = await screen.findByRole('button', { name: 'Bell stand-in' });
+    const help = screen.getByRole('button', { name: 'Help' });
+    expect(bell.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('opens the keyboard shortcuts from Help', async () => {

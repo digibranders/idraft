@@ -1,18 +1,17 @@
 'use client';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BellRing } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { useAlertWords } from './alert-words';
-import { ACKNOWLEDGE_ALERTS, MAX_ACKNOWLEDGE, refreshEvents, useAlertEvents, type AlertScope } from './alert-queries';
+import { MAX_ACKNOWLEDGE, useAlertEvents, type AlertScope } from './alert-queries';
+import { useAcknowledgeAlerts } from './use-acknowledge-alerts';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/components/ui/toast';
 import { useErrorId } from '@/lib/api/use-error-id';
 import type { AlertEvent, AlertRule, Severity } from '@/lib/api/types';
 import { formatTableDateTime } from '@/lib/format';
@@ -39,31 +38,12 @@ export interface RecentAlertsProps {
 export function RecentAlerts({ scope, rules, timeZone, canWrite, brandName }: RecentAlertsProps): ReactNode {
   const t = useTranslations('alerts.recent');
   const common = useTranslations('common');
-  const queryClient = useQueryClient();
   const events = useAlertEvents(scope);
   const errorId = useErrorId(events.error);
   const words = useAlertWords(brandName);
-  const acknowledge = useMutation(ACKNOWLEDGE_ALERTS);
-  const [busy, setBusy] = useState(false);
+  const { busy, send } = useAcknowledgeAlerts(scope);
   const rows = events.data?.pages.flatMap((page) => page.data) ?? [];
   const open = rows.filter((event) => event.acknowledged_at === null);
-
-  const send = async (ids: readonly string[]): Promise<void> => {
-    if (busy || ids.length === 0) return;
-    setBusy(true);
-    try {
-      const done = await acknowledge.mutateAsync({
-        params: { path: { workspace_id: scope.workspaceId, project_id: scope.projectId } },
-        body: { ids: [...ids] },
-      });
-      toast({ type: 'success', title: t('acknowledgedDone', { count: done.data.acknowledged }) });
-    } catch {
-      toast({ type: 'error', title: t('acknowledgeFailed') });
-    } finally {
-      setBusy(false);
-      void refreshEvents(queryClient, scope);
-    }
-  };
 
   const columns: PlainColumn<AlertEvent>[] = [
     {

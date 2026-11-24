@@ -647,6 +647,18 @@
       "invalidParams": "These settings do not fit this type of rule.",
       "forbidden": "You do not have permission to change alert rules."
     },
+    "bell": {
+      "title": "Notifications",
+      "label": "{count, plural, =0 {Notifications} other {Notifications, # unread}}",
+      "labelMore": "Notifications, {count} or more unread",
+      "badgeMore": "{count}+",
+      "badgeCap": "99+",
+      "unread": "Unread.",
+      "list": "Recent alerts",
+      "empty": "No alerts yet. The next run checks every rule.",
+      "rulesLink": "Alert rules",
+      "openRules": "Open Alert rules"
+    },
     "recent": {
       "title": "Recent alerts",
       "toAcknowledge": "{count, plural, one {# alert} other {# alerts}} to acknowledge.",

@@ -46,6 +46,14 @@ describe('ProjectRoot', () => {
     expect(isValidElement<{ project: { slug: string } }>(root) && root.props.project.slug).toBe('fynix');
   });
 
+  it('hands the notification bell the scope, time zone, brand and alert rules link of the project', async () => {
+    const slot = vi.fn(() => null);
+    await ProjectRoot({ workspace: 'digibranders', project: 'fynix', notifications: slot, children: null });
+    expect(slot).toHaveBeenCalledWith(
+      expect.objectContaining({ brandName: 'Fynix', rulesHref: '/digibranders/fynix/settings/alert-rules' }),
+    );
+  });
+
   it('answers 404 for an unknown slug, and for another workspace', async () => {
     await expect(render('no-such-project')).rejects.toThrow('NOT_FOUND');
     await expect(render('fynix', 'another-tenant')).rejects.toThrow('NOT_FOUND');

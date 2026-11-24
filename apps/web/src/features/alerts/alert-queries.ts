@@ -52,8 +52,13 @@ export const alertRulesQuery = (scope: AlertScope): ApiQueryOptions<typeof RULES
 export const alertRuleTypesQuery = (): ApiQueryOptions<typeof RULE_TYPES> => apiQuery(RULE_TYPES);
 
 /** The alerts of the project, newest first, one cursor page after another. */
-export function useAlertEvents(scope: AlertScope): UseInfiniteQueryResult<InfiniteData<EventPage, string | null>> {
+export function useAlertEvents(
+  scope: AlertScope,
+  /** Read again this often while the tab is visible; without it, only when the window regains focus. */
+  refetchIntervalMs?: number,
+): UseInfiniteQueryResult<InfiniteData<EventPage, string | null>> {
   return useInfiniteQuery({
+    ...(refetchIntervalMs === undefined ? {} : { refetchInterval: refetchIntervalMs }),
     queryKey: [...eventsKey(scope), 'list'],
     queryFn: ({ pageParam, signal }) =>
       unwrap(
