@@ -475,7 +475,7 @@ describe('LinkCanvas, behaviour found in review', () => {
     const scale = Math.min(176 / 900, 112 / 300);
     expect(view.scale).toBe(1);
     expect(view.x).toBeCloseTo(500 - 90 / scale, 6);
-    expect(view.y).toBeCloseTo(348 - 30 / scale, 6);
+    expect(view.y).toBeCloseTo(368 - 30 / scale, 6);
   });
 
   it('sets the first view once per focus page, when the journey has a size', () => {
@@ -527,7 +527,7 @@ describe('LinkCanvas, behaviour found in review', () => {
     const expected = firstView(
       { left: 0, top: 0, width: 2000, height: 300 },
       focusBox,
-      { width: 1000, height: 696 },
+      { width: 1000, height: 736 },
       56,
     );
     expect(onViewChange.mock.lastCall?.[0]).toEqual(expected);
@@ -904,7 +904,7 @@ describe('LinkCanvas, review fixes for moving, selecting and the info panel', ()
     vi.mocked(props.onViewChange).mockClear();
     await user.click(screen.getByRole('button', { name: 'Back to the focus page' }));
     expect(vi.mocked(props.onViewChange).mock.lastCall?.[0]).toEqual(
-      centerOn(away, { left: 30, top: 10, width: 100, height: 40 }, { width: 1000, height: 696 }),
+      centerOn(away, { left: 30, top: 10, width: 100, height: 40 }, { width: 1000, height: 736 }),
     );
   });
 

@@ -153,8 +153,8 @@ const DEFAULT_WIDTH = 1000;
 const JOURNEY_MARGIN = 56;
 /** The margin a focused card is kept inside the view with. */
 const REVEAL_MARGIN = 24;
-/** The legend line and the page's bottom padding stay in view under the canvas. */
-const BELOW = 72;
+/** The page's bottom padding (`pb-8`) stays in view under the canvas. */
+const BELOW = 32;
 const FLASH_MS = 1500;
 /** The back links a card's marker tooltip lists. */
 const BACK_ROWS = 3;
@@ -702,7 +702,7 @@ export function LinkCanvas<N extends JourneyNeighbor>({
               ? edgeLook(item.scope === 'both' ? null : item.scope, null)
               : edgeLook(item.node.scope, inbound ? statusOf(item.parentKey) : item.node.status_code);
           const drawn = inbound
-            ? curvePath(child, parent, index, children.get(item.parentKey))
+            ? curvePath(child, parent, index, children.get(item.parentKey), true)
             : curvePath(parent, child, index, children.get(item.parentKey));
           lines.push({
             id: key,
