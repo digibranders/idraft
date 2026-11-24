@@ -31,6 +31,7 @@ from idraft.api.internal_links.shares import hash_token
 from idraft.api.pagination import OffsetParams
 from idraft.api.permissions import Role
 from idraft.api.projects import repository as projects
+from idraft.api.reports.standing import standing_of
 from idraft.api.schemas.ai import EngineSummary, PromptsSummary
 from idraft.api.schemas.ai_reports import (
     ClientReport,
@@ -59,6 +60,7 @@ def _engine(engine: EngineSummary) -> ReportEngine:
             ReportWeek(
                 week_start=week.week_start,
                 is_pooled=week.is_pooled,
+                pool_weeks=None if week.pool is None else week.pool.weeks,
                 mentioned=week.mentioned,
                 cited=week.cited,
             )
@@ -152,7 +154,9 @@ class ClientReportService:
         access = self._access(workspace_id, project_id, creator)
         async with workspace_transaction(self._sessions, workspace_id) as db:
             project = await projects.get_project(db, workspace_id, project_id)
-        if project is None:
+            standing = await standing_of(db, workspace_id, creator)
+        # A link outlives neither its maker's place in the workspace nor the workspace itself
+        if project is None or standing != "ok":
             return None
         data = await self._summaries.summary(
             access,

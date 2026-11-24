@@ -259,3 +259,30 @@ async def test_a_refused_read_is_as_private_as_a_good_one(
     assert problem(response) == (404, "not_found")
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
+
+
+async def test_a_link_stops_with_its_maker_and_with_its_workspace(
+    api: httpx.AsyncClient, migrated: PostgresServer, seeded: Summary
+) -> None:
+    token, _ = await _link(api, seeded)
+    assert (await api.get(f"{PUBLIC}/{token}")).status_code == 200
+
+    await execute(
+        migrated,
+        "UPDATE auth.workspaces SET status = 'suspended' WHERE id = $1",
+        seeded.workspace.id,
+    )
+    suspended = await api.get(f"{PUBLIC}/{token}")
+    await execute(
+        migrated, "UPDATE auth.workspaces SET status = 'active' WHERE id = $1", seeded.workspace.id
+    )
+    await execute(
+        migrated,
+        "DELETE FROM auth.memberships WHERE workspace_id = $1 AND user_id = $2",
+        seeded.workspace.id,
+        seeded.owner.user_id,
+    )
+    left = await api.get(f"{PUBLIC}/{token}")
+
+    assert problem(suspended) == (404, "not_found")
+    assert problem(left) == (404, "not_found")

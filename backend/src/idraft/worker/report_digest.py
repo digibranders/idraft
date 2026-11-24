@@ -17,23 +17,21 @@ from typing import Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import exists, insert, select, text, update
+from sqlalchemy import insert, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.auth.mail import plain_name
+from idraft.api.reports.standing import MAKER_REASON, WORKSPACE_REASON, standing_of
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import (
     ai_report_schedules,
     ai_report_shares,
-    memberships,
     projects,
-    workspaces,
 )
 from idraft.providers.email import EmailMessage, EmailSender, EmailSendError
 
 _log = structlog.get_logger(__name__)
 CLAIM_LIMIT: Final = 50
-GONE_MAKER: Final = "the person who made it can no longer send it"
 GONE_PROJECT: Final = "the project no longer exists"
 LINK_DAYS: Final = 30
 ERROR_MAX: Final = 200
@@ -128,25 +126,11 @@ async def _send_one(
         if project is None:
             # The project is gone; there is nothing to report on.
             return await _record(db, schedule_id, now, GONE_PROJECT)
-        # Mail goes to outside addresses in the name of whoever made the schedule: it stops with
-        # their membership and with the workspace
-        active = (
-            await db.execute(
-                select(
-                    exists().where(
-                        workspaces.c.id == workspace_id,
-                        workspaces.c.status == "active",
-                    ),
-                    exists().where(
-                        memberships.c.workspace_id == workspace_id,
-                        memberships.c.user_id == created_by,
-                    ),
-                )
-            )
-        ).one()
-        if not all(active):
+        # Mail goes to outside addresses in the name of whoever made the schedule
+        standing = await standing_of(db, workspace_id, created_by)
+        if standing != "ok":
             return await _record(
-                db, schedule_id, now, "the person who made it can no longer send it"
+                db, schedule_id, now, WORKSPACE_REASON if standing == "workspace" else MAKER_REASON
             )
         token = secrets.token_urlsafe(32)
         await db.execute(

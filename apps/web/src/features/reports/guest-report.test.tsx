@@ -1,8 +1,8 @@
 import { screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { GuestReport } from './guest-report';
-import { createReportShare, RATE_LIMITED_REPORT_TOKEN } from '@/mocks/reports-world';
+import { GuestReport, GuestReportView } from './guest-report';
+import { createReportShare, publicReport, RATE_LIMITED_REPORT_TOKEN } from '@/mocks/reports-world';
 import { EVENTUS } from '@/mocks/internal-links-world';
 import { mockUser } from '@/mocks/fixtures';
 import { server } from '@/test/msw';
@@ -39,6 +39,12 @@ describe('the page a report link opens', () => {
     expect(within(domains).getByText('gartner.com')).toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/cost|budget|spend/i);
+  });
+
+  it('says there is nothing to report yet for a project without answers, and draws no empty tables', () => {
+    renderWithProviders(<GuestReportView report={{ ...publicReport(), engines: [], brands: [], cited_domains: [] }} />);
+    expect(screen.getByRole('heading', { name: 'No answers to report yet' })).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('says the link is no longer available for an unknown token', async () => {

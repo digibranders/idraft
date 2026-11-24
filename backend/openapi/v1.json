@@ -18858,6 +18858,18 @@
           "mentioned": {
             "$ref": "#/components/schemas/MetricCell"
           },
+          "pool_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `is_pooled`: the weeks the point holds, 1 to 4, its own included.",
+            "title": "Pool Weeks"
+          },
           "week_start": {
             "format": "date",
             "title": "Week Start",
@@ -18867,6 +18879,7 @@
         "required": [
           "week_start",
           "is_pooled",
+          "pool_weeks",
           "mentioned",
           "cited"
         ],

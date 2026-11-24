@@ -188,6 +188,7 @@ const week = (
 ): ClientReport['engines'][number]['weeks'][number] => ({
   week_start: start,
   is_pooled: false,
+  pool_weeks: null,
   mentioned: cell(...mentioned),
   cited: cell(...cited),
 });

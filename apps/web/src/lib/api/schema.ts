@@ -10973,6 +10973,11 @@ export interface components {
             is_pooled: boolean;
             mentioned: components["schemas"]["MetricCell"];
             /**
+             * Pool Weeks
+             * @description With `is_pooled`: the weeks the point holds, 1 to 4, its own included.
+             */
+            pool_weeks: number | null;
+            /**
              * Week Start
              * Format: date
              */

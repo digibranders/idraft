@@ -62,6 +62,23 @@ describe('shareOfVoiceOf', () => {
 });
 
 describe('trendOf', () => {
+  it('says how many weeks a pooled point holds, and nothing for a week on its own', () => {
+    const point = (pooled: boolean, weeks: number | null): ClientReport['engines'][number]['weeks'][number] => ({
+      week_start: '2026-11-02',
+      is_pooled: pooled,
+      pool_weeks: weeks,
+      mentioned: cell(5, 20),
+      cited: cell(1, 20),
+    });
+    const bars = trendOf({
+      engine_code: 'chatgpt_web',
+      mentioned: cell(0, 0),
+      cited: cell(0, 0),
+      weeks: [point(false, null), point(true, 3)],
+    });
+    expect(bars.map((bar) => bar.pooledWeeks)).toEqual([null, 3]);
+  });
+
   it('makes the tallest week full height and a week with no answers empty', () => {
     const week = (
       start: string,
@@ -70,6 +87,7 @@ describe('trendOf', () => {
     ): ClientReport['engines'][number]['weeks'][number] => ({
       week_start: start,
       is_pooled: false,
+      pool_weeks: null,
       mentioned: cell(successes, trials),
       cited: cell(0, trials),
     });

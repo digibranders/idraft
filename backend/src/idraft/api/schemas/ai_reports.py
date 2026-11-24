@@ -108,6 +108,9 @@ class ReportScheduleResponse(BaseModel):
 class ReportWeek(BaseModel):
     week_start: date
     is_pooled: bool
+    pool_weeks: int | None = Field(
+        description="With `is_pooled`: the weeks the point holds, 1 to 4, its own included."
+    )
     mentioned: MetricCell
     cited: MetricCell
 

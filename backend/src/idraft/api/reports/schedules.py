@@ -156,12 +156,14 @@ class ReportScheduleService:
                 schedules.c.project_id == project_id,
                 schedules.c.id == schedule_id,
             )
-            found = (await db.execute(select(schedules.c.frequency).where(*where))).first()
+            found = (
+                await db.execute(select(schedules.c.frequency, schedules.c.paused).where(*where))
+            ).first()
             if found is None:
                 raise NotFoundError
-            if (
-                body.frequency is not None and body.frequency != found.frequency
-            ) or body.paused is False:
+            if (body.frequency is not None and body.frequency != found.frequency) or (
+                body.paused is False and found.paused
+            ):
                 # A new rhythm, or a schedule that runs again, waits for its next slot: it never
                 # sends at once for a slot that passed while it was paused.
                 values["next_run_at"] = next_slot(

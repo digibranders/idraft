@@ -56,16 +56,16 @@ export function shareOfVoiceOf(report: ClientReport, engineCode: string): ShareF
 /** The rate bars of the weekly trend: one entry for each week of the engine, as tall as its Mentioned rate. */
 export function trendOf(
   engine: ReportEngine,
-): { weekStart: string; pooled: boolean; figure: Figure; height: number }[] {
+): { weekStart: string; pooledWeeks: number | null; figure: Figure; height: number }[] {
   const figures = engine.weeks.map((week) => ({
     weekStart: week.week_start,
-    pooled: week.is_pooled,
+    pooledWeeks: week.is_pooled ? (week.pool_weeks ?? 1) : null,
     figure: figureOf(week.mentioned),
   }));
   const top = Math.max(0.01, ...figures.map(({ figure }) => figure.value ?? 0));
-  return figures.map(({ weekStart, pooled, figure }) => ({
+  return figures.map(({ weekStart, pooledWeeks, figure }) => ({
     weekStart,
-    pooled,
+    pooledWeeks,
     figure,
     height: figure.value === null ? 0 : Math.max(0.06, figure.value / top),
   }));

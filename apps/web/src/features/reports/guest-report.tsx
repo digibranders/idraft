@@ -67,21 +67,22 @@ function Trend({ engine, name }: { engine: ReportEngine; name: string }): ReactE
   const t = useTranslations('reports.guest');
   const text = useFigureText();
   const weeks = trendOf(engine);
+  const label = (weekStart: string, pooledWeeks: number | null, figure: ShareFigure): string =>
+    pooledWeeks === null
+      ? t('weekLabel', { date: weekStart, figure: text(figure, 'answers') })
+      : t('weekPooledLabel', { date: weekStart, weeks: pooledWeeks, figure: text(figure, 'answers') });
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
       <p className="type-body-strong">{name}</p>
       <ul className="flex h-16 items-end gap-2">
-        {weeks.map(({ weekStart, pooled, figure, height }) => (
+        {weeks.map(({ weekStart, pooledWeeks, figure, height }) => (
           <li
             key={weekStart}
             className="flex-1 rounded-sm bg-primary"
             style={{ height: `${String(Math.max(6, Math.round(height * 100)))}%` }}
             role="img"
-            aria-label={t(pooled ? 'weekPooledLabel' : 'weekLabel', {
-              date: weekStart,
-              figure: text(figure, 'answers'),
-            })}
-            title={t(pooled ? 'weekPooledLabel' : 'weekLabel', { date: weekStart, figure: text(figure, 'answers') })}
+            aria-label={label(weekStart, pooledWeeks, figure)}
+            title={label(weekStart, pooledWeeks, figure)}
           />
         ))}
       </ul>
@@ -161,22 +162,28 @@ export function GuestReportView({ report }: { report: ClientReport }): ReactElem
           {t('period', { range: formatDateRange(report.window_from, report.window_to), prompts: report.prompt_count })}
         </p>
       </header>
-      <Section title={t('numbers')} note={t('numbersNote')}>
-        {plain(t('numbers'), platformColumns, report.engines, (engine) => engine.engine_code)}
-      </Section>
-      <Section title={t('weekly')} note={t('weeklyNote')}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {report.engines.map((engine) => (
-            <Trend key={engine.engine_code} engine={engine} name={name(engine.engine_code)} />
-          ))}
-        </div>
-      </Section>
-      <Section title={t('brands')} note={t('brandsNote')}>
-        {plain(t('brands'), brandColumns, report.brands, (brand) => brand.name)}
-      </Section>
-      <Section title={t('domains')} note={t('domainsNote')}>
-        {plain(t('domains'), domainColumns, report.cited_domains, (domain) => domain.registrable_domain)}
-      </Section>
+      {report.engines.length === 0 ? (
+        <EmptyState variant="card" title={t('emptyTitle')} reason={t('emptyText')} headingLevel={2} />
+      ) : (
+        <>
+          <Section title={t('numbers')} note={t('numbersNote')}>
+            {plain(t('numbers'), platformColumns, report.engines, (engine) => engine.engine_code)}
+          </Section>
+          <Section title={t('weekly')} note={t('weeklyNote')}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {report.engines.map((engine) => (
+                <Trend key={engine.engine_code} engine={engine} name={name(engine.engine_code)} />
+              ))}
+            </div>
+          </Section>
+          <Section title={t('brands')} note={t('brandsNote')}>
+            {plain(t('brands'), brandColumns, report.brands, (brand) => brand.name)}
+          </Section>
+          <Section title={t('domains')} note={t('domainsNote')}>
+            {plain(t('domains'), domainColumns, report.cited_domains, (domain) => domain.registrable_domain)}
+          </Section>
+        </>
+      )}
       <footer className="border-t border-border pt-3 type-meta">{t('footer')}</footer>
     </article>
   );

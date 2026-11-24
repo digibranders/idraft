@@ -16,6 +16,7 @@ from tests.api.auth.support import execute, fetch, fetchrow, make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
+from tests.db.support import connection
 
 type Sessions = async_sessionmaker[AsyncSession]
 PUBLIC = "/api/v1/public/reports"
@@ -352,4 +353,97 @@ async def test_editing_the_recipients_does_not_move_the_next_email(
     )
 
     # Still due: the edit changed who gets it, not when
-    assert edited.json()["data"]["next_run_at"] < datetime.now(UTC).isoformat()
+    assert datetime.fromisoformat(edited.json()["data"]["next_run_at"]) < datetime.now(UTC)
+    # Not left due for the digest tests that share this database
+    await api.delete(f"{base}/{schedule['id']}", headers=editor.headers)
+
+
+_SLOT_CASES = [
+    ("weekly", datetime(2026, 11, 30, 5, 59, tzinfo=UTC)),
+    ("weekly", datetime(2026, 11, 30, 6, 0, tzinfo=UTC)),
+    ("weekly", datetime(2026, 11, 25, 9, 30, tzinfo=UTC)),
+    ("weekly", datetime(2026, 12, 31, 23, 0, tzinfo=UTC)),
+    ("monthly", datetime(2026, 12, 1, 5, 59, tzinfo=UTC)),
+    ("monthly", datetime(2026, 12, 1, 6, 0, tzinfo=UTC)),
+    ("monthly", datetime(2026, 11, 25, 9, 30, tzinfo=UTC)),
+    ("monthly", datetime(2026, 12, 31, 23, 0, tzinfo=UTC)),
+]
+
+
+@pytest.mark.parametrize(("frequency", "now"), _SLOT_CASES)
+async def test_the_claim_moves_a_schedule_to_the_same_slot_the_api_would_give(
+    api: httpx.AsyncClient,
+    resources: Any,
+    migrated: PostgresServer,
+    frequency: str,
+    now: datetime,
+) -> None:
+    base, workspace, _ = await _base(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    made = await api.post(
+        base, json={"frequency": frequency, "recipients": ["a@example.com"]}, headers=editor.headers
+    )
+    schedule_id = made.json()["data"]["id"]
+    await execute(
+        migrated,
+        "UPDATE core.ai_report_schedules SET next_run_at = '2000-01-01' WHERE id = $1::uuid",
+        schedule_id,
+    )
+
+    # Whatever the time zone of the session, the slot is in UTC
+    async with connection(migrated) as db:
+        await db.execute("SET TIME ZONE 'Asia/Kolkata'")
+        rows = await db.fetch(
+            "SELECT id, next_run_at FROM core.ai_report_schedules_claim_due($1, 1000)", now
+        )
+
+    claimed = {str(row["id"]): row["next_run_at"] for row in rows}
+    assert claimed[schedule_id] == next_slot(frequency, now)  # type: ignore[arg-type]
+
+
+async def test_a_resume_of_a_schedule_that_is_not_paused_keeps_its_next_email(
+    api: httpx.AsyncClient, resources: Any, migrated: PostgresServer
+) -> None:
+    base, workspace, _ = await _base(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    made = await api.post(
+        base, json={"frequency": "weekly", "recipients": ["a@example.com"]}, headers=editor.headers
+    )
+    schedule_id = made.json()["data"]["id"]
+    due = datetime(2020, 1, 1, tzinfo=UTC)
+    await execute(
+        migrated,
+        "UPDATE core.ai_report_schedules SET next_run_at = $2 WHERE id = $1::uuid",
+        schedule_id,
+        due,
+    )
+
+    resumed = await api.patch(
+        f"{base}/{schedule_id}", json={"paused": False}, headers=editor.headers
+    )
+
+    assert datetime.fromisoformat(resumed.json()["data"]["next_run_at"]) == due
+    await api.delete(f"{base}/{schedule_id}", headers=editor.headers)
+
+
+async def test_a_schedule_stops_with_a_workspace_that_is_not_active(
+    api: httpx.AsyncClient, resources: Any, migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    (workspace, _), schedule_id = await _due_schedule(api, resources, migrated, "editor")
+    await execute(
+        migrated, "UPDATE auth.workspaces SET status = 'suspended' WHERE id = $1", workspace.id
+    )
+    sender = Recorder()
+
+    report = await send_due_reports(
+        worker_db, sender, origin="https://app.example", now=datetime.now(UTC)
+    )
+
+    assert (report.claimed, report.sent, report.failed) == (1, 0, 1)
+    assert sender.sent == []
+    row = await fetchrow(
+        migrated,
+        "SELECT last_error FROM core.ai_report_schedules WHERE id = $1::uuid",
+        schedule_id,
+    )
+    assert row["last_error"] == "the workspace is not active"
