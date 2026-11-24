@@ -481,6 +481,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/reports/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The AI visibility report of a guest link
+         * @description Read only, no sign-in, the last 28 project-local days. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached and holds no costs, prompt texts or answer texts.
+         */
+        get: operations["public_report_api_v1_public_reports__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces": {
         parameters: {
             query?: never;
@@ -2827,6 +2847,89 @@ export interface paths {
          */
         post: operations["run_now_api_v1_workspaces__workspace_id__projects__project_id__prompts__prompt_id__run_now_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The scheduled report emails of the project */
+        get: operations["list_schedules_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_get"];
+        put?: never;
+        /**
+         * Email the report weekly or monthly
+         * @description Weekly sends on Monday and monthly on the 1st, at 06:00 UTC. Each email holds a new report link that works for 30 days. At most 10 recipients and 10 schedules a project (`422 schedule_limit`).
+         */
+        post: operations["create_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules/{report_schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a scheduled report
+         * @description The links already emailed keep working until they expire or are revoked.
+         */
+        delete: operations["delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change, pause or resume a scheduled report */
+        patch: operations["update_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The report links of the project, newest first, without their tokens */
+        get: operations["list_shares_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_get"];
+        put?: never;
+        /**
+         * Make a read-only link to the project's AI visibility report
+         * @description The token in the answer is shown once and is not stored; only its hash is. The link stops working at `expires_at` (7, 30 or 90 days, default 30) or when revoked.
+         */
+        post: operations["create_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares/{report_share_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a report link
+         * @description Revoking a link that is already revoked changes nothing.
+         */
+        delete: operations["revoke_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares__report_share_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5473,6 +5576,43 @@ export interface components {
              */
             observations: number;
         };
+        /** ClientReport */
+        ClientReport: {
+            /** Brands */
+            brands: components["schemas"]["ReportBrand"][];
+            /**
+             * Cited Domains
+             * @description Most citations first, at most 10.
+             */
+            cited_domains: components["schemas"]["ReportDomain"][];
+            /** Engines */
+            engines: components["schemas"]["ReportEngine"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Host */
+            host: string;
+            /** Prompt Count */
+            prompt_count: number;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Window From
+             * @description First project-local day, `YYYY-MM-DD`.
+             */
+            window_from: string;
+            /**
+             * Window To
+             * @description Last project-local day, `YYYY-MM-DD`.
+             */
+            window_to: string;
+        };
+        /** ClientReportResponse */
+        ClientReportResponse: {
+            data: components["schemas"]["ClientReport"];
+        };
         /** ClientSummary */
         ClientSummary: {
             /** Crawled At */
@@ -6010,6 +6150,41 @@ export interface components {
         /** CrawlRunResponse */
         CrawlRunResponse: {
             data: components["schemas"]["CrawlRun"];
+        };
+        /** CreatedReportShare */
+        CreatedReportShare: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            state: components["schemas"]["ShareState"];
+            /**
+             * Token
+             * @description The secret of the link, shown this once. The public read is `/api/v1/public/reports/{token}` and the web builds its own address.
+             */
+            token: string;
+        };
+        /** CreatedReportShareResponse */
+        CreatedReportShareResponse: {
+            data: components["schemas"]["CreatedReportShare"];
         };
         /** CreatedShare */
         CreatedShare: {
@@ -10665,6 +10840,145 @@ export interface components {
             user_id: string;
         };
         /**
+         * ReportBrand
+         * @description Your brand or a tracked competitor, by name.
+         */
+        ReportBrand: {
+            /** Engines */
+            engines: components["schemas"]["ReportBrandEngine"][];
+            /** Name */
+            name: string;
+            role: components["schemas"]["ReportRole"];
+        };
+        /**
+         * ReportBrandEngine
+         * @description The valid answers that name the brand. Share of voice is not sent: the owner's definition
+         *     (the brand's mentions over every tracked brand's) is worked out from these counts by whoever
+         *     shows it.
+         */
+        ReportBrandEngine: {
+            /** Engine Code */
+            engine_code: string;
+            mentioned: components["schemas"]["MetricCell"];
+        };
+        /** ReportDomain */
+        ReportDomain: {
+            /** Citation Units */
+            citation_units: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Registrable Domain */
+            registrable_domain: string;
+            source_share: components["schemas"]["MetricCell"];
+        };
+        /** ReportEngine */
+        ReportEngine: {
+            cited: components["schemas"]["MetricCell"];
+            /** Engine Code */
+            engine_code: string;
+            mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Weeks
+             * @description Oldest first.
+             */
+            weeks: components["schemas"]["ReportWeek"][];
+        };
+        /** @enum {string} */
+        ReportRole: "own" | "competitor";
+        /** ReportSchedule */
+        ReportSchedule: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            frequency: components["schemas"]["ReportScheduleFrequency"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Error
+             * @description Why the last send failed; null after a good one.
+             */
+            last_error: string | null;
+            /** Last Sent At */
+            last_sent_at: string | null;
+            /**
+             * Next Run At
+             * Format: date-time
+             * @description The next send, 06:00 UTC, once the schedule runs.
+             */
+            next_run_at: string;
+            /** Paused */
+            paused: boolean;
+            /** Recipients */
+            recipients: string[];
+        };
+        /** ReportScheduleCreate */
+        ReportScheduleCreate: {
+            frequency: components["schemas"]["ReportScheduleFrequency"];
+            /** Recipients */
+            recipients: string[];
+        };
+        /** @enum {string} */
+        ReportScheduleFrequency: "weekly" | "monthly";
+        /** ReportScheduleList */
+        ReportScheduleList: {
+            /** Data */
+            data: components["schemas"]["ReportSchedule"][];
+        };
+        /** ReportScheduleResponse */
+        ReportScheduleResponse: {
+            data: components["schemas"]["ReportSchedule"];
+        };
+        /** ReportScheduleUpdate */
+        ReportScheduleUpdate: {
+            frequency?: components["schemas"]["ReportScheduleFrequency"] | null;
+            /** Paused */
+            paused?: boolean | null;
+            /** Recipients */
+            recipients?: string[] | null;
+        };
+        /** ReportShareCreate */
+        ReportShareCreate: {
+            /**
+             * @description Days until the link stops working.
+             * @default 30
+             */
+            expires_in_days: components["schemas"]["ExpiryDays"];
+        };
+        /** ReportShareList */
+        ReportShareList: {
+            /** Data */
+            data: components["schemas"]["Share"][];
+        };
+        /** ReportShareResponse */
+        ReportShareResponse: {
+            data: components["schemas"]["Share"];
+        };
+        /** ReportWeek */
+        ReportWeek: {
+            cited: components["schemas"]["MetricCell"];
+            /** Is Pooled */
+            is_pooled: boolean;
+            mentioned: components["schemas"]["MetricCell"];
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+        };
+        /**
          * @description Words a slug cannot be: they are routes of the web app.
          * @enum {string}
          */
@@ -14567,6 +14881,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientSummaryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    public_report_api_v1_public_reports__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientReportResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -20248,6 +20593,243 @@ export interface operations {
             };
         };
     };
+    list_schedules_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                report_schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                report_schedule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportScheduleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_shares_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportShareList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportShareCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedReportShareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    revoke_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares__report_share_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                report_share_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportShareResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_runs_api_v1_workspaces__workspace_id__projects__project_id__runs_get: {
         parameters: {
             query?: {
@@ -22295,6 +22877,9 @@ export const promptVersionChange_kindValues: ReadonlyArray<FlattenedDeepRequired
 export const rankCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankCell"]["state"]> = ["ranked", "beyond_depth", "not_checked", "failed"];
 export const rankChangeLabelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RankChange"]["label"]> = ["numeric", "new", "lost", "unchanged_beyond", "consistent_beyond", "first_check"];
 export const readinessStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Readiness"]["status"]> = ["ready", "not_ready"];
+export const reportDomainDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportDomain"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const reportRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportRole"]> = ["own", "competitor"];
+export const reportScheduleFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportScheduleFrequency"]> = ["weekly", "monthly"];
 export const reservedProjectSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedProjectSlug"]> = ["billing", "costs", "members", "new", "onboarding", "ops", "projects", "settings"];
 export const reservedWorkspaceSlugValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReservedWorkspaceSlug"]> = ["account", "admin", "api", "assets", "design-system", "docs", "favicon", "forgot-password", "health", "healthz", "help", "icon", "invite", "login", "logout", "new", "null", "onboarding", "public", "reset-password", "robots", "settings", "sign-in", "sign-up", "signup", "sitemap", "static", "two-factor", "undefined", "verify-email", "www"];
 export const resolvedLayoutScreenValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ResolvedLayout"]["screen"]> = ["overview", "ai_overview", "rankings", "prompts", "citations", "sources", "pages", "inspector.keyword", "inspector.prompt", "inspector.page", "inspector.citation", "inspector.topic"];

@@ -97,6 +97,11 @@ AuditAction = Literal[
     "link_opportunity.decided",
     "client_summary_share.created",
     "client_summary_share.revoked",
+    "ai_report_share.created",
+    "ai_report_share.revoked",
+    "ai_report_schedule.created",
+    "ai_report_schedule.updated",
+    "ai_report_schedule.deleted",
     "tier_suggestion.dismissed",
 ]
 

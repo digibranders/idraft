@@ -84,6 +84,8 @@ TENANT_TABLES: dict[str, str] = {
     "core.link_opportunity_decisions": "workspace_id",
     "core.tier_suggestion_dismissals": "workspace_id",
     "core.client_summary_shares": "workspace_id",
+    "core.ai_report_shares": "workspace_id",
+    "core.ai_report_schedules": "workspace_id",
     "fp.gsc_page_daily": "workspace_id",
 }
 
@@ -760,6 +762,22 @@ async def seed_internal_links(
         workspace_id,
         project_id,
         run_id.bytes,
+        owner_id,
+    )
+    await db.execute(
+        "INSERT INTO core.ai_report_shares (workspace_id, project_id, token_hash, created_by, "
+        "expires_at) VALUES ($1, $2, sha256($3::bytea), $4, now() + interval '30 days')",
+        workspace_id,
+        project_id,
+        run_id.bytes + b"report",
+        owner_id,
+    )
+    await db.execute(
+        "INSERT INTO core.ai_report_schedules (workspace_id, project_id, frequency, recipients, "
+        "next_run_at, created_by) VALUES ($1, $2, 'weekly', ARRAY['client@example.com'], "
+        "now(), $3)",
+        workspace_id,
+        project_id,
         owner_id,
     )
     return run_id

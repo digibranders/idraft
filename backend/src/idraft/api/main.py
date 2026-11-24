@@ -82,7 +82,7 @@ from idraft.api.internal_links.read_routes import router as read_routes_router
 from idraft.api.internal_links.reads import LinkReadService
 from idraft.api.internal_links.route_finder import RouteFinder
 from idraft.api.internal_links.share_routes import router as share_routes_router
-from idraft.api.internal_links.shares import ShareService
+from idraft.api.internal_links.shares import REPORT_SHARES, ShareService
 from idraft.api.internal_links.suggestion_routes import router as suggestion_routes_router
 from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_level_routes import router as tier_level_routes_router
@@ -113,7 +113,10 @@ from idraft.api.ranks.routes import keyword_router as rank_history_router
 from idraft.api.ranks.routes import snapshot_router as serp_snapshots_router
 from idraft.api.ranks.service import RankService
 from idraft.api.registries import router as registries_router
+from idraft.api.reports.guest import ClientReportService
+from idraft.api.reports.routes import public_router as public_reports_router
 from idraft.api.reports.routes import router as reports_router
+from idraft.api.reports.schedules import ReportScheduleService
 from idraft.api.request_id import RequestIdMiddleware
 from idraft.api.resources import Resources
 from idraft.api.schema import install_openapi
@@ -253,6 +256,8 @@ def create_app(
             if sources is None and settings.raw_storage_configured:
                 sources = await stack.enter_async_context(_open_import_store(settings))
             page_tiers = PageTierService(sessions=sessions)
+            ai_summary = SummaryService(sessions=sessions)
+            ai_sources = SourceService(sessions=sessions)
             app.state.resources = Resources(
                 settings=settings,
                 engine=engine,
@@ -310,8 +315,8 @@ def create_app(
                     provider=_screenshot_provider(settings, http, redis),
                     download=partial(download_image, http),
                 ),
-                ai_summary=SummaryService(sessions=sessions),
-                ai_sources=SourceService(sessions=sessions),
+                ai_summary=ai_summary,
+                ai_sources=ai_sources,
                 ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
@@ -324,6 +329,14 @@ def create_app(
                 tier_suggestions=SuggestionService(sessions=sessions, page_tiers=page_tiers),
                 route_finder=RouteFinder(sessions=sessions),
                 link_shares=ShareService(sessions=sessions),
+                report_shares=ShareService(sessions=sessions, kind=REPORT_SHARES),
+                report_schedules=ReportScheduleService(sessions=sessions),
+                client_report=ClientReportService(
+                    sessions=sessions,
+                    summaries=ai_summary,
+                    sources=ai_sources,
+                    throttle=throttle,
+                ),
                 crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
                 invitations=InvitationService(
                     sessions=sessions,
@@ -374,6 +387,7 @@ def create_app(
     app.include_router(views_router)
     app.include_router(exports_router)
     app.include_router(reports_router)
+    app.include_router(public_reports_router)
     app.include_router(ai_derivations_router)
     app.include_router(entity_candidates_router)
     app.include_router(ai_retrieval_router)

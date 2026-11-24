@@ -497,6 +497,18 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT", UPDATE=("revoked_at", "revoked_by")),
         NONE,
     ),
+    # Migration 0035: the API or the digest job makes report links; a revoke is the only update.
+    "core.ai_report_shares": (
+        access("SELECT, INSERT", UPDATE=("revoked_at", "revoked_by")),
+        access("SELECT, INSERT"),
+    ),
+    "core.ai_report_schedules": (
+        access(
+            "SELECT, INSERT, DELETE",
+            UPDATE=("frequency", "recipients", "paused", "next_run_at"),
+        ),
+        access("SELECT", UPDATE=("last_sent_at", "last_error")),
+    ),
     # Page totals from Search Console, replaced by the worker a day at a time.
     "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
 }

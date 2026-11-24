@@ -245,6 +245,8 @@ async def test_the_reconciler_and_the_partition_job_are_on_the_schedulers_list(
     # Failed rank checks and stale keywords reach the keyword state every ten minutes.
     assert schedules["rank_health"].interval == 600
     assert schedules["cost_reconcile"].cron == "45 0 * * *"
+    # The scheduled report emails are looked for every 15 minutes (client reports plan).
+    assert schedules["report_digest"].interval == 900
 
 
 async def test_rank_checks_are_registered_only_where_their_answers_can_be_kept(

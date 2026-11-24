@@ -103,6 +103,7 @@ const PROBLEMS = {
   crawls_disabled: [503, 'Site crawls are not switched on yet'],
   tier_limit: [422, 'A workspace has at most 8 tiers'],
   tier_in_use: [422, 'Pages or rules use this tier'],
+  schedule_limit: [422, 'Too many scheduled reports'],
   entity_in_use: [409, 'Entity is in use'],
   cannot_remove_primary_own: [409, 'The primary own entity cannot be removed'],
   has_children: [409, 'Term has children'],

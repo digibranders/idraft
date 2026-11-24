@@ -4500,6 +4500,84 @@
         "title": "CitedWith",
         "type": "object"
       },
+      "ClientReport": {
+        "properties": {
+          "brands": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBrand"
+            },
+            "title": "Brands",
+            "type": "array"
+          },
+          "cited_domains": {
+            "description": "Most citations first, at most 10.",
+            "items": {
+              "$ref": "#/components/schemas/ReportDomain"
+            },
+            "title": "Cited Domains",
+            "type": "array"
+          },
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/ReportEngine"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "prompt_count": {
+            "title": "Prompt Count",
+            "type": "integer"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "window_from": {
+            "description": "First project-local day, `YYYY-MM-DD`.",
+            "title": "Window From",
+            "type": "string"
+          },
+          "window_to": {
+            "description": "Last project-local day, `YYYY-MM-DD`.",
+            "title": "Window To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "window_from",
+          "window_to",
+          "timezone",
+          "generated_at",
+          "prompt_count",
+          "engines",
+          "brands",
+          "cited_domains"
+        ],
+        "title": "ClientReport",
+        "type": "object"
+      },
+      "ClientReportResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ClientReport"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ClientReportResponse",
+        "type": "object"
+      },
       "ClientSummary": {
         "properties": {
           "crawled_at": {
@@ -5791,6 +5869,73 @@
           "data"
         ],
         "title": "CrawlRunResponse",
+        "type": "object"
+      },
+      "CreatedReportShare": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ShareState"
+          },
+          "token": {
+            "description": "The secret of the link, shown this once. The public read is `/api/v1/public/reports/{token}` and the web builds its own address.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "created_by",
+          "expires_at",
+          "revoked_at",
+          "state",
+          "token"
+        ],
+        "title": "CreatedReportShare",
+        "type": "object"
+      },
+      "CreatedReportShareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CreatedReportShare"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CreatedReportShareResponse",
         "type": "object"
       },
       "CreatedShare": {
@@ -18370,6 +18515,364 @@
         "title": "RegisterResponse",
         "type": "object"
       },
+      "ReportBrand": {
+        "description": "Your brand or a tracked competitor, by name.",
+        "properties": {
+          "engines": {
+            "items": {
+              "$ref": "#/components/schemas/ReportBrandEngine"
+            },
+            "title": "Engines",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ReportRole"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "engines"
+        ],
+        "title": "ReportBrand",
+        "type": "object"
+      },
+      "ReportBrandEngine": {
+        "description": "The valid answers that name the brand. Share of voice is not sent: the owner's definition\n(the brand's mentions over every tracked brand's) is worked out from these counts by whoever\nshows it.",
+        "properties": {
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "engine_code",
+          "mentioned"
+        ],
+        "title": "ReportBrandEngine",
+        "type": "object"
+      },
+      "ReportDomain": {
+        "properties": {
+          "citation_units": {
+            "title": "Citation Units",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "source_share": {
+            "$ref": "#/components/schemas/MetricCell"
+          }
+        },
+        "required": [
+          "registrable_domain",
+          "domain_role",
+          "citation_units",
+          "source_share"
+        ],
+        "title": "ReportDomain",
+        "type": "object"
+      },
+      "ReportEngine": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "engine_code": {
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "weeks": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/ReportWeek"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_code",
+          "mentioned",
+          "cited",
+          "weeks"
+        ],
+        "title": "ReportEngine",
+        "type": "object"
+      },
+      "ReportRole": {
+        "enum": [
+          "own",
+          "competitor"
+        ],
+        "type": "string"
+      },
+      "ReportSchedule": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/ReportScheduleFrequency"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last send failed; null after a good one.",
+            "title": "Last Error"
+          },
+          "last_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sent At"
+          },
+          "next_run_at": {
+            "description": "The next send, 06:00 UTC, once the schedule runs.",
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipients",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "frequency",
+          "recipients",
+          "paused",
+          "next_run_at",
+          "last_sent_at",
+          "last_error",
+          "created_by",
+          "created_at"
+        ],
+        "title": "ReportSchedule",
+        "type": "object"
+      },
+      "ReportScheduleCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "frequency": {
+            "$ref": "#/components/schemas/ReportScheduleFrequency"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Recipients",
+            "type": "array"
+          }
+        },
+        "required": [
+          "frequency",
+          "recipients"
+        ],
+        "title": "ReportScheduleCreate",
+        "type": "object"
+      },
+      "ReportScheduleFrequency": {
+        "enum": [
+          "weekly",
+          "monthly"
+        ],
+        "type": "string"
+      },
+      "ReportScheduleList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReportSchedule"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportScheduleList",
+        "type": "object"
+      },
+      "ReportScheduleResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportSchedule"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportScheduleResponse",
+        "type": "object"
+      },
+      "ReportScheduleUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportScheduleFrequency"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paused"
+          },
+          "recipients": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipients"
+          }
+        },
+        "title": "ReportScheduleUpdate",
+        "type": "object"
+      },
+      "ReportShareCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_in_days": {
+            "$ref": "#/components/schemas/ExpiryDays",
+            "default": 30,
+            "description": "Days until the link stops working."
+          }
+        },
+        "title": "ReportShareCreate",
+        "type": "object"
+      },
+      "ReportShareList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Share"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportShareList",
+        "type": "object"
+      },
+      "ReportShareResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Share"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ReportShareResponse",
+        "type": "object"
+      },
+      "ReportWeek": {
+        "properties": {
+          "cited": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "is_pooled": {
+            "title": "Is Pooled",
+            "type": "boolean"
+          },
+          "mentioned": {
+            "$ref": "#/components/schemas/MetricCell"
+          },
+          "week_start": {
+            "format": "date",
+            "title": "Week Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_start",
+          "is_pooled",
+          "mentioned",
+          "cited"
+        ],
+        "title": "ReportWeek",
+        "type": "object"
+      },
       "ReservedProjectSlug": {
         "description": "Words a slug cannot be: they are routes of the web app.",
         "enum": [
@@ -28072,6 +28575,50 @@
           }
         },
         "summary": "The client summary of a shared link",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/reports/{token}": {
+      "get": {
+        "description": "Read only, no sign-in, the last 28 project-local days. 30 requests a minute per address and 120 an hour per link; past either, `429 rate_limited`. The answer is never cached and holds no costs, prompt texts or answer texts.",
+        "operationId": "public_report_api_v1_public_reports__token__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The AI visibility report of a guest link",
         "tags": [
           "public"
         ]
@@ -43336,6 +43883,428 @@
         "summary": "Ask a prompt now (a manual run through the provider's standard queue)",
         "tags": [
           "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules": {
+      "get": {
+        "operationId": "list_schedules_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The scheduled report emails of the project",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "description": "Weekly sends on Monday and monthly on the 1st, at 06:00 UTC. Each email holds a new report link that works for 30 days. At most 10 recipients and 10 schedules a project (`422 schedule_limit`).",
+        "operationId": "create_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportScheduleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Email the report weekly or monthly",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules/{report_schedule_id}": {
+      "delete": {
+        "description": "The links already emailed keep working until they expire or are revoked.",
+        "operationId": "delete_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "report_schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a scheduled report",
+        "tags": [
+          "reports"
+        ]
+      },
+      "patch": {
+        "operationId": "update_schedule_api_v1_workspaces__workspace_id__projects__project_id__reports_schedules__report_schedule_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "report_schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportScheduleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportScheduleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change, pause or resume a scheduled report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares": {
+      "get": {
+        "operationId": "list_shares_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportShareList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The report links of the project, newest first, without their tokens",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "description": "The token in the answer is shown once and is not stored; only its hash is. The link stops working at `expires_at` (7, 30 or 90 days, default 30) or when revoked.",
+        "operationId": "create_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportShareCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedReportShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Make a read-only link to the project's AI visibility report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares/{report_share_id}": {
+      "delete": {
+        "description": "Revoking a link that is already revoked changes nothing.",
+        "operationId": "revoke_share_api_v1_workspaces__workspace_id__projects__project_id__reports_shares__report_share_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "report_share_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Share Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportShareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Revoke a report link",
+        "tags": [
+          "reports"
         ]
       }
     },
