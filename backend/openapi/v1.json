@@ -5959,6 +5959,15 @@
             },
             "title": "Engines",
             "type": "array"
+          },
+          "linked_keywords": {
+            "default": [],
+            "description": "With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.",
+            "items": {
+              "$ref": "#/components/schemas/LinkedKeyword"
+            },
+            "title": "Linked Keywords",
+            "type": "array"
           }
         },
         "required": [
@@ -11338,6 +11347,136 @@
         "title": "KeywordPage",
         "type": "object"
       },
+      "KeywordPromptLink": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "keyword": {
+            "$ref": "#/components/schemas/LinkedKeywordRef"
+          },
+          "link_id": {
+            "format": "uuid",
+            "title": "Link Id",
+            "type": "string"
+          },
+          "link_type": {
+            "enum": [
+              "exact_match",
+              "manual",
+              "generated",
+              "semantic",
+              "cluster",
+              "ai_suggestion",
+              "fanout"
+            ],
+            "title": "Link Type",
+            "type": "string"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/LinkedPromptRef"
+          },
+          "status": {
+            "enum": [
+              "suggested",
+              "active",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "link_id",
+          "keyword",
+          "prompt",
+          "link_type",
+          "confidence",
+          "is_primary",
+          "status",
+          "created_at"
+        ],
+        "title": "KeywordPromptLink",
+        "type": "object"
+      },
+      "KeywordPromptLinkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_primary": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Make this the keyword the prompt's volume is read from. Left out, the link is primary when the prompt has no primary link yet.",
+            "title": "Is Primary"
+          },
+          "keyword_id": {
+            "format": "uuid",
+            "title": "Keyword Id",
+            "type": "string"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword_id",
+          "prompt_id"
+        ],
+        "title": "KeywordPromptLinkCreate",
+        "type": "object"
+      },
+      "KeywordPromptLinkList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordPromptLink"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordPromptLinkList",
+        "type": "object"
+      },
+      "KeywordPromptLinkResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeywordPromptLink"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordPromptLinkResponse",
+        "type": "object"
+      },
       "KeywordRow": {
         "properties": {
           "change": {
@@ -11567,6 +11706,70 @@
           "name"
         ],
         "title": "LayoutEditor",
+        "type": "object"
+      },
+      "LinkedKeyword": {
+        "properties": {
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "search_volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The monthly searches from the keyword's latest metrics at the prompt's place; null while it has none (a number, including 0, is never invented).",
+            "title": "Search Volume"
+          }
+        },
+        "required": [
+          "keyword",
+          "search_volume"
+        ],
+        "title": "LinkedKeyword",
+        "type": "object"
+      },
+      "LinkedKeywordRef": {
+        "properties": {
+          "keyword_id": {
+            "format": "uuid",
+            "title": "Keyword Id",
+            "type": "string"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword_id",
+          "text",
+          "language_code"
+        ],
+        "title": "LinkedKeywordRef",
+        "type": "object"
+      },
+      "LinkedPromptRef": {
+        "properties": {
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id"
+        ],
+        "title": "LinkedPromptRef",
         "type": "object"
       },
       "LintEstimate": {
@@ -18030,6 +18233,18 @@
             "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
             "title": "Last Valid At"
           },
+          "linked_keyword": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedKeyword"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=facts`: the keyword the prompt is linked to, the one with the most searches when it has several; null when it has no active link. Left out when `facts` was not asked for.",
+            "title": "Linked Keyword"
+          },
           "prompt_id": {
             "format": "uuid",
             "title": "Prompt Id",
@@ -23693,6 +23908,15 @@
             "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
             "title": "Last Valid At"
           },
+          "linked_keywords": {
+            "default": [],
+            "description": "With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.",
+            "items": {
+              "$ref": "#/components/schemas/LinkedKeyword"
+            },
+            "title": "Linked Keywords",
+            "type": "array"
+          },
           "prompt_count": {
             "description": "The prompts in scope, whatever the engines shown.",
             "title": "Prompt Count",
@@ -24920,6 +25144,15 @@
             ],
             "description": "The newest valid answer counted in the window, on the engines shown; null if none.",
             "title": "Last Valid At"
+          },
+          "linked_keywords": {
+            "default": [],
+            "description": "With `include=facts`: the distinct keywords linked to the prompts of the row, each once (a keyword with a null volume is not a 0). Left out when `facts` was not asked for.",
+            "items": {
+              "$ref": "#/components/schemas/LinkedKeyword"
+            },
+            "title": "Linked Keywords",
+            "type": "array"
           },
           "name": {
             "anyOf": [
@@ -42798,6 +43031,225 @@
         "summary": "Refresh keyword metrics now (a manual run)",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links": {
+      "get": {
+        "description": "The project's active and suggested links, newest first, at most 200 (no cursor yet). `filter[prompt_id]` and `filter[keyword_id]` narrow them.",
+        "operationId": "list_links_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[prompt_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Prompt Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[keyword_id]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Keyword Id]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordPromptLinkList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The keywords prompts are linked to",
+        "tags": [
+          "ai"
+        ]
+      },
+      "post": {
+        "description": "A manual, active link between a keyword of the workspace and a prompt of the project (`404` for either that is not found). The prompt's search volume is read from its primary link, so linking does not track the keyword and costs no rank checks. `409 duplicate` when the pair is linked already.",
+        "operationId": "create_link_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordPromptLinkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordPromptLinkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Link a keyword to a prompt",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-prompt-links/{link_id}": {
+      "delete": {
+        "description": "Only the link goes; the keyword and the prompt stay.",
+        "operationId": "delete_link_api_v1_workspaces__workspace_id__projects__project_id__keyword_prompt_links__link_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Remove a link between a keyword and a prompt",
+        "tags": [
+          "ai"
         ]
       }
     },
