@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alert-rule-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The rule types a rule can have
+         * @description Each with its area, default severity and the JSON Schema of its `params`.
+         */
+        get: operations["list_rule_types_api_v1_alert_rule_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/password-reset/confirm": {
         parameters: {
             query?: never;
@@ -1732,6 +1752,89 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The alerts of the project, newest first */
+        get: operations["list_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-events/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark alerts as seen
+         * @description At most 500 ids. Ids that are not open alerts of this project count for nothing; `acknowledged` says how many were marked.
+         */
+        post: operations["acknowledge_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The project's alert rules, oldest first */
+        get: operations["list_alert_rules_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_get"];
+        put?: never;
+        /**
+         * Make an alert rule
+         * @description `422 invalid_params` when `params` do not fit the rule type: `rank_drop` takes `positions` (a whole number from 1 to 50, default 5), the AI types take none. `scope` may narrow the rule by `group_ids` and, for the AI types, `engine_codes` (platforms).
+         */
+        post: operations["create_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alert-rules/{alert_rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One alert rule */
+        get: operations["get_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an alert rule
+         * @description The alerts it raised are deleted with it.
+         */
+        delete: operations["delete_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change an alert rule
+         * @description Name, scope, parameters or whether it is active; the rule type cannot change. A rule raises alerts only for runs and checks that finish after it is made.
+         */
+        patch: operations["update_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__patch"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/alias-test": {
@@ -3600,6 +3703,23 @@ export interface components {
         AcceptedInvitationResponse: {
             data: components["schemas"]["AcceptedInvitation"];
         };
+        /** AcknowledgeBody */
+        AcknowledgeBody: {
+            /** Ids */
+            ids: string[];
+        };
+        /** Acknowledged */
+        Acknowledged: {
+            /**
+             * Acknowledged
+             * @description Alerts that were open and are now acknowledged.
+             */
+            acknowledged: number;
+        };
+        /** AcknowledgedResponse */
+        AcknowledgedResponse: {
+            data: components["schemas"]["Acknowledged"];
+        };
         /** Actor */
         Actor: {
             /** Actor Id */
@@ -4324,6 +4444,143 @@ export interface components {
              * @enum {string}
              */
             state: "absent" | "present_not_cited" | "present_cited" | "not_loaded" | "unknown";
+        };
+        /** AlertEvent */
+        AlertEvent: {
+            /** Acknowledged At */
+            acknowledged_at: string | null;
+            /** Acknowledged By */
+            acknowledged_by: string | null;
+            event_kind: components["schemas"]["RuleType"];
+            /**
+             * Evidence
+             * @description The counts or ranks before and after: `engine_code`, `run_id`, `before`, `after` and `competitor` for AI alerts; `from_rank`, `to_rank`, `positions_lost` and `positions` for a rank drop.
+             */
+            evidence: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Rule Id
+             * Format: uuid
+             */
+            rule_id: string;
+            severity: components["schemas"]["Severity"];
+            /** Subject Id */
+            subject_id: string;
+            /** Subject Label */
+            subject_label: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "prompt" | "keyword";
+        };
+        /** AlertEventPage */
+        AlertEventPage: {
+            /** Data */
+            data: components["schemas"]["AlertEvent"][];
+            page: components["schemas"]["CursorPageInfo"];
+        };
+        /** AlertRule */
+        AlertRule: {
+            /** Channels */
+            channels: "in_app"[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Digest Mode
+             * @constant
+             */
+            digest_mode: "immediate";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            rule_type: components["schemas"]["RuleType"];
+            scope: components["schemas"]["RuleScope"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AlertRuleInput */
+        AlertRuleInput: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Params
+             * @description Checked against the rule type's `params_schema` (`422 invalid_params`).
+             */
+            params?: {
+                [key: string]: unknown;
+            };
+            rule_type: components["schemas"]["RuleType"];
+            scope?: components["schemas"]["RuleScope"];
+        };
+        /** AlertRulePage */
+        AlertRulePage: {
+            /** Data */
+            data: components["schemas"]["AlertRule"][];
+            page: components["schemas"]["OffsetPageInfo"];
+        };
+        /** AlertRuleResponse */
+        AlertRuleResponse: {
+            data: components["schemas"]["AlertRule"];
+        };
+        /** AlertRuleType */
+        AlertRuleType: {
+            channel: components["schemas"]["Channel"];
+            default_severity: components["schemas"]["Severity"];
+            /** Params Schema */
+            params_schema: {
+                [key: string]: unknown;
+            };
+            rule_type: components["schemas"]["RuleType"];
+        };
+        /** AlertRuleTypeList */
+        AlertRuleTypeList: {
+            /** Data */
+            data: components["schemas"]["AlertRuleType"][];
+        };
+        /**
+         * AlertRuleUpdate
+         * @description Any of these; the rule type cannot change.
+         */
+        AlertRuleUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            scope?: components["schemas"]["RuleScope"] | null;
         };
         /** AlertSettings */
         AlertSettings: {
@@ -5119,6 +5376,8 @@ export interface components {
         ChangesSummaryResponse: {
             data: components["schemas"]["ChangesSummary"];
         };
+        /** @enum {string} */
+        Channel: "ai" | "seo";
         /**
          * CheckNow
          * @description Keywords to check at once, each a search of its own through the standard queue.
@@ -10778,6 +11037,21 @@ export interface components {
             /** Row No */
             row_no: number;
         };
+        /**
+         * RuleScope
+         * @description Who a rule watches; empty means everything in the project.
+         *
+         *     `group_ids` are the groups of prompts (taxonomy terms) for the AI rule types and the keyword
+         *     groups for `rank_drop`; `engine_codes` are platforms and only narrow the AI rule types.
+         */
+        RuleScope: {
+            /** Engine Codes */
+            engine_codes?: string[];
+            /** Group Ids */
+            group_ids?: string[];
+        };
+        /** @enum {string} */
+        RuleType: "ai_mention_gained" | "ai_mention_lost" | "ai_competitor_appeared" | "rank_drop";
         /** Run */
         Run: {
             /** Actual Cost Usd */
@@ -11640,6 +11914,8 @@ export interface components {
             /** Data */
             data: components["schemas"]["SessionItem"][];
         };
+        /** @enum {string} */
+        Severity: "info" | "warning" | "critical";
         /**
          * Share
          * @description A link as listed. The token is never here: it is shown once, when the link is made.
@@ -13807,6 +14083,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Readiness"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_rule_types_api_v1_alert_rule_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleTypeList"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -17670,6 +17975,254 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptOwnPagesPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_get: {
+        parameters: {
+            query?: {
+                "filter[acknowledged]"?: boolean | null;
+                "filter[rule_id]"?: string | null;
+                /** @description `page.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertEventPage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    acknowledge_alert_events_api_v1_workspaces__workspace_id__projects__project_id__alert_events_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcknowledgeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcknowledgedResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_alert_rules_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_get: {
+        parameters: {
+            query?: {
+                "filter[is_active]"?: boolean | null;
+                "filter[rule_type_in]"?: components["schemas"]["RuleType"][] | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRulePage"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                alert_rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                alert_rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_alert_rule_api_v1_workspaces__workspace_id__projects__project_id__alert_rules__alert_rule_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                alert_rule_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertRuleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertRuleResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -22137,6 +22690,7 @@ export const aiMetricValueUnitValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const aioCitationsStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioCitations"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioHistoryItemAi_overview_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioHistoryItem"]["ai_overview_state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
 export const aioStateInfoStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AioStateInfo"]["state"]> = ["absent", "present_not_cited", "present_cited", "not_loaded", "unknown"];
+export const alertEventSubject_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertEvent"]["subject_type"]> = ["prompt", "keyword"];
 export const alertSettingsChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertSettings"]["channel"]> = ["app", "email", "slack"];
 export const alertSettingsPatchChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AlertSettingsPatch"]["channel"]> = ["app", "email", "slack"];
 export const aliasMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Alias"]["match_mode"]> = ["word_boundary", "exact_case", "substring", "regex"];
@@ -22164,6 +22718,7 @@ export const changeLinkMetaChangeValues: ReadonlyArray<FlattenedDeepRequired<com
 export const changeLinkMetaLink_scopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["link_scope"]> = ["editorial", "all"];
 export const changeLinkMetaOnlyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeLinkMeta"]["only"]> = ["top", "all"];
 export const changesSummaryStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangesSummary"]["state"]> = ["first_crawl", "pending", "ready", "unavailable"];
+export const channelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Channel"]> = ["ai", "seo"];
 export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationOut"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citedAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
@@ -22304,6 +22859,7 @@ export const roleUnitsDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<com
 export const routeStepPlacementAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RouteStep"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const routeStepScopeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RouteStep"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const rowActionInputActionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RowActionInput"]["action"]> = ["create", "skip", "merge", "force_separate"];
+export const ruleTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["RuleType"]> = ["ai_mention_gained", "ai_mention_lost", "ai_competitor_appeared", "rank_drop"];
 export const runStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["status"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const runTriggerValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["trigger"]> = ["schedule", "manual", "backfill", "retry"];
 export const runWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Run"]["workload"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
@@ -22336,6 +22892,7 @@ export const seoSettingsPatchVisibility_weight_schemeValues: ReadonlyArray<Flatt
 export const serpSnapshotDetailAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
 export const serpSnapshotDetailTitles_sourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotDetail"]["titles_source"]> = ["domain_rank_observations", "serp_current_results", "unavailable"];
 export const serpSnapshotSummaryAi_overview_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SerpSnapshotSummary"]["ai_overview_state"]> = ["absent", "present", "present_async_loaded", "present_not_loaded"];
+export const severityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Severity"]> = ["info", "warning", "critical"];
 export const shareStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ShareState"]> = ["active", "expired", "revoked"];
 export const signInResponseStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SignInResponse"]["status"]> = ["signed_in", "totp_required"];
 export const sitePropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SiteProperty"]["property_type"]> = ["domain", "url_prefix"];
