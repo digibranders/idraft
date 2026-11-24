@@ -5196,10 +5196,10 @@
       },
       "position": {
         "header": "Mention position",
-        "tip": "Where your brand sits in an ordered answer, 1 being first. Lower is better. Only ordered lists have a mention position.",
+        "tip": "Where your brand is mentioned among the brands you track, 1 being first. Lower is better.",
         "tooFewAnswersTip": "{answers, plural, one {# answer} other {# answers}} so far, too few to say where the brand sits",
         "neverNamedTip": "Your brand was not mentioned in any of {answers, plural, one {# answer} other {# answers}}, so it has no mention position",
-        "tooFewListsTip": "Only answers that are an ordered list have a mention position, and a platform needs at least {min, number}. {mentions, plural, one {# mention} other {# mentions}}, {lists, plural, one {# ordered answer} other {# ordered answers}}.",
+        "tooFewListsTip": "A platform needs at least {min, number} answers that mention your brand before it has a mention position. {mentions, plural, one {# mention} other {# mentions}}, {lists, plural, one {# ordered answer} other {# ordered answers}}.",
         "averageTip": "Equal-weight average of {platforms}, each from its own ordered answers. {lists, plural, one {# ordered answer} other {# ordered answers}} of {mentions, plural, one {# mention} other {# mentions}}. 1 means mentioned first, so lower is better.",
         "onlyTip": "{platform}: {lists, plural, one {# ordered answer} other {# ordered answers}} of {mentions, plural, one {# mention} other {# mentions}}. 1 means mentioned first, so lower is better."
       },

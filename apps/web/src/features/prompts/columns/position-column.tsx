@@ -28,8 +28,8 @@ export interface PositionRows<TRow> {
 }
 
 /**
- * Mention position: each platform's own mean over its ordered answers (only answers that are an ordered list have a
- * position, and a platform needs `POSITION_MIN_LISTS` of them), then the equal-weight average of the platforms that
+ * Mention position: each platform's own mean over its ordered answers (the place of the brand among the tracked brands a
+ * valid answer names, and a platform needs `POSITION_MIN_LISTS` such answers), then the equal-weight average of the platforms that
  * have one, one decimal, 1 is first. It sorts lowest first. A figure too thin to show is the bare count of ordered
  * answers on the hatched ground; one that is not there says why and sorts last (R6).
  */

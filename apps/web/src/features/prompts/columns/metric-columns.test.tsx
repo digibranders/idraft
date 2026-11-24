@@ -190,7 +190,7 @@ describe('positionColumn', () => {
     expect(shown.text).toBe('1');
     expect(shown.container.querySelector('.bg-insufficient')).not.toBeNull();
     expect(shown.tip).toBe(
-      'Only answers that are an ordered list have a mention position, and a platform needs at least 2. 3 mentions, 1 ordered answer.',
+      'A platform needs at least 2 answers that mention your brand before it has a mention position. 3 mentions, 1 ordered answer.',
     );
     expect(chat.sortValue?.({ facts: rowOf(engine(CHAT, { position: position(1, 1, 3, 10) })) })).toBeNull();
   });
