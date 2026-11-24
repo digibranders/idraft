@@ -83,6 +83,8 @@ RUN_WORKER_UPDATE = (
     "pages_blocked",
     # Migration 0032: when the crawl last read a new page.
     "progress_at",
+    # Migration 0037: pages that are variants of another crawled page.
+    "pages_variant",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",
@@ -111,6 +113,8 @@ PAGE_WORKER_UPDATE = (
     # Migration 0027: editorial anchor counts that drive a flag.
     "editorial_anchors",
     "generic_anchors",
+    # Migration 0037: the canonical page a variant folds into.
+    "variant_of_url_id",
 )
 
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")
@@ -497,7 +501,14 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT", UPDATE=RUN_WORKER_UPDATE),
     ),
     "seo.crawl_pages": (READ, access("SELECT, INSERT", UPDATE=PAGE_WORKER_UPDATE)),
-    "seo.crawl_links": (READ, access("SELECT, INSERT, DELETE", UPDATE=("placement", "scope"))),
+    "seo.crawl_links": (
+        READ,
+        access(
+            "SELECT, INSERT, DELETE",
+            # Migration 0037: a link to a variant is re-pointed at its canonical page.
+            UPDATE=("placement", "scope", "target_url_id", "folded_from_url_id", "ignored"),
+        ),
+    ),
     "seo.crawl_tier_flow": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
     "seo.crawl_tier_stats": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
     # Migration 0027: what changed between crawls, written by `crawl_enrich`, read by the API.

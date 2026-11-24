@@ -2,11 +2,13 @@ import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EChart } from './echart';
+import { CHART_CURSOR } from '@/lib/charts/rich-style';
 
 interface FakeInstance {
   setOption: ReturnType<typeof vi.fn>;
   resize: ReturnType<typeof vi.fn>;
   dispose: ReturnType<typeof vi.fn>;
+  getZr: () => { handler: { proxy: { setCursor: (cursor?: string) => void } } };
   group?: string;
 }
 
@@ -18,12 +20,23 @@ const echarts = vi.hoisted(() => ({
 vi.mock('echarts/core', () => echarts);
 
 const created: FakeInstance[] = [];
+/** The cursor setter of each instance as zrender had it, before the chart wrapped it. */
+const cursors: ReturnType<typeof vi.fn>[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
   created.length = 0;
+  cursors.length = 0;
   echarts.init.mockImplementation(() => {
-    const instance: FakeInstance = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+    const setCursor = vi.fn();
+    cursors.push(setCursor);
+    const proxy = { setCursor };
+    const instance: FakeInstance = {
+      setOption: vi.fn(),
+      resize: vi.fn(),
+      dispose: vi.fn(),
+      getZr: () => ({ handler: { proxy } }),
+    };
     created.push(instance);
     return instance;
   });
@@ -59,5 +72,23 @@ describe('EChart', () => {
     expect(created).toHaveLength(1);
     expect(created[0]?.group).toBeUndefined();
     expect(echarts.connect).not.toHaveBeenCalled();
+  });
+
+  it('makes the pointer the ring over empty canvas and over every mark, so a chart has one cursor', () => {
+    render(<EChart option={option} height={140} />);
+    const proxy = created[0]?.getZr().handler.proxy;
+    // Set once when the chart is made
+    expect(cursors[0]).toHaveBeenCalledWith(CHART_CURSOR);
+    proxy?.setCursor('default');
+    expect(cursors[0]).toHaveBeenLastCalledWith(CHART_CURSOR);
+    // zrender says pointer over every mark that answers the pointer, clickable or not
+    proxy?.setCursor('pointer');
+    expect(cursors[0]).toHaveBeenLastCalledWith(CHART_CURSOR);
+  });
+
+  it('passes any other cursor through, such as a move cursor while a mark is dragged', () => {
+    render(<EChart option={option} height={140} />);
+    created[0]?.getZr().handler.proxy.setCursor('move');
+    expect(cursors[0]).toHaveBeenLastCalledWith('move');
   });
 });

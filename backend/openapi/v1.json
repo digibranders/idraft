@@ -6086,6 +6086,11 @@
             "title": "Links Available",
             "type": "boolean"
           },
+          "pages": {
+            "description": "Pages of the site the crawl found: `pages_crawled` less `pages_variant`.",
+            "title": "Pages",
+            "type": "integer"
+          },
           "pages_blocked": {
             "anyOf": [
               {
@@ -6106,6 +6111,18 @@
             "description": "Crawled and still queued, while it runs.",
             "title": "Pages Found",
             "type": "integer"
+          },
+          "pages_variant": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parameter variants: crawled pages whose canonical is another crawled page (`/blogs?page=2` names `/blogs`). They are not pages of the site and are left out of every count. null for a crawl that was not counted.",
+            "title": "Pages Variant"
           },
           "previous_run_id": {
             "anyOf": [
@@ -6206,6 +6223,8 @@
           "pages_crawled",
           "sitemap_pages",
           "pages_blocked",
+          "pages_variant",
+          "pages",
           "render_javascript",
           "estimated_cost_usd",
           "cost_usd",
@@ -14817,11 +14836,12 @@
                     "deep_only_through_auto",
                     "placement_unknown",
                     "has_broken_outlinks",
-                    "generic_anchors"
+                    "generic_anchors",
+                    "variant"
                   ],
                   "type": "string"
                 },
-                "maxItems": 6,
+                "maxItems": 7,
                 "type": "array"
               },
               {
@@ -14829,6 +14849,12 @@
               }
             ],
             "title": "Flags"
+          },
+          "include_variants": {
+            "default": false,
+            "description": "Parameter variants (a page whose canonical is another crawled page) are left out unless this is true or the `variant` flag is asked for.",
+            "title": "Include Variants",
+            "type": "boolean"
           },
           "indexable": {
             "anyOf": [
@@ -15012,7 +15038,8 @@
                 "blocked",
                 "redirect",
                 "non_indexable",
-                "generic_anchors"
+                "generic_anchors",
+                "variant"
               ],
               "type": "string"
             },
@@ -40672,7 +40699,8 @@
                       "deep_only_through_auto",
                       "placement_unknown",
                       "has_broken_outlinks",
-                      "generic_anchors"
+                      "generic_anchors",
+                      "variant"
                     ],
                     "type": "string"
                   },
@@ -40682,8 +40710,18 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 6,
+              "maxLength": 7,
               "title": "Filter[Flags]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[include_variants]",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Filter[Include Variants]",
+              "type": "boolean"
             }
           },
           {

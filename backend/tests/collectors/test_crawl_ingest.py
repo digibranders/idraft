@@ -1428,7 +1428,9 @@ async def test_the_details_of_a_crawl_are_stored_as_the_spec_says(
     assert pages["/pricing"]["top_anchor"] == "See plans"
     # Equity: the crawled pages' shares add up to one even with a link out of the crawl, and the
     # error pages hold what they hold.
-    shares = {path: page["equity_share"] for path, page in pages.items()}
+    # `/blog/b` names `/blog/a` as its canonical: a variant, with no share of its own.
+    assert pages["/blog/b"]["equity_share"] is None
+    shares = {path: page["equity_share"] for path, page in pages.items() if path != "/blog/b"}
     assert sum(shares.values()) == pytest.approx(1.0)
     run = await fetchrow(
         migrated, "SELECT equity_lost_to_errors FROM seo.crawl_runs WHERE id = $1", task.run_id
@@ -1461,3 +1463,184 @@ async def test_the_details_of_a_crawl_are_stored_as_the_spec_says(
     # A link past the ceiling is kept, and the page it names is not a crawled page.
     assert ("/", "/beyond") in stored
     assert "/beyond" not in pages
+
+
+async def test_a_page_that_names_another_crawled_page_as_canonical_is_a_variant_and_folds_into_it(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_head_canonicals()
+    crawled = await _crawled(migrated, worker_db, on_page)
+
+    await _ingest(worker_db, on_page, None, crawled.task)
+
+    run_id = crawled.task.run_id
+    pages = await _pages(migrated, run_id)
+    names = {page["url_id"]: path for path, page in pages.items()}
+    variants = {
+        path: names[page["variant_of_url_id"]]
+        for path, page in pages.items()
+        if page["variant_of_url_id"]
+    }
+    # `/pricing` names `/blog/c` and `/blog/a` names `/blog/b`: variants. `/privacy` names
+    # `/pricing`, which is a variant itself: a chain leaves it a page. `/blog/b` names itself.
+    assert variants == {"/pricing": "/blog/c", "/blog/a": "/blog/b"}
+    run = await fetchrow(
+        migrated, "SELECT pages_variant, sitemap_pages FROM seo.crawl_runs WHERE id = $1", run_id
+    )
+    assert run["pages_variant"] == 2
+    for path in variants:
+        assert pages[path]["click_depth"] is None
+        assert pages[path]["equity_share"] is None
+        assert (pages[path]["linking_pages_all"], pages[path]["outlinks_all"]) == (0, 0)
+        assert not pages[path]["is_orphan"]
+        assert not pages[path]["is_editorial_orphan"]
+    # Oracle: distinct sources that are not variants, links to a variant counted for its page.
+    links = await fetch(
+        migrated,
+        "SELECT source_url_id, target_url_id FROM seo.crawl_links WHERE run_id = $1",
+        run_id,
+    )
+    fold = {
+        page["url_id"]: page["variant_of_url_id"]
+        for page in pages.values()
+        if page["variant_of_url_id"]
+    }
+    expected_in: dict[int, set[int]] = {}
+    for link in links:
+        if link["source_url_id"] in fold:
+            continue
+        target = fold.get(link["target_url_id"], link["target_url_id"])
+        if target != link["source_url_id"]:
+            expected_in.setdefault(target, set()).add(link["source_url_id"])
+    for path, page in pages.items():
+        assert page["linking_pages_all"] == len(expected_in.get(page["url_id"], set())), path
+    # The canonical pages hold what their variants were linked from.
+    assert pages["/blog/c"]["linking_pages_all"] > 0
+
+
+async def test_links_to_a_variant_are_re_pointed_and_links_from_one_are_ignored(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_head_canonicals()
+    crawled = await _crawled(migrated, worker_db, on_page)
+
+    await _ingest(worker_db, on_page, None, crawled.task)
+
+    run_id = crawled.task.run_id
+    pages = await _pages(migrated, run_id)
+    variant_of = {
+        page["url_id"]: page["variant_of_url_id"]
+        for page in pages.values()
+        if page["variant_of_url_id"]
+    }
+    links = await fetch(migrated, "SELECT * FROM seo.crawl_links WHERE run_id = $1", run_id)
+    assert variant_of
+    for link in links:
+        kept = not link["ignored"]
+        if link["source_url_id"] in variant_of:
+            assert not kept
+        if kept:
+            assert link["target_url_id"] not in variant_of
+        if link["folded_from_url_id"] is not None:
+            assert variant_of[link["folded_from_url_id"]] == link["target_url_id"]
+            folded_onto_itself = link["target_url_id"] == link["source_url_id"]
+            assert kept == (not folded_onto_itself and link["source_url_id"] not in variant_of)
+    assert any(link["folded_from_url_id"] is not None for link in links)
+
+
+def _counted(page: Page) -> dict[str, Any]:
+    keys = ("variant_of_url_id", "click_depth", "depth_without_auto", "equity_share", "top_anchor")
+    return {
+        key: value
+        for key, value in page.items()
+        if key.startswith(("linking_pages_", "outlinks_", "is_")) or key in keys
+    }
+
+
+async def test_a_crawl_finished_before_variants_is_recounted_to_what_a_fresh_ingest_gives(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_head_canonicals()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    await _ingest(worker_db, on_page, None, crawled.task)
+    run_id = crawled.task.run_id
+    workspace_id = crawled.task.workspace_id
+    await execute(migrated, "UPDATE seo.crawl_runs SET enrich_state = 'done' WHERE id = $1", run_id)
+    fresh = {path: _counted(page) for path, page in (await _pages(migrated, run_id)).items()}
+    fresh_run = await fetchrow(
+        migrated, "SELECT pages_variant, sitemap_pages FROM seo.crawl_runs WHERE id = $1", run_id
+    )
+    # Back to a crawl as it was stored before: raw links, no variants, no count.
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_links SET target_url_id = coalesce(folded_from_url_id, target_url_id), "
+        "folded_from_url_id = NULL, ignored = false WHERE run_id = $1",
+        run_id,
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET variant_of_url_id = NULL, linking_pages_all = 99, "
+        "outlinks_all = 99, click_depth = 7, equity_share = 0.5, top_anchor = 'stale' "
+        "WHERE run_id = $1",
+        run_id,
+    )
+    await execute(migrated, "UPDATE seo.crawl_runs SET pages_variant = NULL WHERE id = $1", run_id)
+
+    outcome = await crawl_ingest.recount_variants(
+        worker_db, workspace_id=workspace_id, run_id=run_id
+    )
+    again = await crawl_ingest.recount_variants(worker_db, workspace_id=workspace_id, run_id=run_id)
+
+    assert outcome is not None
+    assert (outcome.pages_variant, again) == (fresh_run["pages_variant"], outcome)
+    recounted = {path: _counted(page) for path, page in (await _pages(migrated, run_id)).items()}
+    # The anchor counts are the second job's: a recount makes them, a bare ingest has none.
+    assert recounted == fresh
+    run = await fetchrow(
+        migrated, "SELECT pages_variant, sitemap_pages FROM seo.crawl_runs WHERE id = $1", run_id
+    )
+    assert dict(run) == dict(fresh_run)
+
+
+async def test_a_crawl_whose_second_job_is_still_running_is_not_recounted(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_head_canonicals()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    await _ingest(worker_db, on_page, None, crawled.task)
+
+    outcome = await crawl_ingest.recount_variants(
+        worker_db, workspace_id=crawled.task.workspace_id, run_id=crawled.task.run_id
+    )
+
+    assert outcome is None
+
+
+async def test_the_latest_crawl_of_a_project_is_recounted_by_its_ids(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    from idraft.worker.recount_variants import recount_latest
+
+    on_page = _site_with_head_canonicals()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    await _ingest(worker_db, on_page, None, crawled.task)
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET enrich_state = 'done', pages_variant = NULL WHERE id = $1",
+        crawled.task.run_id,
+    )
+
+    run = await fetchrow(
+        migrated, "SELECT project_id FROM seo.crawl_runs WHERE id = $1", crawled.task.run_id
+    )
+
+    outcome = await recount_latest(
+        worker_db, workspace_id=crawled.task.workspace_id, project_id=run["project_id"]
+    )
+    other = await recount_latest(
+        worker_db, workspace_id=crawled.task.workspace_id, project_id=uuid.uuid4()
+    )
+
+    assert outcome is not None
+    assert (outcome.run_id, outcome.pages_variant) == (crawled.task.run_id, 2)
+    assert other is None

@@ -9,7 +9,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import ARRAY, BigInteger, and_, bindparam, select, text
+from sqlalchemy import ARRAY, BigInteger, and_, bindparam, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.internal_links.page_filter import PageScope
@@ -35,7 +35,7 @@ _LEVEL_SQL: Final = """
     FROM seo.crawl_links
     WHERE run_id = CAST(:run_id AS uuid) AND workspace_id = CAST(:workspace_id AS uuid)
       AND source_url_id = ANY(:frontier) AND is_followed AND source_url_id <> target_url_id
-      {scope}
+      AND NOT ignored {scope}
     ORDER BY target_url_id,
              CASE scope WHEN 'editorial' THEN 0 WHEN 'auto_generated' THEN 1 ELSE 2 END,
              source_url_id, id
@@ -55,7 +55,7 @@ _ROOTS_SQL: Final = text(
     SELECT l.target_url_id FROM seo.crawl_links l
     JOIN served s ON s.url_id = l.source_url_id
     WHERE l.run_id = CAST(:run_id AS uuid) AND l.workspace_id = CAST(:workspace_id AS uuid)
-      AND l.scope = 'template' AND l.is_followed
+      AND l.scope = 'template' AND l.is_followed AND NOT l.ignored
     GROUP BY l.target_url_id
     HAVING 2 * count(DISTINCT l.source_url_id) > (SELECT count(*) FROM served)
     ORDER BY l.target_url_id
@@ -68,7 +68,7 @@ _START_UNREADABLE = text(
            AND NOT (p.status_code = 200 AND EXISTS (
                SELECT 1 FROM seo.crawl_links l
                WHERE l.run_id = p.run_id AND l.workspace_id = p.workspace_id
-                 AND l.source_url_id = p.url_id))
+                 AND l.source_url_id = p.url_id AND NOT l.ignored))
     FROM seo.crawl_pages p
     WHERE p.run_id = CAST(:run_id AS uuid) AND p.workspace_id = CAST(:workspace_id AS uuid)
       AND p.url_id = CAST(:start AS bigint)
@@ -238,9 +238,22 @@ class RouteFinder:
             ).first()
             if held is None:
                 raise NotFoundError
+            # A start page that is a variant stands for its canonical page (plan 09).
             start: int | None = (
                 await db.execute(
-                    select(crawl_runs.c.start_url_id).where(
+                    select(
+                        func.coalesce(crawl_pages.c.variant_of_url_id, crawl_runs.c.start_url_id)
+                    )
+                    .select_from(
+                        crawl_runs.outerjoin(
+                            crawl_pages,
+                            and_(
+                                crawl_pages.c.run_id == crawl_runs.c.id,
+                                crawl_pages.c.url_id == crawl_runs.c.start_url_id,
+                            ),
+                        )
+                    )
+                    .where(
                         crawl_runs.c.workspace_id == scope.workspace_id,
                         crawl_runs.c.id == scope.run_id,
                     )

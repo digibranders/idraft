@@ -14,6 +14,7 @@ from uuid import UUID
 from sqlalchemy import bindparam, delete, func, insert, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from idraft.collectors.crawl_variants_sql import EFFECTIVE_LINKS
 from idraft.crawl.tiers import MatchType, TierRule, first_match
 from idraft.db.tables import (
     crawl_pages,
@@ -168,9 +169,8 @@ async def apply_rules(db: AsyncSession, *, workspace_id: UUID, project_id: UUID)
 _FLOW_BODY = """
     WITH pairs AS (
         SELECT DISTINCT l.source_url_id, l.target_url_id, l.scope
-        FROM seo.crawl_links l
-        WHERE l.run_id = CAST(:run_id AS uuid) AND l.workspace_id = CAST(:workspace_id AS uuid)
-          AND l.source_url_id <> l.target_url_id
+        FROM ({effective}) l
+        WHERE l.source_url_id <> l.target_url_id
     ), tagged AS (
         SELECT p.source_url_id, p.target_url_id, p.scope,
                fp.tier_id AS from_tier, tp.tier_id AS to_tier
@@ -185,7 +185,7 @@ _FLOW_BODY = """
     UNION ALL
     SELECT 'all', from_tier, to_tier, count(DISTINCT (source_url_id, target_url_id)) AS links
     FROM tagged GROUP BY from_tier, to_tier
-"""
+""".replace("{effective}", EFFECTIVE_LINKS)
 # Both inserts join module constants, never input: S608 does not apply.
 _FLOW = text(
     "INSERT INTO seo.crawl_tier_flow (run_id, workspace_id, scope, from_tier_id, to_tier_id, "  # noqa: S608
@@ -200,6 +200,7 @@ _STATS_BODY = """
     LEFT JOIN core.project_pages pp ON pp.workspace_id = CAST(:workspace_id AS uuid)
          AND pp.project_id = cp.project_id AND pp.url_id = cp.url_id
     WHERE cp.run_id = CAST(:run_id AS uuid) AND cp.workspace_id = CAST(:workspace_id AS uuid)
+      AND cp.variant_of_url_id IS NULL
     GROUP BY pp.tier_id
 """
 _STATS = text(

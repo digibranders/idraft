@@ -1,16 +1,18 @@
 'use client';
 
-import type { ReactElement, ReactNode } from 'react';
+import { useId, type ReactElement, type ReactNode } from 'react';
 
 import { SEGMENTS, type Segment, type Split } from './headline-model';
 import { CardInfoButton, type CardInfo } from '@/components/app/chart/card-info';
+import { RingsChart } from '@/components/app/chart/rings-chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
+import { smoothPath, type PathPoint } from '@/lib/charts/smooth-path';
 import { cn } from '@/lib/utils';
 
 /**
  * The tokens of the four outcomes: `seq-6`, `seq-4`, `seq-3` and the neutral bar, as the preview draws them and as the
- * Outcome split card does for the same four (`OutcomeBars`), so a segment has one colour on the whole page
+ * Outcome split card does for the same four (`OutcomeRings`), so a segment has one colour on the whole page
  * (OV-HEAD-06, OV-HEAD-20). Set as a custom property, the token being the only place the colour is named.
  */
 const FILL: Readonly<Record<Segment, { backgroundColor: string }>> = {
@@ -20,10 +22,21 @@ const FILL: Readonly<Record<Segment, { backgroundColor: string }>> = {
   neither: { backgroundColor: 'var(--chart-bar-neutral)' },
 };
 
-const SPARK_WIDTH = 100;
-const round2 = (value: number): number => Math.round(value * 100) / 100;
+/** The same four tokens by name, for the ring (`FILL` holds them as custom properties for the legend swatches). */
+const TOKEN: Readonly<Record<Segment, 'seq-6' | 'seq-4' | 'seq-3' | 'chart-bar-neutral'>> = {
+  mentioned_and_cited: 'seq-6',
+  mentioned_only: 'seq-4',
+  cited_only: 'seq-3',
+  neither: 'chart-bar-neutral',
+};
 
-/** A plain SVG line that follows the theme through `chart-1`; a gap in the series breaks no line, it is skipped. */
+const SPARK_WIDTH = 100;
+
+/**
+ * A smooth line with a fade under it, a soft shadow and a dot on the latest point (15-data-visualization.md section 1a),
+ * in `chart-1`. The dot is an HTML element, because a dot inside a stretched SVG would turn into an ellipse. A gap in
+ * the series breaks no line, it is skipped.
+ */
 export function Sparkline({
   points,
   height,
@@ -35,70 +48,113 @@ export function Sparkline({
   label?: string;
   className?: string;
 }): ReactElement | null {
+  const fade = useId().replaceAll(':', '');
   const values = points.filter((value): value is number => value !== null);
   if (values.length < 2) return null;
   const low = Math.min(...values);
   const span = Math.max(...values) - low || 1;
-  const pad = 3;
-  const line = points
-    .flatMap((value, index) =>
-      value === null
-        ? []
-        : [
-            `${String(round2((index / (points.length - 1)) * SPARK_WIDTH))},${String(round2(height - pad - ((value - low) / span) * (height - 2 * pad)))}`,
-          ],
-    )
-    .join(' ');
+  const pad = 4;
+  const spots: PathPoint[] = points.flatMap((value, index) =>
+    value === null
+      ? []
+      : [
+          {
+            x: (index / (points.length - 1)) * SPARK_WIDTH,
+            y: height - pad - ((value - low) / span) * (height - 2 * pad),
+          },
+        ],
+  );
+  const first = spots[0];
+  const last = spots[spots.length - 1];
+  if (first === undefined || last === undefined) return null;
+  const line = smoothPath(spots);
   return (
-    <svg
-      viewBox={`0 0 ${String(SPARK_WIDTH)} ${String(height)}`}
-      preserveAspectRatio="none"
-      className={cn('block w-full overflow-visible', className)}
-      style={{ height }}
-      {...(label === undefined ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label })}
-    >
-      <polyline
-        points={line}
-        fill="none"
-        strokeWidth={1.75}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-        className="stroke-chart-1"
+    <div className={cn('relative w-full', className)} style={{ height }}>
+      <svg
+        viewBox={`0 0 ${String(SPARK_WIDTH)} ${String(height)}`}
+        preserveAspectRatio="none"
+        className="block w-full overflow-visible"
+        style={{ height }}
+        {...(label === undefined ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label })}
+      >
+        <defs>
+          <linearGradient id={fade} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style={{ stopColor: 'var(--chart-1)', stopOpacity: 0.32 }} />
+            <stop offset="1" style={{ stopColor: 'var(--chart-1)', stopOpacity: 0 }} />
+          </linearGradient>
+        </defs>
+        <path
+          d={`${line} L${String(last.x)},${String(height)} L${String(first.x)},${String(height)} Z`}
+          fill={`url(#${fade})`}
+        />
+        <path
+          d={line}
+          fill="none"
+          strokeWidth={2.25}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+          className="stroke-chart-1 spark-glow"
+        />
+      </svg>
+      <span
+        aria-hidden="true"
+        className="absolute size-2 rounded-full border-2 border-surface bg-chart-1"
+        style={{ left: `${String(last.x)}%`, top: last.y, transform: 'translate(-50%, -50%)' }}
       />
-    </svg>
+    </div>
   );
 }
 
-export interface SplitBarProps {
+export interface HeroRingProps {
   split: Split;
+  /** The visibility rate as text, for the middle of the ring: "44%". */
+  center: string;
+  /** What stands behind the rate (its counts or the platforms it averages), read with it and not drawn. */
+  centerNote: string;
   /** The name of each segment. */
   nameOf: (segment: Segment) => string;
   /** A share as text, 0 decimals. */
   percent: (share: number) => string;
   /** The words of a segment's tooltip: its share, and its counts for one platform. */
   tipOf: (segment: Segment) => string;
+  /** The four shares in words, for people who cannot see the ring. */
   label: string;
 }
 
+/** The ring is 132 px square and the legend takes the rest of the card. */
+const HERO_RING = 132;
+/** The key of the one row of the ring (not text: it is never shown). */
+const HERO_ROW_ID = String(HERO_RING);
+
 /**
- * The four outcomes of an answer as one bar, each share beside its name (OV-HEAD-06). A segment with no share is not
- * drawn. Colour is not the only carrier: every share is printed in the legend under the bar.
+ * The four outcomes of an answer as one plain ring with the visibility rate in the middle, each share beside its name
+ * (OV-HEAD-06, 15-data-visualization.md section 1a). A segment with no share is not drawn. Colour is not the only carrier:
+ * every share is printed in the legend beside the ring.
  */
-export function SplitBar({ split, nameOf, percent, tipOf, label }: SplitBarProps): ReactElement {
+export function HeroRing({ split, center, centerNote, nameOf, percent, tipOf, label }: HeroRingProps): ReactElement {
   return (
-    <div className="flex flex-col gap-2">
-      <div role="img" aria-label={label} className="flex h-2.5 gap-0.5 overflow-hidden rounded-xs">
-        {SEGMENTS.filter((segment) => split.shares[segment] > 0).map((segment) => (
-          <Tooltip key={segment} content={tipOf(segment)}>
-            <div
-              className="h-full min-w-0"
-              style={{ ...FILL[segment], width: `${String(split.shares[segment] * 100)}%` }}
-            />
-          </Tooltip>
-        ))}
+    <div className="flex items-center gap-4">
+      <div className="w-32 shrink-0">
+        <RingsChart
+          names={false}
+          emphasis
+          height={HERO_RING}
+          label={label}
+          segments={SEGMENTS.map((segment) => ({ id: segment, name: nameOf(segment), token: TOKEN[segment] }))}
+          rows={[
+            {
+              id: HERO_ROW_ID,
+              label: '',
+              center,
+              centerNote,
+              shares: SEGMENTS.map((segment) => split.shares[segment]),
+              tips: SEGMENTS.map((segment) => tipOf(segment)),
+            },
+          ]}
+        />
       </div>
-      <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-1">
+      <dl className="m-0 flex min-w-0 flex-1 flex-col gap-1">
         {SEGMENTS.map((segment) => (
           <div key={segment} className="flex min-w-0 items-center gap-1.5 type-table">
             <span aria-hidden="true" className="size-2 shrink-0 rounded-xs" style={FILL[segment]} />

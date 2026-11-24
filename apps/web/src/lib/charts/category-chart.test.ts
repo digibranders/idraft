@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { categoryChartOption, seriesColor, seriesColorVar, type CategorySeries } from './category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
@@ -40,11 +40,31 @@ const option = (kind: 'line' | 'bar', hidden: ReadonlySet<string> = new Set()): 
   });
 
 describe('categoryChartOption', () => {
-  it('draws without animation, inside the fixed grid padding', () => {
-    expect(option('line')).toMatchObject({
-      animation: false,
-      grid: { right: 16, top: 8 },
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('animates the entrance unless the person asked for less motion, inside the fixed grid padding', () => {
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+    expect(option('line')).toMatchObject({ animation: true, grid: { right: 56, top: 8 } });
+    expect(option('bar')).toMatchObject({ animation: true, grid: { right: 16, top: 8 } });
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: true }) });
+    expect(option('line')).toMatchObject({ animation: false });
+  });
+
+  it('draws the data lines smooth with a fade, a shadow and their latest value, and the reference line plain and dashed', () => {
+    const { series } = option('line') as { series: Record<string, unknown>[] };
+    expect(series[0]).toMatchObject({
+      smooth: 0.3,
+      lineStyle: { width: 3, shadowBlur: 12 },
+      areaStyle: {},
+      endLabel: { show: true },
     });
+    const label = (series[0]?.endLabel as { formatter: (param: { value: unknown }) => string }).formatter;
+    expect(label({ value: 30 })).toBe('30');
+    expect(label({ value: null })).toBe('');
+    expect(series[2]).toMatchObject({ lineStyle: { width: 2, type: [4, 4] }, endLabel: { show: false } });
+    expect(series[2]).not.toHaveProperty('areaStyle');
   });
 
   it('makes room for the axis labels whatever their width, so a label of five digits is not cut at the edge', () => {

@@ -4,7 +4,8 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { percentTexts } from './percent-texts';
-import { ShareRows, type ShareRow, type ShareSegment, type ShareToken } from './share-rows';
+import { ShareColumns } from './share-charts';
+import { type ShareRow, type ShareSegment, type ShareToken } from './share-types';
 import { engineLabel } from '../engines/engine-role';
 import { useCardData } from '../engines/use-card-data';
 import { useCardExport } from '../engines/use-card-seams';
@@ -174,7 +175,7 @@ export default function PositionDistributionCard({ item, live }: CardProps): Rea
       footnote={t('footnote')}
       height={240}
       summary={ready && empty === null ? summary : ''}
-      body={<ShareRows segments={segments} rows={rows} caption={t('caption')} />}
+      body={<ShareColumns segments={segments} rows={rows} caption={t('caption')} label={summary} />}
       table={
         <PlainTable<PlatformOrder>
           caption={t('caption')}

@@ -62,7 +62,7 @@ _BASE = """
           SELECT 1 FROM seo.crawl_links l
           WHERE l.run_id = m.run_id AND l.workspace_id = m.workspace_id
             AND l.source_url_id = m.source_url_id AND l.target_url_id = m.target_url_id
-            AND l.scope = 'editorial')
+            AND l.scope = 'editorial' AND NOT l.ignored)
 """
 _ORDER = (
     "ORDER BY coalesce(tl.position, 99), scp.equity_share DESC NULLS LAST, su.path, tu.path, "

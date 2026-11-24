@@ -1,3 +1,4 @@
+/* global document */
 /**
  * Search intent as small letter badges, shared by the Keywords and Prompts mocks: I, C, T, N and L, one badge per
  * intent, so a keyword or prompt with several intents shows several badges. The tooltip (data-tip, drawn by

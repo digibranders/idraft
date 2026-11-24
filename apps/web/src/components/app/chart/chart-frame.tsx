@@ -18,6 +18,7 @@ import { CardInfoButton, hasFootnote, useCardInfo, type CardInfo } from './card-
 import { useCardReadiness, useCurrentCardId } from './card-readiness';
 import { ChartLegend, type LegendItem } from './chart-legend';
 import { ChartMenu, type ChartMenuAction } from './chart-menu';
+import { GhostTrend } from './ghost-trend';
 import { InlineError, type InlineErrorProps } from '@/components/app/status/inline-error';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Button } from '@/components/ui/button';
@@ -256,6 +257,7 @@ function CategoryFrame(props: CategoryProps): ReactElement {
     <FrameShell
       common={props}
       state={props}
+      ghost={kind === 'line'}
       summaryId={summaryId}
       section={section}
       footnoteRef={footnote}
@@ -431,6 +433,8 @@ interface FrameShellProps {
   /** A legend under the chart, before the footnote, when the legend carries values. */
   legendBelow?: ReactNode;
   views: ViewsProps;
+  /** A line chart: its empty state has a faint curve behind the words. */
+  ghost?: boolean | undefined;
   /** What a ready or refetching chart shows. */
   children: ReactNode;
 }
@@ -445,6 +449,7 @@ function FrameShell({
   legend,
   legendBelow,
   views,
+  ghost = false,
   children,
 }: FrameShellProps): ReactElement {
   const t = useTranslations('chart');
@@ -584,7 +589,7 @@ function FrameShell({
       <p id={summaryId} className="sr-only">
         {summary}
       </p>
-      <FrameBody state={state} height={height} loadingHeight={loadingHeight}>
+      <FrameBody state={state} height={height} loadingHeight={loadingHeight} ghost={ghost}>
         {children}
       </FrameBody>
       {showViews ? legendBelow : null}
@@ -603,11 +608,13 @@ function FrameBody({
   state,
   height,
   loadingHeight,
+  ghost,
   children,
 }: {
   state: ChartFrameState;
   height: ChartHeight;
   loadingHeight: number | undefined;
+  ghost: boolean;
   children: ReactNode;
 }): ReactElement {
   if (state.status === 'loading') {
@@ -619,14 +626,17 @@ function FrameBody({
   }
   if (state.status === 'empty') {
     return (
-      <div data-slot="chart-state" style={{ minHeight: height }}>
-        <EmptyState
-          variant="inline"
-          headingLevel={3}
-          title={state.empty.title}
-          reason={state.empty.reason}
-          primaryAction={state.empty.action}
-        />
+      <div data-slot="chart-state" className="relative" style={{ minHeight: height }}>
+        {ghost ? <GhostTrend height={height} /> : null}
+        <div className="relative">
+          <EmptyState
+            variant="inline"
+            headingLevel={3}
+            title={state.empty.title}
+            reason={state.empty.reason}
+            primaryAction={state.empty.action}
+          />
+        </div>
       </div>
     );
   }

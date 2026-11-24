@@ -6359,6 +6359,11 @@ export interface components {
              */
             links_available: boolean;
             /**
+             * Pages
+             * @description Pages of the site the crawl found: `pages_crawled` less `pages_variant`.
+             */
+            pages: number;
+            /**
              * Pages Blocked
              * @description Pages that refused the crawler (401, 403, 429): unknown, not broken. null for a crawl that was not counted.
              */
@@ -6370,6 +6375,11 @@ export interface components {
              * @description Crawled and still queued, while it runs.
              */
             pages_found: number;
+            /**
+             * Pages Variant
+             * @description Parameter variants: crawled pages whose canonical is another crawled page (`/blogs?page=2` names `/blogs`). They are not pages of the site and are left out of every count. null for a crawl that was not counted.
+             */
+            pages_variant: number | null;
             /**
              * Previous Run Id
              * @description The crawl its changes are measured against.
@@ -9582,7 +9592,13 @@ export interface components {
          */
         PageFilter: {
             /** Flags */
-            flags?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors")[] | null;
+            flags?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors" | "variant")[] | null;
+            /**
+             * Include Variants
+             * @description Parameter variants (a page whose canonical is another crawled page) are left out unless this is true or the `variant` flag is asked for.
+             * @default false
+             */
+            include_variants: boolean;
             /** Indexable */
             indexable?: boolean | null;
             /** Q */
@@ -9614,7 +9630,7 @@ export interface components {
             /** @description Set when the list was asked for `include`. */
             extras?: components["schemas"]["PageExtras"] | null;
             /** Flags */
-            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "blocked" | "redirect" | "non_indexable" | "generic_anchors")[];
+            flags: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "broken" | "blocked" | "redirect" | "non_indexable" | "generic_anchors" | "variant")[];
             /** In Sitemap */
             in_sitemap: boolean;
             /** Is Indexable */
@@ -19328,7 +19344,8 @@ export interface operations {
                 "filter[tag]"?: string[] | null;
                 "filter[status]"?: ("2xx" | "3xx" | "4xx" | "5xx" | "blocked")[] | null;
                 "filter[indexable]"?: boolean | null;
-                "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors")[] | null;
+                "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors" | "variant")[] | null;
+                "filter[include_variants]"?: boolean;
                 "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
                 q?: string | null;
                 sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change" | "rank" | "-rank" | "citations" | "-citations" | "anchor" | "-anchor" | "tier" | "-tier" | "clicks" | "-clicks" | "title" | "-title" | "indexable" | "-indexable" | "in_sitemap" | "-in_sitemap";
@@ -23231,7 +23248,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksOppo
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksOpportunitiesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/opportunities"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change", "rank", "-rank", "citations", "-citations", "anchor", "-anchor", "tier", "-tier", "clicks", "-clicks", "title", "-title", "indexable", "-indexable", "in_sitemap", "-in_sitemap"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc"];
@@ -23398,10 +23415,10 @@ export const opportunityOriginValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const opportunityStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Opportunity"]["status"]> = ["open", "accepted", "dismissed"];
 export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OpportunityDecisions"]["status"]> = ["open", "accepted", "dismissed"];
 export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
-export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors"];
+export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
-export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "blocked", "redirect", "non_indexable", "generic_anchors"];
+export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "blocked", "redirect", "non_indexable", "generic_anchors", "variant"];
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
 export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
 export const placementCountPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PlacementCount"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];

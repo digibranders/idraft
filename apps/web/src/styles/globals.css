@@ -271,6 +271,29 @@
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 @keyframes showcase-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes showcase-rise { from { opacity: 0; transform: translateY(0.75rem); } to { opacity: 1; transform: translateY(0); } }
+/* A bar drawn as a cylinder lying down (15-data-visualization.md section 1a): lit along its top edge, shaded underneath,
+   rounded ends, a soft shadow in its own colour. The colour comes in as --bar-color, a chart token. */
+@utility bar-cylinder {
+  height: 0.875rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--bar-color) 55%, white) 0%,
+    var(--bar-color) 45%,
+    color-mix(in oklch, var(--bar-color) 70%, black) 100%
+  );
+  box-shadow: 0 3px 6px color-mix(in oklch, var(--bar-color) 35%, transparent);
+  transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+/* The soft shadow under a sparkline (15-data-visualization.md section 1a), in the colour of the line. */
+@utility spark-glow {
+  filter: drop-shadow(0 3px 3px color-mix(in oklch, var(--chart-1) 40%, transparent));
+}
+
 @utility showcase-grid {
   background-image: linear-gradient(to right, var(--border-subtle) 1px, transparent 1px), linear-gradient(to bottom, var(--border-subtle) 1px, transparent 1px);
   background-size: 2.5rem 2.5rem;

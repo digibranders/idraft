@@ -12,7 +12,7 @@ import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
-import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf } from './page-filters';
+import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf, variantsOnly } from './page-filters';
 import { useSearchDraft } from './search-draft';
 import { TierKeys } from './tier-keys';
 import { usePageBulk, type BulkTarget } from './use-page-bulk';
@@ -303,6 +303,11 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         current={state.worklist}
         onPick={(worklist) => setSearch({ view: worklist })}
         onPickEdges={openEdgeWorklist}
+        variants={context.crawl.crawl?.pages_variant ?? null}
+        onShowVariants={() => {
+          setSearch({ view: null });
+          setValues(variantsOnly(values));
+        }}
       />
       <div className="flex flex-wrap items-center gap-2">
         <FilterBar fields={fields} values={values} onChange={setValues} />

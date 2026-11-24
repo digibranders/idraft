@@ -571,6 +571,36 @@ EXPECTED: dict[tuple[str, str], str] = {
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/shares/{share_id}",
     ): "projects:write",
     ("GET", "/api/v1/public/internal-links/summary/{token}"): "public",
+    # Client reports: people manage schedules and share links; anyone holding a link reads one.
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules",
+    ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules",
+    ): "data:read",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules/{report_schedule_id}",
+    ): "projects:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/schedules/{report_schedule_id}",
+    ): "projects:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares",
+    ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares",
+    ): "data:read",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/reports/shares/{report_share_id}",
+    ): "projects:write",
+    ("GET", "/api/v1/public/reports/{token}"): "public",
     (
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-suggestions/accept",
@@ -714,6 +744,9 @@ PATH_PARAMETERS = {
     "project_id",
     # Client summary links: a link of a project, and the secret of a public link.
     "share_id",
+    # Client reports: a schedule or a share link of a project.
+    "report_schedule_id",
+    "report_share_id",
     "token",
     "user_id",
     "invitation_id",

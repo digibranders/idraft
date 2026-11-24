@@ -19,7 +19,15 @@ export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx', 'blocked'];
 const FLAGS: readonly (readonly [
   PageFlagFilter,
-  'orphan' | 'editorialOrphan' | 'deepOnlyThroughAuto' | 'placementUnknown' | 'hasBrokenOutlinks' | 'genericAnchors',
+  (
+    | 'orphan'
+    | 'editorialOrphan'
+    | 'deepOnlyThroughAuto'
+    | 'placementUnknown'
+    | 'hasBrokenOutlinks'
+    | 'genericAnchors'
+    | 'variant'
+  ),
 ])[] = [
   ['orphan', 'orphan'],
   ['editorial_orphan', 'editorialOrphan'],
@@ -27,6 +35,7 @@ const FLAGS: readonly (readonly [
   ['placement_unknown', 'placementUnknown'],
   ['has_broken_outlinks', 'hasBrokenOutlinks'],
   ['generic_anchors', 'genericAnchors'],
+  ['variant', 'variant'],
 ];
 
 /** The Pages filter bar (spec 7.2): tier, tag, status, indexable and flags. URL keys `tier`, `tag`, `status`, `idx`, `flag`. */
@@ -132,4 +141,9 @@ export function pageExportQuery(query: PageQuery): DownloadQuery {
     if (key !== 'limit' && value !== undefined && value !== null) wanted[key] = value;
   }
   return { ...wanted, format: 'csv' };
+}
+
+/** The filter values with only the Parameter variant flag on: what the variants count beside the total opens. */
+export function variantsOnly(values: FilterValues): FilterValues {
+  return { ...values, flag: { kind: 'enum', values: ['variant'] } };
 }

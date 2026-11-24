@@ -23,6 +23,8 @@ export interface ChartTokens {
   foregroundMuted: string;
   /** The page's font stack: a canvas cannot inherit it. */
   fontFamily: string;
+  /** Any other colour token by its name without the dashes ("seq-6", "chart-bar-neutral"), as an sRGB hex colour; `undefined` where the page defines no such token. */
+  named?: ((name: string) => string | undefined) | undefined;
 }
 
 const PALETTE = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5', '--chart-6'] as const;
@@ -73,5 +75,9 @@ export function readChartTokens(root: Element = document.documentElement): Chart
     foregroundSecondary: read('--foreground-secondary'),
     foregroundMuted: read('--foreground-muted'),
     fontFamily: getComputedStyle(document.body).fontFamily,
+    named: (name) => {
+      const value = read(`--${name}`);
+      return value === '' ? undefined : value;
+    },
   };
 }

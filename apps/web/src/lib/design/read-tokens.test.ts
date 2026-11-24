@@ -13,4 +13,13 @@ describe('readChartTokens', () => {
     document.documentElement.style.setProperty('--foreground-muted', 'muted-grey');
     expect(readChartTokens().foregroundMuted).toBe('muted-grey');
   });
+
+  it('reads any other colour token by name', () => {
+    document.documentElement.style.setProperty('--seq-6', 'deep-blue');
+    expect(readChartTokens().named?.('seq-6')).toBe('deep-blue');
+  });
+
+  it('reads a token the page does not define as undefined, so a caller can fall back', () => {
+    expect(readChartTokens().named?.('no-such-token')).toBeUndefined();
+  });
 });
