@@ -38,6 +38,7 @@
 @source "./perf-filters.js";
 @source "./perf-model.js";
 @source "./perf-ui.js";
+@source "./intent-badges.js";
 @source "./kw-dialog.js";
 @source "./kw-grouped.js";
 @source "./kw-grouped-data.js";

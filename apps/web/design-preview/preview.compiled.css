@@ -1525,6 +1525,36 @@
   .border-border-subtle {
     border-color: var(--border-subtle);
   }
+  .border-chart-1\/40 {
+    border-color: var(--chart-1);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--chart-1) 40%, transparent);
+    }
+  }
+  .border-chart-2\/40 {
+    border-color: var(--chart-2);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--chart-2) 40%, transparent);
+    }
+  }
+  .border-chart-3\/40 {
+    border-color: var(--chart-3);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--chart-3) 40%, transparent);
+    }
+  }
+  .border-chart-4\/40 {
+    border-color: var(--chart-4);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--chart-4) 40%, transparent);
+    }
+  }
+  .border-chart-6\/40 {
+    border-color: var(--chart-6);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--chart-6) 40%, transparent);
+    }
+  }
   .border-foreground-tertiary {
     border-color: var(--foreground-tertiary);
   }
@@ -1619,20 +1649,50 @@
   .bg-chart-1 {
     background-color: var(--chart-1);
   }
+  .bg-chart-1\/10 {
+    background-color: var(--chart-1);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--chart-1) 10%, transparent);
+    }
+  }
   .bg-chart-2 {
     background-color: var(--chart-2);
+  }
+  .bg-chart-2\/10 {
+    background-color: var(--chart-2);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--chart-2) 10%, transparent);
+    }
   }
   .bg-chart-3 {
     background-color: var(--chart-3);
   }
+  .bg-chart-3\/10 {
+    background-color: var(--chart-3);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--chart-3) 10%, transparent);
+    }
+  }
   .bg-chart-4 {
     background-color: var(--chart-4);
+  }
+  .bg-chart-4\/10 {
+    background-color: var(--chart-4);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--chart-4) 10%, transparent);
+    }
   }
   .bg-chart-5 {
     background-color: var(--chart-5);
   }
   .bg-chart-6 {
     background-color: var(--chart-6);
+  }
+  .bg-chart-6\/10 {
+    background-color: var(--chart-6);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--chart-6) 10%, transparent);
+    }
   }
   .bg-chart-bar-neutral {
     background-color: var(--chart-bar-neutral);
@@ -2121,6 +2181,18 @@
   }
   .text-chart-1 {
     color: var(--chart-1);
+  }
+  .text-chart-2 {
+    color: var(--chart-2);
+  }
+  .text-chart-3 {
+    color: var(--chart-3);
+  }
+  .text-chart-4 {
+    color: var(--chart-4);
+  }
+  .text-chart-6 {
+    color: var(--chart-6);
   }
   .text-foreground {
     color: var(--foreground);

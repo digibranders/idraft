@@ -386,10 +386,12 @@ function nameCell(topic, { open }) {
     toggle.append(icon('chevron-right', `size-icon-sm shrink-0 transition-transform${open ? ' rotate-90' : ''}`));
     line.append(toggle);
   }
-  const text = el('span', 'flex min-w-0 flex-1 items-baseline gap-2');
+  const text = el('span', 'flex min-w-0 flex-1 items-center gap-2');
   const title = el('span', 'min-w-0 truncate text-foreground', topic.name);
   title.dataset.keyCell = '';
-  text.append(title, el('span', 'min-w-0 truncate num font-normal text-foreground-tertiary', plural(topic.prompts.length, 'prompt')));
+  const badge = el('span', 'shrink-0 rounded-full bg-surface-hover px-2 type-label num font-normal text-foreground-secondary', String(topic.prompts.length));
+  badge.setAttribute('aria-label', plural(topic.prompts.length, 'prompt'));
+  text.append(icon('folder', 'size-icon-sm shrink-0 text-foreground'), title, badge);
   line.append(text);
   cell.append(line);
   return cell;

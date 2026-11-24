@@ -14,17 +14,19 @@ import { COMPETITORS, ENGINES, OWN, answerFor, clamp, engineOf, linkedKeywordOf,
 // Intent: a property of the prompt, the same on every engine
 
 const INTENT_OF_TYPE = { recommendation: 'Commercial', comparison: 'Commercial', how_to: 'Informational', question: 'Informational', definition: 'Informational' };
-export const INTENT_TIP = {
-  Informational: 'The asker wants to learn something',
-  Commercial: 'The asker is choosing between options',
-  Transactional: 'The asker is ready to buy or sign up',
-  Navigational: 'The asker is looking for a specific brand',
-};
 
 export function intentOf(prompt) {
   if (prompt.branded) return 'Navigational';
   if (prompt.topic === 'Pricing') return 'Transactional';
   return INTENT_OF_TYPE[prompt.type] ?? 'Informational';
+}
+
+/** All intents of a prompt (lower case): its own, plus local when it names a place, and research for a comparison. */
+export function intentsOf(prompt) {
+  const found = new Set([intentOf(prompt).toLowerCase()]);
+  if (/\b(in|near) (india|me|the middle east|west of india)\b|\bmiddle east\b/i.test(prompt.text)) found.add('local');
+  if (prompt.type === 'comparison' || prompt.type === 'recommendation') found.add('informational');
+  return [...found];
 }
 
 // -------------------------------------------------------------------------------------------------

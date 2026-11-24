@@ -118,6 +118,16 @@ export const best = (keyword, devices = devicesIn()) =>
 
 const hash = (text) => [...text].reduce((total, char) => (total * 31 + char.charCodeAt(0)) >>> 0, 7);
 
+/** All intents of a keyword: the stored one, plus what its words add (a place is local, "best" also researches, "price" buys). */
+export function intentsOf(keyword) {
+  const found = new Set(keyword.intent === 'unknown' ? [] : [keyword.intent]);
+  const text = keyword.keyword;
+  if (/\b(in|near) (india|me)\b/.test(text)) found.add('local');
+  if (/^(best|top)\b/.test(text)) found.add('informational');
+  if (/\b(price|pricing|cost|buy)\b/.test(text)) found.add('transactional');
+  return [...found];
+}
+
 /** What a keyword shows that the preview does not store: derived from its text, so it is the same on every visit. */
 export function derived(keyword) {
   // Desktop and mobile see different results, so what a keyword shows is its own for each device
@@ -198,7 +208,7 @@ export function monthly(keyword) {
 export const FILTER_FIELDS = {
   country: { label: 'Location', multiple: true, values: () => usedCountries().map((name) => [name, name]) },
   group: { label: 'Group', values: () => [...groupNames(), UNGROUPED].map((name) => [name, name]) },
-  intent: { label: 'Intent', values: () => [['commercial', 'Commercial'], ['navigational', 'Navigational'], ['informational', 'Informational'], ['unknown', 'Unknown']] },
+  intent: { label: 'Intent', values: () => [['informational', 'Informational'], ['commercial', 'Commercial'], ['transactional', 'Transactional'], ['navigational', 'Navigational'], ['local', 'Local'], ['unknown', 'Unknown']] },
   rank: { label: 'Rank', values: () => [['top3', 'Top 3'], ['top10', 'Top 10'], ['top20', 'Top 20'], ['top100', 'Top 100'], ['beyond', 'Beyond depth']] },
   volume: { label: 'Volume', values: () => [['100', '100 or more'], ['1000', '1,000 or more']] },
   kd: { label: 'Keyword difficulty', values: () => [['30', '30 or less'], ['50', '50 or less']] },
@@ -210,7 +220,7 @@ function matchesFilter({ field, value }, keyword) {
   // Locations are one choice among several: the keyword's location is in the chosen ones (see `shown`)
   if (field === 'country') return true;
   if (field === 'group') return (keyword.group ?? UNGROUPED) === value;
-  if (field === 'intent') return keyword.intent === value;
+  if (field === 'intent') return value === 'unknown' ? intentsOf(keyword).length === 0 : intentsOf(keyword).includes(value);
   if (field === 'volume') return keyword.volume >= Number(value);
   if (field === 'kd') return keyword.kd !== null && keyword.kd <= Number(value);
   if (field === 'moved') return devices.some((device) => (value === 'up' ? gained(keyword, device) > 0 : gained(keyword, device) < 0));
@@ -252,7 +262,7 @@ export function tableRows(items) {
     impressions(keyword),
     keyword.kd ?? '',
     keyword.cpc || '',
-    keyword.intent,
+    intentsOf(keyword).join(', '),
     groupOf(keyword),
     derived(keyword).updated,
   ]);
