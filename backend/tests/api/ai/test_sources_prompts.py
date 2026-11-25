@@ -363,7 +363,6 @@ async def test_the_meta_names_the_window_and_the_engines(
         "chatgpt_web",
         "gemini_web",
         "google_ai_mode",
-        "google_ai_overview",
     ]
     assert body["page"]["limit"] == 50
 

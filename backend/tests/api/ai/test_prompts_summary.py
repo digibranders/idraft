@@ -867,7 +867,7 @@ async def _full_project(resources: Resources, migrated: PostgresServer) -> Summa
         "e.observation_class, p.id, p.current_version_id, "
         "'q', 'dataforseo', 'ai_optimization/chat_gpt/llm_scraper', 'complete', false, $2, "
         "1, 1, 1 FROM ai.prompts p CROSS JOIN ai.engines e CROSS JOIN generate_series(0, 7) n "
-        "WHERE p.project_id = $1",
+        "WHERE p.project_id = $1 AND e.code <> 'google_ai_overview'",
         project.id,
         raw["id"],
     )

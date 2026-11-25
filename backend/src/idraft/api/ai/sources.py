@@ -1080,6 +1080,8 @@ class SourceService:
                 answers=counts.answers,
                 answers_with_fanout=counts.answers_with_fanout,
                 answers_truncated=counts.answers_truncated,
-                engines_without_fanout=[EngineCode(code) for code in NO_FANOUT],
+                engines_without_fanout=[
+                    EngineCode(code) for code in NO_FANOUT if EngineCode(code) in PROMPT_ENGINES
+                ],
             ),
         )

@@ -225,7 +225,6 @@ async def test_a_viewer_reads_a_new_route_with_nothing_to_count(
         "chatgpt_web",
         "gemini_web",
         "google_ai_mode",
-        "google_ai_overview",
     ]
 
 
