@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Row, Select, select, tuple_, update
+from sqlalchemy import Row, Select, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
@@ -50,9 +50,9 @@ from idraft.collectors.crawl_runs import (
     Trigger,
     queue_run,
 )
-from idraft.collectors.crawl_store import latest_run
+from idraft.collectors.crawl_store import DATA_STATES, latest_run
 from idraft.db.engine import workspace_transaction
-from idraft.db.tables import crawl_runs, users
+from idraft.db.tables import crawl_pages, crawl_runs, users
 from idraft.domain.workloads import CostWorkload
 
 
@@ -67,6 +67,8 @@ class CrawlRecord:
     sitemap_pages: int | None
     pages_blocked: int | None
     pages_variant: int | None
+    # The pages that count: the crawl's stored pages that are not variants.
+    pages: int
     render_javascript: bool
     estimated_cost_usd: Decimal | None
     cost_usd: Decimal | None
@@ -82,11 +84,6 @@ class CrawlRecord:
     links_available: bool
     previous_run_id: UUID | None
     enrich_state: Literal["pending", "running", "done", "failed"]
-
-    @property
-    def pages(self) -> int:
-        """The crawl's pages that count: the ones it crawled, less its parameter variants."""
-        return self.pages_crawled - (self.pages_variant or 0)
 
     @property
     def hints(self) -> list[Literal["render_javascript"]]:
@@ -121,6 +118,13 @@ def _record(row: Row[tuple[object, ...]]) -> CrawlRecord:
         sitemap_pages=row.sitemap_pages,
         pages_blocked=row.pages_blocked,
         pages_variant=row.pages_variant,
+        # The provider's count includes pages that are not stored; once the crawl has its data,
+        # count what is stored. Before that, the provider's count is all there is.
+        pages=(
+            row.pages_counted
+            if row.state in DATA_STATES
+            else row.pages_crawled - (row.pages_variant or 0)
+        ),
         render_javascript=bool(row.settings.get("render_javascript")),
         estimated_cost_usd=row.estimated_cost_usd,
         cost_usd=row.cost_usd,
@@ -143,6 +147,15 @@ def _runs_query(workspace_id: UUID, project_id: UUID) -> Select[tuple[object, ..
     return (
         select(
             crawl_runs,
+            select(func.count())
+            .where(
+                crawl_pages.c.workspace_id == crawl_runs.c.workspace_id,
+                crawl_pages.c.run_id == crawl_runs.c.id,
+                crawl_pages.c.variant_of_url_id.is_(None),
+            )
+            .correlate(crawl_runs)
+            .scalar_subquery()
+            .label("pages_counted"),
             users.c.name.label("requester_name"),
             users.c.email.label("requester_email"),
         )
