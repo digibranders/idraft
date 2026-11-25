@@ -42,6 +42,18 @@ function posts(): () => { route: string; body: unknown }[] {
   return () => seen;
 }
 
+/** The row of the popover table for a page, found by its path. */
+const rowOf = async (path: string): Promise<HTMLElement> => {
+  const table = await screen.findByRole('table', { name: 'Suggested tiers' });
+  const row = within(table)
+    .getAllByRole('row')
+    .find((candidate) => within(candidate).queryByText(path) !== null);
+  if (row === undefined) throw new Error(`No row for ${path}`);
+  return row;
+};
+const actionOf = async (path: string, name: string): Promise<HTMLElement> =>
+  within(await rowOf(path)).getByRole('button', { name });
+
 const chip = (): Promise<HTMLElement> => screen.findByRole('button', { name: /^Suggested tiers \d+$/ });
 
 describe('the Suggested tiers chip and popover', () => {
@@ -49,7 +61,7 @@ describe('the Suggested tiers chip and popover', () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await user.click(await chip());
     const table = await screen.findByRole('table', { name: 'Suggested tiers' });
-    for (const name of ['Page', 'Now', 'Suggested', 'Why']) {
+    for (const name of ['Page', 'Tier']) {
       expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
     }
     expect(within(table).getByText('/blog/what-is-a-soc')).toBeInTheDocument();
@@ -58,15 +70,30 @@ describe('the Suggested tiers chip and popover', () => {
     expect(document.body.textContent).not.toMatch(/equity/i);
   });
 
+  it('names the page: its address links to it in a new tab, the title and the reason sit under it, and the tiers read from to', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await chip());
+    const row = await rowOf('/blog/what-is-a-soc');
+    const link = within(row).getByRole('link', { name: /what-is-a-soc/ });
+    expect(link).toHaveAttribute('href', expect.stringContaining('/blog/what-is-a-soc'));
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(row).toHaveTextContent(/T3.*to.*T2/);
+    expect(row).toHaveTextContent('What is a SOC?');
+    expect(row).toHaveTextContent(/Clicks in 28 days: 1,810/);
+    // The row actions are icon buttons that carry their names
+    expect(within(row).getByRole('button', { name: 'Accept suggestion' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Dismiss suggestion' })).toBeInTheDocument();
+    expect(within(row).queryByText('Accept')).toBeNull();
+  });
+
   it('accepts one page, says how many moved, and the row leaves the list', async () => {
     const sent = posts();
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await user.click(await chip());
-    await user.click(await screen.findByRole('button', { name: 'Accept the suggestion for /blog/soc-vs-mdr' }));
+    await user.click(await actionOf('/blog/soc-vs-mdr', 'Accept suggestion'));
     expect(await screen.findByText('1 page moved')).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Accept the suggestion for /blog/soc-vs-mdr' })).toBeNull(),
-    );
+    const table = await screen.findByRole('table', { name: 'Suggested tiers' });
+    await waitFor(() => expect(within(table).queryByText('/blog/soc-vs-mdr')).toBeNull());
     expect(sent()).toEqual([{ route: 'accept', body: { url_ids: ['113'] } }]);
     // The chip counts the rest
     expect(await screen.findByRole('button', { name: 'Suggested tiers 2' })).toBeInTheDocument();
@@ -76,7 +103,7 @@ describe('the Suggested tiers chip and popover', () => {
     const sent = posts();
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await user.click(await chip());
-    await user.click(await screen.findByRole('button', { name: 'Dismiss the suggestion for /blog' }));
+    await user.click(await actionOf('/blog', 'Dismiss suggestion'));
     expect(await screen.findByText('1 suggestion dismissed')).toBeInTheDocument();
     await waitFor(() => expect(sent()).toHaveLength(1));
     await user.click(await screen.findByRole('button', { name: 'Accept all' }));
@@ -98,7 +125,7 @@ describe('the Suggested tiers chip and popover', () => {
     await user.click(await chip());
     await user.click(await screen.findByRole('button', { name: 'Accept all' }));
     expect(await screen.findByText('1 page moved')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Dismiss the suggestion for /blog' }));
+    await user.click(await actionOf('/blog', 'Dismiss suggestion'));
     expect(await screen.findByText('No suggestions dismissed')).toBeInTheDocument();
   });
 
@@ -106,7 +133,7 @@ describe('the Suggested tiers chip and popover', () => {
     server.use(http.post(ACCEPT, () => HttpResponse.json({ data: { matched: 1, changed: 0 } })));
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await user.click(await chip());
-    await user.click(await screen.findByRole('button', { name: 'Accept the suggestion for /blog' }));
+    await user.click(await actionOf('/blog', 'Accept suggestion'));
     expect(await screen.findByText('No pages moved')).toBeInTheDocument();
   });
 
@@ -118,7 +145,7 @@ describe('the Suggested tiers chip and popover', () => {
     );
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await user.click(await chip());
-    const accept = await screen.findByRole('button', { name: 'Accept the suggestion for /blog' });
+    const accept = await actionOf('/blog', 'Accept suggestion');
     await user.click(accept);
     // The toast is also said once through the announcer, so the text may be on the page twice
     expect((await screen.findAllByText('The suggestion could not be saved')).length).toBeGreaterThan(0);

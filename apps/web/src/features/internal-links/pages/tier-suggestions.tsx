@@ -1,17 +1,18 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sparkles } from 'lucide-react';
+import { Check, Sparkles, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 
+import { URLCell } from '@/components/app/cells/url-cell';
 import { InlineError } from '@/components/app/status/inline-error';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Popover } from '@/components/ui/popover';
 import { toast } from '@/components/ui/toast';
-import { Truncate } from '@/components/ui/truncate';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger } from '@/lib/format';
 import { reasonOf } from '@/lib/internal-links/problem-reason';
@@ -58,7 +59,7 @@ export function TierSuggestions({
   useEffect(() => {
     if (!refocus.current || fetching) return;
     refocus.current = false;
-    const next = body.current?.querySelector<HTMLElement>('button');
+    const next = body.current?.querySelector<HTMLElement>('[data-suggestion-action]:not(:disabled)');
     if (next !== null && next !== undefined) next.focus();
     else if (count === 0) onEmptied();
   }, [fetching, count, onEmptied]);
@@ -109,11 +110,26 @@ export function TierSuggestions({
     {
       id: 'page',
       header: t('page'),
-      cell: (row) => <Truncate text={row.path} className="max-w-48 type-table text-foreground" />,
+      wrap: true,
+      // The reason sits under the page, so it has the width of the whole row
+      cell: (row) => (
+        <span className="flex w-96 max-w-full min-w-0 flex-col gap-0.5">
+          <URLCell url={row.url} hostDisplay="hide" label={t('pageLabel')} title={row.title} context="list" />
+          <span className="type-meta text-foreground-secondary">{whyOf(row)}</span>
+        </span>
+      ),
     },
-    { id: 'from', header: t('from'), cell: (row) => <TierBadge tier={row.from_tier} /> },
-    { id: 'to', header: t('to'), cell: (row) => <TierBadge tier={row.to_tier} /> },
-    { id: 'why', header: t('why'), wrap: true, cell: (row) => <span className="type-table">{whyOf(row)}</span> },
+    {
+      id: 'tier',
+      header: t('tier'),
+      cell: (row) => (
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          <TierBadge tier={row.from_tier} />
+          <span className="type-meta text-foreground-secondary">{t('tierTo')}</span>
+          <TierBadge tier={row.to_tier} />
+        </span>
+      ),
+    },
     ...(canWrite
       ? [
           {
@@ -122,25 +138,22 @@ export function TierSuggestions({
             hideHeader: true,
             actions: true,
             cell: (row: TierSuggestionRow) => (
-              <span className="flex items-center justify-end gap-2">
-                <Button
-                  size="sm"
+              <span className="flex items-center justify-end gap-1">
+                <IconButton
+                  icon={Check}
+                  label={t('acceptRow')}
                   variant="secondary"
                   disabled={busy}
-                  aria-label={t('acceptRow', { path: row.path })}
+                  data-suggestion-action=""
                   onClick={() => void one(row, 'accept')}
-                >
-                  {t('accept')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                />
+                <IconButton
+                  icon={X}
+                  label={t('dismissRow')}
                   disabled={busy}
-                  aria-label={t('dismissRow', { path: row.path })}
+                  data-suggestion-action=""
                   onClick={() => void one(row, 'dismiss')}
-                >
-                  {t('dismiss')}
-                </Button>
+                />
               </span>
             ),
           },
