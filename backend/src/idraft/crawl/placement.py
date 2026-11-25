@@ -24,6 +24,16 @@ from html.parser import HTMLParser
 from typing import Final, Literal
 from urllib.parse import urldefrag, urljoin, urlsplit
 
+# `<!-->` and `<!--->` are empty comments in a browser, but the standard parser reads them as the
+# start of a comment that runs to the next `-->`, and so loses the rest of the page: every link
+# and every word after it. Builder plugins write them (Oxygen puts `<!--->` after a header), so
+# every reader of a page's HTML takes them out first.
+_EMPTY_COMMENT: Final = re.compile(r"<!---?>")
+
+
+def without_empty_comments(html: str) -> str:
+    return _EMPTY_COMMENT.sub("", html)
+
 
 class Placement(StrEnum):
     CONTENT = "content"
@@ -454,7 +464,7 @@ def classify(html: str, page_url: str) -> list[FoundLink]:
     page itself, links that are not http or https and links that cannot be parsed or are longer
     than `_HREF_MAX` characters are dropped first."""
     reader = _Reader()
-    reader.feed(html)
+    reader.feed(without_empty_comments(html))
     reader.close()
     base = _base_url(page_url, reader.base)
     own = page_key(page_url)

@@ -1047,3 +1047,14 @@ def test_links_the_first_pass_placed_are_never_changed_by_the_template_pass() ->
         Placement.NAVIGATION,
         Placement.HEADER,
     ]
+
+
+def test_an_empty_comment_does_not_hide_the_links_after_it() -> None:
+    # Oxygen writes `<!--->` after a header: read as a comment start, it swallowed the page.
+    html = (
+        '<header><a href="/home">Home</a></header><!---><main><article>'
+        '<p><a href="/cybersecurity/soc/siem/">SIEM</a></p></article></main><!--><footer>'
+        '<a href="/privacy">Privacy</a></footer>'
+    )
+
+    assert set(_placed(html)) == {"/home", "/cybersecurity/soc/siem/", "/privacy"}
