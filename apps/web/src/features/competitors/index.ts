@@ -8,7 +8,7 @@ export { AddCompetitorControlProvider, useAddCompetitorControl } from './add-com
 export type { AddCompetitorControl } from './add-competitor-control';
 export { CompetitorsProvider, useCompetitors } from './competitors-context';
 export type { CompetitorsContextValue, CompetitorsEngine, CompetitorsProject } from './competitors-context';
-export type { CompetitorsReads, CompetitorsRead, InspectedCompetitor } from './data/use-competitors-reads';
+export type { CompetitorsReads, CompetitorsRead } from './data/use-competitors-reads';
 export type { Read, ReadStatus } from './data/read-state';
 export type { CompetitorsScope, CompetitorTab } from './scope/scope-model';
 export type { ScopePatch } from './scope/use-competitors-scope';

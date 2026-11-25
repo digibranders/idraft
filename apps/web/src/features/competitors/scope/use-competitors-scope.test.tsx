@@ -32,18 +32,18 @@ function setup(searchParams: string) {
 describe('useCompetitorsScope', () => {
   it('an empty address is the default scope and writes nothing', () => {
     const { result, updates } = setup('');
-    expect(result.current.scope).toMatchObject({ tab: 'comparison', compare: true, eng: 'chatgpt_web' });
+    expect(result.current.scope).toMatchObject({ tab: 'competitors', compare: true, eng: 'chatgpt_web' });
     expect(result.current.range).toEqual({ from: '2026-10-17', to: '2026-11-13' });
     expect(updates).toHaveLength(0);
   });
 
   it('setting a value that is the default removes its key', async () => {
     const { result, updates, latest } = setup(
-      `?cmp=off&tab=ai&engine=gemini_web&metric=sov&branded=only&topic=${TOPIC}&country=DE`,
+      `?cmp=off&tab=sov&engine=gemini_web&metric=sov&branded=only&topic=${TOPIC}&country=DE`,
     );
     act(() => {
       result.current.setScope({
-        tab: 'comparison',
+        tab: 'competitors',
         compare: true,
         engines: null,
         metric: 'mention',
@@ -77,21 +77,21 @@ describe('useCompetitorsScope', () => {
   it('changing tab pushes history and clears cols, q and sort', async () => {
     const { result, updates, latest } = setup('?cols=topic,gap&q=crm&sort=-gap&density=default&metric=sov');
     act(() => {
-      result.current.setScope({ tab: 'ai' });
+      result.current.setScope({ tab: 'sov' });
     });
     await waitFor(() => expect(updates.length).toBeGreaterThan(0));
     expect(updates.at(-1)?.options.history).toBe('push');
-    expect(latest().get('tab')).toBe('ai');
+    expect(latest().get('tab')).toBe('sov');
     for (const key of ['cols', 'q', 'sort']) expect(latest().has(key)).toBe(false);
     // The other keys of the page stay
     expect(latest().get('density')).toBe('default');
     expect(latest().get('metric')).toBe('sov');
   });
 
-  it('going back to Comparison removes the tab key', async () => {
+  it('going back to Competitors removes the tab key', async () => {
     const { result, updates, latest } = setup('?tab=seo');
     act(() => {
-      result.current.setScope({ tab: 'comparison' });
+      result.current.setScope({ tab: 'competitors' });
     });
     await waitFor(() => expect(updates.length).toBeGreaterThan(0));
     expect(latest().has('tab')).toBe(false);

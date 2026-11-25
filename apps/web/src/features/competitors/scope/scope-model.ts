@@ -14,10 +14,17 @@ import { parseDensity, type Density } from '@/lib/tables/table-state';
  * not import; the Overview's own links are read back in `inbound-links.test.ts`.
  */
 
-export type CompetitorTab = 'comparison' | 'seo' | 'ai' | 'candidates';
+export type CompetitorTab = 'competitors' | 'mentions' | 'citations' | 'sov' | 'visibility' | 'seo';
 
 /** The tabs in the order the page lists them. */
-export const COMPETITOR_TAB_IDS: readonly CompetitorTab[] = ['comparison', 'seo', 'ai', 'candidates'];
+export const COMPETITOR_TAB_IDS: readonly CompetitorTab[] = [
+  'competitors',
+  'mentions',
+  'citations',
+  'sov',
+  'visibility',
+  'seo',
+];
 
 /** Branded prompts: left out (default), counted with the rest, or counted alone. */
 export type Branded = 'excluded' | 'included' | 'only';
@@ -105,7 +112,7 @@ export function parseScope(search: CompetitorsSearch, enabled: readonly EngineCo
   const engineScope = CATALOG_ORDER.filter((code) => wanted.includes(code));
   const chosen = engineScope.find((code) => code === search.eng);
   return {
-    tab: COMPETITOR_TAB_IDS.find((tab) => tab === search.tab) ?? 'comparison',
+    tab: COMPETITOR_TAB_IDS.find((tab) => tab === search.tab) ?? 'competitors',
     compare: parseCompare(search.cmp),
     country: parseCountry(search.country ?? null),
     engines,

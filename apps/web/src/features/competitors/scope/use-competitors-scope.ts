@@ -73,7 +73,7 @@ export function useCompetitorsScope(timeZone: string, enabledEngines: readonly E
     (patch: ScopePatch): void => {
       const keys: Partial<Record<CompetitorKey, string | null>> = {};
       if (patch.tab !== undefined) {
-        keys.tab = patch.tab === 'comparison' ? null : patch.tab;
+        keys.tab = patch.tab === 'competitors' ? null : patch.tab;
         // The table state belongs to the tab it was set on
         keys.cols = null;
         keys.q = null;

@@ -12,13 +12,11 @@ import { compareParams } from '@/lib/compare/compare-model';
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const ENGINES = `${P}/engines` as const;
 const COMPETITORS = `${P}/ai/competitors` as const;
-const SUMMARY = `${P}/ai/prompts-summary` as const;
+const KEYWORDS = `${P}/tracked-keywords` as const;
 const SERIES = `${P}/ai/metrics/{metric}/series` as const;
 
 /** The rows of `lost_prompts` asked per competitor and engine: the most the API gives. */
 export const LOST_LIMIT = 10;
-/** The domains of `top_sources` asked per entity: the most the API gives. */
-export const SOURCES_LIMIT = 5;
 /** The most entities one read names. */
 export const MAX_ENTITY_IDS = 20;
 
@@ -132,52 +130,38 @@ export const lostPromptsQuery = (
     },
   });
 
-/**
- * R3, `GET {P}/ai/prompts-summary` as topic rows with each tracked entity's cell, for the one engine `eng`: the by
- * topic table, the leader of each topic and the freshness of the header. The prompt rows are left out (`rows=topics`).
- */
-export const topicRowsQuery = (
-  project: ProjectRef,
-  read: ReadScope,
-  engine: EngineCode,
-): ApiQueryOptions<typeof SUMMARY> =>
-  apiQuery(SUMMARY, {
-    params: {
-      path: pathOf(project),
-      query: { ...sharedQuery(read, engine), rows: 'topics', include: ['entities', 'total'] },
-    },
-  });
+/** The metrics whose weekly series the API builds per entity: share of voice and mention rate. */
+export type SeriesMetric = 'ai.share_of_voice' | 'ai.mention_rate';
 
 /**
- * R4, `GET {P}/ai/metrics/ai.share_of_voice/series`: one weekly series per listed entity and engine, for the AI
- * tab's charts. At most 20 entity ids, sorted so equal sets share a key.
+ * R4, `GET {P}/ai/metrics/{metric}/series`: one weekly series per listed entity and engine, for the trend charts.
+ * At most 20 entity ids, sorted so equal sets share a key.
  */
-export const sovSeriesQuery = (
+export const seriesQuery = (
   project: ProjectRef,
   read: ReadScope,
+  metric: SeriesMetric,
   entityIds: readonly string[],
 ): ApiQueryOptions<typeof SERIES> =>
   apiQuery(SERIES, {
     params: {
-      path: { ...pathOf(project), metric: 'ai.share_of_voice' },
+      path: { ...pathOf(project), metric },
       query: { ...sharedQuery(read), entity_ids: sorted(entityIds).slice(0, MAX_ENTITY_IDS) },
     },
   });
 
-/** R6, `GET {P}/ai/competitors` with `include=top_sources` for the entities named: the inspector's Sources tab. */
-export const sourcesQuery = (
-  project: ProjectRef,
-  read: ReadScope,
-  entityIds: readonly string[],
-): ApiQueryOptions<typeof COMPETITORS> =>
-  apiQuery(COMPETITORS, {
+/** The most keywords the SEO tab reads: one page, the largest the API gives. */
+export const KEYWORDS_LIMIT = 100;
+
+/**
+ * R5, `GET {P}/tracked-keywords` with `include=competitor_ranks`: the tracked keywords with the own rank and the
+ * rank of every competitor from the latest check. Search rankings are not AI answers, so the engine, branded and topic
+ * filters of the page do not apply to it.
+ */
+export const keywordRanksQuery = (project: ProjectRef): ApiQueryOptions<typeof KEYWORDS> =>
+  apiQuery(KEYWORDS, {
     params: {
       path: pathOf(project),
-      query: {
-        ...sharedQuery(read),
-        entity_ids: sorted(entityIds).slice(0, MAX_ENTITY_IDS),
-        include: ['top_sources'],
-        sources_limit: SOURCES_LIMIT,
-      },
+      query: { include: ['competitor_ranks'], 'filter[is_active]': true, limit: KEYWORDS_LIMIT },
     },
   });

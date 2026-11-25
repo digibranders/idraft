@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
@@ -52,6 +52,7 @@ export function ImportDialog({
   const common = useTranslations('common');
   const queryClient = useQueryClient();
   const apply = useMutation(importTiersMutation);
+  const picker = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
   const [checked, setChecked] = useState<Checked | null>(null);
   const [refused, setRefused] = useState<TierImportResult['errors'] | null>(null);
@@ -113,6 +114,15 @@ export function ImportDialog({
     setChecked(null);
     setRefused(null);
     setFailure(null);
+  };
+
+  // A file is read as text into the same box, so Check and Apply work on it as on pasted text
+  const load = async (file: File): Promise<void> => {
+    try {
+      edit(await file.text());
+    } catch {
+      setFailure(t('readFailed'));
+    }
   };
 
   const submit = (): void => {
@@ -199,12 +209,37 @@ export function ImportDialog({
             spellCheck={false}
             autoComplete="off"
             onChange={(event) => edit(event.target.value)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const dropped = event.dataTransfer.files[0];
+              if (dropped !== undefined) void load(dropped);
+            }}
           />
-          <FieldDescription>{t('hint')}</FieldDescription>
+          <FieldDescription>
+            {t('hint')} {t('dropHint')}
+          </FieldDescription>
         </Field>
-        <Button variant="secondary" size="sm" className="mt-2 self-start" onClick={check}>
-          {t('check')}
-        </Button>
+        <input
+          ref={picker}
+          type="file"
+          hidden
+          accept=".csv,text/csv"
+          onChange={(event) => {
+            const chosen = event.target.files?.item(0);
+            // The same file chosen again still fires a change
+            event.target.value = '';
+            if (chosen !== null && chosen !== undefined) void load(chosen);
+          }}
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => picker.current?.click()}>
+            {t('chooseFile')}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={check}>
+            {t('check')}
+          </Button>
+        </div>
         {checked === null ? null : checked.rows.length === 0 && checked.errors.length === 0 ? (
           <p className="mt-3 type-body text-foreground-secondary">{t('nothing')}</p>
         ) : (
