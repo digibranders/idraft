@@ -112,6 +112,7 @@ import { useErrorId } from '@/lib/api/use-error-id';
 import { comparedWindow, isCompared } from '@/lib/compare/compare-model';
 import { copyText } from '@/lib/dom/clipboard';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { enumValuesOf } from '@/lib/filters/filter-values';
 import { formatBusinessDate, formatInteger, formatList, formatRelative } from '@/lib/format';
 import { formatInspectTarget } from '@/lib/inspector/placement';
@@ -229,6 +230,9 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const engines = useQuery(enginesQuery(scope));
   const enginesErrorId = useErrorId(engines.error);
   const enabled = useMemo(() => (engines.data?.data ?? []).filter((engine) => engine.is_enabled), [engines.data]);
+  // The platforms a prompt is asked on: Google AI Overview is read from rank checks, so Run now, Add prompts and the
+  // inspector's answer views leave it out
+  const askable = useMemo(() => enabled.filter((engine) => !isKeywordLevelEngine(engine.engine)), [enabled]);
   const { countries } = useCountries();
   const countryName = useMemo(
     () => new Map(countries.map((country) => [country.country_iso, country.name])),
@@ -401,6 +405,8 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
     [enabled, chosenPlatforms],
   );
   // The Platform select is the filter's own control: one platform needs no chip, while a set of two or more keeps it
+  // The group views and the group drawer count answers, which Google AI Overview has none of
+  const shownAnswered = useMemo(() => shown.filter((engine) => !isKeywordLevelEngine(engine.engine)), [shown]);
   const platformChipHidden = chosenPlatforms.length > 0 && shown.length === 1;
   const setPlatforms = (codes: readonly string[]): void =>
     setValues(
@@ -517,7 +523,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const actions = usePromptActions({
     scope,
     rowsById,
-    engines: enabled,
+    engines: askable,
     shown,
     range,
     // Only the prompts an action changed leave the choice: the rest of it stays, a row's own action included
@@ -708,7 +714,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
   const add = useAddPrompts({
     scope,
     project,
-    engines: engines.data === undefined ? undefined : enabled,
+    engines: engines.data === undefined ? undefined : askable,
     canWrite,
     existing: list.rows,
   });
@@ -1153,7 +1159,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
               range={range}
               summary={summaryData}
               detectable={detectableGroups}
-              engines={shown}
+              engines={shownAnswered}
               descendants={descendants}
               tree={topicTree}
               kept={kept}
@@ -1301,7 +1307,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         pageHref={promptPath(workspaceSlug, project.slug, openPrompt)}
         timeZone={project.timeZone}
         range={range}
-        engines={enabled}
+        engines={askable}
         allEngines={engines.data?.data ?? []}
         counts={counts}
         positionText={
@@ -1366,7 +1372,7 @@ function PromptsContent({ workspaceId, workspaceSlug, project }: PromptsScreenPr
         topicKey={openTopic}
         summary={summary.data?.data}
         counts={counts}
-        engines={shown}
+        engines={shownAnswered}
         descendants={descendants}
         treeName={topicTree.find((term) => term.termId === openTopic)?.name ?? null}
         treePending={vocabularies.pending}

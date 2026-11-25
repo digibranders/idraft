@@ -230,7 +230,7 @@ describe('Unit costs tab, cost per AI answer', () => {
     expect(figure(/ChatGPT/)).toBe('$0.0012');
     expect(figure(/Gemini/)).toBe('$0.001234');
     expect(figure(/Google AI Mode/)).toBe('$0.000001');
-    expect(figure(/google_ai_overview/)).toBe('$0.30');
+    expect(figure(/Google AI Overview/)).toBe('$0.30');
   });
 
   it('the provider price column comes from the price book already read', async () => {

@@ -13,8 +13,6 @@ import { enumValuesOf } from '@/lib/filters/filter-values';
 /** The values of the choices that are not a platform: every platform, and a set of two or more of them. */
 const ALL = 'all';
 const SET = 'set';
-/** The platform the API does not offer yet: listed, never chosen. */
-const AI_OVERVIEW = 'google_ai_overview';
 
 /**
  * Which choice a list of platform codes is, among the platforms that are on: none or all of them is "all", one is that
@@ -66,18 +64,6 @@ export function PlatformSelect({ engines, chosen, onChange }: PlatformSelectProp
       label: engine.engine.label,
       icon: <PlatformMark code={engine.engine.engine_code} />,
     })),
-    // Listed as the Overview's select lists it, so people see it is coming: the API does not collect it yet
-    ...(enabled.includes(AI_OVERVIEW)
-      ? []
-      : [
-          {
-            value: AI_OVERVIEW,
-            label: words('aiOverview'),
-            description: words('unavailable'),
-            disabled: true,
-            icon: <PlatformMark code={AI_OVERVIEW} />,
-          },
-        ]),
     // Only while the filter holds a set: it is shown, not offered
     ...(value === SET ? [{ value: SET, label: t('set', { count: setSize }), icon: <PlatformMark code={null} /> }] : []),
   ];

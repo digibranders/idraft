@@ -1,4 +1,5 @@
-import type { CitationOut, EngineCode, MentionOut, ObservationDetail } from '@/lib/api/types';
+import type { AskedEngineCode } from './prompt-fixtures';
+import type { CitationOut, MentionOut, ObservationDetail } from '@/lib/api/types';
 
 /**
  * The shape of one AI answer as the API gives it (text, mentions with UTF-16 spans, sources, fact row), made from
@@ -32,7 +33,7 @@ export function webAddress(value: unknown): string | null {
   }
 }
 
-export const PROVIDER_CHECK: Readonly<Record<EngineCode, string>> = {
+export const PROVIDER_CHECK: Readonly<Record<AskedEngineCode, string>> = {
   chatgpt_web: 'https://chatgpt.com/',
   gemini_web: 'https://gemini.google.com/app',
   google_ai_mode: 'https://www.google.com/search?udm=50',
@@ -43,7 +44,7 @@ export const PROVIDER_CHECK: Readonly<Record<EngineCode, string>> = {
  * source list or inline links, Google AI Mode reference cards. An advertisement is never stored as a source
  * (providers/dataforseo/ai_parse.py drops them).
  */
-export const CITATION_KINDS: Readonly<Record<EngineCode, string>> = {
+export const CITATION_KINDS: Readonly<Record<AskedEngineCode, string>> = {
   chatgpt_web: 'source_list',
   gemini_web: 'source_list',
   google_ai_mode: 'reference_card',

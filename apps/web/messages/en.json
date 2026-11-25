@@ -4049,6 +4049,8 @@
     "confirm": "Turn on {engine}",
     "turnedOn": "{engine} is on",
     "turnedOnHint": "The first answers arrive after the next Monday or Thursday run.",
+    "turnedOnKeywordLevelHint": "It is read from the next rank checks of your linked keywords.",
+    "keywordLevelNote": "Read from the rank checks of linked keywords. It costs nothing extra per prompt.",
     "turnedOff": "{engine} is off",
     "classPrefix": "Class:",
     "classes": {
@@ -5434,9 +5436,7 @@
     },
     "platformSelect": {
       "trigger": "Platform: {value}",
-      "list": "Platform in view",
-      "aiOverview": "Google AI Overview",
-      "unavailable": "Not available"
+      "list": "Platform in view"
     },
     "groupOutOfScope": {
       "noneTitle": "No prompt of this group in this scope",
@@ -7346,7 +7346,6 @@
       "platformLabel": "Platform: {platform}",
       "allPlatforms": "All platforms",
       "platformAiOverview": "Google AI Overview",
-      "platformUnavailable": "Not available",
       "group": "Group",
       "groupLabel": "Group: {group}",
       "groupUnknown": "Unknown group",

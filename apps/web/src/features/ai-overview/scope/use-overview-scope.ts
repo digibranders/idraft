@@ -3,11 +3,11 @@
 import { parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useMemo } from 'react';
 
+import { ENGINE_ORDER } from '@/components/app/engine/order';
 import { useDateRangeParams } from '@/components/app/date-range/use-date-range-params';
 import type { RangeProblem } from '@/components/app/date-range/range-model';
 import { cmpParam, compareKindOf, parseCompare } from '@/lib/compare/compare-model';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
-import { ENGINES } from '@/lib/layouts/catalog';
 
 import {
   DEFAULT_METRIC,
@@ -24,8 +24,8 @@ import {
 /** The longest window the summary and the sources reads accept, in project days. */
 export const MAX_DAYS = 92;
 
-/** The engine codes the API accepts (the layout catalog's list): a link naming another reads as every engine. */
-const KNOWN_ENGINES: readonly string[] = ENGINES.map((engine) => engine.code);
+/** The platforms of the product, Google AI Overview included: a link naming another reads as every platform. */
+const KNOWN_ENGINES: readonly string[] = ENGINE_ORDER;
 
 /** The keys of the scope besides the date range's own (`win`, `from`, `to`). */
 const SCOPE_KEYS = {

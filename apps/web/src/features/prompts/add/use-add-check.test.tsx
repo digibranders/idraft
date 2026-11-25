@@ -41,7 +41,7 @@ function CheckHarness({ initialCountry = 'DE', onShow }: CheckHarnessProps): Rea
     text,
     languageCode: 'en',
     countryIso: country,
-    engines: engines.data?.data.filter((engine) => engine.is_enabled) ?? [],
+    engines: engines.data?.data.filter((engine) => engine.is_enabled && engine.engine.max_prompt_chars > 0) ?? [],
     existing: list.rows,
     promptType: null,
     branded: 'auto',

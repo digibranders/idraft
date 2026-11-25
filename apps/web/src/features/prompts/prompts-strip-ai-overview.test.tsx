@@ -29,12 +29,12 @@ function chipOf(): HTMLElement {
   return within(chip).getByRole('definition');
 }
 
-const render = (aiOverview: AiOverviewTotals | undefined): void => {
+const render = (aiOverview: AiOverviewTotals | undefined, overviewIsOn = false): void => {
   renderWithProviders(
     <ComparedWindowProvider value={{ from: '2026-09-18', to: '2026-10-15' }}>
       <PromptsStrip
         prompts={[]}
-        engines={[projectEngine('chatgpt_web')]}
+        engines={[projectEngine('chatgpt_web'), ...(overviewIsOn ? [projectEngine('google_ai_overview')] : [])]}
         topics={1}
         status="ready"
         countsFailed={false}
@@ -53,6 +53,18 @@ describe('the Google AI Overview chip of the strip', () => {
     await waitFor(() =>
       expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(
         '2 of 8 prompts whose keyword shows a Google AI Overview have one that cites your site, over 6 keywords',
+      ),
+    );
+  });
+
+  it('keeps the keyword figure, not an answer rate, once Google AI Overview is a platform of the project', async () => {
+    render(totals({}), true);
+    const chip = chipOf();
+    expect(chip).toHaveTextContent('25%');
+    await userEvent.setup().hover(chip);
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="tooltip"]')).toHaveTextContent(
+        '2 of 8 prompts whose keyword shows a Google AI Overview',
       ),
     );
   });

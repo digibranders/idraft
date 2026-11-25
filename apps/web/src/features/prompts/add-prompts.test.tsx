@@ -77,7 +77,7 @@ function Harness({ extra }: { extra: number }): ReactElement {
         scope={SCOPE}
         open={open}
         onOpenChange={setOpen}
-        engines={engines.data.data.filter((engine) => engine.is_enabled)}
+        engines={engines.data.data.filter((engine) => engine.is_enabled && engine.engine.max_prompt_chars > 0)}
         existing={[...list.rows, ...more]}
         defaults={{ languageCode: 'en', countryIso: 'DE' }}
       />

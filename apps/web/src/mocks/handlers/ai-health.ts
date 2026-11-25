@@ -36,11 +36,11 @@ import {
 } from '../ai-health-model';
 import { BUDGET_GROUPS, type StoredBudget } from '../operations-fixtures';
 import { promptsOf } from '../prompts-state';
-import { ENGINE_CODES } from '../prompt-fixtures';
+import { ENGINE_CODES, type AskedEngineCode as EngineCode } from '../prompt-fixtures';
 import { invalid, mock, noContent, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
 import { projectList } from '../workspace-state';
-import type { EngineCode, ValidationItem } from '@/lib/api/types';
+import type { ValidationItem } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 
 /**

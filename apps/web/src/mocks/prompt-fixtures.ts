@@ -29,7 +29,14 @@ export { webAddress, type Answer };
  * the prompts in memory (./prompts-state.ts) and has no answer: in the app its answers come from the next run.
  */
 
-export const ENGINE_CODES = ['chatgpt_web', 'gemini_web', 'google_ai_mode'] as const satisfies readonly EngineCode[];
+export const ENGINE_CODES = [
+  'chatgpt_web',
+  'gemini_web',
+  'google_ai_mode',
+] as const satisfies readonly AskedEngineCode[];
+
+/** Google AI Overview: a keyword level platform, listed by `GET /engines` and never asked per prompt. */
+export const KEYWORD_LEVEL_CODE = 'google_ai_overview' as const satisfies EngineCode;
 
 /** The engine facts of plan A's `idraft.domain.ai_engines.ENGINES`. */
 export const ENGINE_FACTS: Readonly<Record<EngineCode, ProjectEngine['engine']>> = {
@@ -59,6 +66,15 @@ export const ENGINE_FACTS: Readonly<Record<EngineCode, ProjectEngine['engine']>>
     exposes_citations: true,
     exposes_fanout: false,
     max_prompt_chars: 700,
+  },
+  google_ai_overview: {
+    engine_code: 'google_ai_overview',
+    label: 'Google AI Overview',
+    observation_class: 'serp_ai',
+    vendor: 'google',
+    exposes_citations: true,
+    exposes_fanout: false,
+    max_prompt_chars: 0,
   },
 };
 
@@ -97,8 +113,11 @@ export interface StoredPrompt {
 /** The devices Google AI Mode asks from (`EngineProviderParams.device`, without the `null` of the other engines). */
 export type EngineDevice = NonNullable<NonNullable<ProjectEngine['provider_params']>['device']>;
 
+/** The platforms a prompt is asked on, with answers behind them. Google AI Overview is read from rank checks instead. */
+export type AskedEngineCode = Exclude<EngineCode, 'google_ai_overview'>;
+
 export interface StoredEngine {
-  engine_code: EngineCode;
+  engine_code: AskedEngineCode;
   is_enabled: boolean;
   location_ids: number[];
   /** Google AI Mode only; left out reads as `desktop`, the API's default for a row that holds no device. */
@@ -310,7 +329,7 @@ const PIN = cp(0x1f4cc);
 const INTRO = 'Here is how the options compare for this question.';
 const OUTRO = 'Compare their case studies before you decide.';
 
-const MODELS: Readonly<Record<EngineCode, string | null>> = {
+const MODELS: Readonly<Record<AskedEngineCode, string | null>> = {
   chatgpt_web: 'gpt-6',
   gemini_web: '3.5 Flash-Lite',
   google_ai_mode: null,
@@ -404,7 +423,7 @@ const cache = new Map<string, Answer>();
 export function answerOf(
   index: number,
   languageCode: string,
-  engine: EngineCode,
+  engine: AskedEngineCode,
   day: number,
   projectId: string = FYNIX_PROJECT_ID,
 ): Answer {
@@ -427,7 +446,7 @@ export function answerOf(
 export function validAnswerOf(
   index: number,
   languageCode: string,
-  engine: EngineCode,
+  engine: AskedEngineCode,
   day: number,
   projectId: string = FYNIX_PROJECT_ID,
 ): Answer {
@@ -438,7 +457,7 @@ export function validAnswerOf(
   throw new Error('No day of 29 gives a valid answer');
 }
 
-function makeAnswer(index: number, languageCode: string, engine: EngineCode, day: number): Answer {
+function makeAnswer(index: number, languageCode: string, engine: AskedEngineCode, day: number): Answer {
   const e = ENGINE_CODES.indexOf(engine);
   const turn = (index * 7 + day * 3 + e * 5) % 29;
   const base = {
@@ -541,7 +560,7 @@ const GEMINI_QUOTES: Readonly<Record<string, string>> = {
  * The answer with each source's `quote`, which the API always sends: the passage Gemini quoted, and null for the
  * engines that give none (ChatGPT's scraper and AI Mode's cards carry no snippet in these fixtures).
  */
-function withQuotes(engine: EngineCode, answer: Answer): Answer {
+function withQuotes(engine: AskedEngineCode, answer: Answer): Answer {
   return {
     ...answer,
     citations: answer.citations.map((citation) => ({

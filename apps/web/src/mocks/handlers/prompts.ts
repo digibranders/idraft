@@ -33,6 +33,7 @@ import { stateTime } from '../entities-codec';
 import {
   ENGINE_CODES,
   ENGINE_FACTS,
+  KEYWORD_LEVEL_CODE,
   monthlyCostUsd,
   PROMPT_QUOTA,
   PROMPT_TEXT_MAX,
@@ -271,7 +272,24 @@ export function promptView(stored: StoredPrompt): Prompt {
   };
 }
 
+/** Google AI Overview: read from rank checks, so it counts every active prompt and costs nothing of its own. */
+function keywordLevelView(projectId: string): ProjectEngine {
+  const state = promptsOf(projectId);
+  return {
+    engine: ENGINE_FACTS[KEYWORD_LEVEL_CODE],
+    is_configured: state.keywordLevel !== undefined,
+    is_enabled: state.keywordLevel?.is_enabled ?? false,
+    location_ids: state.keywordLevel?.location_ids ?? [],
+    replicates: 1,
+    provider_code: 'dataforseo',
+    active_prompts: state.prompts.filter((prompt) => prompt.is_active).length,
+    estimated_monthly_cost_usd: '0.00',
+    provider_params: { device: null },
+  };
+}
+
 function engineView(projectId: string, code: EngineCode): ProjectEngine {
+  if (code === KEYWORD_LEVEL_CODE) return keywordLevelView(projectId);
   const configured = promptsOf(projectId).engines.find((engine) => engine.engine_code === code);
   const fits = promptsOf(projectId).prompts.filter(
     (prompt) => prompt.is_active && textLength(prompt.text) <= ENGINE_FACTS[code].max_prompt_chars,
@@ -617,7 +635,9 @@ export const promptHandlers: HttpHandler[] = [
   mock('get', ENGINES, ({ request, cookies, params }) => {
     const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, { permission: 'data:read' });
     if (caller instanceof Response) return caller;
-    return HttpResponse.json({ data: ENGINE_CODES.map((code) => engineView(caller.project.project_id, code)) });
+    return HttpResponse.json({
+      data: [...ENGINE_CODES, KEYWORD_LEVEL_CODE].map((code) => engineView(caller.project.project_id, code)),
+    });
   }),
 
   mock('put', `${ENGINES}/{engine_code}`, async ({ request, cookies, params }) => {
@@ -626,7 +646,7 @@ export const promptHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const code = params.engine_code;
-    if (!isOneOf(code, ENGINE_CODES)) {
+    if (!isOneOf(code, ENGINE_CODES) && code !== KEYWORD_LEVEL_CODE) {
       return invalid(request, [{ location: 'path', path: 'engine_code', code: 'enum', message: 'Not an engine.' }]);
     }
     const body: unknown = await request.json();
@@ -664,6 +684,11 @@ export const promptHandlers: HttpHandler[] = [
       ]);
     }
     const state = promptsOf(caller.project.project_id);
+    if (code === KEYWORD_LEVEL_CODE) {
+      // Nothing is scheduled or priced for it: the switch and the countries are all it holds
+      state.keywordLevel = { is_enabled: body.is_enabled !== false, location_ids: locationIds };
+      return HttpResponse.json({ data: keywordLevelView(caller.project.project_id) });
+    }
     const before = state.engines.find((engine) => engine.engine_code === code);
     // A save without `provider_params` keeps the saved device: the countries and the switch never reset it
     const kept = takesDevice(code) ? (device ?? before?.device) : undefined;

@@ -187,13 +187,14 @@ describe('the keys of the AI prompt queries', () => {
 });
 
 describe('the engines of the project', () => {
-  it('lists all three and turns one on with its countries', async () => {
+  it('lists all four and turns one on with its countries', async () => {
     const engines = renderHook(() => useQuery(enginesQuery(other)), { wrapper });
     await waitFor(() => expect(engines.result.current.data).toBeDefined());
     expect(engines.result.current.data?.data.map((row) => [row.engine.engine_code, row.is_enabled])).toEqual([
       ['chatgpt_web', false],
       ['gemini_web', false],
       ['google_ai_mode', false],
+      ['google_ai_overview', false],
     ]);
 
     const put = renderHook(() => useMutation(PUT_ENGINE), { wrapper });

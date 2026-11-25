@@ -11,6 +11,7 @@ import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/
 import type { ProjectEngine } from '@/lib/api/types';
 import { useErrorId } from '@/lib/api/use-error-id';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { formatInteger } from '@/lib/format';
 import { PromptOrderContext } from '@/lib/inspector/prompt-order';
 
@@ -40,7 +41,11 @@ export function PromptDrawerHost({ workspaceId, projectId, timeZone }: PromptDra
   const range = useMemo(() => ({ from: picked.range.from, to: picked.range.to }), [picked.range]);
   const engines = useQuery(enginesQuery(scope));
   const all = engines.data?.data ?? NO_ENGINES;
-  const enabled = useMemo(() => all.filter((engine) => engine.is_enabled), [all]);
+  // Google AI Overview has no answers to open, so the prompt's answer views take the platforms asked per prompt
+  const enabled = useMemo(
+    () => all.filter((engine) => engine.is_enabled && !isKeywordLevelEngine(engine.engine)),
+    [all],
+  );
   const summary = useQuery({
     ...summaryQuery(scope, range, false),
     enabled: enabled.length > 0,

@@ -35,7 +35,12 @@ const ROWS: readonly FanoutQueryRow[] = [
   }),
 ];
 
-const LABELS: Record<EngineCode, string> = { chatgpt_web: 'ChatGPT', gemini_web: 'Gemini', google_ai_mode: 'AI Mode' };
+const LABELS: Record<EngineCode, string> = {
+  chatgpt_web: 'ChatGPT',
+  gemini_web: 'Gemini',
+  google_ai_mode: 'AI Mode',
+  google_ai_overview: 'AI Overview',
+};
 
 const UNKNOWN: NewVerdict = { kind: 'unknown', reason: 'noPrevious' };
 

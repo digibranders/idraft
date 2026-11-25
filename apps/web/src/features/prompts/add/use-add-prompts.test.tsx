@@ -57,7 +57,8 @@ interface HostProps {
 /** What the prompts screen does with the hook: the header, the empty state, a topic's own button, the dialog. */
 function Host({ canWrite = true, enginesKnown = true, menuEntries }: HostProps): ReactElement {
   const engines = useQuery(enginesQuery(SCOPE));
-  const enabled = engines.data?.data.filter((engine) => engine.is_enabled);
+  // The platforms a prompt is asked on, as the page passes them: Google AI Overview (no prompt length) is left out
+  const enabled = engines.data?.data.filter((engine) => engine.is_enabled && engine.engine.max_prompt_chars > 0);
   const [note, setNote] = useState('');
   const add = useAddPrompts({
     scope: SCOPE,

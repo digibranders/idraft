@@ -1,4 +1,5 @@
 import type { ProjectEngine } from '@/lib/api/types';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { money } from '@/lib/format/money';
 
 export interface EngineCostChange {
@@ -6,9 +7,15 @@ export interface EngineCostChange {
   delta: number | null;
   /** Dollars a month for the engines that are on after the change; `null` when one of them has no price. */
   enabledTotal: number | null;
-  /** How many engines are on after the change. */
+  /** How many engines are on after the change, not counting a keyword level one (it adds no cost item). */
   enabledCount: number;
 }
+
+/**
+ * A keyword level platform (Google AI Overview): it is read from the rank checks of linked keywords, never asked
+ * per prompt, so it takes no prompt length (`max_prompt_chars` 0), and its price of 0 is a real zero, not a missing one.
+ */
+export const isKeywordLevel = (engine: ProjectEngine): boolean => isKeywordLevelEngine(engine.engine);
 
 /** The monthly price of an engine as a number, or `null` for a missing or malformed one: unknown is never zero. */
 const priceOf = (engine: ProjectEngine): number | null =>
@@ -30,6 +37,6 @@ export function engineCostChange(engines: readonly ProjectEngine[], code: string
     enabledTotal: prices.some((value) => value === null)
       ? null
       : prices.reduce<number>((sum, value) => sum + (value ?? 0), 0),
-    enabledCount: on.length,
+    enabledCount: on.filter((engine) => !isKeywordLevel(engine)).length,
   };
 }

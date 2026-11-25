@@ -65,6 +65,25 @@ describe('the AI by platform card', () => {
     ]);
   });
 
+  it('says Not collected for the mention, share of voice and own citation of Google AI Overview, never a zero', async () => {
+    render();
+    const table = await tableOf();
+    const overview = within(table).getByRole('row', { name: /Google AI Overview/ });
+    const [mention, , shareOfVoice, ownCitation] = within(overview).getAllByRole('cell');
+    for (const cell of [mention, shareOfVoice, ownCitation]) {
+      expect(cell).toHaveTextContent('Not collected');
+      expect(cell?.textContent).not.toContain('%');
+    }
+  });
+
+  it('with Google AI Overview alone in view, shows its row and the not collected cells instead of an empty card', async () => {
+    render(`${WINDOW}&engine=google_ai_overview`);
+    const table = await tableOf();
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows.map((row) => within(row).getAllByRole('rowheader')[0]?.textContent)).toEqual(['Google AI Overview']);
+    expect(rows[0]).toHaveTextContent('Not collected');
+  });
+
   it('writes the equal-weight line beside the rows: average of 2, the platforms named, each counted once', async () => {
     render();
     await tableOf();

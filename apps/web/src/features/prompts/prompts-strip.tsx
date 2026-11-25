@@ -229,7 +229,8 @@ export function PromptsStrip({
     const label = <EngineLogo engine={code} name={name} truncate />;
     const quiet = inView !== undefined && !inView.includes(code);
     const quietNote = quiet && engine !== undefined ? shell('quietNote') : undefined;
-    const overview = engine === undefined && code === 'google_ai_overview' ? aiOverviewFigure(aiOverview) : null;
+    // Google AI Overview is a platform of the project but has no answers: its slot is always the keyword figure
+    const overview = code === 'google_ai_overview' ? aiOverviewFigure(aiOverview) : null;
     if (overview !== null && !countsFailed) return aiOverviewSlot(code, overview, label, quiet);
     if (engine === undefined || countsFailed) {
       return (

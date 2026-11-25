@@ -10,7 +10,7 @@ import {
   type Planned,
   type SourceSpec,
 } from './answer-builder';
-import type { EngineCode } from '@/lib/api/types';
+import type { AskedEngineCode as EngineCode } from './prompt-fixtures';
 
 /**
  * The answers of a project that has a definition file (./ai-prompt-definition.ts), made from each prompt's

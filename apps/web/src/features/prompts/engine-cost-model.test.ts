@@ -112,4 +112,15 @@ describe('engineCostChange', () => {
     expect(change.delta).toBeNull();
     expect(change.enabledTotal).toBeNull();
   });
+
+  it('reads the price 0 of Google AI Overview as a real zero, and counts it as no platform that costs', () => {
+    const engines = [
+      engineOf('chatgpt_web', { on: true, price: '1.560000' }),
+      engineOf('google_ai_overview', { on: false, price: '0.00' }),
+    ];
+    const change = engineCostChange(engines, 'google_ai_overview', true);
+    expect(change.delta).toBe(0);
+    expect(change.enabledTotal).toBeCloseTo(1.56);
+    expect(change.enabledCount).toBe(1);
+  });
 });

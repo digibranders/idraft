@@ -2904,7 +2904,7 @@ describe('Prompts: the Platform select and the controls row', () => {
     }
   });
 
-  it('offers All platforms and each platform that is on, with its mark, Google AI Overview as not available, and nothing named Engine', async () => {
+  it('offers All platforms and each platform that is on, Google AI Overview among them, with its mark, and nothing named Engine', async () => {
     const { user } = renderOnPrompts(promptsAs('viewer'));
     await user.click(await platform());
     const options = await screen.findAllByRole('option');
@@ -2912,8 +2912,9 @@ describe('Prompts: the Platform select and the controls row', () => {
       'All platforms',
       'ChatGPT',
       'Gemini',
-      'Google AI OverviewNot available',
+      'Google AI Overview',
     ]);
+    expect(options[3]).not.toHaveAttribute('aria-disabled', 'true');
     // Every platform has its mark; the choice of all has the layers glyph
     expect(options[1]?.querySelector('img')).toHaveAttribute('width', '16');
     expect(options[0]?.querySelector('img')).toBeNull();
@@ -2953,7 +2954,7 @@ describe('Prompts: the Platform select and the controls row', () => {
   it('takes a Platform filter that names every platform that is on for All platforms: no chip, no Reset filters, and the address drops it', async () => {
     const writes: string[] = [];
     renderOnPrompts(promptsAs('viewer'), {
-      searchParams: '?engine=chatgpt_web,gemini_web',
+      searchParams: '?engine=chatgpt_web,gemini_web,google_ai_overview',
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     await vi.waitFor(async () => expect(await platform()).toHaveTextContent('All platforms'));
