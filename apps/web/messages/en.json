@@ -8201,10 +8201,12 @@
     "linkCopied": "Link copied",
     "tabs": {
       "label": "Competitor views",
-      "comparison": "Comparison",
-      "seo": "SEO",
-      "ai": "AI",
-      "candidates": "Candidates"
+      "competitors": "Competitors",
+      "mentions": "Mentions",
+      "citations": "Citations",
+      "sov": "Share of voice",
+      "visibility": "AI visibility",
+      "seo": "SEO ranking"
     },
     "views": {
       "default": "Default",
@@ -8236,13 +8238,6 @@
     "header": {
       "addCompetitor": "Add competitor"
     },
-    "sections": {
-      "top": "Top competitor",
-      "summary": "Channel summary",
-      "topics": "Groups by brand",
-      "lost": "Prompts we lose",
-      "trend": "Share of voice by platform"
-    },
     "empty": {
       "noCompetitorTitle": "No competitor is tracked",
       "noCompetitorReason": "Share of voice and the comparison need at least one tracked competitor.",
@@ -8251,17 +8246,130 @@
     "states": {
       "readFailedTitle": "Competitor figures could not be loaded",
       "readFailedReason": "The server did not answer. Your filters are unchanged.",
-      "stale": "These are the last figures read. The newest read failed."
+      "stale": "These are the last figures read. The newest read failed.",
+      "noDataTitle": "No figures for this scope",
+      "noDataReason": "No answers match the platforms, dates and filters chosen. Widen the date range or clear a filter."
     },
     "seo": {
-      "title": "Search competitors are not measured yet",
-      "reason": "Search share of voice needs keyword volumes and a click-through model, and no read of competitor rankings exists yet. The channel summary shows these figures as not available instead of guessing.",
-      "action": "Open Keywords",
-      "hint": "Add the keywords you want to track there: they are what search competitor figures will be counted over."
+      "emptyTitle": "No competitor ranks to compare",
+      "emptyReason": "Tracked keywords need at least one competitor with a rank check. Add competitors and keywords to compare.",
+      "open": "Open rankings",
+      "filtersNote": "Search rankings are not AI answers, so the platform, branded and group filters do not apply here.",
+      "keyword": "Keyword",
+      "ahead": "Competitors ahead",
+      "keywordsTracked": "Keywords tracked",
+      "firstOnly": "First {shown} of {total}",
+      "yourTop10": "Your keywords in the top 10",
+      "behindAny": "Keywords where a competitor ranks higher",
+      "topCompetitor": "Top competitor",
+      "inTop10": "{count, plural, one {# keyword in the top 10} other {# keywords in the top 10}}",
+      "inTop10Label": "Keywords in the top 10",
+      "chartTop10": "Keywords in the top 10",
+      "chartTop10Summary": "How many tracked keywords each brand ranks in the top 10 for, at the latest check.",
+      "chartBuckets": "Rank distribution",
+      "chartBucketsSummary": "Tracked keywords by rank band for each brand: top 3, 4 to 10, 11 to 20, 21 and below, and not ranked.",
+      "buckets": {
+        "top3": "Top 3",
+        "top10": "4 to 10",
+        "top20": "11 to 20",
+        "beyond": "21 and below",
+        "none": "Not ranked"
+      },
+      "tableCaption": "Rank of your brand and each competitor for every tracked keyword",
+      "shareOfTracked": "{percent} of tracked keywords",
+      "averagePosition": "Your average position",
+      "averageNote": "over the keywords you rank for",
+      "ofKeywords": "{count, plural, one {of # keyword} other {of # keywords}}"
     },
-    "candidates": {
-      "title": "Candidate brands are not listed yet",
-      "reason": "Brands that answers name and you do not track will be listed here with a Track action once brand discovery is built."
+    "toolbar": "Competitors filters and actions",
+    "metric": {
+      "mentions": "Mention rate",
+      "citations": "Citation share",
+      "sov": "Share of voice"
+    },
+    "columns": {
+      "competitor": "Brand",
+      "you": "You",
+      "change": "Change",
+      "platforms": "Platforms with data",
+      "platformAverage": "Platform average",
+      "scrollHint": "Scroll for more platforms",
+      "overviewCaption": "Brands with share of voice, mention rate and citation share",
+      "promptsLost": "Prompts lost",
+      "ofPrompts": "Prompts checked",
+      "prompt": "Prompt",
+      "sovChange": "Share of voice change"
+    },
+    "strip": {
+      "competitors": "Competitor summary",
+      "mentions": "Mention rate summary",
+      "citations": "Citation share summary",
+      "sov": "Share of voice summary",
+      "visibility": "AI visibility summary",
+      "seo": "SEO ranking summary",
+      "your": {
+        "mentions": "Your mention rate",
+        "citations": "Your citation share",
+        "sov": "Your share of voice",
+        "visibility": "Your mention rate"
+      },
+      "context": {
+        "mentions": "of answers mention your brand",
+        "citations": "of citations point to your pages",
+        "sov": "of all brand mentions",
+        "visibility": "of answers mention your brand"
+      },
+      "rank": "Your rank",
+      "rankValue": "#{rank}",
+      "rankOf": "of {total} brands",
+      "topCompetitor": "Top competitor",
+      "gap": "Gap to the top competitor",
+      "lead": "You lead",
+      "trail": "You trail",
+      "aheadOfYou": "Competitors ahead of you",
+      "ofCompetitors": "{count, plural, one {of # competitor} other {of # competitors}}",
+      "biggestMover": "Biggest mover",
+      "strongestPlatform": "Your strongest platform",
+      "mentionRateOf": "{rate} mention rate",
+      "promptsLost": "Prompts lost",
+      "mostLostTo": "Most prompts lost to",
+      "promptsCount": "{count, plural, one {# prompt} other {# prompts}}"
+    },
+    "charts": {
+      "week": "Week",
+      "platformAverage": "Platform average",
+      "mentions": {
+        "byCompetitor": "Mention rate by brand",
+        "byCompetitorSummary": "Share of answers that mention each brand, as the average of platforms or the one platform chosen.",
+        "byPlatform": "Mention rate by platform",
+        "byPlatformSummary": "Mention rate by platform for your brand and the leading competitors, one group per platform.",
+        "table": "Mention rate of every tracked brand",
+        "trend": "Mention rate over time",
+        "trendSummary": "Mention rate over time week by week, one line per brand."
+      },
+      "citations": {
+        "byCompetitor": "Citation share by brand",
+        "byCompetitorSummary": "Share of citations that point to each brand's pages.",
+        "byPlatform": "Citation share by platform",
+        "byPlatformSummary": "Citation share by platform for your brand and the leading competitors, one group per platform.",
+        "table": "Citation share of every tracked brand"
+      },
+      "sov": {
+        "byCompetitor": "Share of voice by brand",
+        "byCompetitorSummary": "Each brand's share of all brand mentions in the answers.",
+        "byPlatform": "Share of voice by platform",
+        "byPlatformSummary": "Share of voice by platform for your brand and the leading competitors, one group per platform.",
+        "table": "Share of voice of every tracked brand",
+        "trend": "Share of voice over time",
+        "trendSummary": "Share of voice over time week by week, one line per brand."
+      },
+      "visibility": {
+        "matrix": "Mention rate of every brand on every platform",
+        "lostByCompetitor": "Prompts lost by competitor",
+        "lostSummary": "Prompts where the competitor is mentioned in an answer and your brand is not, one bar per competitor.",
+        "lostTable": "Prompts lost to each competitor",
+        "topLost": "Prompts lost to {name}"
+      }
     }
   },
   "discover": {},

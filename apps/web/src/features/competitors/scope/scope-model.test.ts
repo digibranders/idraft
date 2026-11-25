@@ -9,7 +9,7 @@ describe('parseScope', () => {
   it('a link with no key is the Comparison tab, every engine, cmp on, no country, no topic, branded excluded', () => {
     const scope = parseScope({}, ALL);
     expect(scope).toMatchObject({
-      tab: 'comparison',
+      tab: 'competitors',
       compare: true,
       country: null,
       engines: [],
@@ -22,13 +22,13 @@ describe('parseScope', () => {
     });
   });
 
-  it('tab reads seo, ai and candidates; anything else is Comparison', () => {
-    expect(parseScope({ tab: 'seo' }, ALL).tab).toBe('seo');
-    expect(parseScope({ tab: 'ai' }, ALL).tab).toBe('ai');
-    expect(parseScope({ tab: 'candidates' }, ALL).tab).toBe('candidates');
-    expect(parseScope({ tab: 'comparison' }, ALL).tab).toBe('comparison');
-    expect(parseScope({ tab: 'SEO' }, ALL).tab).toBe('comparison');
-    expect(parseScope({ tab: 'nope' }, ALL).tab).toBe('comparison');
+  it('tab reads the six tabs; anything else is Competitors', () => {
+    for (const tab of ['competitors', 'mentions', 'citations', 'sov', 'visibility', 'seo'] as const) {
+      expect(parseScope({ tab }, ALL).tab).toBe(tab);
+    }
+    expect(parseScope({ tab: 'SEO' }, ALL).tab).toBe('competitors');
+    expect(parseScope({ tab: 'comparison' }, ALL).tab).toBe('competitors');
+    expect(parseScope({ tab: 'nope' }, ALL).tab).toBe('competitors');
   });
 
   it('engine reads a comma list of known codes, once each, at most 3; none known is every engine', () => {

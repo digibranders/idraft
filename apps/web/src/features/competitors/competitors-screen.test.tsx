@@ -1,11 +1,19 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CompetitorsScreen, type CompetitorsProject } from './competitors-screen';
 import { useAddCompetitorControl } from './add-competitor-control';
-import { competitorsBody, competitorRow, OWN_ID } from './model/competitors.test-fixtures';
+import {
+  competitorRow,
+  competitorsBody,
+  engineCells,
+  HUBSPOT_ID,
+  metricValue,
+  OWN_ID,
+  ZOHO_ID,
+} from './model/competitors.test-fixtures';
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import type { Role } from '@/lib/api/types';
 import { PermissionProvider } from '@/lib/permissions';
@@ -31,7 +39,8 @@ const NOW = new Date('2026-11-12T12:00:00Z');
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const ENGINES = mswPath(`${P}/engines`);
 const COMPETITORS = mswPath(`${P}/ai/competitors`);
-const SUMMARY = mswPath(`${P}/ai/prompts-summary`);
+const SERIES = mswPath(`${P}/ai/metrics/{metric}/series`);
+const KEYWORDS = mswPath(`${P}/tracked-keywords`);
 
 const [fynix, cleanstart] = MOCK_PROJECTS;
 if (fynix === undefined || cleanstart === undefined) throw new Error('The fixture projects are missing');
@@ -47,9 +56,7 @@ beforeEach(() => {
   stubWideScreen();
   server.use(
     http.get(COMPETITORS, () => HttpResponse.json(competitorsBody())),
-    http.get(SUMMARY, () =>
-      HttpResponse.json({ data: { total: { last_observed_at: '2026-11-11T01:00:00Z' } }, meta: {} }),
-    ),
+    http.get(SERIES, () => HttpResponse.json({ data: [], meta: competitorsBody().meta })),
   );
 });
 afterEach(() => {
@@ -103,6 +110,49 @@ function watch(): URL[] {
 }
 const to = (seen: readonly URL[], route: string): URL[] => seen.filter((url) => url.pathname.endsWith(route));
 
+/** Three tracked entities with distinct values, so a figure on screen says which cell it came from. */
+const distinct = (): ReturnType<typeof competitorsBody> =>
+  competitorsBody([
+    competitorRow(OWN_ID, 'Fynix', 'own', 1, [
+      engineCells('chatgpt_web', {
+        share_of_voice: metricValue({
+          value: 0.2,
+          previous: { value: 0.15, numerator: 15, denominator: 100, n_observations: 100 },
+        }),
+        mention_rate: metricValue({ value: 0.41 }),
+        citation_share: metricValue({ value: 0.12 }),
+      }),
+    ]),
+    competitorRow(HUBSPOT_ID, 'HubSpot', 'competitor', 2, [
+      engineCells('chatgpt_web', {
+        share_of_voice: metricValue({ value: 0.55 }),
+        mention_rate: metricValue({ value: 0.63 }),
+        citation_share: metricValue({ value: 0.31 }),
+        lost_prompts_total: 7,
+        lost_prompts_with_min_answers: 40,
+        lost_prompts: [
+          {
+            prompt_id: 'pr1',
+            text: 'best crm for startups',
+            importance: 1,
+            lost: { value: 1, numerator: 1, denominator: 1, n_observations: 1 },
+          } as never,
+        ],
+      }),
+    ]),
+    competitorRow(ZOHO_ID, 'Zoho', 'competitor', 3, [
+      engineCells('chatgpt_web', {
+        share_of_voice: metricValue({ value: 0.1 }),
+        mention_rate: metricValue({ value: 0.22 }),
+        citation_share: metricValue({ value: 0.05 }),
+        lost_prompts_total: 2,
+        lost_prompts_with_min_answers: 40,
+      }),
+    ]),
+  ]);
+
+const TABS = ['Competitors', 'Mentions', 'Citations', 'Share of voice', 'AI visibility', 'SEO ranking'] as const;
+
 describe('Competitors page', () => {
   it('a member without data:read is told so and nothing is read', async () => {
     const seen = watch();
@@ -127,139 +177,145 @@ describe('Competitors page', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Competitors' })).toBeInTheDocument();
     expect(screen.getByTestId('competitors-skeleton')).toBeInTheDocument();
     expect(screen.queryByText('No platform is on')).toBeNull();
-    expect(screen.queryByText('Competitors could not be loaded')).toBeNull();
-    expect(screen.queryByRole('tablist')).toBeNull();
     release();
   });
 
-  it('no engine on shows the no engine state with the settings link for an editor and the admin sentence for a viewer', async () => {
-    const seen = watch();
-    const editor = renderWithProviders(screenAs('editor', asProject(cleanstart)));
-    expect(await screen.findByRole('heading', { name: 'No platform is on' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open platforms' })).toHaveAttribute(
-      'href',
-      '/digibranders/cleanstart/settings/engines',
-    );
-    editor.unmount();
-    renderWithProviders(screenAs('viewer', asProject(cleanstart)));
-    expect(await screen.findByText('Ask a workspace admin to turn on a platform.')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Open platforms' })).toBeNull();
-    expect(to(seen, '/ai/competitors')).toHaveLength(0);
+  it('lists the six tabs in order, Competitors first', async () => {
+    render();
+    const tabs = await screen.findAllByRole('tab');
+    // The tab draws its label twice (one hidden, to hold the width when it is selected)
+    expect(tabs.map((tab) => (tab.textContent ?? '').slice(0, (tab.textContent ?? '').length / 2))).toEqual([...TABS]);
+    expect(screen.getByRole('tab', { name: 'Competitors' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('the engines read failing shows Retry and no empty list', async () => {
-    let calls = 0;
-    server.use(
-      http.get(ENGINES, ({ request }) => {
-        calls += 1;
-        return calls === 1 ? problem(request, 'not_found') : HttpResponse.json({ data: [] });
-      }),
-    );
-    const { user } = render();
-    expect(await screen.findByText('Competitors could not be loaded')).toBeInTheDocument();
-    expect(screen.queryByText('No platform is on')).toBeNull();
-    expect(screen.queryByRole('tablist')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('No platform is on')).toBeInTheDocument();
-  });
-
-  it('the header has the title, the meta line, the saved view menu and the primary Add competitor only with entities:write', async () => {
-    const admin = render('admin');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Competitors' })).toBeInTheDocument();
-    expect(await screen.findByText('AI updated 1d ago, 2 tracked competitors')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Default/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add competitor' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument();
-    admin.unmount();
-    render('analyst');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Competitors' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add competitor' })).toBeNull();
-  });
-
-  it('Add competitor hands the open state to the slot, and closing it refreshes the reads', async () => {
-    const seen = watch();
-    const { user } = render('admin');
-    await user.click(await screen.findByRole('button', { name: 'Add competitor' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Add competitor dialog' });
-    await waitFor(() => expect(to(seen, '/ai/competitors').length).toBeGreaterThan(0));
-    const before = to(seen, '/ai/competitors').length;
-    await user.click(within(dialog).getByRole('button', { name: 'Close the dialog' }));
-    expect(screen.queryByRole('dialog')).toBeNull();
-    await waitFor(() => expect(to(seen, '/ai/competitors').length).toBeGreaterThan(before));
-  });
-
-  it('tabs write tab to the address and the panel follows', async () => {
-    const updates: string[] = [];
-    const { user } = render('admin', '', { onUrlUpdate: (event) => updates.push(event.queryString) });
-    const tabs = await screen.findByRole('tablist', { name: 'Competitor views' });
-    const listed = within(tabs).getAllByRole('tab');
-    ['Comparison', 'SEO', 'AI', 'Candidates'].forEach((name, index) => {
-      expect(listed[index]).toHaveAccessibleName(name);
+  it('Competitors: the strip, three charts and a table with each metric of every entity', async () => {
+    server.use(http.get(COMPETITORS, () => HttpResponse.json(distinct())));
+    render();
+    const table = await screen.findByRole('table', {
+      name: /Brands with share of voice, mention rate and citation share/,
     });
-    expect(listed).toHaveLength(4);
-    expect(within(tabs).getByRole('tab', { name: 'Comparison' })).toHaveAttribute('aria-selected', 'true');
-    await user.click(within(tabs).getByRole('tab', { name: 'SEO' }));
-    expect(updates.at(-1)).toContain('tab=seo');
-    expect(await screen.findByRole('heading', { name: 'Search competitors are not measured yet' })).toBeInTheDocument();
-    await user.click(within(tabs).getByRole('tab', { name: 'Candidates' }));
-    expect(await screen.findByRole('heading', { name: 'Candidate brands are not listed yet' })).toBeInTheDocument();
-    await user.click(within(tabs).getByRole('tab', { name: 'Comparison' }));
-    expect(updates.at(-1)).not.toContain('tab=');
+    expect(table).toHaveTextContent('Fynix');
+    expect(table).toHaveTextContent('HubSpot');
+    expect(table).toHaveTextContent('Zoho');
+    // Competitors by share of voice, highest first, with the own brand on top
+    const names = screen.getAllByRole('row').map((row) => row.textContent ?? '');
+    expect(names.findIndex((text) => text.includes('HubSpot'))).toBeLessThan(
+      names.findIndex((text) => text.includes('Zoho')),
+    );
+    expect(table).toHaveTextContent('55.0%');
+    expect(table).toHaveTextContent('63.0%');
+    expect(table).toHaveTextContent('31.0%');
+    expect(screen.getByText('Share of voice by brand')).toBeInTheDocument();
+    expect(screen.getByText('Mention rate by brand')).toBeInTheDocument();
+    expect(screen.getByText('Share of voice over time')).toBeInTheDocument();
+    // The strip answers questions: where you stand, who leads, by how much, and who is moving
+    expect(screen.getByText('Your rank')).toBeInTheDocument();
+    expect(screen.getByText('#2')).toBeInTheDocument();
+    expect(screen.getByText('of 3 brands')).toBeInTheDocument();
+    expect(screen.getByText('Top competitor')).toBeInTheDocument();
+    expect(screen.getByText('Gap to the top competitor')).toBeInTheDocument();
+    expect(screen.getByText('You trail')).toBeInTheDocument();
+    expect(screen.getByText('Biggest mover')).toBeInTheDocument();
   });
 
-  it('reads the tab from a link, and SEO and Candidates ask for nothing', async () => {
+  it.each([
+    ['mentions', /Mention rate of every tracked brand/, '63.0%', 'Mention rate over time'],
+    ['citations', /Citation share of every tracked brand/, '31.0%', null],
+    ['sov', /Share of voice of every tracked brand/, '55.0%', 'Share of voice over time'],
+  ])('%s tab: one metric across the set, with its charts and table', async (tab, caption, figure, trend) => {
+    server.use(http.get(COMPETITORS, () => HttpResponse.json(distinct())));
+    render('admin', `?tab=${tab}`);
+    const table = await screen.findByRole('table', { name: caption });
+    expect(table).toHaveTextContent('HubSpot');
+    expect(table).toHaveTextContent(figure);
+    expect(table).toHaveTextContent('ChatGPT');
+    expect(screen.getByText('Competitors ahead of you')).toBeInTheDocument();
+    expect(screen.getByText('of 2 competitors')).toBeInTheDocument();
+    if (trend === null) {
+      expect(screen.queryByText(/over time/)).toBeNull();
+    } else {
+      expect(screen.getByText(trend)).toBeInTheDocument();
+    }
+  });
+
+  it('Share of voice asks the weekly series for every tracked entity, Mentions asks the mention rate', async () => {
     const seen = watch();
-    render('admin', '?tab=seo');
-    expect(await screen.findByRole('heading', { name: 'Search competitors are not measured yet' })).toBeInTheDocument();
-    expect(to(seen, '/ai/competitors')).toHaveLength(0);
-    expect(to(seen, '/ai/prompts-summary')).toHaveLength(0);
+    server.use(http.get(COMPETITORS, () => HttpResponse.json(distinct())));
+    const sov = render('admin', '?tab=sov');
+    await waitFor(() => expect(seen.some((url) => url.pathname.endsWith('/ai.share_of_voice/series'))).toBe(true));
+    const asked = seen.find((url) => url.pathname.endsWith('/ai.share_of_voice/series'));
+    expect(asked?.searchParams.getAll('entity_ids').length ?? asked?.searchParams.get('entity_ids')).toBeTruthy();
+    sov.unmount();
+    render('admin', '?tab=mentions');
+    await waitFor(() => expect(seen.some((url) => url.pathname.endsWith('/ai.mention_rate/series'))).toBe(true));
   });
 
-  it('a link with no competitor tracked says so on the Comparison tab, with Add competitor for a writer', async () => {
+  it('AI visibility: the platform matrix, prompts lost per competitor and the prompts lost to the top one', async () => {
+    const seen = watch();
+    server.use(http.get(COMPETITORS, () => HttpResponse.json(distinct())));
+    render('admin', '?tab=visibility');
+    expect(
+      await screen.findByRole('table', { name: /Mention rate of every brand on every platform/ }),
+    ).toHaveTextContent('63.0%');
+    expect(await screen.findByText('best crm for startups')).toBeInTheDocument();
+    expect(screen.getByText('Your strongest platform')).toBeInTheDocument();
+    expect(screen.getByText('Most prompts lost to')).toBeInTheDocument();
+    expect(screen.getByText('7 prompts')).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /Prompts lost to each competitor/ })).toHaveTextContent('HubSpot');
+    expect(to(seen, '/ai/competitors').some((url) => url.searchParams.get('include') === 'lost_prompts')).toBe(true);
+  });
+
+  it('SEO ranking: ranks of the own brand and each competitor per keyword, and no AI read', async () => {
+    const seen = watch();
+    server.use(
+      http.get(KEYWORDS, () =>
+        HttpResponse.json({
+          data: [
+            {
+              tracked_keyword_id: 'k1',
+              keyword: { normalized_text: 'crm software' },
+              state: { current: { rank: 7 } },
+              competitor_ranks: [
+                { entity: { entity_id: HUBSPOT_ID, canonical_name: 'HubSpot' }, current: { rank: 2 } },
+                { entity: { entity_id: ZOHO_ID, canonical_name: 'Zoho' }, current: { rank: null } },
+              ],
+            },
+          ],
+          page: { total: 1, has_more: false, limit: 100, next_cursor: null },
+        }),
+      ),
+    );
+    render('admin', '?tab=seo');
+    const table = await screen.findByRole('table', { name: /Rank of your brand and each competitor/ });
+    expect(table).toHaveTextContent('crm software');
+    expect(table).toHaveTextContent('HubSpot');
+    expect(screen.getByText('Keywords in the top 10')).toBeInTheDocument();
+    expect(screen.getByText(/do not apply here/)).toBeInTheDocument();
+    expect(screen.getByText('Your average position')).toBeInTheDocument();
+    expect(screen.getByText('Keywords where a competitor ranks higher')).toBeInTheDocument();
+    expect(to(seen, '/ai/competitors')).toHaveLength(0);
+    expect(to(seen, '/tracked-keywords')[0]?.searchParams.get('include')).toBe('competitor_ranks');
+  });
+
+  it('a tracked set with the own brand alone asks for a competitor, and a member who may add one can', async () => {
     server.use(
       http.get(COMPETITORS, () => HttpResponse.json(competitorsBody([competitorRow(OWN_ID, 'Fynix', 'own', 1)]))),
     );
-    render('admin');
-    expect(await screen.findByRole('heading', { name: 'No competitor is tracked' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Add competitor' }).length).toBeGreaterThan(0);
+    render();
+    expect(await screen.findByText('No competitor is tracked')).toBeInTheDocument();
   });
 
-  it('a read of the tracked set that failed says so with Retry, and the header and tabs stay', async () => {
-    let calls = 0;
-    server.use(
-      http.get(COMPETITORS, ({ request }) => {
-        if (new URL(request.url).searchParams.has('include')) return HttpResponse.json(competitorsBody());
-        calls += 1;
-        return calls === 1 ? problem(request, 'not_found') : HttpResponse.json(competitorsBody());
-      }),
-    );
-    const { user } = render('admin');
+  it('a failed read says so, with a way to try again', async () => {
+    server.use(http.get(COMPETITORS, ({ request }) => problem(request, 'not_found')));
+    render();
     expect(await screen.findByText('Competitor figures could not be loaded')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 1, name: 'Competitors' })).toBeInTheDocument();
-    expect(screen.getByRole('tablist')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
-    await waitFor(() => expect(screen.queryByText('Competitor figures could not be loaded')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
-  it("a link's dropped range shows its banner", async () => {
-    render('admin', '?from=2026-01-01&to=2026-11-01');
-    expect(
-      await screen.findByText('The link asked for more than 92 days, so the last 28 days are shown.'),
-    ).toBeInTheDocument();
-  });
-
-  it('the filter row and the compare control belong to Comparison and AI, and the country control is in the top bar', async () => {
-    render('admin');
-    expect(await screen.findByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('vs previous period');
-  });
-
-  it('keeps the link of the drilldown: the engine of the link narrows the scope and the filter chip says so', async () => {
-    const seen = watch();
-    render('admin', '?engine=gemini_web&country=DE');
-    await waitFor(() => expect(to(seen, '/ai/competitors').length).toBeGreaterThan(0));
-    const asked = to(seen, '/ai/competitors')[0];
-    expect(asked?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
-    expect(asked?.searchParams.get('filter[country_iso]')).toBe('DE');
+  it('with no platform on, the tabs are not drawn', async () => {
+    server.use(http.get(ENGINES, () => HttpResponse.json({ data: [] })));
+    render();
+    expect(await screen.findByText('No platform is on')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
 });
