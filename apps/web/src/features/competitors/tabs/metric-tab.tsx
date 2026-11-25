@@ -15,9 +15,11 @@ import {
   type MetricKey,
 } from '../model/competitor-model';
 import { ChartCard } from './chart-card';
+import { DonutCard } from './donut-card';
+import { toSlices } from './donut-model';
 import { EntityName } from './entity-name';
 import { ChangeCell, RateCell } from './metric-cells';
-import { COLUMN, countItem, fileOf, gapItem, gapOf, ID, rateItem, stripOf, textItem } from './strip-items';
+import { COLUMN, countItem, fileOf, gapItem, gapOf, ID, rateItem, stripOf, valueItem } from './strip-items';
 import { TrackedSetGate } from './tracked-set-gate';
 import { useTabModel } from './use-tab-model';
 import { Delta } from '@/components/app/metric/delta';
@@ -59,6 +61,18 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
   const ordered = useMemo(
     () => [...rows.filter((row) => row.role === 'own'), ...leaders, ...rows.filter((row) => row.role === 'watch')],
     [rows, leaders],
+  );
+
+  // Rates that divide a whole are shown as a donut too: share of voice and citation share, not the mention rate
+  const donutKind = kind === 'mentions' ? null : kind;
+  const slices = toSlices(
+    ordered.map((row, position) => ({
+      id: row.id,
+      name: row.name,
+      value: cellOver(row, metric, engines).value,
+      role: roleOf(row, position),
+    })),
+    t('charts.donut.other'),
   );
 
   const byCompetitor: CategorySeries[] = [
@@ -130,7 +144,7 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
         }
         groups={stripOf([
           rateItem(ID.own, t(`strip.your.${kind}`), ownCell?.value ?? null, delta(ownCell), t(`strip.context.${kind}`)),
-          textItem(
+          valueItem(
             ID.rank,
             t('strip.rank'),
             standing.rank === null ? null : t('strip.rankValue', { rank: standing.rank }),
@@ -149,7 +163,23 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
           ),
         ])}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <div
+        className={
+          donutKind === null ? 'grid grid-cols-1 gap-3 xl:grid-cols-2' : 'grid grid-cols-1 gap-3 xl:grid-cols-3'
+        }
+      >
+        {donutKind === null ? null : (
+          <DonutCard
+            title={t(`charts.donut.${donutKind}.title`)}
+            summary={t(`charts.donut.${donutKind}.summary`)}
+            slices={slices}
+            centerValue={formatPercent(ownCell?.value ?? null)}
+            centerLabel={t('charts.donut.you')}
+            formatValue={(value) => formatPercent(value)}
+            reads={[reads.competitors]}
+            isEmpty={empty || slices.length === 0}
+          />
+        )}
         <ChartCard
           title={t(`charts.${kind}.byCompetitor`)}
           summary={t(`charts.${kind}.byCompetitorSummary`)}

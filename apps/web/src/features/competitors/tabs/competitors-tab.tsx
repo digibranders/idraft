@@ -15,16 +15,18 @@ import {
   type EntityRow,
 } from '../model/competitor-model';
 import { ChartCard } from './chart-card';
+import { DonutCard } from './donut-card';
+import { toSlices } from './donut-model';
 import { EntityName } from './entity-name';
 import { ChangeCell, RateCell } from './metric-cells';
-import { COLUMN, FILE, gapItem, gapOf, ID, rateItem, stripOf, textItem } from './strip-items';
+import { COLUMN, FILE, gapItem, gapOf, ID, rateItem, stripOf, valueItem } from './strip-items';
 import { TrackedSetGate } from './tracked-set-gate';
 import { useTabModel } from './use-tab-model';
 import { Delta } from '@/components/app/metric/delta';
 import { MetricStrip } from '@/components/app/metric/metric-strip';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CategorySeries } from '@/lib/charts/category-chart';
-import { formatInteger, formatPercent } from '@/lib/format';
+import { formatInteger, formatPercent, formatPointsDelta } from '@/lib/format';
 
 /**
  * The first tab: who the competitors are and how they stand. A strip of five figures, three charts (share of voice and
@@ -56,12 +58,21 @@ export function CompetitorsTab(): ReactElement {
       />
     );
 
-  const sovSeries: CategorySeries[] = [
+  const sovSlices = toSlices(
+    ordered.map((row, position) => ({
+      id: row.id,
+      name: row.name,
+      value: cellOver(row, 'share_of_voice', engines).value,
+      role: roleOf(row, position),
+    })),
+    t('charts.donut.other'),
+  );
+  const changeSeries: CategorySeries[] = [
     {
-      id: 'sov',
-      name: t('metric.sov'),
-      role: { kind: 'brand' },
-      values: ordered.map((row) => cellOver(row, 'share_of_voice', engines).value),
+      id: 'change',
+      name: t('charts.sov.changeTitle'),
+      role: { kind: 'palette', index: 2 },
+      values: ordered.map((row) => changeOf(cellOver(row, 'share_of_voice', engines))),
     },
   ];
   const mentionSeries: CategorySeries[] = [
@@ -116,6 +127,22 @@ export function CompetitorsTab(): ReactElement {
 
   const empty = rows.length === 0;
 
+  const trendCard = (
+    <ChartCard
+      title={t('charts.sov.trend')}
+      summary={t('charts.sov.trendSummary')}
+      kind="line"
+      height={240}
+      categories={weekly?.weeks ?? []}
+      categoryHeader={t('charts.week')}
+      series={trendSeries}
+      formatValue={(value) => formatPercent(value)}
+      reads={[reads.competitors, reads.sovSeries]}
+      isEmpty={empty || (weekly?.weeks.length ?? 0) === 0}
+      fileName={FILE.sovTrend}
+    />
+  );
+
   return (
     <TrackedSetGate>
       <MetricStrip
@@ -130,7 +157,7 @@ export function CompetitorsTab(): ReactElement {
         }
         groups={stripOf([
           rateItem(ID.sov, t('strip.your.sov'), ownSov?.value ?? null, delta(ownSov), t('strip.context.sov')),
-          textItem(
+          valueItem(
             ID.rank,
             t('strip.rank'),
             standing.rank === null ? null : t('strip.rankValue', { rank: standing.rank }),
@@ -145,18 +172,15 @@ export function CompetitorsTab(): ReactElement {
         ])}
       />
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <ChartCard
-          title={t('charts.sov.byCompetitor')}
-          summary={t('charts.sov.byCompetitorSummary')}
-          kind="bar"
-          height={240}
-          categories={ordered.map((row) => row.name)}
-          categoryHeader={t('columns.competitor')}
-          series={sovSeries}
+        <DonutCard
+          title={t('charts.donut.sov.title')}
+          summary={t('charts.donut.sov.summary')}
+          slices={sovSlices}
+          centerValue={formatPercent(ownSov?.value ?? null)}
+          centerLabel={t('charts.donut.you')}
           formatValue={(value) => formatPercent(value)}
           reads={[reads.competitors]}
-          isEmpty={empty}
-          fileName={FILE.sovByCompetitor}
+          isEmpty={empty || sovSlices.length === 0}
         />
         <ChartCard
           title={t('charts.mentions.byCompetitor')}
@@ -171,20 +195,25 @@ export function CompetitorsTab(): ReactElement {
           isEmpty={empty}
           fileName={FILE.mentionsByCompetitor}
         />
-        <ChartCard
-          title={t('charts.sov.trend')}
-          summary={t('charts.sov.trendSummary')}
-          kind="line"
-          height={240}
-          categories={weekly?.weeks ?? []}
-          categoryHeader={t('charts.week')}
-          series={trendSeries}
-          formatValue={(value) => formatPercent(value)}
-          reads={[reads.competitors, reads.sovSeries]}
-          isEmpty={empty || (weekly?.weeks.length ?? 0) === 0}
-          fileName={FILE.sovTrend}
-        />
+        {scope.compare ? (
+          <ChartCard
+            title={t('charts.sov.changeTitle')}
+            summary={t('charts.sov.changeSummary')}
+            kind="bar"
+            height={240}
+            categories={ordered.map((row) => row.name)}
+            categoryHeader={t('columns.competitor')}
+            series={changeSeries}
+            formatValue={(value) => formatPointsDelta(value)}
+            reads={[reads.competitors]}
+            isEmpty={empty || changeSeries.every((entry) => entry.values.every((value) => value === null))}
+            fileName={FILE.sovChange}
+          />
+        ) : (
+          trendCard
+        )}
       </div>
+      {scope.compare ? trendCard : null}
       <PlainTable
         caption={t('columns.overviewCaption')}
         columns={columns}

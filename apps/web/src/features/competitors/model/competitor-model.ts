@@ -84,10 +84,15 @@ export function rankedCompetitors(
   return rows.filter((row) => row.role === 'competitor').sort((a, b) => value(b) - value(a));
 }
 
+/** The palette colour of the n-th brand after your own: `chart-2` to `chart-6` in turn. */
+export const paletteRole = (position: number): SeriesRole => ({
+  kind: 'palette',
+  index: ((position % 5) + 2) as 2 | 3 | 4 | 5 | 6,
+});
+
 /** The colour role of an entity in a chart: the own brand is series 1, the others take `chart-2` to `chart-6` in turn. */
-export function roleOf(row: EntityRow, position: number): SeriesRole {
-  return row.role === 'own' ? { kind: 'brand' } : { kind: 'palette', index: ((position % 5) + 2) as 2 | 3 | 4 | 5 | 6 };
-}
+export const roleOf = (row: EntityRow, position: number): SeriesRole =>
+  row.role === 'own' ? { kind: 'brand' } : paletteRole(position);
 
 type AiMetricSeries = components['schemas']['AiMetricSeries'];
 
