@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -429,6 +429,26 @@ describe('the CSV import (spec 5.2)', () => {
     expect(within(dialog).getByText(/The server checks it again when you apply/)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Apply 3 tiers' })).toBeEnabled();
     expect(dialog.textContent?.toLowerCase()).not.toContain('equity');
+  });
+
+  it('reads a chosen or dropped file into the box, then Check works on it', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const dialog = await openFromMenu(user, 'Import tiers from CSV', 'Import tiers from CSV');
+    const field = within(dialog).getByRole('textbox', { name: 'Tiers as CSV' });
+    const input = dialog.querySelector<HTMLInputElement>('input[type="file"]');
+    if (input === null) throw new Error('No file input');
+    expect(within(dialog).getByRole('button', { name: 'Choose file' })).toBeEnabled();
+
+    await user.upload(input, new File([`url,tier\n${SITE}/about,T3\n`], 'tiers.csv', { type: 'text/csv' }));
+    await waitFor(() => expect(field).toHaveValue(`url,tier\n${SITE}/about,T3\n`));
+    await user.click(within(dialog).getByRole('button', { name: 'Check' }));
+    expect(within(dialog).getByRole('heading', { name: '1 row is ready' })).toBeInTheDocument();
+
+    // A drop replaces the text and clears the earlier check
+    const dropped = new File([`url,tier\n${SITE}/pricing,none\n`], 'more.csv', { type: 'text/csv' });
+    fireEvent.drop(field, { dataTransfer: { files: [dropped] } });
+    await waitFor(() => expect(field).toHaveValue(`url,tier\n${SITE}/pricing,none\n`));
+    expect(within(dialog).queryByRole('heading', { name: '1 row is ready' })).toBeNull();
   });
 
   it('lists at most 20 lines, turns only those into text, and cuts a long tier name short', async () => {
