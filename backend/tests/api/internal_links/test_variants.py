@@ -36,7 +36,7 @@ async def _site(resources: Resources, migrated: PostgresServer) -> tuple[str, di
     )
     await execute(
         migrated,
-        "UPDATE seo.crawl_runs SET pages_crawled = 4, pages_variant = 1 WHERE id = $1",
+        "UPDATE seo.crawl_runs SET pages_crawled = 10, pages_variant = 1 WHERE id = $1",
         run,
     )
     return (
@@ -84,4 +84,5 @@ async def test_a_crawl_says_how_many_variants_it_has_and_how_many_pages_count(
     crawls = await api.get(base.replace("internal-links", "link-crawls"), headers=headers)
 
     row = crawls.json()["data"][0]
-    assert (row["pages_crawled"], row["pages_variant"], row["pages"]) == (4, 1, 3)
+    # The provider counted more pages than the crawl stored: `pages` is what is stored.
+    assert (row["pages_crawled"], row["pages_variant"], row["pages"]) == (10, 1, 3)
