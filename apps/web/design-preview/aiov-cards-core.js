@@ -6,7 +6,7 @@
  * `ai.visibility_split` is new.
  */
 import { formatInteger } from './vendor/format/number.js';
-import { MEASURES, PLATFORMS, RUNS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, lastRunOf, platformOf, seriesFor, sovWeeks } from './aiov-data.js';
+import { MEASURES, PLATFORMS, WEEK_LABELS, aggregateFor, entitiesFor, gapFor, platformOf, seriesFor, sovWeeks, trafficFor } from './aiov-data.js';
 import { chartHost, MARKER_PATHS, MARKER_SHAPES, mountChart } from './aiov-charts.js';
 import { ghostTrend, plain, richLineOption, richShareAreaOption, ringsOption, ringTable } from './aiov-rich.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
@@ -41,7 +41,7 @@ function averageShares(rows) {
 // -------------------------------------------------------------------------------------------------
 // Headline: the AI Visibility hero and eight tiles
 
-const TILE_LAYOUT = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'runs'];
+const TILE_LAYOUT = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'traffic'];
 
 /**
  * What stands behind a number, for its tooltip and for screen readers (R1): the counts, or which platforms an average
@@ -176,7 +176,11 @@ export function headlineRow(ctx) {
       const withAnswers = ctx.scope.platform === 'all' ? null : aggregateFor(model, ctx.scope.platform).prompts;
       return tileNode({ label: 'Prompts', info: MEASURE_INFO.prompts, ctx, plain: { value: formatInteger(model.prompts.length), detail: withAnswers === null ? where : `${where}. ${withAnswers} with answers on ${engineName(ctx.scope.platform)}`, note: null } });
     },
-    runs: () => tileNode({ label: 'Runs', info: MEASURE_INFO.runs, ctx, plain: { value: String(RUNS.inWindow), detail: `Run ${RUNS.number}, last ${ctx.scope.platform === 'all' ? RUNS.last : lastRunOf(ctx.scope.platform)}`, note: null } }),
+    traffic: () => {
+      const traffic = trafficFor(model);
+      const measured = !traffic.unavailable;
+      return tileNode({ label: 'AI traffic', info: MEASURE_INFO.traffic, ctx, plain: { value: measured ? formatInteger(traffic.total) : 'n/a', detail: measured ? `Visits from ${traffic.sources.map((source) => source.name).join(' and ')}, last 28 days` : 'Google Analytics cannot tell visits from this platform apart from Google organic', note: null } });
+    },
   };
   TILE_LAYOUT.forEach((key) => strip.append(tiles[key]()));
   grid.append(hero, strip);

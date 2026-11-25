@@ -94,7 +94,7 @@ describe('HeadlineCard', () => {
       'Recommendation rate',
       'Sentiment',
       'Prompts',
-      'Runs',
+      'AI traffic',
     ]);
     expect(await screen.findByRole('button', { name: 'About AI visibility rate' })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'About Mention rate' })).toBeInTheDocument();

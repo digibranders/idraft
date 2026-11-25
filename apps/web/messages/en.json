@@ -7399,7 +7399,7 @@
         "recommendation": "Recommendation rate",
         "sentiment": "Sentiment",
         "prompts": "Prompts",
-        "runs": "Runs"
+        "traffic": "AI traffic"
       },
       "segments": {
         "mentionedAndCited": "Mentioned and cited",
@@ -7427,9 +7427,7 @@
         "promptsCoreAndBranded": "core and branded prompts",
         "promptsBranded": "branded prompts",
         "promptsIn": "{kind}, in {group}",
-        "promptsAnswered": "{where}. {count, number} with answers on {platform}",
-        "runs": "{count, plural, one {# run} other {# runs}} in this period, last {when}",
-        "runsNone": "No runs in this period"
+        "promptsAnswered": "{where}. {count, number} with answers on {platform}"
       },
       "spark": "{name} over the last {count} weeks, latest {value}",
       "info": {
@@ -7465,9 +7463,9 @@
           "what": "How many prompts are tracked in this view.",
           "how": "Each prompt is counted once, however many platforms answer it."
         },
-        "runs": {
-          "what": "How many weekly runs are behind these numbers.",
-          "how": "Prompts are asked on their schedule, so a run may hold only some of them."
+        "traffic": {
+          "what": "Visits to your site that came from AI platforms.",
+          "how": "Sessions with an AI platform as the referrer, from Google Analytics. Visits from Google AI Mode and Google AI Overview cannot be told apart from Google organic, so they are not counted."
         }
       },
       "facts": {

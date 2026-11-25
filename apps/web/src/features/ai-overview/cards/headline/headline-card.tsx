@@ -3,7 +3,6 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
-import { useAiRuns } from '../activity/data/activity-reads';
 import { useCardData } from '../engines/use-card-data';
 import { useCardExport } from '../engines/use-card-seams';
 import { useFrameState } from '../engines/use-frame-state';
@@ -12,7 +11,6 @@ import {
   buildHero,
   readFactTile,
   readTile,
-  runsInWindow,
   sparkOf,
   SEGMENTS,
   type CellTile,
@@ -35,10 +33,10 @@ import { CardInfoButton } from '@/components/app/chart/card-info';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import type { CardProps } from '@/features/layouts';
 import type { CsvCell } from '@/lib/csv/csv-write';
-import { formatDecimal, formatInteger, formatList, formatPercent, formatTableDateTime } from '@/lib/format';
+import { formatDecimal, formatInteger, formatList, formatPercent } from '@/lib/format';
 
 /** The tiles in the order of the card (OV-HEAD-08). */
-const TILES = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'runs'] as const;
+const TILES = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'traffic'] as const;
 type TileKey = (typeof TILES)[number];
 
 const CELL_TILES: readonly CellTile[] = ['mention', 'sov', 'citation'];
@@ -51,7 +49,6 @@ const isFactTile = (key: TileKey): key is FactTile =>
   key === 'position' || key === 'recommendation' || key === 'sentiment';
 
 const EXPORT_HEADER = ['measure', 'value_percent', 'k', 'n', 'status'] as const;
-const RUNS_LIMIT = 200;
 /** The platforms the product names, by API code: the words are in the catalog (`aiOverview.headline.platforms`). */
 const PLATFORM_NAMES = { chatgpt_web: 'chatgptWeb', gemini_web: 'geminiWeb', google_ai_mode: 'googleAiMode' } as const;
 /** The key of each outcome in the catalog (`aiOverview.headline.segments`). */
@@ -101,7 +98,6 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
   const infoOf = useInfoOf();
   const unavailable = useScopeUnavailable(t('label'));
   const { tree } = useTopicTree();
-  const runs = useAiRuns({ subscribed: live, limit: RUNS_LIMIT });
 
   // The project value of a chosen group is the same read without the group; with no group no engine is named, so no read
   const baselineInput = useMemo(
@@ -205,17 +201,8 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
       ? t('allGroups', { value: percent(model.baselineHero.value) })
       : '';
 
-  const runsFace = ((): { face: Described; loading: boolean } => {
-    if (!data.canViewRuns) return { face: describeReading({ state: 'noAccess' }, words), loading: false };
-    if (runs.status === 'loading') return { face: describeReading({ state: 'none' }, words), loading: true };
-    if (runs.data === undefined) return { face: describeReading({ state: 'notCollected' }, words), loading: false };
-    const found = runsInWindow(runs.data, scope.range, project.timeZone);
-    const tip =
-      found.last === null
-        ? t('tips.runsNone')
-        : t('tips.runs', { count: found.count, when: formatTableDateTime(found.last, project.timeZone) });
-    return { face: { value: formatInteger(found.count), tip, note: null, known: true }, loading: false };
-  })();
+  // The API has no route for AI visits yet (backend request 5): the tile says so and never draws a sample (OV-NOPORT-06)
+  const trafficFace: Described = describeReading({ state: 'notCollected' }, words);
 
   const groupName = chosenGroup(groupChoices(tree, shell('allGroups')), scope.topic, shell('groupUnknown')).label;
   const promptsFace = (): Described => {
@@ -253,7 +240,7 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
         key === 'position' ? { ...words, formatValue: (value: number) => formatDecimal(value, 1) } : words;
       return { face: describeReading(model.facts[key], factWords), baseline: null, spark: null, loading: false };
     }
-    if (key === 'runs') return { ...runsFace, baseline: null, spark: null };
+    if (key === 'traffic') return { face: trafficFace, baseline: null, spark: null, loading: false };
     return { face: promptsFace(), baseline: null, spark: null, loading: false };
   };
 
