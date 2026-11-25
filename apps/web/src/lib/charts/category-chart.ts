@@ -123,6 +123,8 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
         params: readonly { axisValueLabel?: string; seriesName?: string; value?: unknown; color?: unknown }[],
       ) => {
         const [first] = params;
+        // A category no series has a value for says nothing: no tooltip, rather than a date alone
+        if (!params.some((param) => typeof param.value === 'number')) return '';
         const rows = params
           .filter((param) => typeof param.value === 'number')
           .map((param) => {

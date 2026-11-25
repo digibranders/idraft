@@ -139,3 +139,28 @@ describe('series colours', () => {
     expect(seriesColorVar({ kind: 'other' })).toBe('var(--chart-other)');
   });
 });
+
+describe('the tooltip of a category with no value', () => {
+  type Params = { axisValueLabel: string; seriesName: string; value: unknown; color: string }[];
+  const formatter = (kind: 'line' | 'bar'): ((params: Params) => string) =>
+    (option(kind)['tooltip'] as { formatter: (params: Params) => string }).formatter;
+
+  it('has no tooltip at all when no series has a value there, so a date never shows alone', () => {
+    const params: Params = [
+      { axisValueLabel: 'Aug', seriesName: 'You', value: null, color: 'c' },
+      { axisValueLabel: 'Aug', seriesName: 'hubspot.com', value: undefined, color: 'c' },
+    ];
+    expect(formatter('line')(params)).toBe('');
+    expect(formatter('bar')(params)).toBe('');
+  });
+
+  it('lists only the series that have a value in the category', () => {
+    const text = formatter('line')([
+      { axisValueLabel: 'Sep', seriesName: 'You', value: 30, color: 'c' },
+      { axisValueLabel: 'Sep', seriesName: 'hubspot.com', value: null, color: 'c' },
+    ]);
+    expect(text).toContain('Sep');
+    expect(text).toContain('You');
+    expect(text).not.toContain('hubspot.com');
+  });
+});
