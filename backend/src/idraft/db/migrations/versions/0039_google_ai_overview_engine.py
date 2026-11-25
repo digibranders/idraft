@@ -45,4 +45,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DELETE FROM ai.project_engines WHERE engine_code = 'google_ai_overview'")
     op.execute("DELETE FROM ai.engines WHERE code = 'google_ai_overview'")
