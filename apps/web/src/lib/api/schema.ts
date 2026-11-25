@@ -6873,7 +6873,7 @@ export interface components {
          * EngineCode
          * @enum {string}
          */
-        EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+        EngineCode: "chatgpt_web" | "gemini_web" | "google_ai_mode" | "google_ai_overview";
         /**
          * EngineDetailCells
          * @description The small cells of one engine over the window (contract C2, change log C-9): each is a
@@ -23796,7 +23796,7 @@ export const edgeRowKindValues: ReadonlyArray<FlattenedDeepRequired<components>[
 export const edgeRowPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const edgeRowScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EdgeRow"]["scope"]> = ["editorial", "auto_generated", "template"];
 export const engineBrandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineBrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
-export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
+export const engineCodeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineCode"]> = ["chatgpt_web", "gemini_web", "google_ai_mode", "google_ai_overview"];
 export const engineProviderParamsDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParams"]["device"]> = ["desktop", "mobile"];
 export const engineProviderParamsUpdateDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["EngineProviderParamsUpdate"]["device"]> = ["desktop", "mobile"];
 export const entityEntity_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Entity"]["entity_type"]> = ["brand", "product", "organization", "person", "other"];
