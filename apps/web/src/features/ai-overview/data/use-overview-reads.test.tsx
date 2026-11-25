@@ -125,7 +125,17 @@ describe('useOverviewEngines', () => {
       client.getQueryCache().findAll({ queryKey: ['ws', FYNIX.workspaceId, 'p', FYNIX.projectId, 'engines'] }),
     ).toHaveLength(1);
     expect(result.current.engines.enabled).toEqual(result.current.layout.enabledEngines);
-    expect(result.current.engines.data).toHaveLength(3);
+    expect(result.current.engines.data).toHaveLength(4);
+  });
+
+  it('leaves Google AI Overview out of the enabled engines the answer based reads ask, though it is on', async () => {
+    const { result } = renderHook(() => useOverviewEngines(FYNIX), { wrapper });
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    const overview = result.current.data?.find((row) => row.engine.engine_code === 'google_ai_overview');
+    expect(overview?.is_enabled).toBe(true);
+    expect(result.current.enabled).not.toContain('google_ai_overview');
   });
 
   it('names no enabled engine for a project with AI off', async () => {

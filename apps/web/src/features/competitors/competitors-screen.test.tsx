@@ -205,7 +205,10 @@ describe('Competitors page', () => {
     expect(table).toHaveTextContent('55.0%');
     expect(table).toHaveTextContent('63.0%');
     expect(table).toHaveTextContent('31.0%');
-    expect(screen.getByText('Share of voice by brand')).toBeInTheDocument();
+    // Share of voice splits a whole: a donut with a legend that gives every brand its value
+    expect(screen.getByRole('region', { name: 'Share of voice split' })).toHaveTextContent('HubSpot');
+    expect(screen.getByRole('img', { name: /How share of voice divides/ })).toBeInTheDocument();
+    expect(screen.getAllByText('Share of voice change').length).toBeGreaterThan(1);
     expect(screen.getByText('Mention rate by brand')).toBeInTheDocument();
     expect(screen.getByText('Share of voice over time')).toBeInTheDocument();
     // The strip answers questions: where you stand, who leads, by how much, and who is moving
@@ -231,6 +234,8 @@ describe('Competitors page', () => {
     expect(table).toHaveTextContent('ChatGPT');
     expect(screen.getByText('Competitors ahead of you')).toBeInTheDocument();
     expect(screen.getByText('of 2 competitors')).toBeInTheDocument();
+    if (tab === 'mentions') expect(screen.queryByRole('region', { name: /split/ })).toBeNull();
+    else expect(screen.getByRole('region', { name: /split/ })).toHaveTextContent('HubSpot');
     if (trend === null) {
       expect(screen.queryByText(/over time/)).toBeNull();
     } else {
@@ -261,6 +266,8 @@ describe('Competitors page', () => {
     expect(screen.getByText('Your strongest platform')).toBeInTheDocument();
     expect(screen.getByText('Most prompts lost to')).toBeInTheDocument();
     expect(screen.getByText('7 prompts')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Prompts lost split' })).toHaveTextContent('HubSpot');
+    expect(screen.getAllByText('Mention rate by platform').length).toBeGreaterThan(0);
     expect(screen.getByRole('table', { name: /Prompts lost to each competitor/ })).toHaveTextContent('HubSpot');
     expect(to(seen, '/ai/competitors').some((url) => url.searchParams.get('include') === 'lost_prompts')).toBe(true);
   });
@@ -292,7 +299,8 @@ describe('Competitors page', () => {
     expect(screen.getByText('Keywords in the top 10')).toBeInTheDocument();
     expect(screen.getByText(/do not apply here/)).toBeInTheDocument();
     expect(screen.getByText('Your average position')).toBeInTheDocument();
-    expect(screen.getByText('Keywords where a competitor ranks higher')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Your rank distribution' })).toBeInTheDocument();
+    expect(screen.getByText('Keywords where you trail')).toBeInTheDocument();
     expect(to(seen, '/ai/competitors')).toHaveLength(0);
     expect(to(seen, '/tracked-keywords')[0]?.searchParams.get('include')).toBe('competitor_ranks');
   });

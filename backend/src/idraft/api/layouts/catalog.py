@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from idraft.api.problems import FieldError, invalid_fields
 from idraft.api.schemas.ai_layouts import CardWidth, LayoutDocument, LayoutScreen
+from idraft.domain.ai_engines import ENGINES
 
 DOCUMENT_MAX_BYTES: Final = 16 * 1024
 SCREENS: Final = frozenset(get_args(LayoutScreen))
@@ -112,6 +113,12 @@ def document_errors(
             if per_engine is None:
                 found.append(
                     FieldError(f"{at}.metric", "not_in_catalog", "Not a number of this screen.")
+                )
+            elif number.engine is not None and ENGINES[number.engine].keyword_level:
+                found.append(
+                    FieldError(
+                        f"{at}.engine", "not_applicable", "This platform has no answers to count."
+                    )
                 )
             elif per_engine and number.engine is None:
                 found.append(

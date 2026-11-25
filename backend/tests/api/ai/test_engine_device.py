@@ -68,6 +68,7 @@ async def test_ai_mode_lists_desktop_by_default_and_the_other_engines_list_no_de
             "chatgpt_web": {"device": None},
             "gemini_web": {"device": None},
             "google_ai_mode": {"device": "desktop"},
+            "google_ai_overview": {"device": None},
         }
 
 
@@ -90,7 +91,12 @@ async def test_a_device_is_saved_for_ai_mode_and_read_back(
     assert {
         row["engine"]["engine_code"]: row["provider_params"]["device"]
         for row in listed.json()["data"]
-    } == {"chatgpt_web": None, "gemini_web": None, "google_ai_mode": "mobile"}
+    } == {
+        "chatgpt_web": None,
+        "gemini_web": None,
+        "google_ai_mode": "mobile",
+        "google_ai_overview": None,
+    }
     assert await _stored(migrated, project, AI_MODE) == {"device": "mobile"}
 
 

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 
 import { aiSetupSteps, enginesFacts, type EngineFacts, type Read, type SetupStep } from './setup-steps';
 import { apiQuery } from '@/lib/api/query';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { projectPath } from '@/lib/routes/paths';
 
 /**
@@ -58,7 +59,10 @@ export function useAiSetupSteps(scope: AiSetupScope): AiSetupState {
   const engines = useQuery(apiQuery(ENGINES, { params: { path } }));
   const answers = useQuery(apiQuery(ANSWERS, { params: { path, query: { limit: 1 } } }));
 
-  const enginesRead: Read<EngineFacts> | null = readOf(engines, (list) => enginesFacts(list.data));
+  const enginesRead: Read<EngineFacts> | null = readOf(engines, (list) =>
+    // Google AI Overview alone asks no prompt, so it does not complete the step
+    enginesFacts(list.data.filter((engine) => !isKeywordLevelEngine(engine.engine))),
+  );
   const answersRead: Read<boolean> | null = readOf(answers, (page) => page.data.length > 0);
   if (enginesRead === null || answersRead === null) return { status: 'loading' };
   if (enginesRead.state === 'failed' && answersRead.state === 'failed') {

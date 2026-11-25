@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import provider_price_book
-from idraft.domain.ai_engines import ENGINES, PROVIDER_CODE, Queue
+from idraft.domain.ai_engines import PROMPT_ENGINES, PROVIDER_CODE, Queue
 
 
 async def task_prices(db: AsyncSession, *, queue: Queue, on: date) -> dict[str, Decimal]:
@@ -22,7 +22,7 @@ async def task_prices(db: AsyncSession, *, queue: Queue, on: date) -> dict[str, 
         select(p.endpoint, p.unit_price_usd, p.conditions)
         .where(
             p.provider_code == PROVIDER_CODE,
-            p.endpoint.in_(sorted(engine.endpoint for engine in ENGINES.values())),
+            p.endpoint.in_(sorted(engine.endpoint for engine in PROMPT_ENGINES.values())),
             p.price_unit == "task",
             p.valid_from <= on,
             (p.valid_to.is_(None)) | (p.valid_to > on),

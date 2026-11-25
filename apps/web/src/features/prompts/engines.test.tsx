@@ -374,7 +374,47 @@ describe('Project settings > Platforms: class, Perplexity row and cost change su
     expect(within(rowOf('Gemini')).getByText('agent_api')).toBeInTheDocument();
   });
 
-  it('lists the Perplexity API after the three engines: official API, not available yet, switch disabled', async () => {
+  it('lists Google AI Overview after Google AI Mode as read from rank checks: no price, no prompt wording, no countries, no device', async () => {
+    renderWithProviders(enginesAs('editor', fynix, 'DE'));
+    const overview = await screen.findByRole('switch', { name: 'Google AI Overview' });
+    expect(overview).toBeChecked();
+    const row = rowOf('Google AI Overview');
+    expect(row.previousElementSibling).toBe(rowOf('Google AI Mode'));
+    expect(within(row).getByText('SERP AI')).toBeInTheDocument();
+    expect(
+      within(row).getByText('Read from the rank checks of linked keywords. It costs nothing extra per prompt.'),
+    ).toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/a month|active prompt|characters/);
+    expect(within(row).queryByRole('toolbar')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByText('Locations of Google AI Overview')).not.toBeInTheDocument();
+  });
+
+  it('turns Google AI Overview on without a question or a price, and leaves the cost estimate alone', async () => {
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', cleanstart, 'US'));
+    const overview = await screen.findByRole('switch', { name: 'Google AI Overview' });
+    expect(overview).not.toBeChecked();
+    await user.click(overview);
+    expect(await screen.findByText('Google AI Overview is on')).toBeInTheDocument();
+    expect(screen.getByText('It is read from the next rank checks of your linked keywords.')).toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Google AI Overview' })).toBeChecked());
+    expect(puts).toEqual([{ location_ids: [2840], is_enabled: true }]);
+    expect(costSummary()).toBeNull();
+  });
+
+  it('asks for a country for Google AI Overview only when the project has none to save it with', async () => {
+    const puts = recordPuts();
+    const { user } = renderWithProviders(enginesAs('editor', cleanstart, null));
+    const overview = await screen.findByRole('switch', { name: 'Google AI Overview' });
+    expect(screen.getByText('Locations of Google AI Overview', { selector: 'label' })).toBeInTheDocument();
+    await user.click(overview);
+    expect((await screen.findAllByText('Choose at least one country.')).length).toBeGreaterThan(0);
+    expect(puts).toEqual([]);
+  });
+
+  it('lists the Perplexity API after the platforms: official API, not available yet, switch disabled', async () => {
     renderWithProviders(enginesAs('editor', fynix, 'DE'));
     await screen.findByRole('switch', { name: 'ChatGPT' });
     const perplexity = screen.getByRole('switch', { name: 'Perplexity API' });
@@ -384,9 +424,9 @@ describe('Project settings > Platforms: class, Perplexity row and cost change su
     expect(within(row).getByText('Not available yet')).toBeInTheDocument();
     expect(within(row).getByText('Official API')).toBeInTheDocument();
     expect(within(row).queryByRole('combobox')).not.toBeInTheDocument();
-    // After the three engines, in the same list, and one more switch than there are engines
-    expect(screen.getAllByRole('switch')).toHaveLength(4);
-    expect(row.previousElementSibling).toBe(rowOf('Google AI Mode'));
+    // After the four platforms, in the same list, and one more switch than there are platforms
+    expect(screen.getAllByRole('switch')).toHaveLength(5);
+    expect(row.previousElementSibling).toBe(rowOf('Google AI Overview'));
   });
 
   it('sends nothing when the Perplexity switch is clicked or used from the keyboard', async () => {

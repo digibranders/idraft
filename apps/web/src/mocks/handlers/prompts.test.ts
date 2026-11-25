@@ -105,14 +105,21 @@ const item = (text: string, country = 'DE'): Record<string, string> => ({
 });
 
 describe('engines', () => {
-  it('lists the three engines, Fynix with ChatGPT and Gemini on and a monthly cost for each', async () => {
+  it('lists the four platforms, Fynix with ChatGPT, Gemini and Google AI Overview on and a monthly cost for each', async () => {
     const answer = await mockBrowser('viewer').call('GET', `${FYNIX}/engines`);
     const engines = dataOf(answer, z.array(ENGINE));
     expect(engines.map((engine) => [engine.engine.engine_code, engine.is_enabled])).toEqual([
       ['chatgpt_web', true],
       ['gemini_web', true],
       ['google_ai_mode', false],
+      ['google_ai_overview', true],
     ]);
+    // Read from rank checks: every active prompt, no price of its own and no prompt length
+    expect(engines[3]).toMatchObject({
+      active_prompts: 24,
+      estimated_monthly_cost_usd: '0.00',
+      engine: { max_prompt_chars: 0 },
+    });
     // 24 prompts, twice a week, at $0.0012: 24 x 2 x 0.0012 x 52 / 12 = $0.25
     expect(engines[0]).toMatchObject({ active_prompts: 24, estimated_monthly_cost_usd: '0.250000' });
   });
@@ -206,6 +213,7 @@ describe('engines', () => {
       ['chatgpt_web', null],
       ['gemini_web', null],
       ['google_ai_mode', 'desktop'],
+      ['google_ai_overview', null],
     ]);
   });
 
@@ -255,7 +263,24 @@ describe('engines', () => {
       [false, null],
       [false, null],
       [false, 'desktop'],
+      [false, null],
     ]);
+  });
+
+  it('turns Google AI Overview on and off like a platform, without making any schedule', async () => {
+    const editor = mockBrowser('editor');
+    const path = `${CLEANSTART}/engines/google_ai_overview`;
+    const on = await editor.call('PUT', path, { location_ids: [2840] });
+    expect(on.status).toBe(200);
+    expect(dataOf(on, ENGINE)).toMatchObject({
+      is_configured: true,
+      is_enabled: true,
+      estimated_monthly_cost_usd: '0.00',
+    });
+    const off = await editor.call('PUT', path, { location_ids: [2840], is_enabled: false });
+    expect(dataOf(off, ENGINE)).toMatchObject({ is_configured: true, is_enabled: false });
+    const refused = await editor.call('PUT', path, { location_ids: [2840], provider_params: { device: 'mobile' } });
+    expect(fieldCodes(refused)).toEqual(['provider_params.device:device_not_supported']);
   });
 
   it('takes only desktop or mobile, as an object with a device and no other member', async () => {

@@ -45,11 +45,11 @@ const EXPECTED: ReadonlyArray<readonly [ScreenKey, string, Zones]> = [
 ];
 
 describe('the types follow the API schema', () => {
-  it('ScreenKey is the schema screen enum and EngineCode the schema engine enum (the slice 2 tripwire)', () => {
+  it('ScreenKey is the schema screen enum and EngineCode the schema engine enum', () => {
     expectTypeOf<ScreenKey>().toEqualTypeOf<components['schemas']['ResolvedLayout']['screen']>();
-    // Fails to compile when the schema's engine enum gains google_ai_overview (slice 2): then offer it here.
     expectTypeOf<EngineCode>().toEqualTypeOf<components['schemas']['EngineCode']>();
-    expectTypeOf<typeof REFUSED_ENGINE>().not.toExtend<EngineCode>();
+    // Google AI Overview is an engine code of the API, but the catalog does not offer it (no answers behind it)
+    expectTypeOf<typeof REFUSED_ENGINE>().toExtend<EngineCode>();
   });
 });
 

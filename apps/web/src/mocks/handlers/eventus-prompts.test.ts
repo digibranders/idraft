@@ -177,7 +177,8 @@ describe('Eventus Security prompts', () => {
 
   it('asks ChatGPT and Gemini in India, the UAE and Saudi Arabia, and counts the prompts each takes', async () => {
     const engines = dataOf(await mockBrowser('viewer').call('GET', `${EVENTUS}/engines`), z.array(ENGINE));
-    const on = engines.filter((engine) => engine.is_enabled);
+    // Google AI Overview is read from rank checks, so it is not one a prompt is asked on
+    const on = engines.filter((engine) => engine.is_enabled && engine.engine.engine_code !== 'google_ai_overview');
     expect(on.map((engine) => engine.engine.engine_code)).toEqual(['chatgpt_web', 'gemini_web']);
     for (const engine of on) {
       expect(engine.active_prompts).toBe(PROMPT_COUNT);

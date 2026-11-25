@@ -352,7 +352,7 @@ async def full_project(
         "CASE WHEN $3 AND e.code = 'chatgpt_web' THEN 3 ELSE 0 END, "
         "CASE WHEN $3 AND e.code = 'chatgpt_web' THEN $4::jsonb END, $2, 1, 1, 1 "
         "FROM ai.prompts p CROSS JOIN ai.engines e CROSS JOIN generate_series(0, 7) n "
-        "WHERE p.project_id = $1",
+        "WHERE p.project_id = $1 AND e.code <> 'google_ai_overview'",
         world.project.id,
         raw["id"],
         fan_out,

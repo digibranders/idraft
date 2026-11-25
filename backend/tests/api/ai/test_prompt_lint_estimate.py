@@ -13,7 +13,13 @@ from typing import Any
 import httpx
 
 from idraft.api.resources import Resources
-from idraft.domain.ai_engines import _WEEKS_PER_YEAR, BASE_PLAN, ENGINES, EngineCode
+from idraft.domain.ai_engines import (
+    _WEEKS_PER_YEAR,
+    BASE_PLAN,
+    ENGINES,
+    PROMPT_ENGINES,
+    EngineCode,
+)
 from tests.api.ai.sources_support import statements
 from tests.api.ai.support import ai_project, enable_engine, seed_prompts
 from tests.api.auth.support import Workspace, execute, fetch, fetchrow, make_workspace
@@ -260,7 +266,7 @@ async def test_an_engine_without_a_price_has_null_cost_and_the_total_sums_the_re
 
     async with _without_price(migrated, EngineCode.GEMINI_WEB):
         some = await _lint(api, workspace, project, viewer.headers, items)
-    async with _without_price(migrated, *EngineCode):
+    async with _without_price(migrated, *PROMPT_ENGINES):
         none = await _lint(api, workspace, project, viewer.headers, items)
 
     # The answers do not depend on the price; only the money does.
@@ -270,7 +276,9 @@ async def test_an_engine_without_a_price_has_null_cost_and_the_total_sums_the_re
         "google_ai_mode": (3, 26, Decimal("0.03"), 3, Decimal("0.0036")),
     }
     assert Decimal(some["estimate"]["total_monthly_cost_usd"]) == Decimal("0.06")
-    assert _rows(none["estimate"]) == {code.value: (3, 26, None, 3, None) for code in EngineCode}
+    assert _rows(none["estimate"]) == {
+        code.value: (3, 26, None, 3, None) for code in PROMPT_ENGINES
+    }
     assert none["estimate"]["total_monthly_cost_usd"] is None
 
 
@@ -305,6 +313,30 @@ async def test_engine_codes_sent_replace_the_enabled_engines(
 
     # Each once, in the engines' own order, whatever the order sent.
     assert list(_rows(body["estimate"])) == ["gemini_web", "google_ai_mode"]
+
+
+async def test_a_keyword_level_engine_has_no_estimate_and_no_length_note(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await ai_project(migrated, workspace)
+    await enable_engine(migrated, workspace, project, "google_ai_overview")
+
+    enabled = await _lint(api, workspace, project, viewer.headers, [_item("best crm?")])
+    named = await _lint(
+        api,
+        workspace,
+        project,
+        viewer.headers,
+        [_item("best crm?")],
+        engine_codes=["google_ai_overview", "chatgpt_web"],
+    )
+
+    assert enabled["estimate"] == {"engines": [], "total_monthly_cost_usd": None}
+    assert list(_rows(named["estimate"])) == ["chatgpt_web"]
+    for body in (enabled, named):
+        assert "engine_limit" not in [w["rule"] for w in body["data"][0]["warnings"]]
 
 
 async def test_a_disabled_engine_is_not_estimated(

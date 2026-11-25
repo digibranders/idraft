@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { ENGINE_ORDER } from '@/components/app/engine/order';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiQuery } from '@/lib/api/query';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import type { EngineCode } from '@/lib/api/types';
 import { useErrorId, type ErrorIdWords } from '@/lib/api/use-error-id';
 import {
@@ -86,7 +87,7 @@ export function useBoardEngines(project: SourceScope): {
       query.data === undefined
         ? null
         : query.data.data
-            .filter((engine) => engine.is_enabled)
+            .filter((engine) => engine.is_enabled && !isKeywordLevelEngine(engine.engine))
             .map((engine) => ({ code: engine.engine.engine_code, label: engine.engine.label }))
             .sort((a, b) => ENGINE_ORDER.indexOf(a.code) - ENGINE_ORDER.indexOf(b.code)),
     [query.data],

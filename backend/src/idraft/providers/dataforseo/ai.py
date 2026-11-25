@@ -17,7 +17,12 @@ from typing import Final, Literal
 
 from pydantic import Field, field_validator
 
-from idraft.domain.ai_engines import DEFAULT_DEVICE, ENGINES, PROMPT_TEXT_MAX, EngineDevice
+from idraft.domain.ai_engines import (
+    DEFAULT_DEVICE,
+    PROMPT_ENGINES,
+    PROMPT_TEXT_MAX,
+    EngineDevice,
+)
 from idraft.providers.contract import CanonicalRequest, Contract
 from idraft.providers.dataforseo.endpoint import TaskBuilder, TaskEndpoint
 
@@ -31,10 +36,10 @@ ADAPTER_VERSION: Final = 1
 # endpoint takes in characters (spec section 5): the engine facts of `domain.ai_engines`, so the
 # prompt lint of the API and the planner read the same numbers.
 ENGINE_ENDPOINTS: Final[Mapping[str, str]] = MappingProxyType(
-    {code.value: engine.endpoint for code, engine in ENGINES.items()}
+    {code.value: engine.endpoint for code, engine in PROMPT_ENGINES.items()}
 )
 PROMPT_MAX: Final[Mapping[str, int]] = MappingProxyType(
-    {engine.endpoint: engine.max_prompt_chars for engine in ENGINES.values()}
+    {engine.endpoint: engine.max_prompt_chars for engine in PROMPT_ENGINES.values()}
 )
 # The operating system sent with each device: the first system of the SERP adapter's `_SYSTEMS`
 # for the device. Desktop is what S-04 sent. UNVERIFIED for mobile: a real AI Mode request with

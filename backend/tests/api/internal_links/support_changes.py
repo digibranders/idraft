@@ -145,7 +145,9 @@ async def insert_citation(
 ) -> None:
     """One answer of `engine`, `days_ago` days old, that cites the page as the project's own
     domain. The statements are those of `seed_ai` in `tests/db/support.py`."""
-    observation_class = "serp_ai" if engine == "google_ai_mode" else "consumer_ui"
+    observation_class = (
+        "serp_ai" if engine in ("google_ai_mode", "google_ai_overview") else "consumer_ui"
+    )
     async with connection(pg) as db:
         prompt_id, version_id = await insert_prompt(
             db, workspace.id, project, f"Which tool is best {uuid.uuid4().hex}?"

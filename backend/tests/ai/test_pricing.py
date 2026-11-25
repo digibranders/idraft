@@ -8,7 +8,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.ai.pricing import task_prices
-from idraft.domain.ai_engines import ENGINES
+from idraft.domain.ai_engines import ENGINES, PROMPT_ENGINES
 
 
 async def test_each_engine_has_a_task_price_on_each_queue(
@@ -19,8 +19,11 @@ async def test_each_engine_has_a_task_price_on_each_queue(
         priority = await task_prices(db, queue="priority", on=date(2026, 11, 11))
         before = await task_prices(db, queue="standard", on=date(2026, 6, 30))
 
-    endpoints = [engine.endpoint for engine in ENGINES.values()]
+    endpoints = [engine.endpoint for engine in PROMPT_ENGINES.values()]
     assert standard == dict.fromkeys(endpoints, Decimal("0.0012"))
     assert priority == dict.fromkeys(endpoints, Decimal("0.0024"))
     # None was in the book before the prices were valid: no guess of zero.
     assert before == {}
+    # The keyword level engine has no endpoint to price.
+    assert "" not in standard
+    assert ENGINES.keys() > PROMPT_ENGINES.keys()

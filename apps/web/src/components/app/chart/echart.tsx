@@ -14,6 +14,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useRef, type ReactElement } from 'react';
 
 import { CHART_CURSOR } from '@/lib/charts/rich-style';
+import { withTooltipFlow } from '@/lib/charts/tooltip-flow';
 import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 
 // Tree-shaken: only what the category charts and the treemap draw. Legend and title are React (15 section 3).
@@ -84,7 +85,7 @@ export function EChart({ option, height, group }: EChartProps): ReactElement {
     const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => instance.resize());
     resize?.observe(node);
     const theme = new MutationObserver(() => {
-      instance.setOption(latestOption.current(readChartTokens()), { notMerge: true });
+      instance.setOption(withTooltipFlow(latestOption.current(readChartTokens())), { notMerge: true });
     });
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
     return () => {
@@ -107,7 +108,7 @@ export function EChart({ option, height, group }: EChartProps): ReactElement {
 
   useEffect(() => {
     latestOption.current = option;
-    chart.current?.setOption(option(readChartTokens()), { notMerge: true });
+    chart.current?.setOption(withTooltipFlow(option(readChartTokens())), { notMerge: true });
   }, [option]);
 
   return <div ref={element} style={{ height }} className="w-full" />;

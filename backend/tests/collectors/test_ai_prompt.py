@@ -85,6 +85,29 @@ async def _all_engines(pg: PostgresServer, project: Project) -> None:
         await enable_engine(pg, project, code)
 
 
+async def test_a_keyword_level_engine_turned_on_is_never_planned_or_priced(
+    worker_db: Ledger, migrated: PostgresServer, world: AiWorld
+) -> None:
+    project = world.project
+    prompt = await add_prompt(migrated, project, QUESTION)
+    await _all_engines(migrated, project)
+    await enable_engine(migrated, project, "google_ai_overview")
+
+    asked = await _plan(worker_db, _window(project, schedule_id=uuid.uuid4()))
+    named = await _plan(
+        worker_db,
+        _window(
+            project,
+            {"prompt_ids": [str(prompt.id)], "engine_codes": ["google_ai_overview", "chatgpt_web"]},
+        ),
+    )
+
+    assert {task.engine_code for task in asked.tasks} == set(ENGINES)
+    assert {task.engine_code for task in named.tasks} == {"chatgpt_web"}
+    assert all(task.provider_endpoint for task in asked.tasks)
+    assert asked.config_snapshot["skipped_total"] == 0
+
+
 def _asked(plan: Plan) -> set[tuple[str, str | None]]:
     return {(task.subject_id, task.engine_code) for task in plan.tasks}
 

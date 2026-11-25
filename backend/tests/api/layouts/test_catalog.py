@@ -211,3 +211,11 @@ def test_a_document_over_16_kb_is_refused() -> None:
     [error] = raised.value.errors()
     assert error["loc"] == ("body", "")
     assert error["type"] == "too_large"
+
+
+def test_a_number_cannot_name_the_keyword_level_engine() -> None:
+    document = {
+        "schema": 1,
+        "numbers": [{"id": "n1", "metric": "ai.mention_rate", "engine": "google_ai_overview"}],
+    }
+    assert errors("overview", document) == [("numbers.0.engine", "not_applicable")]

@@ -8,6 +8,7 @@ from idraft.domain.ai_engines import (
     BASE_PLAN,
     DEFAULT_DEVICE,
     ENGINES,
+    PROMPT_ENGINES,
     PROMPT_TEXT_MAX,
     BasePlan,
     EngineCode,
@@ -17,8 +18,8 @@ from idraft.domain.ai_engines import (
 )
 
 
-def test_slice_one_collects_three_engines_through_their_own_endpoints() -> None:
-    assert {code: engine.endpoint for code, engine in ENGINES.items()} == {
+def test_three_engines_are_asked_per_prompt_through_their_own_endpoints() -> None:
+    assert {code: engine.endpoint for code, engine in PROMPT_ENGINES.items()} == {
         EngineCode.CHATGPT_WEB: "ai_optimization/chat_gpt/llm_scraper",
         EngineCode.GEMINI_WEB: "ai_optimization/gemini/llm_scraper",
         EngineCode.GOOGLE_AI_MODE: "serp/google/ai_mode",
@@ -28,7 +29,20 @@ def test_slice_one_collects_three_engines_through_their_own_endpoints() -> None:
         EngineCode.CHATGPT_WEB: ObservationClass.CONSUMER_UI,
         EngineCode.GEMINI_WEB: ObservationClass.CONSUMER_UI,
         EngineCode.GOOGLE_AI_MODE: ObservationClass.SERP_AI,
+        EngineCode.GOOGLE_AI_OVERVIEW: ObservationClass.SERP_AI,
     }
+
+
+def test_google_ai_overview_is_read_from_rank_checks_never_asked_per_prompt() -> None:
+    engine = ENGINES[EngineCode.GOOGLE_AI_OVERVIEW]
+    assert (engine.label, engine.vendor) == ("Google AI Overview", "google")
+    assert engine.exposes_citations
+    assert not engine.exposes_fanout
+    assert engine.keyword_level
+    assert engine.runs_at("Country")
+    assert not engine.runs_at("City")
+    assert set(PROMPT_ENGINES) == set(EngineCode) - {EngineCode.GOOGLE_AI_OVERVIEW}
+    assert not any(engine.keyword_level for engine in PROMPT_ENGINES.values())
 
 
 @pytest.mark.parametrize(
@@ -67,7 +81,7 @@ def test_a_full_base_plan_costs_about_4_68_a_month_on_three_engines() -> None:
     per_engine = monthly_cost(BASE_PLAN.max_prompts, Decimal("0.0012"))
     # 150 prompts x 2 runs a week x 52 / 12 weeks x $0.0012 a task.
     assert per_engine == Decimal("1.56")
-    assert per_engine * len(ENGINES) == Decimal("4.68")
+    assert per_engine * len(PROMPT_ENGINES) == Decimal("4.68")
 
 
 def test_the_cost_grows_with_runs_and_answers() -> None:
@@ -82,6 +96,7 @@ def test_only_ai_mode_takes_a_device() -> None:
         EngineCode.CHATGPT_WEB: False,
         EngineCode.GEMINI_WEB: False,
         EngineCode.GOOGLE_AI_MODE: True,
+        EngineCode.GOOGLE_AI_OVERVIEW: False,
     }
     assert DEFAULT_DEVICE == "desktop"
 

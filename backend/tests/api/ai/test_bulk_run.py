@@ -62,7 +62,8 @@ async def _setup(resources: Resources, pg: PostgresServer, count: int = 2) -> Sc
         await add_prompt(pg, project, f"Which SOC providers suit bank number {number}?")
         for number in range(count)
     ]
-    for code in ENGINES:
+    # AI Overview is on too: it is read from rank checks and never asked.
+    for code in (*ENGINES, "google_ai_overview"):
         await enable_engine(pg, project, code)
     return Scene(workspace, project, owner, prompts)
 
@@ -175,6 +176,21 @@ async def test_without_engine_codes_every_engine_turned_on_is_asked(
         "chatgpt_web",
         "gemini_web",
     ]
+
+
+async def test_a_keyword_level_engine_is_never_asked_by_a_bulk_run(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    scene = await _setup(resources, migrated, count=1)
+    prompt_id = scene.prompts[0].id
+
+    refused = await _bulk(api, scene, [prompt_id], ["google_ai_overview"])
+    default = await _bulk(api, scene, [prompt_id])
+
+    assert errors(refused) == [("engine_codes", "engine_not_enabled")]
+    assert default.json()["meta"]["answers"] == 3
+    (run,) = await _runs(migrated, scene)
+    assert json.loads(run["config_snapshot"])["selector"]["engine_codes"] == sorted(ENGINES)
 
 
 async def test_thirty_prompts_are_one_of_the_days_twenty_manual_runs(

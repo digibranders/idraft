@@ -513,7 +513,7 @@ class EngineUpdate(Body):
 class RunNow(Body):
     """The engines to ask the prompt on now, each once, through the standard queue."""
 
-    engine_codes: Annotated[list[EngineCode], Field(min_length=1, max_length=3)]
+    engine_codes: Annotated[list[EngineCode], Field(min_length=1, max_length=len(EngineCode))]
 
 
 AnswerStatus = Literal["complete", "partial", "empty", "refused", "error"]

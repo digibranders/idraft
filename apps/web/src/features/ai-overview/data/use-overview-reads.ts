@@ -21,6 +21,7 @@ import {
 } from './overview-queries';
 import { mapRead, useRead, type Gate, type Read } from './read-state';
 import type { EngineCode, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 /**
@@ -94,8 +95,13 @@ function scheduleOf(page: Schemas['SchedulePage']): OverviewSchedule {
   return { nextRunAt, paused: page.data.length > 0 && active.length === 0 };
 }
 
+// A keyword level platform (Google AI Overview) has no answers, so it is not one the answer based reads ask: choosing
+// it as the Platform leaves no platform asked, and the cards say they do not measure it. The by-platform card and
+// the Platform select read the engine list itself and still show it.
 const enabledOf = (engines: readonly ProjectEngine[]): readonly EngineCode[] =>
-  engines.filter((engine) => engine.is_enabled).map((engine) => engine.engine.engine_code);
+  engines
+    .filter((engine) => engine.is_enabled && !isKeywordLevelEngine(engine.engine))
+    .map((engine) => engine.engine.engine_code);
 
 /** `GET engines`: the same request and key as `useLayoutCapabilities`, so the engines are one request. */
 export function useOverviewEngines(project: ProjectRef): OverviewEngines {

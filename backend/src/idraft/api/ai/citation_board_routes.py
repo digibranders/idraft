@@ -50,7 +50,9 @@ def board_query(
         Query(description="Each prompt and engine's last 1, 2 or 4 runs."),
     ] = 4,
     engine_codes: Annotated[
-        list[EngineCode] | None, Commas, Query(alias="filter[engine_code_in]", max_length=3)
+        list[EngineCode] | None,
+        Commas,
+        Query(alias="filter[engine_code_in]", max_length=len(EngineCode)),
     ] = None,
     term_id: Annotated[
         UUID | None,

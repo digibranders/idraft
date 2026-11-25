@@ -2,9 +2,9 @@ import { runState, usdOfMicros } from './factories/operations';
 import { FIRST_MINTED, mockId } from './mock-ids';
 import { AI_ANSWER_MICROS, MOCK_BUDGETS, type BudgetGroup, type StoredBudget } from './operations-fixtures';
 import type { StoredRun, StoredSchedule } from './operations-state';
-import { ENGINE_CODES, fixturePrompts } from './prompt-fixtures';
+import { ENGINE_CODES, fixturePrompts, type AskedEngineCode as EngineCode } from './prompt-fixtures';
 import { onMockReset } from './state';
-import type { EngineCode, Schemas } from '@/lib/api/types';
+import type { Schemas } from '@/lib/api/types';
 import { formatIsoDate } from '@/lib/format';
 
 /**
@@ -130,7 +130,8 @@ export function aiCoverage(runs: readonly StoredRun[], run: StoredRun, now: numb
   missing.sort(
     (a, b) =>
       a.prompt_id.localeCompare(b.prompt_id) ||
-      ENGINE_CODES.indexOf(a.engine_code) - ENGINE_CODES.indexOf(b.engine_code) ||
+      ENGINE_CODES.findIndex((code) => code === a.engine_code) -
+        ENGINE_CODES.findIndex((code) => code === b.engine_code) ||
       a.replicate_index - b.replicate_index,
   );
   return {

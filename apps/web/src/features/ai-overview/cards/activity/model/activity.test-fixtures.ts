@@ -34,6 +34,15 @@ const ENGINE_FACTS: Readonly<Record<EngineCode, ProjectEngine['engine']>> = {
     exposes_fanout: false,
     max_prompt_chars: 700,
   },
+  google_ai_overview: {
+    engine_code: 'google_ai_overview',
+    label: 'Google AI Overview',
+    observation_class: 'serp_ai',
+    vendor: 'google',
+    exposes_citations: true,
+    exposes_fanout: false,
+    max_prompt_chars: 0,
+  },
 };
 
 const uuid = (kind: number, n: number): string =>

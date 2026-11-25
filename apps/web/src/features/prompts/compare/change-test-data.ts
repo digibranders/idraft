@@ -79,6 +79,7 @@ const LABELS: Readonly<Record<EngineCode, string>> = {
   chatgpt_web: 'ChatGPT',
   gemini_web: 'Gemini',
   google_ai_mode: 'Google AI Mode',
+  google_ai_overview: 'Google AI Overview',
 };
 
 export const projectEngine = (code: EngineCode): ProjectEngine => ({

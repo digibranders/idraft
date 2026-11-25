@@ -50,7 +50,7 @@ const OPTION_VALUE = z
   .string()
   .max(256)
   .refine((value) => !UNPRINTABLE.test(value));
-/** Only the engines the API accepts: `google_ai_overview` is refused until slice 2. */
+/** Only the engines the catalog lists (those with answers): `google_ai_overview` is a keyword level platform, so it is refused. */
 const ENGINE = z.enum(ENGINES.map((engine) => engine.code));
 
 const DOCUMENT = z.strictObject({

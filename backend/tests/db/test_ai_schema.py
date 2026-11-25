@@ -12,7 +12,7 @@ import pytest
 from alembic import command
 
 from idraft.db.migrate import alembic_config
-from idraft.domain.ai_engines import BASE_PLAN, ENGINES
+from idraft.domain.ai_engines import BASE_PLAN, ENGINES, PROMPT_ENGINES
 from tests.conftest import PostgresServer
 from tests.db.support import Tenant, connection, insert_prompt, scoped, seed_tenant
 from tests.db.test_rank_schema import refused
@@ -110,6 +110,27 @@ async def test_the_engines_are_seeded_as_the_code_knows_them(migrated: PostgresS
     }
 
 
+async def test_google_ai_overview_is_a_serp_engine_read_from_rank_checks(
+    migrated: PostgresServer,
+) -> None:
+    async with connection(migrated) as db:
+        row = await db.fetchrow("SELECT * FROM ai.engines WHERE code = 'google_ai_overview'")
+        priced = await db.fetchval(
+            "SELECT count(*) FROM ops.provider_price_book WHERE endpoint = ''"
+        )
+    assert row is not None
+    assert (
+        row["label"],
+        row["observation_class"],
+        row["vendor"],
+        row["exposes_citations"],
+        row["exposes_fanout"],
+        row["is_active"],
+    ) == ("Google AI Overview", "serp_ai", "google", True, False, True)
+    # It has no endpoint, so the price book has nothing for it.
+    assert priced == 0
+
+
 async def test_project_engines_hold_one_to_fifty_locations_and_a_replicate_count(
     migrated: PostgresServer, tenants: tuple[Tenant, Tenant]
 ) -> None:
@@ -158,7 +179,7 @@ async def test_project_engines_hold_one_to_fifty_locations_and_a_replicate_count
 
 
 async def test_each_engine_has_a_task_price_on_both_queues(migrated: PostgresServer) -> None:
-    endpoints = [engine.endpoint for engine in ENGINES.values()]
+    endpoints = [engine.endpoint for engine in PROMPT_ENGINES.values()]
     async with connection(migrated) as db:
         rows = await db.fetch(
             "SELECT endpoint, price_unit, unit_price_usd, conditions->>'queue' AS queue "

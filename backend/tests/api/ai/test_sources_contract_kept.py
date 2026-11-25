@@ -454,8 +454,8 @@ def test_the_api_document_has_the_source_additions() -> None:
         ("SourceDomainRow", "series", 14),
         ("SourcePageRow", "series", 14),
         ("SourcesMeta", "series", 14),
-        ("SourcesMeta", "by_role_by_engine", 3),
-        ("SourceChangesMeta", "engine_codes", 3),
+        ("SourcesMeta", "by_role_by_engine", 4),
+        ("SourceChangesMeta", "engine_codes", 4),
     ):
         assert _bound(schemas[model]["properties"][field], "maxItems") == bound, (model, field)
     for model, field, bound in (
@@ -511,15 +511,15 @@ def test_the_api_document_has_the_new_source_routes() -> None:
     topics = schemas["FanoutQueryRow"]["properties"]["topics"]
     assert "topics" not in schemas["FanoutQueryRow"].get("required", [])
     assert _bound(topics, "maxItems") == 10
-    assert schemas["SourceDiversity"]["properties"]["data"]["maxItems"] == 3
-    assert _bound(schemas["SourceDiversityMeta"]["properties"]["engine_codes"], "maxItems") == 3
+    assert schemas["SourceDiversity"]["properties"]["data"]["maxItems"] == 4
+    assert _bound(schemas["SourceDiversityMeta"]["properties"]["engine_codes"], "maxItems") == 4
     assert _bound(schemas["SourceDiversityEngine"]["properties"]["series"], "maxItems") == 14
     for field, bound in (
         ("rows", 10),
         ("top_pages", 10),
         ("prompts", 20),
         ("cited_with", 5),
-        ("engines", 3),
+        ("engines", 4),
     ):
         detail = schemas["SourceDomainDetailData"]["properties"][field]
         assert detail["maxItems"] == bound, field

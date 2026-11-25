@@ -11,6 +11,11 @@ import type { ObservationDetail } from '@/lib/api/types';
  */
 export interface ProjectPrompts {
   engines: StoredEngine[];
+  /**
+   * Google AI Overview, a keyword level platform: its switch lives apart from `engines`, which holds the platforms a
+   * prompt is asked on, so nothing that plans or runs a prompt ever sees it. `undefined` is never configured.
+   */
+  keywordLevel: Pick<StoredEngine, 'is_enabled' | 'location_ids'> | undefined;
   prompts: StoredPrompt[];
   /** When Run now last asked each prompt on each engine, by `prompt_id engine_code`: epoch milliseconds. */
   asked: Map<string, number>;
@@ -33,8 +38,12 @@ let providerPaused = false;
 export function promptsOf(projectId: string): ProjectPrompts {
   const found = STATE.get(projectId);
   if (found !== undefined) return found;
+  const engines = fixtureEngines(projectId).map((engine) => ({ ...engine, location_ids: [...engine.location_ids] }));
   const fresh: ProjectPrompts = {
-    engines: fixtureEngines(projectId).map((engine) => ({ ...engine, location_ids: [...engine.location_ids] })),
+    engines,
+    // On where the project asks prompts, as the page showed Google AI Overview before it was a platform
+    keywordLevel:
+      engines[0] === undefined ? undefined : { is_enabled: true, location_ids: [...engines[0].location_ids] },
     prompts: fixturePrompts(projectId).map((prompt) => ({ ...prompt, term_ids: [...prompt.term_ids] })),
     asked: new Map(),
     observations: [],

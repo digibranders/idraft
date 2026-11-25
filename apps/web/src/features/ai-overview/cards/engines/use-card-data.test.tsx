@@ -433,10 +433,10 @@ describe('useCardData', () => {
 });
 
 describe('world facts the later tasks rely on (read from the mock itself)', () => {
-  it('Fynix has 2 engines on and the third off', async () => {
+  it('Fynix asks 2 platforms, has the third off, and reads Google AI Overview from rank checks', async () => {
     const { result } = hookOf({ previous: 'none' });
     await ready(result);
-    expect(result.current.engines.data).toHaveLength(3);
+    expect(result.current.engines.data).toHaveLength(4);
     expect(result.current.engines.enabled).toEqual(['chatgpt_web', 'gemini_web']);
   });
 

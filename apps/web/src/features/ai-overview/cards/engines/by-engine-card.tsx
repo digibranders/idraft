@@ -21,6 +21,8 @@ import { percentNumber } from './percent';
 import { useCardData } from './use-card-data';
 import { useCardDrill, useCardExport } from './use-card-seams';
 import { useFrameState } from './use-frame-state';
+import { useOverviewSummary as useOverviewSummaryOf } from '../../data/use-overview-reads';
+import { useOverview } from '../../overview-context';
 import { compareWord, singlePlatform, type CompareWord } from '../../scope/scope-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { SmallSampleMarker } from '@/components/app/chart/small-sample-marker';
@@ -35,6 +37,8 @@ import type { CsvCell } from '@/lib/csv/csv-write';
 import { safeText } from '@/lib/csv/csv-write';
 import { aiOverviewFigure, aiOverviewTotalsOf, type AiOverviewFigure } from '@/lib/rates/ai-overview';
 import { EMPTY_VALUE, formatInteger, formatInterval, formatList, formatPercent, formatPointsDelta } from '@/lib/format';
+
+const AI_OVERVIEW = 'google_ai_overview';
 
 type Translate = ReturnType<typeof useTranslations<'aiOverview.engines.byEngine'>>;
 
@@ -265,12 +269,30 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
     () => (aggregates === null ? null : buildByEngine({ aggregates, sources })),
     [aggregates, sources],
   );
-  // Google AI Overview is not an answer platform: its row is read from the rank checks of the prompts' linked keywords,
-  // shown only while every platform is in view, and never joins an average
-  const promptRows = data.current.data?.prompts;
+  // Google AI Overview is a platform of the project but has no answers: its row is read from the rank checks of the
+  // prompts' linked keywords, shown while it is on and every platform or it alone is in view, and never joins an
+  // average. Alone, no answer based read runs, so its figure is read over every platform (the figure is the prompts')
+  const { workspaceId, enabledEngines } = useOverview();
+  const platform = singlePlatform(scope);
+  const overviewOn = (data.engines.data ?? []).some(
+    (engine) => engine.is_enabled && engine.engine.engine_code === AI_OVERVIEW,
+  );
+  const overviewAlone = overviewOn && platform === AI_OVERVIEW;
+  const aloneRead = useOverviewSummaryOf(
+    {
+      project: { workspaceId, projectId: data.project.id },
+      scope: { ...scope, engines: null, compare: false },
+      enabledEngines,
+    },
+    { subscribed: live && overviewAlone, include: ['ai_overview'] },
+  );
+  const promptRows = overviewAlone ? aloneRead.data?.prompts : data.current.data?.prompts;
   const overview = useMemo(
-    () => (singlePlatform(scope) === null ? aiOverviewFigure(aiOverviewTotalsOf(promptRows ?? [])) : null),
-    [scope, promptRows],
+    () =>
+      overviewOn && (platform === null || overviewAlone)
+        ? aiOverviewFigure(aiOverviewTotalsOf(promptRows ?? []))
+        : null,
+    [overviewOn, platform, overviewAlone, promptRows],
   );
   const overviewLabel = t('aiOverviewLabel');
   const bodyRows = useMemo(
@@ -286,7 +308,18 @@ export default function ByEngineCard({ item, live }: CardProps): ReactElement {
   );
 
   const noValidAnswers = model !== null && model.rows.every((row) => row.validAnswers === 0);
-  const phase = data.phase === 'ready' && noValidAnswers ? 'empty' : data.phase;
+  // Alone, the card is the keyword figure's: it waits for that read and never for the answer based ones
+  const phase = overviewAlone
+    ? aloneRead.status === 'error'
+      ? 'error'
+      : aloneRead.status === 'loading'
+        ? 'loading'
+        : overview === null
+          ? 'empty'
+          : 'ready'
+    : data.phase === 'ready' && noValidAnswers
+      ? 'empty'
+      : data.phase;
   const notValid =
     model === null ? 0 : model.rows.reduce((total, row) => total + (row.allAnswers - row.validAnswers), 0);
   const runs = data.canViewRuns ? drill('runs') : null;

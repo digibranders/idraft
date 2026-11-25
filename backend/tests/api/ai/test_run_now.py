@@ -40,7 +40,8 @@ async def _setup(
     owner = await member(resources, pg, workspace, "owner")
     project = Project(workspace.id, await make_project(pg, workspace.id))
     prompt = await add_prompt(pg, project, QUESTION)
-    for code in ("chatgpt_web", "gemini_web", "google_ai_mode"):
+    # AI Overview is on too: it is read from rank checks and never asked.
+    for code in ("chatgpt_web", "gemini_web", "google_ai_mode", "google_ai_overview"):
         await enable_engine(pg, project, code)
     return workspace, project, owner, prompt
 
@@ -155,6 +156,22 @@ async def test_an_engine_the_project_has_not_turned_on_is_refused(
 
     assert problem(response) == (422, "validation_failed")
     assert errors(response) == [("engine_codes", "engine_not_enabled")]
+    assert await _runs(migrated, project) == []
+
+
+async def test_a_keyword_level_engine_is_never_asked_even_when_it_is_on(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner, prompt = await _setup(resources, migrated)
+
+    only = await _run_now(api, workspace, project, owner, prompt.id, ["google_ai_overview"])
+    mixed = await _run_now(
+        api, workspace, project, owner, prompt.id, ["chatgpt_web", "google_ai_overview"]
+    )
+
+    for response in (only, mixed):
+        assert problem(response) == (422, "validation_failed")
+        assert errors(response) == [("engine_codes", "engine_not_enabled")]
     assert await _runs(migrated, project) == []
 
 

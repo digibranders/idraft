@@ -18,7 +18,7 @@ export type Channel = 'seo' | 'ai';
 export type CardGroup = 'seo' | 'ai' | 'cross' | 'activity' | 'traffic';
 export type Breakpoint = 'wide' | 'medium' | 'narrow';
 
-/** Engines the API accepts (Q8 of WP-11). `google_ai_overview` comes back with slice 2. */
+/** The engine codes of the API. The catalog's `ENGINES` lists those whose answers a card option can name. */
 export type EngineCode = components['schemas']['EngineCode'];
 
 /** One card type placed on a screen. */

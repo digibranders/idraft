@@ -9,7 +9,9 @@ import { useCompetitors } from '../competitors-context';
 import { ReadFailed } from '../competitors-states';
 import { bucketCounts, keywordTable, type KeywordRow } from '../model/seo-model';
 import { ChartCard } from './chart-card';
-import { countItem, FILE, ID, stripOf, textItem } from './strip-items';
+import { DonutCard } from './donut-card';
+import { toSlices } from './donut-model';
+import { countItem, FILE, ID, stripOf, textItem, valueItem } from './strip-items';
 import { MetricStrip } from '@/components/app/metric/metric-strip';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -69,6 +71,19 @@ export function SeoTab(): ReactElement {
   const topTen = counts.map((count) => count.top3 + count.top10);
   const ownTopTen = topTen[0] ?? null;
   const loaded = model !== null;
+  const ownCounts = counts[0];
+  const rankSlices = toSlices(
+    BUCKET_ORDER.map((bucket, index) => ({
+      id: bucket,
+      name: t(`seo.buckets.${bucket}`),
+      value: ownCounts?.[bucket] ?? null,
+      role: BUCKET_ROLE[index] ?? { kind: 'other' },
+    })),
+    t('charts.donut.other'),
+    { sorted: false },
+  );
+  const ownTopTenShare =
+    model === null || model.rows.length === 0 || ownTopTen === null ? null : ownTopTen / model.rows.length;
 
   const columns: PlainColumn<KeywordRow>[] = [
     {
@@ -112,7 +127,7 @@ export function SeoTab(): ReactElement {
               ? null
               : t('seo.shareOfTracked', { percent: formatPercent(ownTopTen / model.rows.length, { decimals: 0 }) }),
           ),
-          textItem(
+          valueItem(
             ID.average,
             t('seo.averagePosition'),
             model?.ownAverage == null ? null : formatDecimal(model.ownAverage, 1),
@@ -132,7 +147,18 @@ export function SeoTab(): ReactElement {
           ),
         ])}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <DonutCard
+          title={t('seo.donutTitle')}
+          summary={t('seo.donutSummary')}
+          slices={rankSlices}
+          centerValue={formatPercent(ownTopTenShare, { decimals: 0 })}
+          centerLabel={t('seo.donutCenter')}
+          formatValue={(value) => formatInteger(value)}
+          reads={[keywords]}
+          isEmpty={rankSlices.length === 0}
+          showShare
+        />
         <ChartCard
           title={t('seo.chartTop10')}
           summary={t('seo.chartTop10Summary')}

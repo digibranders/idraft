@@ -27,7 +27,7 @@ from pydantic import (
 from idraft.ai.text import normalize
 from idraft.api.schemas.ai import CountryIso, Importance, PromptType
 from idraft.api.schemas.keywords import FunnelStage, Intent
-from idraft.domain.ai_engines import PROMPT_TEXT_MAX, EngineCode
+from idraft.domain.ai_engines import ENGINES, PROMPT_TEXT_MAX, EngineCode
 
 # backend/src/idraft/devseed/fixture.py: parents[4] is the repository root.
 DEFAULT_FIXTURE: Final = (
@@ -83,6 +83,16 @@ class EnginePart(_Strict):
     countries: list[CountryIso] = Field(min_length=1)
     # The model the mocks report. Not seeded: a provider reports the model with each answer.
     model: Name
+
+    @model_validator(mode="after")
+    def _asked_per_prompt(self) -> Self:
+        # The seed turns engines on for prompt collection; a keyword level one asks nothing.
+        if ENGINES[self.engine_code].keyword_level:
+            raise ValueError(
+                f"{self.engine_code.value} is read from rank checks and is never seeded as an "
+                "engine of prompts"
+            )
+        return self
 
 
 class TopicChild(_Strict):

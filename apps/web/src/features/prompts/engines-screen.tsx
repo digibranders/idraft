@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
-import { engineCostChange, type EngineCostChange } from './engine-cost-model';
+import { engineCostChange, isKeywordLevel, type EngineCostChange } from './engine-cost-model';
 import { enginesQuery, PUT_ENGINE, refreshPrompts, type PromptScope } from './prompt-queries';
 import { useMultiSelectHints } from '@/components/app/forms/use-multi-select-hints';
 import { Banner } from '@/components/app/status/banner';
@@ -263,6 +263,10 @@ function EngineRow({
   const cost = engine.estimated_monthly_cost_usd === null ? null : money(engine.estimated_monthly_cost_usd);
   const prompts = engine.active_prompts;
   const missingCountry = touched && chosen.length === 0;
+  // Google AI Overview is read from rank checks: no price, no question before it starts, and no country picker
+  // unless the API has none to save it with (it follows the locations of the rank checks)
+  const keywordLevel = isKeywordLevel(engine);
+  const showCountries = !keywordLevel || ids.length === 0;
 
   const fail = (message: string): void => {
     setError(message);
@@ -294,7 +298,7 @@ function EngineRow({
     // keeps it, and features do not import each other), so it is spelled out here as the runs key is elsewhere
     void queryClient.invalidateQueries({ queryKey: [...projectKey(scope.workspaceId, scope.projectId), 'schedules'] });
     // Only a switch changes the cost: the price of an engine does not depend on its countries
-    if (isEnabled !== engine.is_enabled) onSwitched(code, isEnabled);
+    if (isEnabled !== engine.is_enabled && !keywordLevel) onSwitched(code, isEnabled);
     await refreshPrompts(queryClient, scope);
   };
   // Until the list is read again after a save, `engine` is the row from before it. A device change made from that
@@ -312,7 +316,9 @@ function EngineRow({
   const turn = (on: boolean): void => {
     if (on) {
       setError(null);
-      setAsking(true);
+      // Nothing is spent by turning a keyword level platform on, so there is nothing to ask first
+      if (keywordLevel) turnOn().catch(() => undefined);
+      else setAsking(true);
       return;
     }
     // Off keeps what the engine holds: the API needs a country even here, and a field the person emptied or a
@@ -356,14 +362,24 @@ function EngineRow({
       throw new Error('An engine needs a country before it is turned on');
     }
     await save(true, ids, held ?? undefined);
-    toast({ type: 'success', title: t('turnedOn', { engine: label }), description: t('turnedOnHint') });
+    toast({
+      type: 'success',
+      title: t('turnedOn', { engine: label }),
+      description: t(keywordLevel ? 'turnedOnKeywordLevelHint' : 'turnedOnHint'),
+    });
   };
 
   return (
     <div className="flex flex-col gap-3">
       <SettingRow
         label={label}
-        description={cost === null ? t('noPrice') : t('estimate', { cost: formatCurrency(cost), prompts })}
+        description={
+          keywordLevel
+            ? t('keywordLevelNote')
+            : cost === null
+              ? t('noPrice')
+              : t('estimate', { cost: formatCurrency(cost), prompts })
+        }
         error={error}
         control={
           <div className="flex items-center gap-3">
@@ -388,27 +404,29 @@ function EngineRow({
           <p className="type-meta">{t('deviceHint')}</p>
         </div>
       )}
-      <Field invalid={missingCountry} disabled={!canWrite}>
-        <FieldLabel>{t('countriesLabel', { engine: label })}</FieldLabel>
-        <MultiSelect<Country>
-          value={chosen}
-          onValueChange={changeCountries}
-          items={countries}
-          itemToString={(country) => country.name}
-          itemKey={(country) => String(country.location_id)}
-          placeholder={t('countriesPlaceholder')}
-          emptyText={(query) => t('countriesEmpty', { query })}
-          chipsLabel={t('chips', { engine: label })}
-          removeLabel={(value) => t('remove', { value })}
-          disabled={!canWrite}
-          {...hints}
-        />
-        {missingCountry ? (
-          <FieldError message={t('countriesRequired')} />
-        ) : (
-          <FieldDescription>{t('countriesHint')}</FieldDescription>
-        )}
-      </Field>
+      {showCountries ? (
+        <Field invalid={missingCountry} disabled={!canWrite}>
+          <FieldLabel>{t('countriesLabel', { engine: label })}</FieldLabel>
+          <MultiSelect<Country>
+            value={chosen}
+            onValueChange={changeCountries}
+            items={countries}
+            itemToString={(country) => country.name}
+            itemKey={(country) => String(country.location_id)}
+            placeholder={t('countriesPlaceholder')}
+            emptyText={(query) => t('countriesEmpty', { query })}
+            chipsLabel={t('chips', { engine: label })}
+            removeLabel={(value) => t('remove', { value })}
+            disabled={!canWrite}
+            {...hints}
+          />
+          {missingCountry ? (
+            <FieldError message={t('countriesRequired')} />
+          ) : (
+            <FieldDescription>{t('countriesHint')}</FieldDescription>
+          )}
+        </Field>
+      ) : null}
       <ConfirmDialog
         open={asking}
         onOpenChange={(open) => {

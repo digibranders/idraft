@@ -54,7 +54,7 @@ function Harness({ engines: given, countryIso = 'DE' }: Omit<HarnessProps, 'with
         scope={SCOPE}
         open={open}
         onOpenChange={setOpen}
-        engines={given ?? engines.data.data.filter((engine) => engine.is_enabled)}
+        engines={given ?? engines.data.data.filter((engine) => engine.is_enabled && engine.engine.max_prompt_chars > 0)}
         existing={list.rows}
         defaults={{ languageCode: 'en', countryIso }}
       />

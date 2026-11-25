@@ -54,8 +54,10 @@ async def test_every_engine_is_listed_off_with_its_cost_at_full_capacity(
         ("chatgpt_web", False, False, [], 1, 150, "1.56"),
         ("gemini_web", False, False, [], 1, 150, "1.56"),
         ("google_ai_mode", False, False, [], 1, 150, "1.56"),
+        ("google_ai_overview", False, False, [], 1, 150, "0.00"),
     ]
-    # 150 prompts x 3 engines x 2 runs a week x 52 / 12 weeks x $0.0012 a task.
+    # AI Overview is read from rank checks, so it adds nothing. 150 prompts x 3 engines x 2 runs
+    # a week x 52 / 12 weeks x $0.0012 a task.
     assert sum(Decimal(row["estimated_monthly_cost_usd"]) for row in rows) == Decimal("4.68")
     assert rows[2]["engine"]["max_prompt_chars"] == 700
 
@@ -73,7 +75,61 @@ async def test_a_prompt_longer_than_an_engine_takes_is_not_counted_for_it(
 
     rows = response.json()["data"]
     counts = {row["engine"]["engine_code"]: row["active_prompts"] for row in rows}
-    assert counts == {"chatgpt_web": 3, "gemini_web": 3, "google_ai_mode": 2}
+    assert counts == {
+        "chatgpt_web": 3,
+        "gemini_web": 3,
+        "google_ai_mode": 2,
+        "google_ai_overview": 3,
+    }
+
+
+async def test_google_ai_overview_costs_nothing_whether_it_is_on_or_off(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await seed_prompts(migrated, workspace, project, 10)
+    url = project_url(workspace, project, "engines")
+
+    def costs(response: httpx.Response) -> dict[str, str]:
+        return {
+            row["engine"]["engine_code"]: row["estimated_monthly_cost_usd"]
+            for row in response.json()["data"]
+        }
+
+    off = costs(await api.get(url, headers=editor.headers))
+    put = await api.put(
+        project_url(workspace, project, "engines", "google_ai_overview"),
+        json={"location_ids": [LOCATION]},
+        headers=editor.headers,
+    )
+    on = costs(await api.get(url, headers=editor.headers))
+
+    assert put.status_code == 200, put.text
+    assert put.json()["data"]["estimated_monthly_cost_usd"] == "0.00"
+    assert off["google_ai_overview"] == on["google_ai_overview"] == "0.00"
+    assert off == on
+
+
+async def test_turning_only_google_ai_overview_on_makes_no_schedule(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+
+    response = await api.put(
+        project_url(workspace, project, "engines", "google_ai_overview"),
+        json={"location_ids": [LOCATION]},
+        headers=editor.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["is_enabled"] is True
+    assert (
+        await fetch(migrated, "SELECT id FROM ops.schedules WHERE project_id = $1", project) == []
+    )
 
 
 async def test_turning_the_first_engine_on_starts_two_runs_a_week(

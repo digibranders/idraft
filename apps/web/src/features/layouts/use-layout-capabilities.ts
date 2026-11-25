@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { apiQuery } from '@/lib/api/query';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import type { Capabilities, EngineCode } from '@/lib/layouts';
 import { useMembership } from '@/lib/permissions';
 
@@ -36,7 +37,10 @@ export function useLayoutCapabilities(scope: { workspaceId: string; projectId: s
     const enabledEngines =
       data === undefined
         ? NO_ENGINES
-        : data.data.filter((engine) => engine.is_enabled).map((engine) => engine.engine.engine_code);
+        : data.data
+            // Google AI Overview alone has no answers, so it does not turn the AI cards on
+            .filter((engine) => engine.is_enabled && !isKeywordLevelEngine(engine.engine))
+            .map((engine) => engine.engine.engine_code);
     return {
       capabilities: {
         channels: enabledEngines.length > 0 ? SEO_AND_AI : SEO_ONLY,

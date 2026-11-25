@@ -10,11 +10,21 @@ import { renderWithProviders } from '@/test/render';
 
 const THREE = [projectEngine('google_ai_mode'), projectEngine('chatgpt_web'), projectEngine('gemini_web')];
 
-function Harness({ initial = [] }: { initial?: readonly string[] }): ReactElement {
+function Harness({
+  initial = [],
+  withOverview = false,
+}: {
+  initial?: readonly string[];
+  withOverview?: boolean;
+}): ReactElement {
   const [chosen, setChosen] = useState<readonly string[]>(initial);
   return (
     <>
-      <PlatformSelect engines={THREE} chosen={chosen} onChange={setChosen} />
+      <PlatformSelect
+        engines={withOverview ? [...THREE, projectEngine('google_ai_overview')] : THREE}
+        chosen={chosen}
+        onChange={setChosen}
+      />
       <output aria-label="filter">{chosen.join(',')}</output>
     </>
   );
@@ -63,7 +73,7 @@ describe('PlatformSelect', () => {
     const select = screen.getByRole('combobox', { name: 'Platform: All platforms' });
     expect(select).toHaveTextContent('All platforms');
     await user.click(select);
-    // The list has its own name, and Google AI Overview is listed as not available, never chosen
+    // The list has its own name, and a platform that is off, Google AI Overview here, is never offered
     expect(await screen.findByRole('listbox', { name: 'Platform in view' })).toBeInTheDocument();
     const options = await screen.findAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
@@ -71,10 +81,24 @@ describe('PlatformSelect', () => {
       'ChatGPT',
       'Gemini',
       'Google AI Mode',
-      'Google AI OverviewNot available',
     ]);
-    expect(options.slice(1, 4).every((option) => option.querySelector('img') !== null)).toBe(true);
-    expect(options[4]).toHaveAttribute('aria-disabled', 'true');
+    expect(options.slice(1).every((option) => option.querySelector('img') !== null)).toBe(true);
+  });
+
+  it('offers Google AI Overview, last, as a platform like the others when it is on', async () => {
+    const { user } = renderWithProviders(<Harness withOverview />);
+    await user.click(screen.getByRole('combobox', { name: 'Platform: All platforms' }));
+    const options = await screen.findAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual([
+      'All platforms',
+      'ChatGPT',
+      'Gemini',
+      'Google AI Mode',
+      'Google AI Overview',
+    ]);
+    expect(options[4]).not.toHaveAttribute('aria-disabled', 'true');
+    await user.click(options[4] as HTMLElement);
+    expect(screen.getByLabelText('filter')).toHaveTextContent('google_ai_overview');
   });
 
   it('chooses one platform, and All platforms again empties the filter', async () => {

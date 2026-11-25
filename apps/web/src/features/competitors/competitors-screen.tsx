@@ -38,6 +38,7 @@ import { projectKey } from '@/lib/api/keys';
 import { isApiProblem } from '@/lib/api/problem';
 import type { EngineCode } from '@/lib/api/types';
 import type { SourceScope } from '@/lib/citations/types';
+import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { formatBusinessDate, formatList } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { canWriteEntities, useCan, useMembership } from '@/lib/permissions';
@@ -105,7 +106,11 @@ function CompetitorsContent({
   // The engines: which are on, and their names. Stable identities, so the scope is not rebuilt on every render
   const engines = useQuery(enginesQuery(source));
   const enabled = useMemo(
-    () => (engines.data === undefined ? NO_ENGINES : engines.data.data.filter((engine) => engine.is_enabled)),
+    // Google AI Overview has no answers, so the answer based competitor reads leave it out
+    () =>
+      engines.data === undefined
+        ? NO_ENGINES
+        : engines.data.data.filter((engine) => engine.is_enabled && !isKeywordLevelEngine(engine.engine)),
     [engines.data],
   );
   const enabledEngines = useMemo(

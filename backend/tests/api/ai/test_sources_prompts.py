@@ -359,7 +359,11 @@ async def test_the_meta_names_the_window_and_the_engines(
 
     assert set(body["meta"]) == {"window", "include_branded", "engine_codes"}
     assert body["meta"]["include_branded"] is False
-    assert body["meta"]["engine_codes"] == ["chatgpt_web", "gemini_web", "google_ai_mode"]
+    assert body["meta"]["engine_codes"] == [
+        "chatgpt_web",
+        "gemini_web",
+        "google_ai_mode",
+    ]
     assert body["page"]["limit"] == 50
 
 

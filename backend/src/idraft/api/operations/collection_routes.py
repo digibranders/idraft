@@ -70,7 +70,9 @@ async def collection_daily(
     start: Annotated[date | None, Query(alias="from")] = None,
     end: Annotated[date | None, Query(alias="to")] = None,
     engine_codes: Annotated[
-        list[EngineCode] | None, Commas, Query(alias="filter[engine_code_in]", max_length=3)
+        list[EngineCode] | None,
+        Commas,
+        Query(alias="filter[engine_code_in]", max_length=len(EngineCode)),
     ] = None,
 ) -> CollectionDailyResponse:
     return await service.daily(access, project_id, start, end, engine_codes)

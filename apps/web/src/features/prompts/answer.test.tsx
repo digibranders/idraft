@@ -5,13 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AnswerInspector } from './answer-inspector';
 import { PromptsScreen } from './prompts-screen';
-import type { EngineCode, ObservationDetail, Role } from '@/lib/api/types';
+import type { ObservationDetail, Role } from '@/lib/api/types';
 import { formatDetailDateTime } from '@/lib/format';
 import { PermissionProvider } from '@/lib/permissions';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { membershipFactory } from '@/mocks/factories/identity';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
-import { answerOf, DAY_MS, ENGINE_CODES, FIXTURE_PROMPTS, observationIdOf, runInstants } from '@/mocks/prompt-fixtures';
+import {
+  answerOf,
+  DAY_MS,
+  ENGINE_CODES,
+  FIXTURE_PROMPTS,
+  observationIdOf,
+  runInstants,
+  type AskedEngineCode as EngineCode,
+} from '@/mocks/prompt-fixtures';
 import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axe } from '@/test/axe';

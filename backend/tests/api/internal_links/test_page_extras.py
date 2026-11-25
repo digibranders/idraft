@@ -211,6 +211,7 @@ async def test_ai_citations_count_answers_of_the_last_28_days_per_engine(
         ("chatgpt_web", 2),
         ("gemini_web", 3),
         ("google_ai_mode", 40),
+        ("google_ai_overview", 4),
     ):
         await insert_citation(migrated, workspace, project, ids["/pricing"], engine, days_ago)
 
@@ -228,7 +229,8 @@ async def test_ai_citations_count_answers_of_the_last_28_days_per_engine(
         "chatgpt": 2,
         "gemini": 1,
         "ai_mode": 0,
-        "total": 3,
+        # An AI Overview answer has no column of its own; it counts in the total.
+        "total": 4,
         "citations_as_of": await _utc_day(migrated, 1),
     }
     # A page nobody cites still says how old the numbers are.

@@ -125,9 +125,14 @@ export const week = (weekStart: string, input: WeekCellsInput = {}): WeekCells =
   ...(input.entities === undefined ? {} : { entities: input.entities }),
 });
 
-const ENGINE_LABELS = { chatgpt_web: 'ChatGPT', gemini_web: 'Gemini', google_ai_mode: 'Google AI Mode' } as const;
+const ENGINE_LABELS = {
+  chatgpt_web: 'ChatGPT',
+  gemini_web: 'Gemini',
+  google_ai_mode: 'Google AI Mode',
+  google_ai_overview: 'Google AI Overview',
+} as const;
 
-/** A project engine of the three the mocks know. */
+/** A project engine of the platforms the mocks know, written as one asked per prompt. */
 export const projectEngine = (code: keyof typeof ENGINE_LABELS): ProjectEngine => ({
   active_prompts: 1,
   engine: {

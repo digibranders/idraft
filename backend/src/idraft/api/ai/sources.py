@@ -92,7 +92,7 @@ from idraft.api.schemas.ai_sources import (
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_engines import ENGINES, EngineCode
+from idraft.domain.ai_engines import ENGINES, PROMPT_ENGINES, EngineCode
 
 # Fan-out rows name at most this many cited domains.
 CITED_DOMAINS_MAX: Final = 5
@@ -143,8 +143,8 @@ def local_instants(first: date, last: date, zone: ZoneInfo) -> tuple[datetime, d
 
 
 def shown_engines(asked: Sequence[EngineCode] | None) -> list[str]:
-    """The engines a read counts: those asked for, else the three of slice 1, in code order."""
-    return sorted({str(code) for code in (asked or list(EngineCode))})
+    """The engines a read counts: those asked for, else every one asked per prompt."""
+    return sorted({str(code) for code in (asked or list(PROMPT_ENGINES))})
 
 
 async def scoped(
@@ -1080,6 +1080,8 @@ class SourceService:
                 answers=counts.answers,
                 answers_with_fanout=counts.answers_with_fanout,
                 answers_truncated=counts.answers_truncated,
-                engines_without_fanout=[EngineCode(code) for code in NO_FANOUT],
+                engines_without_fanout=[
+                    EngineCode(code) for code in NO_FANOUT if EngineCode(code) in PROMPT_ENGINES
+                ],
             ),
         )

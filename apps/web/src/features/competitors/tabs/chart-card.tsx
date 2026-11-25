@@ -4,15 +4,29 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import type { Read } from '../data/read-state';
-import { ChartFrame, type ChartHeight } from '@/components/app/chart/chart-frame';
+import { ChartFrame, type ChartEmpty, type ChartError, type ChartHeight } from '@/components/app/chart/chart-frame';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 
 /** A bar chart names every bar: the axis would otherwise skip labels that do not fit, leaving bars unnamed. */
 function nameEveryBar(option: Record<string, unknown>): Record<string, unknown> {
   const axis = option['xAxis'];
   if (typeof axis !== 'object' || axis === null || Array.isArray(axis)) return option;
-  const label = (axis as { axisLabel?: Record<string, unknown> }).axisLabel ?? {};
-  return { ...option, xAxis: { ...axis, axisLabel: { ...label, interval: 0, width: 72, overflow: 'truncate' } } };
+  const { axisLabel, data } = axis as { axisLabel?: Record<string, unknown>; data?: readonly unknown[] };
+  // Names that would overlap lean over, so every one can be read in a narrow card
+  const crowded = (data?.length ?? 0) > 3;
+  return {
+    ...option,
+    xAxis: {
+      ...axis,
+      axisLabel: {
+        ...axisLabel,
+        interval: 0,
+        width: crowded ? 90 : 72,
+        overflow: 'truncate',
+        ...(crowded ? { rotate: 30 } : {}),
+      },
+    },
+  };
 }
 
 export interface ChartCardProps {
@@ -34,6 +48,43 @@ export interface ChartCardProps {
   meta?: string | undefined;
 }
 
+export type CardStatus =
+  | { status: 'loading' | 'ready' | 'refetching'; error?: undefined; empty?: undefined }
+  | { status: 'empty'; empty: ChartEmpty; error?: undefined }
+  | { status: 'error'; error: ChartError; empty?: undefined };
+
+/** The state of a card from the reads behind it: the first failed read is the error, any read still open is loading. */
+export function useCardStatus(reads: readonly Read<unknown>[], isEmpty: boolean): CardStatus {
+  const t = useTranslations('competitors.states');
+  const common = useTranslations('common');
+  const status = useTranslations('status.error');
+  const failed = reads.find((read) => read.status === 'error');
+  if (failed !== undefined) {
+    return {
+      status: 'error',
+      error: {
+        title: t('readFailedTitle'),
+        reason: t('readFailedReason'),
+        errorId:
+          failed.errorId === null
+            ? null
+            : {
+                id: failed.errorId,
+                label: status('errorId', { id: failed.errorId }),
+                copyLabel: status('copyErrorId'),
+                copiedLabel: status('copied'),
+              },
+        onRetry: () => reads.forEach((read) => read.refetch()),
+        retrying: false,
+        retryLabel: common('retry'),
+      },
+    };
+  }
+  if (reads.some((read) => read.status === 'loading' || read.status === 'idle')) return { status: 'loading' };
+  if (isEmpty) return { status: 'empty', empty: { title: t('noDataTitle'), reason: t('noDataReason') } };
+  return { status: reads.some((read) => read.status === 'refetching') ? 'refetching' : 'ready' };
+}
+
 /** One chart of the page: the frame of the app's charts, with the page's loading, empty and error states. */
 export function ChartCard({
   title,
@@ -50,12 +101,7 @@ export function ChartCard({
   fileName,
   meta,
 }: ChartCardProps): ReactElement {
-  const t = useTranslations('competitors.states');
-  const common = useTranslations('common');
-  const status = useTranslations('status.error');
-  const failed = reads.find((read) => read.status === 'error');
-  const loading = reads.some((read) => read.status === 'loading' || read.status === 'idle');
-  const refetching = reads.some((read) => read.status === 'refetching');
+  const state = useCardStatus(reads, isEmpty);
   const shared = {
     title,
     summary,
@@ -71,33 +117,7 @@ export function ChartCard({
     ...(kind === 'bar' ? { extendOption: nameEveryBar } : {}),
     ...(stacked === undefined ? {} : { stacked }),
   };
-  if (failed !== undefined) {
-    return (
-      <ChartFrame
-        {...shared}
-        status="error"
-        error={{
-          title: t('readFailedTitle'),
-          reason: t('readFailedReason'),
-          errorId:
-            failed.errorId === null
-              ? null
-              : {
-                  id: failed.errorId,
-                  label: status('errorId', { id: failed.errorId }),
-                  copyLabel: status('copyErrorId'),
-                  copiedLabel: status('copied'),
-                },
-          onRetry: () => reads.forEach((read) => read.refetch()),
-          retrying: false,
-          retryLabel: common('retry'),
-        }}
-      />
-    );
-  }
-  if (loading) return <ChartFrame {...shared} status="loading" />;
-  if (isEmpty) {
-    return <ChartFrame {...shared} status="empty" empty={{ title: t('noDataTitle'), reason: t('noDataReason') }} />;
-  }
-  return <ChartFrame {...shared} status={refetching ? 'refetching' : 'ready'} />;
+  if (state.status === 'error') return <ChartFrame {...shared} status="error" error={state.error} />;
+  if (state.status === 'empty') return <ChartFrame {...shared} status="empty" empty={state.empty} />;
+  return <ChartFrame {...shared} status={state.status} />;
 }

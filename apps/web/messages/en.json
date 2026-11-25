@@ -4049,6 +4049,8 @@
     "confirm": "Turn on {engine}",
     "turnedOn": "{engine} is on",
     "turnedOnHint": "The first answers arrive after the next Monday or Thursday run.",
+    "turnedOnKeywordLevelHint": "It is read from the next rank checks of your linked keywords.",
+    "keywordLevelNote": "Read from the rank checks of linked keywords. It costs nothing extra per prompt.",
     "turnedOff": "{engine} is off",
     "classPrefix": "Class:",
     "classes": {
@@ -5434,9 +5436,7 @@
     },
     "platformSelect": {
       "trigger": "Platform: {value}",
-      "list": "Platform in view",
-      "aiOverview": "Google AI Overview",
-      "unavailable": "Not available"
+      "list": "Platform in view"
     },
     "groupOutOfScope": {
       "noneTitle": "No prompt of this group in this scope",
@@ -7346,7 +7346,6 @@
       "platformLabel": "Platform: {platform}",
       "allPlatforms": "All platforms",
       "platformAiOverview": "Google AI Overview",
-      "platformUnavailable": "Not available",
       "group": "Group",
       "groupLabel": "Group: {group}",
       "groupUnknown": "Unknown group",
@@ -8260,7 +8259,7 @@
       "keywordsTracked": "Keywords tracked",
       "firstOnly": "First {shown} of {total}",
       "yourTop10": "Your keywords in the top 10",
-      "behindAny": "Keywords where a competitor ranks higher",
+      "behindAny": "Keywords where you trail",
       "topCompetitor": "Top competitor",
       "inTop10": "{count, plural, one {# keyword in the top 10} other {# keywords in the top 10}}",
       "inTop10Label": "Keywords in the top 10",
@@ -8279,7 +8278,10 @@
       "shareOfTracked": "{percent} of tracked keywords",
       "averagePosition": "Your average position",
       "averageNote": "over the keywords you rank for",
-      "ofKeywords": "{count, plural, one {of # keyword} other {of # keywords}}"
+      "ofKeywords": "{count, plural, one {of # keyword} other {of # keywords}}",
+      "donutTitle": "Your rank distribution",
+      "donutSummary": "Your tracked keywords by rank band at the latest check: top 3, 4 to 10, 11 to 20, 21 and below, and not ranked.",
+      "donutCenter": "in the top 10"
     },
     "toolbar": "Competitors filters and actions",
     "metric": {
@@ -8361,14 +8363,34 @@
         "byPlatformSummary": "Share of voice by platform for your brand and the leading competitors, one group per platform.",
         "table": "Share of voice of every tracked brand",
         "trend": "Share of voice over time",
-        "trendSummary": "Share of voice over time week by week, one line per brand."
+        "trendSummary": "Share of voice over time week by week, one line per brand.",
+        "changeTitle": "Share of voice change",
+        "changeSummary": "How far each brand's share of voice moved since the comparison period, in points."
       },
       "visibility": {
         "matrix": "Mention rate of every brand on every platform",
-        "lostByCompetitor": "Prompts lost by competitor",
         "lostSummary": "Prompts where the competitor is mentioned in an answer and your brand is not, one bar per competitor.",
         "lostTable": "Prompts lost to each competitor",
-        "topLost": "Prompts lost to {name}"
+        "topLost": "Prompts lost to {name}",
+        "byPlatform": "Mention rate by platform",
+        "byPlatformSummary": "Mention rate of each brand on each platform, one group per platform."
+      },
+      "donut": {
+        "other": "Other brands",
+        "you": "You",
+        "promptsLost": "prompts lost",
+        "sov": {
+          "title": "Share of voice split",
+          "summary": "How share of voice divides among the tracked brands, one slice per brand."
+        },
+        "citations": {
+          "title": "Citation share split",
+          "summary": "How citations divide among the tracked brands, one slice per brand."
+        },
+        "lost": {
+          "title": "Prompts lost split",
+          "summary": "How the prompts lost are divided among the competitors that took them."
+        }
       }
     }
   },

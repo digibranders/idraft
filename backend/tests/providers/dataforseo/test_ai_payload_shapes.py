@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 
 from idraft.collectors.ai_prompt_ingest import SCHEMA_MISMATCH
-from idraft.domain.ai_engines import ENGINES
+from idraft.domain.ai_engines import PROMPT_ENGINES
 from idraft.providers.dataforseo.ai_parse import (
     AiSchemaMismatchError,
     parse_ai_answer,
@@ -88,7 +88,7 @@ def test_each_engine_has_a_captured_fixture_with_a_recorded_hash() -> None:
     captured = [record for record in _records() if record["source"] == "captured"]
 
     assert sorted(record["engine_code"] for record in captured) == sorted(
-        code.value for code in ENGINES
+        code.value for code in PROMPT_ENGINES
     )
     hashes = [record["schema_hash"] for record in captured]
     assert all(re.fullmatch(r"[0-9a-f]{64}", recorded) for recorded in hashes)
@@ -98,7 +98,7 @@ def test_each_engine_has_a_captured_fixture_with_a_recorded_hash() -> None:
 # The hash bites.
 
 
-@pytest.mark.parametrize("engine_code", [code.value for code in ENGINES])
+@pytest.mark.parametrize("engine_code", [code.value for code in PROMPT_ENGINES])
 def test_a_new_field_changes_the_shape_hash(engine_code: str) -> None:
     document = _captured(engine_code)
     changed = copy.deepcopy(document)
@@ -107,7 +107,7 @@ def test_a_new_field_changes_the_shape_hash(engine_code: str) -> None:
     assert schema_hash(changed) != schema_hash(document)
 
 
-@pytest.mark.parametrize("engine_code", [code.value for code in ENGINES])
+@pytest.mark.parametrize("engine_code", [code.value for code in PROMPT_ENGINES])
 def test_a_removed_field_changes_it(engine_code: str) -> None:
     document = _captured(engine_code)
     changed = copy.deepcopy(document)
@@ -117,7 +117,7 @@ def test_a_removed_field_changes_it(engine_code: str) -> None:
     assert schema_hash(changed) != schema_hash(document)
 
 
-@pytest.mark.parametrize("engine_code", [code.value for code in ENGINES])
+@pytest.mark.parametrize("engine_code", [code.value for code in PROMPT_ENGINES])
 def test_a_retyped_field_changes_it(engine_code: str) -> None:
     document = _captured(engine_code)
     assert isinstance(_result(document)["datetime"], str)
@@ -127,7 +127,7 @@ def test_a_retyped_field_changes_it(engine_code: str) -> None:
     assert schema_hash(changed) != schema_hash(document)
 
 
-@pytest.mark.parametrize("engine_code", [code.value for code in ENGINES])
+@pytest.mark.parametrize("engine_code", [code.value for code in PROMPT_ENGINES])
 def test_a_longer_list_and_other_values_keep_the_hash(engine_code: str) -> None:
     document = _captured(engine_code)
     changed = copy.deepcopy(document)
