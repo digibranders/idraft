@@ -24,7 +24,7 @@ from idraft.db.tables import (
     collection_tasks,
     workspace_quotas,
 )
-from idraft.domain.ai_engines import EngineCode
+from idraft.domain.ai_engines import PROMPT_ENGINES
 
 AI_PROMPT: Final = "ai_prompt"
 
@@ -85,7 +85,7 @@ async def askable_engines(db: AsyncSession, workspace_id: UUID, project_id: UUID
             e.project_id == project_id,
             e.is_enabled,
             g.is_active,
-            e.engine_code.in_([str(code) for code in EngineCode]),
+            e.engine_code.in_([str(code) for code in PROMPT_ENGINES]),
         )
     )
     return sorted(row.engine_code for row in rows)

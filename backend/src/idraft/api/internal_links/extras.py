@@ -30,7 +30,13 @@ from idraft.collectors.gsc_pages import page_clicks
 from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.db.tables import crawl_page_changes, crawl_pages, crawl_runs, gsc_page_daily
 
-ENGINES: Final = {"chatgpt_web": "chatgpt", "gemini_web": "gemini", "google_ai_mode": "ai_mode"}
+# AI Overview has no column of its own in `CitationCounts`; it counts in the total only.
+ENGINES: Final = {
+    "chatgpt_web": "chatgpt",
+    "gemini_web": "gemini",
+    "google_ai_mode": "ai_mode",
+    "google_ai_overview": "ai_overview",
+}
 # What a page that did not change shows once its crawl was compared with the one before.
 UNCHANGED: Final = PageChange(
     is_new=False, editorial_in_delta=0, equity_points=0.0, depth_state=None, depth_delta=0

@@ -17,7 +17,13 @@ from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.db.tables import ai_project_engines, ai_prompt_versions, ai_prompts, locations
-from idraft.domain.ai_engines import BASE_PLAN, PROVIDER_CODE, Engine, EngineCode
+from idraft.domain.ai_engines import (
+    BASE_PLAN,
+    PROMPT_ENGINES,
+    PROVIDER_CODE,
+    Engine,
+    EngineCode,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,7 +138,8 @@ async def runnable_locations(
 async def enabled_countries(
     db: AsyncSession, workspace_id: UUID, project_id: UUID
 ) -> dict[EngineCode, set[str]]:
-    """The countries each enabled engine of the project runs in."""
+    """The countries each enabled engine of the project runs in that a prompt is asked on: a
+    keyword level engine is left out, a prompt has no location there."""
     rows = await db.execute(
         select(ai_project_engines.c.engine_code, locations.c.country_iso)
         .select_from(
@@ -140,7 +147,11 @@ async def enabled_countries(
                 locations, locations.c.id == any_(ai_project_engines.c.location_ids)
             )
         )
-        .where(_of_project(workspace_id, project_id), ai_project_engines.c.is_enabled)
+        .where(
+            _of_project(workspace_id, project_id),
+            ai_project_engines.c.is_enabled,
+            ai_project_engines.c.engine_code.in_([str(code) for code in PROMPT_ENGINES]),
+        )
     )
     found: defaultdict[EngineCode, set[str]] = defaultdict(set)
     for row in rows:

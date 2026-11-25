@@ -31,6 +31,7 @@ class EngineCode(StrEnum):
     CHATGPT_WEB = "chatgpt_web"
     GEMINI_WEB = "gemini_web"
     GOOGLE_AI_MODE = "google_ai_mode"
+    GOOGLE_AI_OVERVIEW = "google_ai_overview"
 
 
 class ObservationClass(StrEnum):
@@ -59,6 +60,9 @@ class Engine:
     location_types: frozenset[str]
     # The engine asks from a desktop or a mobile device, a project setting (WP-31). AI Mode only.
     supports_device: bool = False
+    # Read from the rank checks of a prompt's linked keyword, never asked per prompt: no task, no
+    # endpoint, no price, no schedule. Its `endpoint` is empty and `max_prompt_chars` is 0.
+    keyword_level: bool = False
 
     def fits(self, text: str) -> bool:
         return len(text) <= self.max_prompt_chars
@@ -106,11 +110,29 @@ ENGINES: Final[Mapping[EngineCode, Engine]] = MappingProxyType(
             location_types=_COUNTRIES_ONLY,
             supports_device=True,
         ),
+        EngineCode.GOOGLE_AI_OVERVIEW: Engine(
+            code=EngineCode.GOOGLE_AI_OVERVIEW,
+            label="Google AI Overview",
+            observation_class=ObservationClass.SERP_AI,
+            vendor="google",
+            exposes_citations=True,
+            exposes_fanout=False,
+            endpoint="",
+            max_prompt_chars=0,
+            location_types=_COUNTRIES_ONLY,
+            keyword_level=True,
+        ),
     }
 )
 
-# The longest prompt that can be saved: the longest any engine takes.
-PROMPT_TEXT_MAX: Final = max(engine.max_prompt_chars for engine in ENGINES.values())
+# The engines a prompt is asked on: the planner, the price book, the schedules, run-now and the
+# prompt cost estimates read these and never `ENGINES`.
+PROMPT_ENGINES: Final[Mapping[EngineCode, Engine]] = MappingProxyType(
+    {code: engine for code, engine in ENGINES.items() if not engine.keyword_level}
+)
+
+# The longest prompt that can be saved: the longest any prompt engine takes.
+PROMPT_TEXT_MAX: Final = max(engine.max_prompt_chars for engine in PROMPT_ENGINES.values())
 
 EngineDevice = Literal["desktop", "mobile"]
 DEFAULT_DEVICE: Final[EngineDevice] = "desktop"

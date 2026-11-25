@@ -211,6 +211,20 @@ async def test_a_prompt_is_in_a_country_every_enabled_engine_runs_in(
     assert gb_again.status_code == 201, gb_again.text
 
 
+async def test_a_keyword_level_engine_does_not_limit_the_countries_of_a_prompt(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    editor = await member(resources, migrated, workspace, "editor")
+    project = await ai_project(migrated, workspace)
+    await enable_engine(migrated, workspace, project, "google_ai_mode", [LOCATION, OTHER_LOCATION])
+    await enable_engine(migrated, workspace, project, "google_ai_overview", [LOCATION])
+
+    gb = await add_prompt(api, workspace, project, editor, "Best CRM?", country_iso="GB")
+
+    assert gb.status_code == 201, gb.text
+
+
 async def test_a_prompt_takes_the_terms_the_project_may_use(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

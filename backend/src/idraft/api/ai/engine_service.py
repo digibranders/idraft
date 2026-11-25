@@ -90,10 +90,25 @@ async def _views(
 ) -> list[EngineView]:
     configured = await repository.project_engines(db, workspace_id, project_id)
     lengths = await repository.prompt_lengths(db, workspace_id, project_id)
-    prices = await task_prices(db, queue=BASE_PLAN.queue, on=datetime.now(UTC).date())
+    prices = (
+        await task_prices(db, queue=BASE_PLAN.queue, on=datetime.now(UTC).date())
+        if any(not ENGINES[code].keyword_level for code in codes)
+        else {}
+    )
     views = []
     for code in codes:
         engine = ENGINES[code]
+        if engine.keyword_level:
+            # Read from rank checks: every prompt, and nothing of its own to pay.
+            views.append(
+                EngineView(
+                    engine=engine,
+                    configured=configured.get(code),
+                    active_prompts=len(lengths),
+                    estimated_monthly_cost_usd=Decimal("0.00"),
+                )
+            )
+            continue
         prompts = sum(1 for length in lengths if length <= engine.max_prompt_chars)
         price = prices.get(engine.endpoint)
         views.append(
@@ -140,7 +155,8 @@ async def put_engine(
     )
     # Only when the engine goes from off to on: saving the countries of an engine that is
     # already on must not bring back schedules a person deleted.
-    if body.is_enabled and (before is None or not before.is_enabled):
+    # A keyword level engine asks nothing per prompt, so it starts no schedule.
+    if body.is_enabled and not engine.keyword_level and (before is None or not before.is_enabled):
         await ensure_ai_schedule(
             db,
             workspace_id=access.workspace_id,

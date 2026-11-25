@@ -34,7 +34,9 @@ class RunBulk(Body):
     prompt_ids: Annotated[list[UUID], Field(min_length=1, max_length=BASE_PLAN.max_prompts)] = (
         Field(description="Up to 150, the base plan's prompts; a repeat is dropped.")
     )
-    engine_codes: Annotated[list[EngineCode], Field(min_length=1, max_length=3)] | None = None
+    engine_codes: (
+        Annotated[list[EngineCode], Field(min_length=1, max_length=len(EngineCode))] | None
+    ) = None
 
 
 class RunSkip(BaseModel):

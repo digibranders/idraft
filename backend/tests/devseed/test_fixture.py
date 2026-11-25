@@ -89,6 +89,11 @@ CASES: list[tuple[str, Change, str]] = [
     ),
     ("country an engine lacks", _gemini_without_the_emirates, "which gemini_web does not run in"),
     (
+        "keyword level engine",
+        lambda d: d["engines"][1].update(engine_code="google_ai_overview"),
+        "google_ai_overview is read from rank checks",
+    ),
+    (
         "ambiguous without hints",
         lambda d: d["competitors"][6].update(disambiguation_hints=[]),
         "competitors.6",

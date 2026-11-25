@@ -990,7 +990,7 @@ async def test_a_full_project_is_a_handful_of_statements(
     assert response.status_code == 200, response.text
     data = response.json()["data"]
     assert len(data["prompts"]) == 150
-    assert data["engine_codes"] == sorted(ENGINES)
+    assert data["engine_codes"] == sorted([*ENGINES, "google_ai_overview"])
     for engine in data["topics"][0]["engines"]:
         # Every answer names the own brand and nothing else: 8 a prompt, 150 prompts.
         assert _cell(engine["mentioned"]) == (150, 150, 1200)

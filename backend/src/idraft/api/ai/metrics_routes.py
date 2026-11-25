@@ -106,7 +106,7 @@ def metric_scope(
         Commas,
         Query(
             alias="filter[engine_code_in]",
-            max_length=3,
+            max_length=len(EngineCode),
             description="The engines shown. Default: every engine of the project that is "
             "enabled or has an answer in the window. A code outside the three engines is a "
             "`422`; a listed engine that is neither enabled nor answering is left out of the "

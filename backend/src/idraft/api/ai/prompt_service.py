@@ -99,6 +99,7 @@ from idraft.db.engine import workspace_transaction
 from idraft.domain.ai_engines import (
     BASE_PLAN,
     ENGINES,
+    PROMPT_ENGINES,
     PROMPT_TEXT_MAX,
     EngineCode,
     monthly_cost,
@@ -899,7 +900,10 @@ class PromptService:
                 prices = await task_prices(db, queue=BASE_PLAN.queue, on=datetime.now(UTC).date())
         own = own_entities(rules)
         entities = {entity.id: entity for entity in rules.entities}
-        codes = body.engine_codes or list(EngineCode)
+        # A keyword level engine takes no prompt text: it has no length limit and no price.
+        codes = [
+            code for code in PROMPT_ENGINES if not body.engine_codes or code in body.engine_codes
+        ]
         results = await matched(rules, texts)
         linted = [
             _lint(text, language_code, result, entities, own, codes)
@@ -920,7 +924,7 @@ class PromptService:
             would_create=sum(found.creates),
             estimate=estimate_cost(
                 [item.text for item, creates in zip(items, found.creates, strict=True) if creates],
-                [code for code in EngineCode if code in priced_engines],
+                [code for code in PROMPT_ENGINES if code in priced_engines],
                 prices,
             ),
         )

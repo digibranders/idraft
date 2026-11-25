@@ -13,7 +13,7 @@ from idraft.api.schemas.ai import MetricCell
 from idraft.api.schemas.metrics import MetricWindow
 from idraft.domain.ai_engines import EngineCode
 
-ENGINES_MAX = 3  # one entry per engine
+ENGINES_MAX = len(EngineCode)  # one entry per engine
 WINDOW_DAYS_MAX = 92  # the longest AI read window
 
 # `ops.collection_tasks.status` (migration 0004).

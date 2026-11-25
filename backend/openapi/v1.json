@@ -493,7 +493,7 @@
             "items": {
               "$ref": "#/components/schemas/AiCoverageEngine"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "By Engine",
             "type": "array"
           },
@@ -5174,7 +5174,7 @@
             "items": {
               "$ref": "#/components/schemas/EngineCode"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Engine Codes",
             "type": "array"
           },
@@ -5196,7 +5196,7 @@
             "items": {
               "$ref": "#/components/schemas/CollectionDay"
             },
-            "maxItems": 276,
+            "maxItems": 368,
             "title": "Data",
             "type": "array"
           },
@@ -7230,7 +7230,8 @@
         "enum": [
           "chatgpt_web",
           "gemini_web",
-          "google_ai_mode"
+          "google_ai_mode",
+          "google_ai_overview"
         ],
         "title": "EngineCode",
         "type": "string"
@@ -18058,7 +18059,7 @@
             "items": {
               "$ref": "#/components/schemas/EngineCode"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Engine Codes",
             "type": "array"
           },
@@ -20450,7 +20451,7 @@
                 "items": {
                   "$ref": "#/components/schemas/EngineCode"
                 },
-                "maxItems": 3,
+                "maxItems": 4,
                 "minItems": 1,
                 "type": "array"
               },
@@ -20794,7 +20795,7 @@
             "items": {
               "$ref": "#/components/schemas/EngineCode"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "minItems": 1,
             "title": "Engine Codes",
             "type": "array"
@@ -23060,7 +23061,7 @@
             "items": {
               "$ref": "#/components/schemas/EngineCode"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Engine Codes",
             "type": "array"
           },
@@ -23101,7 +23102,7 @@
             "items": {
               "$ref": "#/components/schemas/SourceDiversityEngine"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Data",
             "type": "array"
           },
@@ -23204,7 +23205,7 @@
             "items": {
               "$ref": "#/components/schemas/EngineCode"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Engine Codes",
             "type": "array"
           },
@@ -23256,7 +23257,7 @@
             "items": {
               "$ref": "#/components/schemas/DomainEngineSeries"
             },
-            "maxItems": 3,
+            "maxItems": 4,
             "title": "Engines",
             "type": "array"
           },
@@ -23688,7 +23689,7 @@
                 "items": {
                   "$ref": "#/components/schemas/EngineRoleUnits"
                 },
-                "maxItems": 3,
+                "maxItems": 4,
                 "type": "array"
               },
               {
@@ -33263,7 +33264,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           }
@@ -33366,7 +33367,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -33532,7 +33533,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -33671,7 +33672,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -33914,7 +33915,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -34139,7 +34140,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -34312,7 +34313,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -34473,7 +34474,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           }
@@ -34718,7 +34719,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -34944,7 +34945,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -35239,7 +35240,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -35505,7 +35506,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -35714,7 +35715,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -35938,7 +35939,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -37205,7 +37206,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -37454,7 +37455,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -37754,7 +37755,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -37988,7 +37989,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -38304,7 +38305,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -38545,7 +38546,7 @@
                   "type": "null"
                 }
               ],
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -44251,7 +44252,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },
@@ -44482,7 +44483,7 @@
                 }
               ],
               "description": "The engines shown. Default: every engine of the project that is enabled or has an answer in the window. A code outside the three engines is a `422`; a listed engine that is neither enabled nor answering is left out of the engines shown.",
-              "maxLength": 3,
+              "maxLength": 4,
               "title": "Filter[Engine Code In]"
             }
           },

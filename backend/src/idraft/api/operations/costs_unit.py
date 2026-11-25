@@ -23,7 +23,7 @@ from idraft.api.operations.costs import money
 from idraft.api.problems import NotFoundError
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_engines import EngineCode
+from idraft.domain.ai_engines import PROMPT_ENGINES
 from idraft.domain.workloads import CostWorkload
 
 _SPENT_ON: Final = (CostWorkload.AI_PROMPT, CostWorkload.SEO_RANK, CostWorkload.EXTRACTION_LLM)
@@ -108,7 +108,8 @@ class UnitCostService:
         mine = {row.engine_code: row for row in answers if row.project_id == project_id}
         per_engine: dict[str, Decimal | None] = {}
         counted: dict[str, int] = {}
-        for engine in EngineCode:
+        # A keyword level engine makes no answer of its own to cost.
+        for engine in PROMPT_ENGINES:
             row = mine.get(engine.value)
             counted[engine.value] = 0 if row is None else row.answers
             per_engine[engine.value] = None if row is None else per_unit(row.total_usd, row.answers)

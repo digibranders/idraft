@@ -184,7 +184,11 @@ async def test_the_scope_parameters_are_accepted_by_all_seven(world: World) -> N
     "params",
     [
         {"filter[engine_code_in]": "bing"},
-        {"filter[engine_code_in]": "chatgpt_web,gemini_web,google_ai_mode,chatgpt_web"},
+        {
+            "filter[engine_code_in]": (
+                "chatgpt_web,gemini_web,google_ai_mode,google_ai_overview,chatgpt_web"
+            )
+        },
         {"filter[country_iso]": "us"},
         {"filter[country_iso]": "USA"},
         {"filter[term]": "nope"},

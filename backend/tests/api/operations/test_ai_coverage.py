@@ -74,6 +74,22 @@ async def test_a_run_reports_planned_observed_valid_and_invalid_by_status_per_en
     assert gemini["invalid_by_status"] == {"empty": 0, "refused": 0, "error": 1}
 
 
+async def test_a_keyword_level_engine_that_is_on_is_not_listed_as_a_failure(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    scene = await make_scene(resources, migrated, engines=("chatgpt_web", "google_ai_overview"))
+    prompt = await new_prompt(migrated, scene, "Which SOC provider is best?")
+    run = await add_run(migrated, scene)
+    task = await add_task(migrated, scene, run, prompt)
+    await add_answer(migrated, scene, prompt, run_id=run, task_id=task)
+
+    data = await _coverage(api, scene, run)
+
+    # It has no task, so it has no row with planned 0 and a rate of nothing.
+    assert [e["engine_code"] for e in data["by_engine"]] == ["chatgpt_web"]
+    assert data["missing"] == []
+
+
 async def test_partial_counts_as_valid_and_refused_empty_error_do_not(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
