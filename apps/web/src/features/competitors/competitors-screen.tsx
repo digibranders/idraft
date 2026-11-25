@@ -5,28 +5,26 @@ import { Ban } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
-import { AiTab } from './ai/ai-tab';
 import { AddCompetitorControlProvider } from './add-competitor-control';
-import { ComparisonTab } from './comparison/comparison-tab';
 import { CompetitorsProvider, type CompetitorsContextValue, type CompetitorsProject } from './competitors-context';
 import { NoEngine, ReadFailed } from './competitors-states';
 import { enginesQuery } from './data/competitors-queries';
-import { useCompetitorsReads, type InspectedCompetitor } from './data/use-competitors-reads';
-import { CompetitorsHeader } from './header/competitors-header';
+import { useCompetitorsReads } from './data/use-competitors-reads';
+import { CompetitorsToolbar } from './header/competitors-toolbar';
 import { CompareSelect } from './scope/compare-select';
 import { competitorFilterFields } from './scope/filter-fields';
 import { usePromptCountries } from './scope/prompt-countries';
-import type { CompetitorTab } from './scope/scope-model';
+import { COMPETITOR_TAB_IDS, type CompetitorTab } from './scope/scope-model';
 import { useCompetitorsScope } from './scope/use-competitors-scope';
-import { SeoTab } from './seo/seo-tab';
-import { CandidatesTabPanel, useCandidatesCount } from './tabs/candidates-tab';
-import { competitorTabItems } from './tabs/competitor-tabs';
+import { CompetitorsTab } from './tabs/competitors-tab';
+import { MetricTab } from './tabs/metric-tab';
+import { SeoTab } from './tabs/seo-tab';
+import { VisibilityTab } from './tabs/visibility-tab';
 import { DateRangePicker } from '@/components/app/date-range/date-range-picker';
 import { droppedMessageKey } from '@/components/app/date-range/range-model';
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
-import { useInspector } from '@/components/app/inspector/use-inspector';
 import { CountryScopeControl, type CountryScopeLabels } from '@/components/app/scope/country-scope-control';
 import { PAGE_CLASS, PageHeader } from '@/components/app/shell/page-header';
 import { TopBarPortal } from '@/components/app/shell/top-bar-slot';
@@ -34,7 +32,7 @@ import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { RefetchBar } from '@/components/app/status/refetch-bar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsPanel } from '@/components/ui/tabs';
+import { Tabs, TabsPanel, type TabItem } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { projectKey } from '@/lib/api/keys';
 import { isApiProblem } from '@/lib/api/problem';
@@ -132,14 +130,7 @@ function CompetitorsContent({
 
   const { scope, picked, range, today, setScope } = useCompetitorsScope(project.timeZone, enabledEngines);
 
-  // The inspector is T7's: its address keys decide which competitor's reads are asked
-  const inspector = useInspector();
-  const inspect = useMemo((): InspectedCompetitor | null => {
-    if (inspector.target?.type !== 'competitor') return null;
-    return { id: inspector.target.id, tab: inspector.tab === 'sources' ? 'sources' : 'overview' };
-  }, [inspector.target, inspector.tab]);
-
-  const reads = useCompetitorsReads({ project: source, scope, range, enabledEngines, enginesReady, inspect });
+  const reads = useCompetitorsReads({ project: source, scope, range, enabledEngines, enginesReady });
 
   // Add competitor: the route's dialog, opened from the header or the empty state, then the reads of the set again
   const canAdd = canWriteEntities(useMembership());
@@ -197,8 +188,10 @@ function CompetitorsContent({
       }),
   });
 
-  const candidatesCount = useCandidatesCount();
-  const tabItems = useMemo(() => competitorTabItems((id) => t(`tabs.${id}`), candidatesCount), [t, candidatesCount]);
+  const tabItems = useMemo(
+    (): TabItem<CompetitorTab>[] => COMPETITOR_TAB_IDS.map((id) => ({ value: id, label: t(`tabs.${id}`) })),
+    [t],
+  );
 
   const context: CompetitorsContextValue = {
     workspaceId,
@@ -225,22 +218,41 @@ function CompetitorsContent({
           date: dropped.code === 'before_start' ? formatBusinessDate(dropped.earliest) : '',
         });
 
-  // The meta line counts what the engines answered: a skeleton while they load, nothing once they failed or none is on
-  const metaWanted = engines.data === undefined ? !engines.isError : enabledEngines.length > 0;
-
-  // The tabs that read the scope say they are reading again while they keep the last figures on screen
-  const filtered = scope.tab === 'comparison' || scope.tab === 'ai';
-  const refetching =
-    scope.tab === 'comparison'
-      ? [reads.competitors, reads.lost, reads.topics].some((read) => read.status === 'refetching')
-      : [reads.competitors, reads.series].some((read) => read.status === 'refetching');
+  // Search rankings are not AI answers: the platform, branded and topic filters and the comparison do not apply to them
+  const filtered = scope.tab !== 'seo';
+  const refetching = [reads.competitors, reads.lost, reads.sovSeries, reads.mentionSeries, reads.keywords].some(
+    (read) => read.status === 'refetching',
+  );
 
   const panels: Record<CompetitorTab, ReactNode> = {
-    comparison: <ComparisonTab />,
-    seo: <SeoTab workspaceSlug={workspaceSlug} projectSlug={project.slug} />,
-    ai: <AiTab />,
-    candidates: <CandidatesTabPanel />,
+    competitors: <CompetitorsTab />,
+    mentions: <MetricTab kind="mentions" />,
+    citations: <MetricTab kind="citations" />,
+    sov: <MetricTab kind="sov" />,
+    visibility: <VisibilityTab />,
+    seo: <SeoTab />,
   };
+
+  const competitorCount =
+    reads.competitors.data === undefined
+      ? null
+      : reads.competitors.data.data.filter((row) => row.entity.role === 'competitor').length;
+  const status =
+    competitorCount === null || scope.tab === 'seo' ? undefined : t('metaCount', { count: competitorCount });
+
+  const filterRow = (
+    <div className="relative flex flex-wrap items-center gap-x-3 gap-y-2">
+      {filtered ? (
+        <>
+          <FilterBar fields={fields} values={values} onChange={setValues} />
+          <CompareSelect compare={scope.compare} onCompareChange={(next) => setScope({ compare: next })} />
+        </>
+      ) : (
+        <p className="type-meta">{t('seo.filtersNote')}</p>
+      )}
+      <RefetchBar active={refetching} position="under-filter-bar" />
+    </div>
+  );
 
   let body: ReactNode;
   if (engines.isError && engines.data === undefined) {
@@ -260,39 +272,27 @@ function CompetitorsContent({
     body = <NoEngine workspaceSlug={workspaceSlug} projectSlug={project.slug} canManage={canManageEngines} />;
   } else {
     body = (
-      <Tabs
-        variant="underline"
-        label={t('tabs.label')}
-        value={scope.tab}
-        // A tab is a place to go back to: the one change of the page that makes a history entry
-        onValueChange={(next) => setScope({ tab: next })}
-        items={tabItems}
-        className="gap-3"
-      >
-        {filtered ? (
-          <>
-            {/* The bar overlays the gap under the filter row, so it takes no room when it appears */}
-            <div className="relative flex flex-wrap items-start gap-x-4 gap-y-2">
-              <div className="min-w-0 flex-1 basis-24">
-                <FilterBar fields={fields} values={values} onChange={setValues} />
-              </div>
-              <div className="ml-auto flex h-control shrink-0 items-center">
-                <CompareSelect compare={scope.compare} onCompareChange={(next) => setScope({ compare: next })} />
-              </div>
-              <RefetchBar active={refetching} position="under-filter-bar" />
-            </div>
-            {scope.country === null ? null : (
-              <p className="type-meta">{scopeWords('note', { country: countries.nameOf(scope.country) })}</p>
-            )}
-            {reads.competitors.stale ? (
-              <Banner tone="warning" placement="region" live message={t('states.stale')} />
-            ) : null}
-          </>
+      <>
+        {scope.country === null || !filtered ? null : (
+          <p className="type-meta">{scopeWords('note', { country: countries.nameOf(scope.country) })}</p>
+        )}
+        {reads.competitors.stale && filtered ? (
+          <Banner tone="warning" placement="region" live message={t('states.stale')} />
         ) : null}
-        <TabsPanel value={scope.tab} aria-busy={refetching || undefined} className="flex flex-col gap-3">
-          {panels[scope.tab]}
-        </TabsPanel>
-      </Tabs>
+        <Tabs
+          variant="underline"
+          label={t('tabs.label')}
+          value={scope.tab}
+          // A tab is a place to go back to: the one change of the page that makes a history entry
+          onValueChange={(next) => setScope({ tab: next })}
+          items={tabItems}
+          className="gap-3"
+        >
+          <TabsPanel value={scope.tab} aria-busy={refetching || undefined} className="flex flex-col gap-3">
+            {panels[scope.tab]}
+          </TabsPanel>
+        </Tabs>
+      </>
     );
   }
 
@@ -316,7 +316,10 @@ function CompetitorsContent({
             />
           </TopBarPortal>
           <div className={PAGE_CLASS}>
-            <CompetitorsHeader metaWanted={metaWanted} />
+            <CompetitorsToolbar
+              filters={enginesReady || engines.data === undefined ? filterRow : null}
+              status={status}
+            />
             {droppedWords === null ? null : <Banner tone="info" placement="region" message={droppedWords} />}
             {body}
           </div>

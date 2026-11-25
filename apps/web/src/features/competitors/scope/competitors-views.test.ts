@@ -49,7 +49,7 @@ describe('competitorViews', () => {
   it('a preset reads as unedited at its own address and as edited once another view key changes', () => {
     expect(matchView(VIEWS, 'share-of-voice', { metric: 'sov' }, COMPETITOR_VIEW_KEYS, 'Default').edited).toBe(false);
     expect(
-      matchView(VIEWS, 'share-of-voice', { metric: 'sov', tab: 'ai' }, COMPETITOR_VIEW_KEYS, 'Default').edited,
+      matchView(VIEWS, 'share-of-voice', { metric: 'sov', tab: 'sov' }, COMPETITOR_VIEW_KEYS, 'Default').edited,
     ).toBe(true);
   });
 });

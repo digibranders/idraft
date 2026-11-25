@@ -44,7 +44,7 @@ describe('the Overview links to the Competitors page', () => {
   it('a link with no narrowing opens the default scope', () => {
     const search = query('competitors', overviewScope());
     expect(parseScope(search, ALL)).toMatchObject({
-      tab: 'comparison',
+      tab: 'competitors',
       compare: true,
       country: null,
       engines: [],
