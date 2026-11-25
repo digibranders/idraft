@@ -233,3 +233,9 @@ def test_a_document_cut_inside_the_canonical_tag_gives_none() -> None:
 def test_lone_surrogates_and_control_characters_do_not_raise() -> None:
     _fast(head('<link rel="canonical" href="https://example.com/\ud800\x01">'))
     assert _fast("\x1f\x7f￾" * 50_000) is None
+
+
+def test_an_empty_comment_before_the_canonical_does_not_hide_it() -> None:
+    html = '<html><head><!---><link rel="canonical" href="/page"></head><body></body></html>'
+
+    assert canonical_of(html, "https://example.com/page?x=1") == "https://example.com/page"

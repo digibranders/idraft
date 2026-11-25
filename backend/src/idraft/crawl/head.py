@@ -13,6 +13,8 @@ from html.parser import HTMLParser
 from typing import Final
 from urllib.parse import urljoin, urlsplit
 
+from idraft.crawl.placement import without_empty_comments
+
 HREF_MAX: Final = 4096
 # shortcut: a head longer than this is not read past it; raise it when a real head needs more.
 SCAN_MAX: Final = 1_000_000
@@ -61,9 +63,10 @@ def canonical_of(html: str, page_url: str) -> str | None:
     its `<base href>`; None when there is none or it is empty, longer than `HREF_MAX`,
     unparseable or not an http(s) address."""
     parser = _Head()
+    html = without_empty_comments(html[:SCAN_MAX])
     try:
-        for start in range(0, min(len(html), SCAN_MAX), _CHUNK):
-            parser.feed(html[start : min(start + _CHUNK, SCAN_MAX)])
+        for start in range(0, len(html), _CHUNK):
+            parser.feed(html[start : start + _CHUNK])
             if parser.done:
                 break
     except Exception:  # garbage in, so whatever the parser raises, the page names no canonical

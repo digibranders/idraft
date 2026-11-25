@@ -17,6 +17,7 @@ from html.parser import HTMLParser
 from typing import Final, Literal
 
 from idraft.crawl.anchors import GENERIC_ANCHORS
+from idraft.crawl.placement import without_empty_comments
 
 MENTIONS_PER_PAGE: Final = 20
 PHRASE_MIN_CHARS: Final = 3
@@ -31,9 +32,6 @@ type PhraseIndex = dict[str, list[tuple[int, Origin]]]
 # letters (some Indic scripts) split a word; a known limit, and spaceless scripts are too.
 _WORD = re.compile(r"[^\W_]+")
 _SENTENCE_END = re.compile(r"[.!?]\s")
-# `<!-->` and `<!--->` are empty comments in a browser, but the standard parser reads them as the
-# start of a comment that runs to the next `-->`, and so loses the rest of the page.
-_EMPTY_COMMENT = re.compile(r"<!---?>")
 # Text in these elements is not the page's own words about a topic.
 _SKIP = frozenset(
     {
@@ -151,7 +149,7 @@ def visible_blocks(html: str, *, whole_body: bool = False) -> list[str]:
     page has one (unless `whole_body`), else of the whole body, without text inside links,
     scripts, menus, header, footer, aside and forms. Whitespace is one space."""
     parser = _Text()
-    parser.feed(_EMPTY_COMMENT.sub("", html))
+    parser.feed(without_empty_comments(html))
     parser.close()
     parser.flush()
     return parser.main_blocks if parser.has_main and not whole_body else parser.blocks
