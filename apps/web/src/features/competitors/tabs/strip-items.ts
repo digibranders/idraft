@@ -28,7 +28,9 @@ export const FILE = {
   sovByCompetitor: 'share-of-voice-by-competitor',
   mentionsByCompetitor: 'mention-rate-by-competitor',
   sovTrend: 'share-of-voice-trend',
-  lostByCompetitor: 'prompts-lost-by-competitor',
+  sovChange: 'share-of-voice-change',
+  mentionsByPlatform: 'mention-rate-by-platform',
+  citationsSplit: 'citation-share-split',
   keywordsTop10: 'keywords-in-top-10',
   rankDistribution: 'rank-distribution',
 } as const;
@@ -69,6 +71,17 @@ export function countItem(id: string, label: string, value: number | null, conte
     label,
     value: formatInteger(value),
     unknown: value === null ? { kind: 'pending' } : null,
+    context: context ?? null,
+  };
+}
+
+/** A short figure that is not a rate or a count: a rank, "#2". */
+export function valueItem(id: string, label: string, value: string | null, context?: string | null): MetricStripItem {
+  return {
+    id,
+    label,
+    value: value ?? formatPercent(null),
+    unknown: value === null ? { kind: 'insufficient' } : null,
     context: context ?? null,
   };
 }

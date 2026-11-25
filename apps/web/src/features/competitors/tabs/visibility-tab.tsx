@@ -4,8 +4,17 @@ import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
 import { useCompetitors } from '../competitors-context';
-import { cellOver, rankedCompetitors, strongestEngine, type EntityRow } from '../model/competitor-model';
+import {
+  cellOver,
+  paletteRole,
+  rankedCompetitors,
+  roleOf,
+  strongestEngine,
+  type EntityRow,
+} from '../model/competitor-model';
 import { ChartCard } from './chart-card';
+import { DonutCard } from './donut-card';
+import { toSlices } from './donut-model';
 import { EntityName } from './entity-name';
 import { RateCell } from './metric-cells';
 import { COLUMN, countItem, FILE, ID, rateItem, stripOf, textItem } from './strip-items';
@@ -50,6 +59,27 @@ export function VisibilityTab(): ReactElement {
     reads.lost.data === undefined
       ? null
       : lostSorted.reduce((sum, item) => sum + (item.engine.lost_prompts_total ?? 0), 0);
+
+  const lostSlices = toSlices(
+    lostSorted.map((item) => ({
+      id: item.name,
+      name: item.name,
+      value: item.engine.lost_prompts_total ?? null,
+      role: paletteRole(
+        Math.max(
+          0,
+          ordered.findIndex((row) => row.name === item.name),
+        ),
+      ),
+    })),
+    t('charts.donut.other'),
+  );
+  const byPlatform = ordered.slice(0, 6).map((row, position) => ({
+    id: row.id,
+    name: row.name,
+    role: roleOf(row, position),
+    values: engines.map((engine) => cellOver(row, 'mention_rate', [engine]).value),
+  }));
 
   const matrix: PlainColumn<EntityRow>[] = [
     { id: COLUMN.name, header: t('columns.competitor'), cell: (row) => <EntityName row={row} /> },
@@ -112,6 +142,18 @@ export function VisibilityTab(): ReactElement {
           ),
         ])}
       />
+      <ChartCard
+        title={t('charts.visibility.byPlatform')}
+        summary={t('charts.visibility.byPlatformSummary')}
+        kind="bar"
+        categories={engines.map((engine) => labelOf(engine))}
+        categoryHeader={t('filters.engine')}
+        series={byPlatform}
+        formatValue={(value) => formatPercent(value)}
+        reads={[reads.competitors]}
+        isEmpty={ordered.length === 0}
+        fileName={FILE.mentionsByPlatform}
+      />
       <PlainTable
         caption={t('charts.visibility.matrix')}
         columns={matrix}
@@ -123,25 +165,16 @@ export function VisibilityTab(): ReactElement {
         scrollHint={t('columns.scrollHint')}
       />
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <ChartCard
-          title={t('charts.visibility.lostByCompetitor')}
-          summary={t('charts.visibility.lostSummary')}
-          kind="bar"
-          categories={lostSorted.map((item) => item.name)}
-          categoryHeader={t('columns.competitor')}
-          series={[
-            {
-              id: ID.lost,
-              name: t('columns.promptsLost'),
-              role: { kind: 'palette', index: 2 },
-              values: lostSorted.map((item) => item.engine.lost_prompts_total ?? null),
-            },
-          ]}
+        <DonutCard
+          title={t('charts.donut.lost.title')}
+          summary={t('charts.donut.lost.summary')}
+          slices={lostSlices}
+          centerValue={formatInteger(totalLost)}
+          centerLabel={t('charts.donut.promptsLost')}
           formatValue={(value) => formatInteger(value)}
           reads={[reads.lost]}
-          isEmpty={lostSorted.length === 0}
-          fileName={FILE.lostByCompetitor}
-          meta={eng === null ? undefined : labelOf(eng)}
+          isEmpty={lostSlices.length === 0}
+          showShare
         />
         <PlainTable
           caption={t('charts.visibility.lostTable')}
