@@ -58,6 +58,34 @@ describe('toMapGraph', () => {
   });
 });
 
+describe('degree', () => {
+  it('counts the links drawn at a page, not the links the API counts to pages the cap cut', () => {
+    const graph = toMapGraph(
+      {
+        ...api,
+        nodes: [
+          { url_id: '1', path: '/', title: null, tier_id: null, links_in: 0, links_out: 2, sitewide_from: 0 },
+          { url_id: '2', path: '/a', title: null, tier_id: null, links_in: 1, links_out: 0, sitewide_from: 0 },
+          { url_id: '3', path: '/b', title: null, tier_id: null, links_in: 0, links_out: 1, sitewide_from: 0 },
+        ],
+        edges: [
+          { source: '1', target: '2', links: 1 },
+          { source: '1', target: '99', links: 1 },
+          { source: '3', target: '99', links: 1 },
+        ],
+      } as LinkGraph,
+      tiers,
+    );
+
+    expect(graph.nodes.map((node) => [node.id, node.degree])).toEqual([
+      ['1', 1],
+      ['2', 1],
+      ['3', 0],
+    ]);
+    expect(summarise(graph).unlinked).toBe(1);
+  });
+});
+
 describe('summarise', () => {
   it('counts the pages, the links, the largest group and the pages with no link', () => {
     expect(summarise(toMapGraph(api, tiers))).toEqual({ pages: 5, links: 3, largest: 3, unlinked: 2 });

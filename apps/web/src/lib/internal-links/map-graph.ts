@@ -15,6 +15,8 @@ export interface MapNode {
   tierPosition: number | null;
   linksIn: number;
   linksOut: number;
+  /** The links drawn at this page: its edges on the map, in and out. The API's counts above include links to pages the cap cut. */
+  degree: number;
   /** Pages that link to it from a menu or footer; 0 unless that is at least half of the pages. */
   sitewideFrom: number;
   /** The last part of the address; empty for the home page (the screen says "Home page"). */
@@ -65,19 +67,27 @@ export function toMapGraph(api: LinkGraph, tiers: readonly PageTier[]): MapGraph
       tierPosition,
       linksIn: node.links_in,
       linksOut: node.links_out,
+      degree: 0,
       sitewideFrom: node.sitewide_from,
       name: nameOf(node.path),
       section: sectionOf(node.path),
     };
   });
   const byId = new Map(nodes.map((node) => [node.id, node]));
+  // An edge to a page the cap left out is not drawn
+  const edges = api.edges
+    .filter((edge) => byId.has(edge.source) && byId.has(edge.target))
+    .map((edge) => ({ from: edge.source, to: edge.target, links: edge.links }));
+  for (const edge of edges) {
+    const from = byId.get(edge.from);
+    const to = byId.get(edge.to);
+    if (from !== undefined) from.degree += 1;
+    if (to !== undefined) to.degree += 1;
+  }
   return {
     nodes,
     byId,
-    // An edge to a page the cap left out is not drawn
-    edges: api.edges
-      .filter((edge) => byId.has(edge.source) && byId.has(edge.target))
-      .map((edge) => ({ from: edge.source, to: edge.target, links: edge.links })),
+    edges,
     pagesTotal: api.pages_total,
     truncated: api.truncated,
     homeId: api.home_url_id !== null && byId.has(api.home_url_id) ? api.home_url_id : null,

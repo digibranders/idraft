@@ -66,12 +66,7 @@ export function MapViewControls(props: MapViewControlsProps): ReactElement {
         onClick={props.onZoomIn}
       />
       <IconButton icon={Maximize2} label={t('fit')} onClick={props.onFit} />
-      <IconButton
-        icon={Map}
-        label={props.minimap ? t('hideMap') : t('showMap')}
-        aria-pressed={props.minimap}
-        onClick={props.onToggleMinimap}
-      />
+      <IconButton icon={Map} label={words('minimap')} aria-pressed={props.minimap} onClick={props.onToggleMinimap} />
       <IconButton
         icon={CircleHelp}
         label={words('help')}

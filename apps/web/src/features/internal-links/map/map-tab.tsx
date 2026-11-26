@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
@@ -34,10 +34,28 @@ const NO_HIDDEN: ReadonlySet<string> = new Set();
 /** The browser's own full screen is on. (`fullscreenElement` is `null` when it is off; a test browser may not have it.) */
 const inFullScreen = (): boolean => Boolean(document.fullscreenElement);
 
+/**
+ * The pages the reader dragged, by id. One per layout (`of`): a new layout starts with none, and so does the first
+ * paint of it. `remember` is its only write, so a callback can hold it without modifying a value of a hook.
+ */
+function draggedPages(of: unknown): {
+  pages: ReadonlyMap<string, readonly [number, number]>;
+  remember: (id: string, position: readonly [number, number]) => void;
+} {
+  const pages = new Map<string, readonly [number, number]>();
+  void of;
+  return {
+    pages,
+    remember: (id, position) => {
+      pages.set(id, position);
+    },
+  };
+}
+
 /** The tooltip: the address, then one line. Both arguments are already escaped. */
 const tooltipBox = (first: string, second: string): string =>
   `<div class="max-w-72 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5 shadow-popover whitespace-normal">` +
-  `<div class="type-table text-foreground [overflow-wrap:anywhere]">${first}</div>` +
+  `<div class="type-table text-foreground wrap-anywhere">${first}</div>` +
   `<div class="type-meta text-foreground-secondary">${second}</div></div>`;
 
 /**
@@ -70,7 +88,12 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   const { scope, state, setSearch, tiers, crawl, registerExport } = context;
   const { query, includeAuto, colour: colourMode, lens, selected } = state.map;
 
-  const read = useQuery({ ...linkGraphQuery(scope, includeAuto, crawl.run), enabled: crawl.linksAvailable });
+  // The map in view stays while the other links are read, so the toolbar (and the focus in it) is not replaced by a skeleton
+  const read = useQuery({
+    ...linkGraphQuery(scope, includeAuto, crawl.run),
+    enabled: crawl.linksAvailable,
+    placeholderData: keepPreviousData,
+  });
   const answer = read.data?.data;
   const graph = useMemo(() => (answer === undefined ? null : toMapGraph(answer, tiers)), [answer, tiers]);
 
@@ -86,7 +109,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
         : {
             nodes: graph.nodes.map((node) => ({
               id: node.id,
-              links: node.linksIn + node.linksOut,
+              links: node.degree,
               group: node.tierPosition ?? 99,
             })),
             edges: graph.edges,
@@ -97,10 +120,8 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   const { layout } = useMapLayout(layoutInput);
 
   // What the address does not keep: dragged pages, legend switches, the minimap, the help, full screen
-  const [moved] = useState(() => new Map<string, readonly [number, number]>());
-  useEffect(() => {
-    moved.clear();
-  }, [layoutInput, moved]);
+  // A new layout starts with no dragged page, and so does the first paint of it
+  const moved = useMemo(() => draggedPages(layoutInput), [layoutInput]);
   const [hiddenState, setHiddenState] = useState<{ mode: MapColourMode; keys: ReadonlySet<string> }>({
     mode: colourMode,
     keys: NO_HIDDEN,
@@ -110,7 +131,9 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   const [minimap, setMinimap] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
   const [maximised, setMaximised] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  // The zoom belongs to the canvas it was read from: a new layout gives a new canvas at 100 percent
+  const [zoomed, setZoomed] = useState<{ of: unknown; zoom: number }>({ of: null, zoom: 1 });
+  const zoom = zoomed.of === layout ? zoomed.zoom : 1;
   const chart = useRef<LinkMapChartHandle>(null);
 
   const colour = useMemo(
@@ -133,7 +156,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
       mapOption({
         graph,
         layout,
-        moved,
+        moved: moved.pages,
         focus,
         colour,
         hidden,
@@ -176,18 +199,18 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   );
   const onMoved = useCallback(
     (id: string, position: readonly [number, number]) => {
-      moved.set(id, position);
+      moved.remember(id, position);
     },
     [moved],
   );
-  const onView = useCallback((view: MapView) => setZoom(view.zoom), []);
+  const onView = useCallback((view: MapView) => setZoomed({ of: layout, zoom: view.zoom }), [layout]);
 
   /** Brings the lit pages into view: one page is selected, several are framed together. */
   const zoomToLit = useCallback(() => {
     if (focus === null || layout === null || focus.lit === null || focus.lit.size === 0) return;
     const placed = new Map(layout.positions.map(([id, x, y]) => [id, [x, y] as const]));
     const spots = [...focus.lit].flatMap((id) => {
-      const spot = moved.get(id) ?? placed.get(id);
+      const spot = moved.pages.get(id) ?? placed.get(id);
       return spot === undefined ? [] : [spot];
     });
     if (spots.length === 0) return;
@@ -210,13 +233,11 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   }, [focus, layout, moved, select]);
 
   const toggleFull = useCallback(() => {
-    setMaximised((on) => {
-      // The browser's own full screen comes on top where it is allowed; the map fills the window either way
-      if (!on) void document.documentElement.requestFullscreen?.().catch(() => undefined);
-      else if (inFullScreen()) void document.exitFullscreen();
-      return !on;
-    });
-  }, []);
+    // The browser's own full screen comes on top where it is allowed; the map fills the window either way
+    if (!maximised) void document.documentElement.requestFullscreen?.().catch(() => undefined);
+    else if (inFullScreen()) void document.exitFullscreen().catch(() => undefined);
+    setMaximised(!maximised);
+  }, [maximised]);
   useEffect(() => {
     const left = (): void => {
       if (!inFullScreen()) setMaximised(false);
@@ -264,7 +285,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
         safeText(tierName(node.tierPosition)),
         node.linksIn,
         node.linksOut,
-        t(node.linksIn + node.linksOut > 0 ? 'export.linked' : 'export.unlinked'),
+        t(node.degree > 0 ? 'export.linked' : 'export.unlinked'),
         node.sitewideFrom,
       ]);
       downloadBlob(csvBlob({ header, rows }), 'internal-links-map.csv');
@@ -319,7 +340,11 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   // The address keeps only what is not the default: a search, auto-generated links, Section colour, a highlight
   const onQuery = (value: string): void => setSearch({ mq: value === '' ? null : value, mpage: null });
   const onIncludeAuto = (on: boolean): void => setSearch({ mauto: on ? '1' : null });
-  const onColour = (mode: MapColourMode): void => setSearch({ mcol: mode === 'section' ? 'section' : null });
+  const onColour = (mode: MapColourMode): void => {
+    // Another colouring starts with every group on, and coming back to this one does too
+    setHiddenState({ mode, keys: NO_HIDDEN });
+    setSearch({ mcol: mode === 'section' ? 'section' : null });
+  };
   const onLens = (next: MapLens): void => setSearch({ mhl: next === 'none' ? null : next });
 
   return (

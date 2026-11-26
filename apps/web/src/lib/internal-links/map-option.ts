@@ -100,7 +100,7 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
   // group is off. The header named `room` is empty: it keeps room for the text when the block is a few pages wide.
   const inBlock = new Map<number, number>();
   for (const node of shown) {
-    if (node.linksIn + node.linksOut > 0) continue;
+    if (node.degree > 0) continue;
     const key = node.tierPosition ?? 99;
     inBlock.set(key, (inBlock.get(key) ?? 0) + 1);
   }
@@ -140,7 +140,7 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
     const style = styleOf.get(colour.keyOf(node)) ?? { color: tokens.other, outline: null };
     const lit = focus.lit === null || focus.lit.has(node.id);
     const selected = focus.selected === node.id;
-    const links = node.linksIn + node.linksOut;
+    const links = node.degree;
     return {
       name: node.id,
       x,
