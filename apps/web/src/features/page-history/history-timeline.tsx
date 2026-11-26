@@ -14,6 +14,7 @@ import {
   isExpandable,
   isNewPage,
   isTextSwap,
+  versionChanges,
   type ChangeLabel,
   type HistoryChange,
   type HistoryVersion,
@@ -42,7 +43,6 @@ function ChangeRow({ change, t }: { change: HistoryChange; t: Translate }): Reac
       <div className="flex items-baseline gap-2">
         {level === null ? null : (
           <span
-            title={t('timeline.headingLevel', { level })}
             className={cn(
               'inline-flex h-5 w-7 shrink-0 items-center justify-center rounded-sm type-label',
               change.type === 'heading_removed'
@@ -50,7 +50,8 @@ function ChangeRow({ change, t }: { change: HistoryChange; t: Translate }): Reac
                 : 'bg-positive-subtle text-positive-text',
             )}
           >
-            {`H${String(level)}`}
+            <span aria-hidden="true">{`H${String(level)}`}</span>
+            <span className="sr-only">{t('timeline.headingLevel', { level })}</span>
           </span>
         )}
         <span className="type-body-strong text-foreground">{labelText(t, changeLabel(change))}</span>
@@ -68,9 +69,17 @@ function ChangeRow({ change, t }: { change: HistoryChange; t: Translate }): Reac
       {isTextSwap(change) ? (
         <>
           {change.before === null ? null : (
-            <span className="type-body break-words text-foreground-tertiary line-through">{change.before}</span>
+            <span className="type-body break-words text-foreground-tertiary">
+              <span className="sr-only">{t('change.was')}</span>
+              <del>{change.before}</del>
+            </span>
           )}
-          {change.after === null ? null : <span className="type-body break-words text-foreground">{change.after}</span>}
+          {change.after === null ? null : (
+            <span className="type-body break-words text-foreground">
+              <span className="sr-only">{t('change.now')}</span>
+              <ins className="no-underline">{change.after}</ins>
+            </span>
+          )}
         </>
       ) : null}
     </li>
@@ -80,7 +89,7 @@ function ChangeRow({ change, t }: { change: HistoryChange; t: Translate }): Reac
 function summaryOf(t: Translate, version: HistoryVersion, newPage: boolean): string {
   if (version.kind === 'site_wide') return t('timeline.siteWideSummary');
   if (version.kind === 'first') return t(newPage ? 'timeline.firstFound' : 'timeline.firstKept');
-  const parts = version.changes.map((change) => labelText(t, changeLabel(change)));
+  const parts = versionChanges(version).map((change) => labelText(t, changeLabel(change)));
   return parts.map((part, index) => (index === 0 ? part : lowerFirst(part))).join(', ');
 }
 
@@ -138,7 +147,7 @@ function Row({
       )}
       {version.kind === 'content' ? (
         <ul id={detailId} hidden={!open} className="flex flex-col gap-3 pb-3 pl-8">
-          {version.changes.map((change, index) => (
+          {versionChanges(version).map((change, index) => (
             <ChangeRow key={`${change.type}-${String(index)}`} change={change} t={t} />
           ))}
         </ul>

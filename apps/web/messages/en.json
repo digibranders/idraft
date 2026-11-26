@@ -10327,7 +10327,8 @@
       "googleAfter": "After the last change",
       "googleFrom": "From Search Console",
       "googleNone": "Read for pages in Monitoring",
-      "googleNoDate": "Search Console gave no date"
+      "googleNoDate": "Google has not crawled this page yet",
+      "googleNotRead": "Not read yet"
     },
     "behind": "Google last crawled this page on {crawled}, before the change of {changed}. Ask Google to crawl it again in Search Console.",
     "timeline": {
@@ -10353,7 +10354,9 @@
       "linksRemoved": "{count, plural, one {# internal link} other {# internal links}} removed",
       "editorialAdded": "{count, plural, one {# editorial link} other {# editorial links}} added",
       "editorialRemoved": "{count, plural, one {# editorial link} other {# editorial links}} removed",
-      "edited": "Text edited"
+      "edited": "Text edited",
+      "was": "Was",
+      "now": "Now"
     },
     "howRead": {
       "title": "How these dates are read",

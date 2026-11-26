@@ -56,8 +56,8 @@ function Unreadable({ history }: { history: PageHistory }): ReactElement {
 export function HistoryTab({ scope, urlId, timeZone }: HistoryTabProps): ReactElement {
   const t = useTranslations('pageHistory.state');
   const common = useTranslations('common');
-  const read = usePageHistory(scope, urlId);
-  if (read.isError) {
+  const { read, valid } = usePageHistory(scope, urlId);
+  if (!valid || read.isError) {
     return (
       <InlineError
         title={t('loadFailed')}

@@ -42,6 +42,12 @@ export function changeLabel(change: HistoryChange): ChangeLabel {
   }
 }
 
+/** What a content version lists: its changes, or one `edited` line when the server sent none. */
+export const versionChanges = (version: HistoryVersion): HistoryChange[] =>
+  version.changes.length > 0
+    ? version.changes
+    : [{ type: 'edited', before: null, after: null, delta: null, level: null }];
+
 /** The heading a change line shows under its label: the new text of an added heading, the old text of a removed one. */
 export const headingText = (change: HistoryChange): string | null =>
   change.type === 'heading_added' ? change.after : change.type === 'heading_removed' ? change.before : null;
@@ -74,7 +80,7 @@ export type StripNote =
   | { key: 'editedNone' | 'editedUnreliable' | 'changeNoHistory' | 'firstNew' }
   | { key: 'changeCount'; count: number }
   | { key: 'changeSince' | 'firstStarts'; date: string }
-  | { key: 'googleBefore' | 'googleAfter' | 'googleFrom' | 'googleNone' | 'googleNoDate' };
+  | { key: 'googleBefore' | 'googleAfter' | 'googleFrom' | 'googleNone' | 'googleNoDate' | 'googleNotRead' };
 
 export interface StripCell {
   id: 'lastEdited' | 'lastChange' | 'firstSeen' | 'googleCrawled';
@@ -87,6 +93,12 @@ export interface StripCell {
 
 const ORIGINS: readonly string[] = ['json_ld', 'meta_modified', 'og_updated', 'sitemap'];
 
+/**
+ * A declared date is often date-only (sitemap lastmod, JSON-LD without a time) and stored as midnight UTC, so it
+ * is shown as its UTC calendar date. Crawl dates are instants and keep the project time zone.
+ */
+const declaredDate = (instant: string): string => historyDate(instant, 'UTC');
+
 /** The four cells of the strip, in order. */
 export function stripCells(history: PageHistory, timeZone: string): StripCell[] {
   const date = (instant: string | null): string | null => (instant === null ? null : historyDate(instant, timeZone));
@@ -96,7 +108,7 @@ export function stripCells(history: PageHistory, timeZone: string): StripCell[] 
   const edited: StripCell = history.declared
     ? {
         id: 'lastEdited',
-        date: date(history.declared.date),
+        date: declaredDate(history.declared.date),
         note: {
           key: 'editedFrom',
           origin: ORIGINS.includes(history.declared.source) ? history.declared.source : 'other',
@@ -118,7 +130,9 @@ export function stripCells(history: PageHistory, timeZone: string): StripCell[] 
   if (!isNewPage(history))
     firstNote = starts === null ? { key: 'changeNoHistory' } : { key: 'firstStarts', date: starts };
 
-  let googleNote: StripNote = { key: history.google === null ? 'googleNone' : 'googleNoDate' };
+  let googleNote: StripNote = {
+    key: history.google === null ? (history.tracked ? 'googleNotRead' : 'googleNone') : 'googleNoDate',
+  };
   if (google === 'behind') googleNote = { key: 'googleBefore' };
   else if (google === 'crawled') googleNote = { key: history.last_change === null ? 'googleFrom' : 'googleAfter' };
 
@@ -144,7 +158,7 @@ export type LineState =
  */
 export function lastEditedLine(history: PageHistory, timeZone: string): LineState | null {
   if (!history.readable) return null;
-  if (history.declared) return { kind: 'edited', date: historyDate(history.declared.date, timeZone) };
+  if (history.declared) return { kind: 'edited', date: declaredDate(history.declared.date) };
   if (history.last_change !== null) return { kind: 'changed', date: historyDate(history.last_change, timeZone) };
   if (history.history_starts !== null)
     return { kind: 'unchanged', date: historyDate(history.history_starts, timeZone) };

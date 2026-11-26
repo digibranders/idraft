@@ -4,6 +4,7 @@ import { change, HISTORY, VERSIONS } from '../history-fixtures';
 import { forgetOpenRows, keepOpenRows, openRows } from './open-state';
 import {
   changeLabel,
+  type HistoryVersion,
   googleState,
   headingText,
   historyDate,
@@ -11,6 +12,7 @@ import {
   lastEditedLine,
   newestContentRun,
   stripCells,
+  versionChanges,
 } from './page-history';
 
 describe('changeLabel', () => {
@@ -103,6 +105,7 @@ describe('stripCells', () => {
         last_change: null,
         changes: 0,
         google: null,
+        tracked: false,
         first_seen: '2026-11-06T00:00:00Z',
       },
       'UTC',
@@ -135,5 +138,32 @@ describe('lastEditedLine', () => {
   it('says nothing for an unreadable page or when no crawl was kept', () => {
     expect(lastEditedLine({ ...HISTORY, readable: false, why: 'redirect' }, 'UTC')).toBeNull();
     expect(lastEditedLine({ ...HISTORY, declared: null, last_change: null, history_starts: null }, 'UTC')).toBeNull();
+  });
+});
+
+describe('review findings', () => {
+  it('reads a tracked page without Google data as not read yet', () => {
+    const cells = stripCells({ ...HISTORY, google: null, tracked: true }, 'UTC');
+    expect(cells[3]?.note).toEqual({ key: 'googleNotRead' });
+    expect(stripCells({ ...HISTORY, google: null, tracked: false }, 'UTC')[3]?.note).toEqual({ key: 'googleNone' });
+  });
+
+  it('shows a date-only declaration as its UTC calendar date in a zone west of UTC', () => {
+    const declared = { date: '2026-11-18T00:00:00Z', source: 'sitemap' } as const;
+    const west = { ...HISTORY, declared };
+    expect(stripCells(west, 'America/Los_Angeles')[0]?.date).toBe('Nov 18, 2026');
+    expect(lastEditedLine(west, 'America/Los_Angeles')).toEqual({ kind: 'edited', date: 'Nov 18, 2026' });
+    // crawl dates are instants: they keep the project time zone
+    expect(stripCells({ ...west, last_change: '2026-11-20T02:10:00Z' }, 'America/Los_Angeles')[1]?.date).toBe(
+      'Nov 19, 2026',
+    );
+  });
+
+  it('gives a content version with no changes the edited label', () => {
+    const empty = { ...(VERSIONS.filter((version) => version.kind === 'content')[0] as HistoryVersion), changes: [] };
+    expect(versionChanges(empty).map(changeLabel)).toEqual([{ key: 'edited' }]);
+    expect(versionChanges(VERSIONS.filter((version) => version.kind === 'content')[0] as HistoryVersion)).toHaveLength(
+      4,
+    );
   });
 });

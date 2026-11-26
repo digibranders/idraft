@@ -23,7 +23,7 @@ export interface LastEditedLineProps {
  */
 export function LastEditedLine({ scope, urlId, timeZone, onOpen }: LastEditedLineProps): ReactElement | null {
   const t = useTranslations('pageHistory.line');
-  const read = usePageHistory(scope, urlId);
+  const { read } = usePageHistory(scope, urlId);
   const line = read.data === undefined ? null : lastEditedLine(read.data.data, timeZone);
   if (line === null) return null;
   const text = { edited: 'lastEdited', changed: 'lastChange', unchanged: 'noChange' } as const;

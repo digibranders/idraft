@@ -46,3 +46,9 @@ export const HISTORY: PageHistory = {
   google: { crawled_at: '2026-11-15T10:00:00Z', behind: true, coverage_state: null },
   tracked: true,
 };
+
+/** An element a test knows is there. */
+export function must<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Expected a value');
+  return value;
+}

@@ -1,7 +1,7 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { skipToken, useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
-import { checkUrlId } from '@/lib/internal-links/queries';
+import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
 import type { LinksScope } from '@/lib/internal-links/types';
 import type { PageHistory } from '../model/page-history';
 
@@ -16,7 +16,24 @@ export const pageHistoryQuery = (scope: LinksScope, urlId: string): ApiQueryOpti
     },
   });
 
+function optionsOf(scope: LinksScope, urlId: string): ApiQueryOptions<typeof HISTORY> | null {
+  try {
+    return pageHistoryQuery(scope, urlId);
+  } catch (error) {
+    if (error instanceof UrlIdError) return null;
+    throw error;
+  }
+}
+
+export interface PageHistoryRead {
+  read: UseQueryResult<{ data: PageHistory }, Error>;
+  /** `false` for an id that is no url id: nothing is requested, and the caller shows its error state. */
+  valid: boolean;
+}
+
 /** The history of a page for the tab and the Overview line; both read the same cache entry, so one request serves both. */
-export function usePageHistory(scope: LinksScope, urlId: string): UseQueryResult<{ data: PageHistory }, Error> {
-  return useQuery(pageHistoryQuery(scope, urlId));
+export function usePageHistory(scope: LinksScope, urlId: string): PageHistoryRead {
+  const options = optionsOf(scope, urlId);
+  const read = useQuery(options ?? { queryKey: ['page-history', 'invalid-id'], queryFn: skipToken });
+  return { read, valid: options !== null };
 }

@@ -6,7 +6,7 @@ import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
-import { HISTORY } from './history-fixtures';
+import { change, HISTORY, must } from './history-fixtures';
 import { HistoryTab } from './history-tab';
 import { LastEditedLine } from './last-edited-line';
 import { forgetOpenRows } from './model/open-state';
@@ -156,6 +156,45 @@ describe('the History tab', () => {
     expect(await screen.findByRole('list', { name: /Crawls/ })).toBeInTheDocument();
   });
 
+  it('marks old and new text, names the heading level for a screen reader, and labels an empty content change', async () => {
+    answer({
+      versions: [
+        { ...must(HISTORY.versions[0]), changes: [] },
+        {
+          ...must(HISTORY.versions[0]),
+          run_id: '00000000-0000-4000-8000-0000000000aa',
+          date: '2026-11-19T02:10:00Z',
+          changes: [change({ type: 'title', before: 'Old title', after: 'New title' })],
+        },
+        must(HISTORY.versions[2]),
+      ],
+    });
+    const { user } = tab();
+    const rows = await screen.findAllByRole('button', { name: /Nov/ });
+    expect(rows[0]).toHaveTextContent('Text edited');
+    await user.click(must(rows[1]));
+    expect(screen.getByText('Old title').tagName).toBe('DEL');
+    expect(screen.getByText('New title').tagName).toBe('INS');
+    expect(screen.getByText('Was')).toHaveClass('sr-only');
+    expect(screen.getByText('Now')).toHaveClass('sr-only');
+    await user.click(must(rows[2]));
+    expect(screen.getByText('Heading level 3')).toHaveClass('sr-only');
+  });
+
+  it('says Not read yet for a tracked page with no Google data', async () => {
+    answer({ google: null, tracked: true });
+    tab();
+    expect(await screen.findByLabelText('Dates of this page')).toHaveTextContent('Not read yet');
+  });
+
+  it('shows the error state, and no request, for an id that is no url id', async () => {
+    let read = false;
+    server.use(http.get(HISTORY_PATH, () => ((read = true), HttpResponse.json({ data: HISTORY }))));
+    tab('abc');
+    expect(await screen.findByText('Could not load the history of this page')).toBeInTheDocument();
+    expect(read).toBe(false);
+  });
+
   it('has no accessibility violations', async () => {
     answer();
     const { container } = tab();
@@ -189,6 +228,13 @@ describe('the Overview line', () => {
     answer({ declared: null, last_change: null });
     line();
     expect(await screen.findByText(/No change seen since Oct 30, 2026\./)).toBeInTheDocument();
+  });
+
+  it('shows nothing, and does not throw, for an id that is no url id', () => {
+    const { container } = renderWithProviders(
+      <LastEditedLine scope={SCOPE} urlId="0" timeZone="UTC" onOpen={() => undefined} />,
+    );
+    expect(container).not.toHaveTextContent('Last');
   });
 
   it('shows nothing for a page that cannot be read', async () => {
