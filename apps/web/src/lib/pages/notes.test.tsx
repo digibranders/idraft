@@ -248,6 +248,73 @@ describe('usePageNoteWrites', () => {
     await act(() => done);
   });
 
+  it('puts back only the note whose delete failed, not one that a second delete took out meanwhile', async () => {
+    const { notes, writes } = pageWith('admin');
+    await waitFor(() => {
+      expect(notes.current.state).toBe('ready');
+    });
+    const [first, second, third] = readyNotes(notes.current);
+    if (first === undefined || second === undefined || third === undefined) throw new Error('the seed has 3 notes');
+    let fail: () => void = () => undefined;
+    const failing = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    let stopReads: () => void = () => undefined;
+    const reads = new Promise<void>((resolve) => {
+      stopReads = resolve;
+    });
+    server.use(
+      http.delete('*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes/:note', async ({ params }) => {
+        if (params.note !== first.id) return undefined;
+        await failing;
+        return HttpResponse.json(
+          { type: 'about:blank', title: 'Server error', status: 500, code: 'internal_error', request_id: 'r1' },
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        );
+      }),
+    );
+    let firstDone: Promise<void> = Promise.resolve();
+    act(() => {
+      firstDone = writes.current.remove(first.id);
+    });
+    firstDone.catch(() => undefined);
+    await waitFor(() => {
+      expect(readyNotes(notes.current).some((note) => note.id === first.id)).toBe(false);
+    });
+    // Holding the list's re-reads back lets the failure's own repair be seen, not a refetch's
+    server.use(
+      http.get('*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes', async () => {
+        await reads;
+        return undefined;
+      }),
+    );
+    await act(() => writes.current.remove(second.id));
+    fail();
+    await expect(act(() => firstDone)).rejects.toMatchObject({ status: 500 });
+    // The re-read is still held, so this is the rollback itself: the first note is back and the second stays gone
+    await waitFor(() => {
+      expect(readyNotes(notes.current).map((note) => note.id)).toEqual([first.id, third.id]);
+    });
+    expect(notes.current).toMatchObject({ total: 2 });
+    stopReads();
+  });
+
+  it('removes a note that was changed first, and a later change of it is refused as not found', async () => {
+    const { notes, writes } = pageWith('editor');
+    await waitFor(() => {
+      expect(notes.current.state).toBe('ready');
+    });
+    const mine = readyNotes(notes.current).find((note) => note.can_edit);
+    if (mine === undefined) throw new Error('no note of the editor');
+    await act(() => writes.current.change(mine.id, 'Edited once'));
+    await act(() => writes.current.remove(mine.id));
+    await waitFor(() => {
+      expect(readyNotes(notes.current).map((note) => note.id)).not.toContain(mine.id);
+    });
+    await expect(act(() => writes.current.change(mine.id, 'Too late'))).rejects.toMatchObject({ status: 404 });
+    expect(readyNotes(notes.current).map((note) => note.id)).not.toContain(mine.id);
+  });
+
   it('rejects with the API error for a refused write and leaves the list as it was', async () => {
     const { notes, writes } = pageWith('viewer');
     await waitFor(() => {

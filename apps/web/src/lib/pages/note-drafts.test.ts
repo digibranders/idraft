@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { clearNoteDraft, noteDraft, setNoteDraft } from './note-drafts';
+import { clearAllNoteDrafts, clearNoteDraft, NOTE_DRAFTS_MAX, noteDraft, setNoteDraft } from './note-drafts';
 import type { LinksScope } from '@/lib/internal-links/types';
 
 const SCOPE: LinksScope = { workspaceId: 'w1', projectId: 'p1' };
@@ -23,6 +23,27 @@ describe('the note drafts', () => {
     setNoteDraft(SCOPE, '108', 'y');
     setNoteDraft(SCOPE, '108', '');
     expect(noteDraft(SCOPE, '108')).toBe('');
+  });
+
+  it('are all removed when the session ends', () => {
+    setNoteDraft(SCOPE, '108', 'x');
+    setNoteDraft(OTHER_PROJECT, '109', 'y');
+    clearAllNoteDrafts();
+    expect(noteDraft(SCOPE, '108')).toBe('');
+    expect(noteDraft(OTHER_PROJECT, '109')).toBe('');
+  });
+
+  it('hold at most NOTE_DRAFTS_MAX pages: the one typed in longest ago is dropped', () => {
+    clearAllNoteDrafts();
+    for (let page = 0; page < NOTE_DRAFTS_MAX; page += 1) setNoteDraft(SCOPE, String(page), `text ${String(page)}`);
+    // Typing again in the first page makes it the newest, so the second is the oldest
+    setNoteDraft(SCOPE, '0', 'text 0 again');
+    setNoteDraft(SCOPE, 'extra', 'one more');
+    expect(noteDraft(SCOPE, '1')).toBe('');
+    expect(noteDraft(SCOPE, '0')).toBe('text 0 again');
+    expect(noteDraft(SCOPE, 'extra')).toBe('one more');
+    expect(noteDraft(SCOPE, '2')).toBe('text 2');
+    clearAllNoteDrafts();
   });
 
   it('are kept in memory only', () => {

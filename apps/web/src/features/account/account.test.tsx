@@ -11,6 +11,7 @@ import { LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import { LeaveGuardProvider, useGuardedPush } from '@/lib/navigation/use-leave-guard';
 import { useSignOut } from '@/lib/session/sign-out';
 import { meFactory } from '@/mocks/factories/identity';
+import { noteDraft, setNoteDraft } from '@/lib/pages/note-drafts';
 import { clearPreferences, preferenceKey } from '@/lib/preferences/storage';
 import { MOCK_PASSWORD, mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -386,5 +387,22 @@ describe('Preferences', () => {
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
     await waitFor(() => expect(navigation.hardNavigate).toHaveBeenCalledWith('/login'));
     expect(localStorage.getItem(preferenceKey(EDITOR.user_id, 'settings'))).toBeNull();
+  });
+
+  it('forgets the unsaved text of page notes when the person signs out', async () => {
+    const scope = { workspaceId: 'w1', projectId: 'p1' };
+    setNoteDraft(scope, '108', 'half a thought');
+    function SignOut(): ReactNode {
+      const { signOut } = useSignOut();
+      return (
+        <button type="button" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      );
+    }
+    const { user } = renderWithProviders(page(<SignOut />));
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await waitFor(() => expect(navigation.hardNavigate).toHaveBeenCalledWith('/login'));
+    expect(noteDraft(scope, '108')).toBe('');
   });
 });

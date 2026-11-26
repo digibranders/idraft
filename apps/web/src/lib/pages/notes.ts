@@ -78,6 +78,36 @@ function withoutNote(notes: Notes, noteId: string): Notes {
   };
 }
 
+interface HeldNote {
+  note: PageNote;
+  page: number;
+  index: number;
+}
+
+function locate(notes: Notes | undefined, noteId: string): HeldNote | undefined {
+  for (const [page, list] of (notes?.pages ?? []).entries()) {
+    const index = list.data.findIndex((note) => note.id === noteId);
+    const note = list.data[index];
+    if (note !== undefined) return { note, page, index };
+  }
+  return undefined;
+}
+
+/** `held` goes back where it was in the notes as they are now; other changes to the list are kept. */
+function withNote(notes: Notes, held: HeldNote): Notes {
+  if (locate(notes, held.note.id) !== undefined) return notes;
+  const target = Math.min(held.page, notes.pages.length - 1);
+  return {
+    ...notes,
+    pages: notes.pages.map((page, at) => {
+      if (at !== target) return page;
+      const data = [...page.data];
+      data.splice(Math.min(held.index, data.length), 0, held.note);
+      return { data, meta: { ...page.meta, total: page.meta.total + 1 } };
+    }),
+  };
+}
+
 /**
  * Add, change, delete and restore a note of one page. A refused write rejects with the API's `ApiProblem` and leaves the
  * list as it was. After any write, the notes of the page and the detail of the page (its `notes_count`, in every crawl)
@@ -119,12 +149,15 @@ export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWri
     },
     remove: async (noteId) => {
       await queryClient.cancelQueries({ queryKey: notesKey });
-      const before = queryClient.getQueryData(notesKey);
+      const held = locate(queryClient.getQueryData(notesKey), noteId);
       queryClient.setQueryData(notesKey, (notes) => (notes === undefined ? notes : withoutNote(notes, noteId)));
       try {
         await remove.mutateAsync({ params: { path: { ...path, note_id: noteId } } });
       } catch (failure) {
-        queryClient.setQueryData(notesKey, before);
+        // Only this note goes back: a second delete or a page loaded meanwhile stays as it is
+        if (held !== undefined) {
+          queryClient.setQueryData(notesKey, (notes) => (notes === undefined ? notes : withNote(notes, held)));
+        }
         throw failure;
       } finally {
         refresh();
