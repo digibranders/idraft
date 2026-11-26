@@ -113,7 +113,8 @@ export function summarise(graph: MapGraph): MapSummary {
     const stack = [node.id];
     seen.add(node.id);
     while (stack.length > 0) {
-      const id = stack.pop() as string;
+      const id = stack.pop();
+      if (id === undefined) break;
       size += 1;
       for (const other of next.get(id) ?? []) {
         if (!seen.has(other)) {

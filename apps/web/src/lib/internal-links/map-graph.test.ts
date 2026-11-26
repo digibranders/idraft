@@ -88,4 +88,43 @@ describe('colourGroups', () => {
       ['home', 1],
     ]);
   });
+
+  it('keeps six sections and folds every other page into other', () => {
+    const many = {
+      ...api,
+      nodes: Array.from({ length: 9 }, (_, i) => ({
+        url_id: String(i + 1),
+        path: `/s${i + 1}/page`,
+        title: null,
+        tier_id: null,
+        links_in: 0,
+        links_out: 0,
+        sitewide_from: 0,
+      })),
+      edges: [],
+    } as LinkGraph;
+    const graph = toMapGraph(many, tiers);
+    const groups = colourGroups(graph, 'section', tiers);
+
+    expect(groups.list.map((group) => [group.key, group.count])).toEqual([
+      ['/s1', 1],
+      ['/s2', 1],
+      ['/s3', 1],
+      ['/s4', 1],
+      ['/s5', 1],
+      ['/s6', 1],
+      ['other', 3],
+    ]);
+    expect(graph.nodes.filter((node) => node.id === '9').map(groups.keyOf)).toEqual(['other']);
+  });
+
+  it('reads a tier beyond the eighth as the other grey', () => {
+    const deep = [...tiers, { tier_id: 't9', position: 9, code: 'T9', name: 'Ninth' }] as unknown as PageTier[];
+    const graph = toMapGraph(
+      { ...api, nodes: api.nodes.slice(0, 1).map((node) => ({ ...node, tier_id: 't9' })), edges: [] } as LinkGraph,
+      deep,
+    );
+
+    expect(colourGroups(graph, 'tier', deep).list.map((group) => group.colour)).toEqual([{ kind: 'other' }]);
+  });
 });
