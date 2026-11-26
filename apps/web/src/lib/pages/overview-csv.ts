@@ -1,5 +1,5 @@
 import type { OverviewModel, OverviewRow } from './overview-model';
-import type { CsvTable } from '@/lib/csv/csv-write';
+import { safeText, type CsvTable } from '@/lib/csv/csv-write';
 
 /** The cards of the Overview that hold rows, in the order of the spec (6.4). */
 export const CARD_KEYS = ['status', 'funnel', 'sections', 'tiers', 'depth', 'sitemap'] as const;
@@ -18,7 +18,9 @@ export function overviewCsv(model: OverviewModel, words: OverviewCsvWords): CsvT
   return {
     header: words.header,
     rows: CARD_KEYS.flatMap((card) =>
-      (model[card] ?? []).map((row) => [words.card(card), words.row(card, row), row.count] as const),
+      (model[card] ?? []).map(
+        (row) => [safeText(words.card(card)), safeText(words.row(card, row)), row.count] as const,
+      ),
     ),
   };
 }

@@ -46,6 +46,15 @@ describe('overviewCsv', () => {
     ]);
   });
 
+  it('writes a label that a spreadsheet would read as a formula as text', () => {
+    const table = overviewCsv(
+      { ...model, sections: [row('=SUM(1)', 3)] },
+      { ...labels, row: (_card, item) => item.id },
+    );
+    const line = table.rows.find((entry) => entry[0] === 'card:sections');
+    expect(line?.[1]).toBe("'=SUM(1)");
+  });
+
   it('writes no sitemap lines when the crawl found no sitemap', () => {
     const table = overviewCsv({ ...model, sitemap: null }, labels);
     expect(table.rows.some((line) => line[0] === 'card:sitemap')).toBe(false);

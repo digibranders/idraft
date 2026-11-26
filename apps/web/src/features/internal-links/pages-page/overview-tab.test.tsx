@@ -381,4 +381,22 @@ describe('the Issues and Since the last crawl cards (spec 6.4, 10.1)', () => {
     expect(text).toContain('Card,Row,Count');
     expect(text).toContain(`Addresses by status,Live pages,${String(fixture.status.live)}`);
   });
+
+  it('ends a failed download in the error toast and lets Export run again', async () => {
+    serve(fixture);
+    serveChanges(SUMMARY);
+    vi.mocked(downloadBlob).mockImplementationOnce(() => {
+      throw new Error('disk full');
+    });
+    const { user } = renderWithProviders(pagesAs('viewer', 'overview'));
+    await card('Addresses by status');
+    const run = async (): Promise<void> => {
+      await user.click(await screen.findByRole('button', { name: 'Export' }));
+      await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    };
+    await run();
+    expect((await screen.findAllByText('The export could not be made')).length).toBeGreaterThan(0);
+    await run();
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(2));
+  });
 });

@@ -8,7 +8,7 @@ import { useEffect, useMemo, type ReactElement } from 'react';
 import { OverviewCards, useCardTitle, useRowLabel } from './overview-cards';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { InlineError } from '@/components/app/status/inline-error';
-import { csvBlob, downloadBlob, safeText } from '@/lib/csv/csv-write';
+import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
 import { formatInteger } from '@/lib/format';
 import { overviewQuery } from '@/lib/internal-links/queries';
 import type { LinksScope } from '@/lib/internal-links/types';
@@ -55,19 +55,23 @@ export function OverviewTab({
   // The file is the cards' rows as they are drawn; it exists while the read is ready and goes with the tab
   useEffect(() => {
     if (model === null) return;
-    registerExport(() => {
-      downloadBlob(
-        csvBlob(
-          overviewCsv(model, {
-            header: [t('cards.export.card'), t('cards.export.row'), t('cards.export.count')],
-            card: cardTitle,
-            row: (card, row) => safeText(rowLabel(card, row)),
-          }),
-        ),
-        EXPORT_NAME,
-      );
-      return Promise.resolve();
-    });
+    // A promise executor turns a throw while the file is made into a rejection, which ends in the header's error toast
+    registerExport(
+      () =>
+        new Promise<void>((resolve) => {
+          downloadBlob(
+            csvBlob(
+              overviewCsv(model, {
+                header: [t('cards.export.card'), t('cards.export.row'), t('cards.export.count')],
+                card: cardTitle,
+                row: rowLabel,
+              }),
+            ),
+            EXPORT_NAME,
+          );
+          resolve();
+        }),
+    );
     return () => registerExport(null);
   }, [model, registerExport, t, cardTitle, rowLabel]);
 
