@@ -18,6 +18,8 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Keywords, Pages, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs, Settings | Rankings, Topics, Engines, Sources (as a page name) |
 | Citation opportunities (working name for the planned WP-61 page; confirm when it ships) | Sources |
 | Link map (a tab of Internal links: every live page and its body links as one graph) | Site map, Network, Graph (as the tab name) |
+| Website audit (navigation group: Issues, Pages, Internal links) | Site audit, Technical SEO, Site health |
+| Issues (page; tabs Technical and On-page); Issue (what a check found) | Problems, Errors as the page name, Audit |
 
 ## Where we ask and where we check
 
@@ -53,6 +55,9 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Answer, Valid answer, Failed answer | Response, Observation, Result, Reply |
 | Run (a scheduled collection pass) | Job, Batch, Cycle |
 | Check, "Check now" (one keyword rank reading) | Read, Scan, Lookup |
+| Check (on the Issues page only: one test your website is put through; proposed, open for the owner) | Rule, Test, Scan, Hint |
+| Severity: Error, Warning, Notice (Issues; proposed, open for the owner) | Critical, High, Medium, Low, Info |
+| Found by (where a check comes from: Crawl, Rank checks, Search Console, Google Analytics, AI answers) | Source, Detected by |
 | Schedule | Panel, Cadence |
 | Screenshot (image of an AI answer) | Capture |
 | Job type (Costs and Budgets); Started by (Schedule, Manual, Backfill, Retry) | Workload, Trigger |
