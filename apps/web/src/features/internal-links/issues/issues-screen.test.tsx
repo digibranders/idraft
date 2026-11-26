@@ -1,11 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { EVENTUS } from '@/mocks/internal-links-world';
-import { problem } from '@/mocks/respond';
+import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { FYNIX_LINKS, NO_WEBSITE } from '@/test/internal-links-harness';
 import { answerCrawls, answerIssues, crawlRun, ISSUE_CHECKS, ISSUES, issueList, issuesAs } from '@/test/issues-harness';
@@ -24,14 +25,32 @@ vi.mock('@/lib/api/download', async (importOriginal) => {
   return { ...actual, downloadApiFile: vi.fn(async () => undefined) };
 });
 
+// The real announcer with a spy on it, so a test counts what the page says as well as what the region holds
+vi.mock('@/lib/a11y/announcer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/a11y/announcer')>();
+  return { ...actual, announce: vi.fn(actual.announce) };
+});
+
 const CSV_PATH = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS.project_id}/issues`;
+const CRAWLS = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/link-crawls');
+// The cells of a row after its header cell (the name of the check): severity, found by, pages, clicks
+const PAGES = 2;
+const CLICKS = 3;
+/** The category header cells: the row headers that span the group, not the names of the checks. */
+const categoryHeaders = (table: HTMLElement): string[] =>
+  within(table)
+    .getAllByRole('rowheader')
+    .filter((header) => header.getAttribute('scope') === 'rowgroup')
+    .map((header) => header.textContent ?? '');
 
 beforeEach(() => {
   stubWideScreen();
   vi.mocked(downloadApiFile).mockClear();
+  vi.mocked(announce).mockClear();
   server.use(answerIssues());
 });
 afterEach(() => {
+  vi.useRealTimers();
   restoreWideScreen();
   document.documentElement.classList.remove('dark');
 });
@@ -52,12 +71,37 @@ describe('the access and crawl states of the Issues page (spec 7.4)', () => {
 
   it('explains that a website is needed, with the link to the domains settings', () => {
     renderWithProviders(issuesAs('editor', NO_WEBSITE));
-    expect(screen.getByRole('heading', { name: 'Add your website to map internal links' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Add your website to check it for issues' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Issues are found by crawling your project’s website. Add its address in the project settings.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/internal links/i)).toBeNull();
     expect(screen.getByRole('link', { name: 'Add website' })).toHaveAttribute(
       'href',
       '/digibranders/fynix/settings/domains',
     );
     expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('says the crawl list could not be loaded in its own words, offers Try again and reads it again', async () => {
+    let calls = 0;
+    server.use(
+      http.get(CRAWLS, ({ request }) => {
+        calls += 1;
+        return calls === 1
+          ? problem(request, 'internal_error')
+          : HttpResponse.json({
+              data: [crawlRun({ is_latest: true })],
+              page: { has_more: false, limit: 50, next_cursor: null },
+            });
+      }),
+    );
+    const { user } = renderWithProviders(issuesAs('editor'));
+    expect(await screen.findByText('The crawl list could not be loaded')).toBeInTheDocument();
+    expect(screen.queryByText(/internal links/i)).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await technical()).toBeInTheDocument();
   });
 
   it('offers the first crawl of a site never crawled, and shows no table', async () => {
@@ -73,6 +117,9 @@ describe('the access and crawl states of the Issues page (spec 7.4)', () => {
     renderWithProviders(issuesAs('editor'));
     expect(await screen.findByRole('heading', { name: 'Mapping eventussecurity.com' })).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '312');
+    expect(screen.getByText('Your issues appear here when the crawl finishes.')).toBeInTheDocument();
+    // No talk of tiers on this page
+    expect(screen.queryByText(/tier/i)).toBeNull();
     expect(screen.queryByRole('table')).toBeNull();
   });
 
@@ -142,8 +189,14 @@ describe('the access and crawl states of the Issues page (spec 7.4)', () => {
     const { user } = renderWithProviders(issuesAs('editor'));
     expect(await screen.findByText('The issues could not be loaded')).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
+    // Nothing to filter or export while the list is not there, and no strip of zeros
+    expect(screen.queryByRole('combobox', { name: /Found by/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Measures' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await technical()).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /Found by/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
   });
 });
 
@@ -173,11 +226,7 @@ describe('the list view', () => {
   it('groups the Technical rows by category in the order of the list, with the counts on the tabs', async () => {
     renderWithProviders(issuesAs('editor'));
     const table = await technical();
-    expect(
-      within(table)
-        .getAllByRole('rowheader')
-        .map((header) => header.textContent),
-    ).toEqual(['Status', 'Pages that earn visits', 'Redirects', 'Sitemap', 'Links']);
+    expect(categoryHeaders(table)).toEqual(['Status', 'Pages that earn visits', 'Redirects', 'Sitemap', 'Links']);
     expect(opened()).toEqual([
       'Open Pages that return a 4xx error',
       'Open Pages that return a 5xx error',
@@ -233,7 +282,7 @@ describe('the list view', () => {
     expect(within(ai).getByText('Not collected yet')).toBeInTheDocument();
     const pagesCell = (name: string): HTMLElement => {
       const row = screen.getByText(name).closest('tr') as HTMLElement;
-      return within(row).getAllByRole('cell')[3] as HTMLElement;
+      return within(row).getAllByRole('cell')[PAGES] as HTMLElement;
     };
     expect(
       within(pagesCell('Sitemap lists an address that does not return 200')).getByText('n/a'),
@@ -255,9 +304,9 @@ describe('the list view', () => {
     renderWithProviders(issuesAs('editor'));
     await technical();
     const row = screen.getByText('Pages that return a 4xx error').closest('tr') as HTMLElement;
-    expect(within(within(row).getAllByRole('cell')[4] as HTMLElement).getByText('n/a')).toHaveAccessibleDescription(
-      'Search Console is not connected',
-    );
+    expect(
+      within(within(row).getAllByRole('cell')[CLICKS] as HTMLElement).getByText('n/a'),
+    ).toHaveAccessibleDescription('Search Console is not connected');
   });
 
   it('narrows the rows by severity, and writes it to the address as a replace', async () => {
@@ -348,6 +397,20 @@ describe('the list view', () => {
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
   });
 
+  it('lets the other tab be chosen when the address names a check that did not run', async () => {
+    const writes: string[] = [];
+    const { user } = renderWithProviders(issuesAs('editor'), {
+      searchParams: '?check=cited-page-broken',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    expect(await technical()).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /^On-page/ }));
+    expect(await screen.findByRole('table', { name: 'On-page checks' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /^On-page/ })).toHaveAttribute('aria-selected', 'true');
+    // The check that did not run is out of the address, so it cannot hold the tab
+    expect(writes.at(-1)).toBe('?tab=on-page');
+  });
+
   it('downloads the CSV of the checks with Export, and says so when the file cannot be made', async () => {
     const { user } = renderWithProviders(issuesAs('editor'));
     await technical();
@@ -376,5 +439,79 @@ describe('the list view', () => {
       expect(await axe(container)).toHaveNoViolations();
       unmount();
     }
+  });
+
+  it('has no axe violations on the On-page tab, in the empty result and in the error state', async () => {
+    const onPage = renderWithProviders(issuesAs('editor'), { searchParams: '?tab=on-page' });
+    await screen.findByRole('table', { name: 'On-page checks' });
+    expect(await axe(onPage.container)).toHaveNoViolations();
+    onPage.unmount();
+
+    const empty = renderWithProviders(issuesAs('editor'), { searchParams: '?q=zzz' });
+    await screen.findByRole('heading', { name: 'No checks match' });
+    expect(await axe(empty.container)).toHaveNoViolations();
+    empty.unmount();
+
+    server.use(http.get(ISSUES, ({ request }) => problem(request, 'internal_error')));
+    const failed = renderWithProviders(issuesAs('editor'));
+    await screen.findByText('The issues could not be loaded');
+    expect(await axe(failed.container)).toHaveNoViolations();
+  });
+});
+
+describe('the count of results is said after a filter changes (20-accessibility.md section 10.2)', () => {
+  /** Lets the time pass while the page keeps its real clock for the answers of the mock server. */
+  const wait = (ms: number): Promise<void> =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  it('says nothing on load, then how many checks show 500 ms after a severity changes, once', async () => {
+    const { user } = renderWithProviders(issuesAs('editor'));
+    await technical();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await wait(1_000);
+    expect(announce).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /^Warnings/ }));
+    await waitFor(() => expect(opened()).toEqual(['Open Redirect chains']));
+    await wait(300);
+    expect(announce).not.toHaveBeenCalled();
+    await wait(400);
+    expect(announce).toHaveBeenCalledTimes(1);
+    // The warning that opens and the one that did not run
+    expect(announce).toHaveBeenCalledWith('Showing 2 checks', { key: 'issues-results' });
+    expect(document.getElementById('live-region-polite')).toHaveTextContent('Showing 2 checks');
+  });
+
+  it('says No checks match for an empty result, and speaks only the last of two quick changes', async () => {
+    const { user } = renderWithProviders(issuesAs('editor'));
+    await technical();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await user.click(screen.getByRole('button', { name: /^Notices/ }));
+    await waitFor(() => expect(screen.queryByText('Redirect chains')).toBeNull());
+    await user.click(screen.getByRole('button', { name: /^Errors/ }));
+    await waitFor(() => expect(screen.getByText('Pages that return a 4xx error')).toBeInTheDocument());
+    await wait(1_000);
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith('Showing 4 checks', { key: 'issues-results' });
+    vi.mocked(announce).mockClear();
+    await user.type(screen.getByRole('searchbox', { name: 'Search issues' }), 'zzz');
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'No checks match' })).toBeInTheDocument());
+    await wait(1_000);
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith('No checks match', { key: 'issues-results' });
+  });
+
+  it('says nothing when the change leaves the same number of checks showing', async () => {
+    const { user } = renderWithProviders(issuesAs('editor'));
+    await technical();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // Hiding the passed checks and showing them again within the wait ends where it began
+    await user.click(screen.getByRole('checkbox', { name: 'Show passed checks' }));
+    await waitFor(() => expect(screen.queryByText('Pages that return a 5xx error')).toBeNull());
+    await user.click(screen.getByRole('checkbox', { name: 'Show passed checks' }));
+    await waitFor(() => expect(screen.getByText('Pages that return a 5xx error')).toBeInTheDocument());
+    await wait(1_000);
+    expect(announce).not.toHaveBeenCalled();
   });
 });

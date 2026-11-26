@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Ban, Download, RefreshCw, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import { CheckView } from './check-view';
 import { useCheckWords } from './check-words';
@@ -46,6 +46,9 @@ const EXPORT_NAME = 'issues.csv';
 const HIDE_PASSED = 'hide';
 /** The longest search the address takes (the API's text filters take 200 characters). */
 const SEARCH_MAX_LENGTH = 200;
+/** The wait after the last change of a filter before the count of results is spoken. */
+const RESULTS_ANNOUNCE_MS = 500;
+const ANNOUNCE_KEY = 'issues-results';
 const NO_CHECKS: readonly IssueCheck[] = [];
 const TABS: readonly IssuesTab[] = ['technical', 'on-page'];
 const FOUND_BY: readonly IssuesFoundBy[] = ['all', 'crawl', 'ranks', 'gsc', 'ai'];
@@ -115,6 +118,8 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
     state.check === null ? undefined : checks.find((entry) => entry.id === state.check && entry.state === 'ran');
   const listView = state.check === null || (issues.isSuccess && openCheck === undefined);
   const chrome = ready && listView;
+  // The list did not load and nothing is held from an earlier read: there is nothing to filter, count or export
+  const listFailed = issues.isError && issues.data === undefined;
 
   const visible = useMemo(
     () =>
@@ -126,6 +131,31 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   );
   const counts = useMemo(() => tabCounts(checks), [checks]);
   const inTab = checks.filter((entry) => tabOfApi(entry.tab) === state.tab).length;
+
+  // How many checks show is said once, 500 ms after the last change of the search or a filter, and not when the
+  // number did not change (20-accessibility.md section 10.2). The first number after the list arrives is the
+  // baseline: nothing is said on load. The timer is this effect's own, so a change that ends where it began cancels
+  // the one before it.
+  const resultsText =
+    issues.isSuccess && listView
+      ? visible.length === 0
+        ? t('announce.none')
+        : t('announce.showing', { count: visible.length })
+      : null;
+  const lastSpoken = useRef<string | null>(null);
+  useEffect(() => {
+    if (resultsText === null) return undefined;
+    if (lastSpoken.current === null) {
+      lastSpoken.current = resultsText;
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      if (resultsText === lastSpoken.current) return;
+      lastSpoken.current = resultsText;
+      announce(resultsText, { key: ANNOUNCE_KEY });
+    }, RESULTS_ANNOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [resultsText]);
 
   const open = (id: CheckId): void => setSearch({ check: id, q: null, sort: null }, { history: 'push' });
   const back = (entry: IssueCheck): void =>
@@ -207,9 +237,11 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   const actions = (
     <>
       {crawlButton(running === null ? t('toolbar.crawlNow') : t('toolbar.crawling'), RefreshCw)}
-      <Button variant="secondary" size="sm" icon={Download} loading={exporting} onClick={onExport}>
-        {t('list.export')}
-      </Button>
+      {listFailed ? null : (
+        <Button variant="secondary" size="sm" icon={Download} loading={exporting} onClick={onExport}>
+          {t('list.export')}
+        </Button>
+      )}
     </>
   );
 
@@ -243,8 +275,11 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
         variant="segmented"
         label={t('labels.issueTypes')}
         value={state.tab}
-        // The tab is a move of the page that makes a history entry
-        onValueChange={(next) => setSearch({ tab: next === 'technical' ? null : next }, { history: 'push' })}
+        // The tab is a move of the page that makes a history entry. A `check` in the address would hold the tab
+        // (a check that did not run shows the list, in its own tab), so it goes
+        onValueChange={(next) =>
+          setSearch({ tab: next === 'technical' ? null : next, check: null }, { history: 'push' })
+        }
         items={tabItems}
         className="overflow-hidden rounded-lg border border-border bg-surface"
         renderList={(list) => (
@@ -288,7 +323,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
               variant="table"
               title={t('list.noChecks.title')}
               reason={t('list.noChecks.hint')}
-              headingLevel={3}
+              headingLevel={2}
               primaryAction={
                 <Button variant="secondary" size="sm" onClick={clearFilters}>
                   {t('list.noChecks.clear')}
@@ -316,7 +351,9 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   let body: ReactNode;
   switch (view.kind) {
     case 'no-website':
-      body = <NoWebsite settingsHref={domainsHref} />;
+      body = (
+        <NoWebsite settingsHref={domainsHref} title={t('states.noWebsiteTitle')} reason={t('states.noWebsiteReason')} />
+      );
       break;
     case 'loading':
       body = <SkeletonRows />;
@@ -325,8 +362,8 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
     case 'unknown':
       body = (
         <InlineError
-          title={states('loadFailed')}
-          reason={view.kind === 'error' ? states('loadFailedReason') : states('unknownReason')}
+          title={t('states.crawlsFailed')}
+          reason={view.kind === 'error' ? t('states.crawlsFailedReason') : states('unknownReason')}
           errorId={null}
           onRetry={() => void crawls.refetch()}
           retrying={crawls.isFetching}
@@ -343,7 +380,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
       );
       break;
     case 'first':
-      body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} />;
+      body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} lead={t('states.firstLead')} />;
       break;
     case 'failed-first':
       body = (
@@ -374,7 +411,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
             onRetry={() => crawl.start()}
             onHigherLimit={() => crawl.start(true)}
           />
-          {chrome && !issues.isError ? (
+          {chrome && !listFailed ? (
             <IssuesStrip
               summary={issues.data?.summary ?? null}
               status={issues.data === undefined ? 'loading' : issues.isFetching ? 'refetching' : 'ready'}
@@ -391,7 +428,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
       <PageToolbar
         title={t('title')}
         headingId={HEADING_ID}
-        {...(chrome ? { filters: foundBy, status: crawlLine, actions } : {})}
+        {...(chrome ? { ...(listFailed ? {} : { filters: foundBy }), status: crawlLine, actions } : {})}
       />
       {body}
     </div>

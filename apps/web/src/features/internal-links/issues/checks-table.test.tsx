@@ -25,19 +25,49 @@ const row = (name: string): HTMLElement => {
   return found;
 };
 
+// The cells of a row after its header cell (the name of the check): severity, found by, pages, clicks, example, arrow
+const SEVERITY = 0;
+const FOUND_BY = 1;
+const PAGES = 2;
+const CLICKS = 3;
+const EXAMPLE = 4;
+
+/** The category header cells: the row headers that span the group, not the names of the checks. */
+const categoryHeaders = (): HTMLElement[] =>
+  screen.getAllByRole('rowheader').filter((header) => header.getAttribute('scope') === 'rowgroup');
+
 describe('the list of checks', () => {
   it('names the table and its columns, with a hidden name for the arrow column', () => {
     renderWithProviders(<ChecksTable {...props()} />);
     const table = screen.getByRole('table', { name: 'Technical checks' });
-    const headers = within(table)
-      .getAllByRole('columnheader')
-      .map((header) => header.textContent);
-    expect(headers).toEqual(['Issue', 'Severity', 'Found by', 'Pages', 'Clicks', 'Example', 'Open']);
+    const headers = within(table).getAllByRole('columnheader');
+    const names = ['Issue', 'Severity', 'Found by', 'Pages', 'Clicks', 'Example', 'Open'];
+    headers.forEach((header, index) => expect(header).toHaveAccessibleName(names[index]));
+    expect(headers).toHaveLength(names.length);
+  });
+
+  it('puts no element but a row under a row: the tooltip text of a header lives inside its cell', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderWithProviders(<ChecksTable {...props()} />);
+    expect(error).not.toHaveBeenCalled();
+    const table = screen.getByRole('table', { name: 'Technical checks' });
+    table.querySelectorAll('tr').forEach((tr) => {
+      expect(Array.from(tr.children).every((child) => child.tagName === 'TH' || child.tagName === 'TD')).toBe(true);
+    });
+    const found = within(table).getAllByRole('columnheader', { name: 'Found by' })[0] as HTMLElement;
+    expect(found).toHaveAccessibleDescription('The data the check comes from');
+    error.mockRestore();
+  });
+
+  it('keeps the visually hidden Open header inside a positioned scroll region', () => {
+    renderWithProviders(<ChecksTable {...props()} />);
+    const region = screen.getByRole('table', { name: 'Technical checks' }).parentElement;
+    expect(region).toHaveClass('relative', 'overflow-x-auto');
   });
 
   it('draws one header row per category, bold and in the main text colour on the subtle band', () => {
     renderWithProviders(<ChecksTable {...props()} />);
-    const headers = screen.getAllByRole('rowheader').map((header) => header.textContent);
+    const headers = categoryHeaders().map((header) => header.textContent);
     expect(headers).toEqual(['Status', 'Pages that earn visits', 'Redirects', 'Sitemap', 'Links']);
     const status = screen.getByRole('rowheader', { name: 'Status' });
     expect(status).toHaveClass('type-body-strong', 'text-foreground', 'bg-surface-subtle', 'border-t');
@@ -59,34 +89,56 @@ describe('the list of checks', () => {
   it('shows a passed check as Passed in the Pages cell, with a check mark', () => {
     renderWithProviders(<ChecksTable {...props()} />);
     const cells = within(row('Pages that return a 5xx error')).getAllByRole('cell');
-    expect(within(cells[3] as HTMLElement).getByText('Passed')).toBeInTheDocument();
-    expect(cells[3]?.querySelector('svg')).not.toBeNull();
+    expect(within(cells[PAGES] as HTMLElement).getByText('Passed')).toBeInTheDocument();
+    expect(cells[PAGES]?.querySelector('svg')).not.toBeNull();
     expect(within(row('Pages that return a 4xx error')).queryByText('Passed')).toBeNull();
   });
 
   it('shows the count of a check with its share of the pages crawled in a tooltip, and the clicks and an example', () => {
     renderWithProviders(<ChecksTable {...props()} />);
     const cells = within(row('Pages that return a 4xx error')).getAllByRole('cell');
-    const count = within(cells[3] as HTMLElement).getByText('3');
+    const count = within(cells[PAGES] as HTMLElement).getByText('3');
     expect(count).toHaveAccessibleDescription('0.2% of the 1,840 pages crawled');
-    expect(cells[4]).toHaveTextContent('340');
-    expect(cells[5]).toHaveTextContent('/old-pricing');
+    expect(cells[CLICKS]).toHaveTextContent('340');
+    expect(cells[EXAMPLE]).toHaveTextContent('/old-pricing');
   });
 
   it('opens a check that ran, passed or not, from its button, and says which one in the name', async () => {
     const onOpen = vi.fn();
     const { user } = renderWithProviders(<ChecksTable {...props({ onOpen })} />);
     await user.click(screen.getByRole('button', { name: 'Open Pages that return a 4xx error' }));
-    expect(onOpen).toHaveBeenLastCalledWith('status-4xx');
+    // Once: the click on the button also reaches the row, which must not open the check a second time
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith('status-4xx');
+    onOpen.mockClear();
     await user.click(screen.getByRole('button', { name: 'Open Pages that return a 5xx error' }));
-    expect(onOpen).toHaveBeenLastCalledWith('status-5xx');
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith('status-5xx');
   });
 
   it('opens a check from a click anywhere on its row', async () => {
     const onOpen = vi.fn();
     const { user } = renderWithProviders(<ChecksTable {...props({ onOpen })} />);
-    await user.click(within(row('Redirect chains')).getAllByRole('cell')[5] as HTMLElement);
+    await user.click(within(row('Redirect chains')).getAllByRole('cell')[4] as HTMLElement);
+    expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledWith('redirect-chain');
+  });
+
+  it('draws the rows at the compact height, with the name of the check as the header of its row', () => {
+    renderWithProviders(<ChecksTable {...props()} />);
+    const found = row('Pages that return a 4xx error');
+    expect(found).toHaveClass('h-row-compact');
+    expect(found).not.toHaveClass('h-row');
+    const name = screen.getByRole('rowheader', { name: /^Pages that return a 4xx error$/ });
+    expect(name).toHaveAttribute('scope', 'row');
+    expect(name).toHaveClass('text-left');
+    expect(within(name).getByText('Pages that return a 4xx error')).toHaveClass('type-body-strong', 'text-foreground');
+    expect(within(found).getAllByRole('cell')).toHaveLength(6);
+  });
+
+  it('writes the example path in the mono face of URLs', () => {
+    renderWithProviders(<ChecksTable {...props()} />);
+    expect(screen.getByText('/old-pricing')).toHaveClass('font-mono');
   });
 
   it('gives a check that did not run no button and no arrow, and says why in the Pages cell', async () => {
@@ -114,10 +166,12 @@ describe('the list of checks', () => {
   it('shows n/a with the reason for a check the crawl could not run', () => {
     renderWithProviders(<ChecksTable {...props()} />);
     const noSitemap = within(
-      within(row('Sitemap lists an address that does not return 200')).getAllByRole('cell')[3] as HTMLElement,
+      within(row('Sitemap lists an address that does not return 200')).getAllByRole('cell')[PAGES] as HTMLElement,
     );
     expect(noSitemap.getByText('n/a')).toHaveAccessibleDescription('The crawl found no sitemap');
-    const dropped = within(within(row('Pages with nofollow internal links')).getAllByRole('cell')[3] as HTMLElement);
+    const dropped = within(
+      within(row('Pages with nofollow internal links')).getAllByRole('cell')[PAGES] as HTMLElement,
+    );
     expect(dropped.getByText('n/a')).toHaveAccessibleDescription('This crawl no longer holds its links');
     expect(within(row('Pages with nofollow internal links')).queryByRole('button')).toBeNull();
   });
@@ -128,30 +182,41 @@ describe('the list of checks', () => {
     const { unmount } = renderWithProviders(
       <ChecksTable {...props({ checks: noClicks(props().checks), gsc: 'not_connected' })} />,
     );
-    const clicks = within(within(row('Pages that return a 4xx error')).getAllByRole('cell')[4] as HTMLElement);
+    const clicks = within(within(row('Pages that return a 4xx error')).getAllByRole('cell')[CLICKS] as HTMLElement);
     expect(clicks.getByText('n/a')).toHaveAccessibleDescription('Search Console is not connected');
     unmount();
     renderWithProviders(<ChecksTable {...props({ checks: noClicks(props().checks), gsc: 'pending' })} />);
-    const pending = within(within(row('Pages that return a 4xx error')).getAllByRole('cell')[4] as HTMLElement);
+    const pending = within(within(row('Pages that return a 4xx error')).getAllByRole('cell')[CLICKS] as HTMLElement);
     expect(pending.getByText('n/a')).toHaveAccessibleDescription('Search Console has no page numbers yet');
+  });
+
+  it('says the check did not run, not that Search Console is not connected, for the clicks of a check that did not run', () => {
+    renderWithProviders(<ChecksTable {...props({ gsc: 'not_connected' })} />);
+    for (const name of [
+      'Broken or redirected pages with Google clicks',
+      'Sitemap lists an address that does not return 200',
+    ]) {
+      const clicks = within(within(row(name)).getAllByRole('cell')[CLICKS] as HTMLElement);
+      expect(clicks.getByText('n/a')).toHaveAccessibleDescription('The check did not run');
+    }
   });
 
   it('names the severity and where the check was found in each row, with what they mean as a description', () => {
     renderWithProviders(<ChecksTable {...props()} />);
     const cells = within(row('Redirect chains')).getAllByRole('cell');
-    expect(within(cells[1] as HTMLElement).getByText('Warning')).toBeInTheDocument();
-    expect(cells[2]).toHaveTextContent('Crawl');
-    const error = within(within(row('Pages that return a 4xx error')).getAllByRole('cell')[1] as HTMLElement).getByText(
-      'Error',
-    );
+    expect(within(cells[SEVERITY] as HTMLElement).getByText('Warning')).toBeInTheDocument();
+    expect(cells[FOUND_BY]).toHaveTextContent('Crawl');
+    const error = within(
+      within(row('Pages that return a 4xx error')).getAllByRole('cell')[SEVERITY] as HTMLElement,
+    ).getByText('Error');
     expect(error).toHaveClass('bg-negative-subtle');
     expect(error).toHaveAccessibleDescription('Breaks a page for visitors or for Google. Fix these first.');
-    expect(within(cells[2] as HTMLElement).getByText('Crawl')).toHaveAccessibleDescription(
+    expect(within(cells[FOUND_BY] as HTMLElement).getByText('Crawl')).toHaveAccessibleDescription(
       'Found by crawling the site, page by page.',
     );
     expect(
       within(
-        within(row('Sitemap lists an address that does not return 200')).getAllByRole('cell')[1] as HTMLElement,
+        within(row('Sitemap lists an address that does not return 200')).getAllByRole('cell')[SEVERITY] as HTMLElement,
       ).getByText('Warning'),
     ).toHaveClass('bg-warning-subtle');
   });

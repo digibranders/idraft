@@ -4,7 +4,7 @@ import { ChevronRight, CircleCheck } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, ReactNode } from 'react';
+import { useId, type ReactElement, type ReactNode } from 'react';
 
 import { useCheckWords } from './check-words';
 import { Badge } from '@/components/ui/badge';
@@ -58,37 +58,21 @@ export function ChecksTable({
 }: ChecksTableProps): ReactElement {
   const t = useTranslations('issues');
   const words = useCheckWords();
-  const header = (label: string, tip?: string): ReactElement => {
-    const cell = (
-      <th scope="col" className={HEAD}>
-        {label}
-      </th>
-    );
-    return tip === undefined ? (
-      cell
-    ) : (
-      <Tooltip content={tip} side="bottom">
-        {cell}
-      </Tooltip>
-    );
-  };
   return (
-    <div className="overflow-x-auto">
+    // `relative` keeps the visually hidden Open header (absolutely placed) inside the region, or it would sit past
+    // the table's edge and widen the page
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-max">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-surface-subtle">
           <tr>
-            <th scope="col" className={cn(HEAD, 'min-w-72')}>
-              {t('columns.issue')}
-            </th>
-            {header(t('columns.severity'))}
-            {header(t('columns.foundBy'), t('tips.foundBy'))}
-            {header(t('columns.pages'), t('tips.pages'))}
-            {header(t('columns.clicks'), t('tips.clicks'))}
-            {header(t('columns.example'))}
-            <th scope="col" className={HEAD}>
-              <span className="sr-only">{t('columns.open')}</span>
-            </th>
+            <HeaderCell label={t('columns.issue')} className="min-w-72" />
+            <HeaderCell label={t('columns.severity')} />
+            <HeaderCell label={t('columns.foundBy')} tip={t('tips.foundBy')} />
+            <HeaderCell label={t('columns.pages')} tip={t('tips.pages')} />
+            <HeaderCell label={t('columns.clicks')} tip={t('tips.clicks')} />
+            <HeaderCell label={t('columns.example')} />
+            <HeaderCell label={t('columns.open')} hideLabel />
           </tr>
         </thead>
         {groupByCategory(checks).map((group) => (
@@ -120,6 +104,42 @@ export function ChecksTable({
   );
 }
 
+/**
+ * A column header. Its definition is the header's description and its tooltip: the hidden text sits inside the
+ * cell, because the tooltip's own hidden description would land directly under the row (invalid markup).
+ */
+function HeaderCell({
+  label,
+  tip,
+  className,
+  hideLabel = false,
+}: {
+  label: string;
+  tip?: string;
+  className?: string;
+  /** Draws no text for the header, which still names the column for assistive technology (the arrow column). */
+  hideLabel?: boolean;
+}): ReactElement {
+  const descriptionId = useId();
+  const cell = (
+    <th scope="col" aria-describedby={tip === undefined ? undefined : descriptionId} className={cn(HEAD, className)}>
+      {hideLabel ? <span className="sr-only">{label}</span> : label}
+      {tip === undefined ? null : (
+        <span id={descriptionId} hidden>
+          {tip}
+        </span>
+      )}
+    </th>
+  );
+  return tip === undefined ? (
+    cell
+  ) : (
+    <Tooltip content={tip} side="bottom" purpose="label">
+      {cell}
+    </Tooltip>
+  );
+}
+
 interface CheckRowProps {
   check: IssueCheck;
   name: string;
@@ -135,7 +155,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
   const found = check.pages !== null && check.pages > 0;
   return (
     <tr
-      className={cn('h-row bg-surface', opens && 'cursor-pointer hover:bg-surface-hover')}
+      className={cn('h-row-compact bg-surface', opens && 'cursor-pointer hover:bg-surface-hover')}
       // The whole row takes the click; the button in the first cell is the keyboard's way in
       onClick={
         opens
@@ -145,7 +165,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
           : undefined
       }
     >
-      <td className={CELL}>
+      <th scope="row" className={cn(CELL, 'text-left')}>
         {opens ? (
           <button
             type="button"
@@ -158,7 +178,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
         ) : (
           <span className={NAME}>{name}</span>
         )}
-      </td>
+      </th>
       <td className={CELL}>
         <Tooltip content={t(`severity.${check.severity}.tip`)}>
           <Badge tone={SEVERITY_TONE[check.severity]}>{t(`severity.${check.severity}.label`)}</Badge>
@@ -173,11 +193,11 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
         <PagesCell check={check} pagesCrawled={pagesCrawled} integrationsHref={integrationsHref} />
       </td>
       <td className={CELL}>
-        <ClicksCell clicks={check.clicks} gsc={gsc} />
+        <ClicksCell clicks={check.clicks} ran={opens} gsc={gsc} />
       </td>
       <td className={cn(CELL, 'type-table text-foreground-secondary')}>
         {found && check.example_path !== null ? (
-          <Truncate text={check.example_path} className="block max-w-xs" />
+          <Truncate text={check.example_path} className="block max-w-xs font-mono" />
         ) : (
           <NotApplicable />
         )}
@@ -261,7 +281,8 @@ function PagesCell({
   }
 }
 
-function ClicksCell({ clicks, gsc }: { clicks: number | null; gsc: IssueGsc['state'] }): ReactNode {
+/** Search Console is named as the reason only for a check that ran: for one that did not, the check is the reason. */
+function ClicksCell({ clicks, ran, gsc }: { clicks: number | null; ran: boolean; gsc: IssueGsc['state'] }): ReactNode {
   const t = useTranslations('issues.states');
   if (clicks !== null) {
     return (
@@ -270,6 +291,7 @@ function ClicksCell({ clicks, gsc }: { clicks: number | null; gsc: IssueGsc['sta
       </span>
     );
   }
+  if (!ran) return <NotApplicable reason={t('checkNotRun')} />;
   if (gsc === 'not_connected') return <NotApplicable reason={t('gscNotConnected')} />;
   if (gsc === 'pending') return <NotApplicable reason={t('gscPending')} />;
   return <NotApplicable />;

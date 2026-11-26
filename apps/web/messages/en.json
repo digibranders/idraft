@@ -10356,8 +10356,18 @@
       "linksDropped": "This crawl no longer holds its links",
       "gscNotConnected": "Search Console is not connected",
       "gscPending": "Search Console has no page numbers yet",
+      "checkNotRun": "The check did not run",
       "loadFailed": "The issues could not be loaded",
-      "loadFailedReason": "The server returned an error. Nothing on this page changed."
+      "loadFailedReason": "The server returned an error. Nothing on this page changed.",
+      "crawlsFailed": "The crawl list could not be loaded",
+      "crawlsFailedReason": "Issues come from the latest crawl, and the list of crawls did not load. Try again in a moment.",
+      "noWebsiteTitle": "Add your website to check it for issues",
+      "noWebsiteReason": "Issues are found by crawling your project’s website. Add its address in the project settings.",
+      "firstLead": "Your issues appear here when the crawl finishes."
+    },
+    "announce": {
+      "showing": "Showing {count, plural, one {# check} other {# checks}}",
+      "none": "No checks match"
     },
     "toolbar": {
       "crawlNow": "Crawl now",
