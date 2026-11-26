@@ -5,6 +5,7 @@ import {
   costsPath,
   keywordDetailPath,
   integrationsPath,
+  pagesTabPath,
   projectPath,
   queryOf,
   rankingsImportPath,
@@ -25,6 +26,13 @@ describe('Rankings paths', () => {
   it('names the one Google page of Integrations, with the slugs encoded', () => {
     expect(integrationsPath('digibranders', 'fynix')).toBe('/digibranders/fynix/integrations/google');
     expect(integrationsPath('a b', 'c/d')).toBe('/a%20b/c%2Fd/integrations/google');
+  });
+
+  it('names the Pages tabs, Overview by default, with the slugs encoded', () => {
+    expect(pagesTabPath('acme', 'site')).toBe('/acme/site/seo/pages');
+    expect(pagesTabPath('acme', 'site', 'overview')).toBe('/acme/site/seo/pages');
+    expect(pagesTabPath('acme', 'site', 'all')).toBe('/acme/site/seo/pages/all');
+    expect(pagesTabPath('a b', 'c/d', 'all')).toBe('/a%20b/c%2Fd/seo/pages/all');
   });
 
   it('names Rankings and the import over it, with the slugs encoded', () => {
