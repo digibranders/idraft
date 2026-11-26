@@ -142,6 +142,8 @@ const PROBLEMS = {
   property_not_accessible: [422, 'The account cannot read this property'],
   integration_not_configured: [503, 'The integration is not set up'],
   google_unavailable: [503, 'Service unavailable'],
+  // Page search (backend api/fp/live.py): the API's own budget for live Search Console calls, or Google's quota, is spent
+  gsc_busy: [429, 'Search Console is busy'],
 } as const satisfies Record<string, readonly [number, string]>;
 
 export type MockProblemCode = keyof typeof PROBLEMS;
