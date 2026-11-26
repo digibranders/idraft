@@ -122,6 +122,54 @@ describe('opening the competitor drawer', () => {
     await waitFor(() => expect(position()).toBe(`1 of ${total}`));
   });
 
+  it('opens over the cards without changing their layout', async () => {
+    const { user } = render();
+    const opener = await openFromBars(user, 'Brightwave Digital');
+    const aside = await drawer('Brightwave Digital');
+    // The page's column is the card's sibling: it keeps its class and holds no width of its own
+    const column = aside.previousElementSibling as HTMLElement;
+    expect(column).toContainElement(opener);
+    expect(aside).toHaveClass('fixed');
+    expect(column.style.width).toBe('');
+    expect(column.style.marginRight).toBe('');
+  });
+
+  it('steps with ArrowUp and ArrowDown from the title, and wraps around at both ends', async () => {
+    const { user } = render();
+    await openFromBars(user, 'Brightwave Digital');
+    const aside = await drawer('Brightwave Digital');
+    const position = (): string => within(aside).getByText(/^\d+ of \d+$/).textContent;
+    const [, total] = position().split(' of ');
+    within(aside).getByRole('heading', { name: 'Brightwave Digital' }).focus();
+    await user.keyboard('{ArrowUp}');
+    await waitFor(() => expect(position()).toBe(`${total} of ${total}`));
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(position()).toBe(`1 of ${total}`));
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(position()).toBe(`2 of ${total}`));
+  });
+
+  it('does not step when an arrow moves between the choices of the Prompts tab', async () => {
+    const { user } = render();
+    await openFromBars(user, 'Brightwave Digital');
+    const aside = await drawer('Brightwave Digital');
+    await user.click(within(aside).getByRole('tab', { name: 'Prompts' }));
+    const lead = within(aside).getByRole('radiogroup', { name: 'Who leads' });
+    const [first] = within(lead).getAllByRole('radio');
+    first?.focus();
+    const before = within(aside).getByRole('heading', { level: 2 }).textContent;
+    await user.keyboard('{ArrowDown}{ArrowUp}');
+    expect(within(aside).getByRole('heading', { level: 2 }).textContent).toBe(before);
+    expect(within(aside).getByText(/^1 of \d+$/)).toBeInTheDocument();
+  });
+
+  it('has no More button, so the width is changed by dragging the edge', async () => {
+    const { user } = render();
+    await openFromBars(user, 'Brightwave Digital');
+    const aside = await drawer('Brightwave Digital');
+    expect(within(aside).queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+
   it('says so for a competitor that is not tracked', async () => {
     render('cmp=off&inspect=competitor:00000000-0000-4000-8000-00000000dead');
     expect(await screen.findByText('Could not open this competitor', undefined, TIMEOUT)).toBeInTheDocument();

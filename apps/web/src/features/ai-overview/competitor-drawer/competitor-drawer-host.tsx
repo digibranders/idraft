@@ -12,7 +12,7 @@ import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/
 /**
  * Gives the Overview its competitor drawer (OV-DRW-01 to OV-DRW-08). The state is the address's: `inspect=competitor:<id>`
  * and `itab=<tab>`, so a link, Back and Forward open and close it like the other inspectors. The cards open it through
- * `useOpenCompetitor`; the drawer docks beside the page, lays over it or is a sheet by the width (`InspectorLayout`).
+ * `useOpenCompetitor`; the drawer lays over the page, or is a sheet on a narrow window (`InspectorLayout`).
  * What a person narrowed the Prompts tab to is not in the address: each opening starts from its own view.
  */
 export function CompetitorDrawerHost({ children }: { children: ReactNode }): ReactElement {
