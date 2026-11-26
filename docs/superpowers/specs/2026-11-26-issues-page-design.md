@@ -409,8 +409,10 @@ Slice 1 reads the latest finished crawl only. The crawl picker of Internal links
 
 ### 7.5 Sidebar
 
-A third group, "Website audit", between SEO and AI visibility: Issues (new, live), Pages (stays `planned`, so it
-is absent until its screen exists) and Internal links (moved from SEO, path unchanged). SEO keeps Keywords.
+A third group, "Website audit", between SEO and AI visibility, in the order the owner set on 2026-11-26: Pages
+(stays `planned`, so it is absent until its screen exists; the label "Pages" is kept until the owner picks
+another), Issues (new, live) and Internal links (moved from SEO, path unchanged). Until Pages ships the group
+shows Issues first and Internal links second. SEO keeps Keywords.
 `docs/design-system/11-navigation.md` is updated in the same commit.
 
 ## 8. Permissions
