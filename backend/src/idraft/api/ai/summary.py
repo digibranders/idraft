@@ -1045,6 +1045,10 @@ class SummaryService:
                 "engine_codes": query.engine_codes,
             }
             tracked = await repository.tracked_entities(db, ws, project_id)
+            # The Google AI Overview answers the prompts through their linked keywords: one
+            # statement over the links, shared by the answer reads and the `ai_overview` cell.
+            checks = await aio_summary.check_rows(db, ws, project_id, ids)
+            window["aio_keywords"] = aio_summary.answer_keywords(checks)
             by_prompt = await repository.counts_by_prompt(
                 db,
                 ws,
@@ -1060,7 +1064,12 @@ class SummaryService:
             before_window: dict[str, Any] = (
                 {}
                 if before is None
-                else {"since": before[0], "until": before[1], "engine_codes": query.engine_codes}
+                else {
+                    "since": before[0],
+                    "until": before[1],
+                    "engine_codes": query.engine_codes,
+                    "aio_keywords": window["aio_keywords"],
+                }
             )
             previous = (
                 None
@@ -1149,11 +1158,7 @@ class SummaryService:
                 if prompt_facts
                 else None
             )
-            aio = (
-                aio_summary.prompt_cells(ids, await aio_summary.check_rows(db, ws, project_id, ids))
-                if "ai_overview" in query.include
-                else None
-            )
+            aio = aio_summary.prompt_cells(ids, checks) if "ai_overview" in query.include else None
         seen = {engine for _, engine in by_prompt}
         shown = sorted(
             code

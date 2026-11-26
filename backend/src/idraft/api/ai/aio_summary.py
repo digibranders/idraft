@@ -170,17 +170,22 @@ def _rank(rows: Sequence[CheckRow]) -> tuple[bool, bool, str]:
     return (not at_place, not first.is_primary, first.keyword)
 
 
-def prompt_cell(rows: Sequence[CheckRow]) -> AioCell:
-    """What one prompt shows, from all its link rows."""
-    if not rows:
-        return AioCell("no_linked_keyword")
+def _chosen(rows: Sequence[CheckRow]) -> list[CheckRow] | None:
+    """The tracked variants of the keyword that speaks for a prompt, or None when none can."""
     by_keyword: dict[UUID, list[CheckRow]] = defaultdict(list)
     for row in rows:
         if _usable(row):
             by_keyword[row.keyword_id].append(row)
-    if not by_keyword:
+    return min(by_keyword.values(), key=_rank) if by_keyword else None
+
+
+def prompt_cell(rows: Sequence[CheckRow]) -> AioCell:
+    """What one prompt shows, from all its link rows."""
+    if not rows:
+        return AioCell("no_linked_keyword")
+    chosen = _chosen(rows)
+    if chosen is None:
         return AioCell("not_tracked")
-    chosen = min(by_keyword.values(), key=_rank)
     at_place = [row for row in chosen if row.location_id == row.prompt_location_id]
     variants = at_place or chosen
     shown = any(row.aio_state != "absent" for row in variants)
@@ -208,6 +213,17 @@ def prompt_cells(prompt_ids: Collection[UUID], rows: Sequence[CheckRow]) -> dict
     for row in rows:
         held[row.prompt_id].append(row)
     return {prompt: prompt_cell(held[prompt]) for prompt in prompt_ids}
+
+
+def answer_keywords(rows: Sequence[CheckRow]) -> dict[UUID, UUID]:
+    """The keyword whose Google AI Overview answers a prompt, by prompt: the one `prompt_cell`
+    reads. A prompt with no such keyword is absent. Its answer is read in the observations (see
+    `summary_repository`), so the choice does not depend on what the keyword's latest check was."""
+    held: dict[UUID, list[CheckRow]] = defaultdict(list)
+    for row in rows:
+        held[row.prompt_id].append(row)
+    chosen = ((prompt, _chosen(links)) for prompt, links in held.items())
+    return {prompt: variants[0].keyword_id for prompt, variants in chosen if variants}
 
 
 @dataclass(frozen=True, slots=True)

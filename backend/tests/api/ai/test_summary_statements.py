@@ -90,13 +90,14 @@ def _cases(term: str, rival: uuid.UUID, co_mentions: int) -> list[Case]:
         ),
         # The counts alone, as the Overview reads them: the places of the own brand.
         ("include=fact_counts", {"include": "fact_counts"}, {}, 1),
-        # The latest rank checks of the linked keywords: one statement, whatever the rows.
-        ("include=ai_overview", {"include": "ai_overview"}, {}, 1),
+        # The links and latest rank checks of the keywords are read for every summary (they say
+        # which keyword answers for each prompt on Google AI Overview): the cell adds nothing.
+        ("include=ai_overview", {"include": "ai_overview"}, {}, 0),
         (
             "include=ai_overview with rows=none",
             {"include": "ai_overview", "rows": "none"},
             {"rows": "none"},
-            1,
+            0,
         ),
         ("group_by=country", {"group_by": "country"}, {}, 0),
         ("filter[outcome]", {"filter[outcome]": "neither"}, {}, 0),
