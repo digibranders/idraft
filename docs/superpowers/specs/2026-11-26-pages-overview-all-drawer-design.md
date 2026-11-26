@@ -768,8 +768,12 @@ taken from the same row with the same rule, not from a second parse, so the two 
 | Fact | Source | Rule |
 |---|---|---|
 | title `text`, `chars`, `state` | `crawl_pages.title` | trimmed; `missing` when empty, `short` under 30, `long` over 60 (Issues spec section 4: `title-missing`, `title-short`, `title-long`) |
-| `canonical` | `crawl_pages.canonical_url_id` | null is `none`; the page's own id is `self`; another id is `elsewhere` with that address (`canonical-elsewhere`) |
-| `robots.noindex` | `crawl_pages.non_indexable_reason` | true when the reason is a noindex reason (`noindex`) |
+| `canonical` | `crawl_pages.canonical_url_id` | null is `none`; the page's own id is `self`; another id is `elsewhere` with that address (`canonical-elsewhere`: `canonical_url_id IS NOT NULL AND canonical_url_id <> url_id`) |
+| `robots.noindex` | `crawl_pages.non_indexable_reason` | true when the reason is `meta_tag` or `http_header` (`noindex`, as `api/issues/rules.py` of the Issues branch writes it). A noindex sent as a header is therefore true while `robots.meta` shows no noindex |
+
+On the Issues branch the title limits are `TITLE_MIN` and `TITLE_MAX` of `api/issues/catalogue.py`; here they are
+constants of `crawl/outline.py` with the same values (30 and 60). At the merge one of the two imports the other
+(section 14).
 
 Everything else is parsed from the HTML by `crawl/outline.py`, whose functions and constants are the definitions
 the Issues session's slice 2 uses for its columns (D14): description (`description-missing`, 70 to 160), H1
@@ -925,7 +929,9 @@ address in text, not drawn.
 | `404` from the read | "This page is not in the latest crawl." |
 
 The tab is listed for every page, so the tab strip does not change while you step through rows; a page that
-is not live shows its one sentence.
+is not live shows its one sentence. The sentence for a redirect or an error may be shown from the page row
+without waiting for the read only while the crawl in view is the latest; with an older crawl in view the row
+is that crawl's and the outline is the latest crawl's, so the tab waits for the read and uses its `state`.
 
 ### 9.7 The Notes tab
 
@@ -1292,7 +1298,7 @@ mark opens a list whose total is the mark's number.
 | `backend/openapi/v1.json`, `apps/web/src/lib/api/schema.ts` | three reads, the five note routes, `notes_count`, `filter[view]`, `filter[folder]`, `filter[depth]`, the sort `impressions` | the issues routes, `filter[issue]`, `include=issue` | its routes | Never merge by hand: regenerate both after the merge (`backend` first, then `pnpm gen:api` in its own commit) |
 | `backend/src/idraft/api/internal_links/read_routes.py`, `schemas/internal_links.py` | parameters and `PageFilter.view`, `folder`, `depth` | `filter[issue]`, `PageExtras.issue` | maybe a tracked sort | Keep both sets of parameters |
 | `backend/tests/api/test_route_access.py` | eight rows (three reads, five note routes) | one row | its rows | Keep all rows |
-| `backend/src/idraft/crawl/outline.py`, `lang_codes.py` | new: the pure HTML reader of the Outline (D14) | its slice 2 extractor calls `parse_outline` and the constants for `description`, `h1_count`, `word_count`, `images_without_alt`, `has_open_graph`, `jsonld_errors`, `hreflang`; its rules import `TITLE_MIN`, `TITLE_MAX` | none | One parser. If the Issues session wrote its own first, keep theirs, move the Outline to it and delete the duplicate |
+| `backend/src/idraft/crawl/outline.py`, `lang_codes.py` | new: the pure HTML reader of the Outline (D14) | its slice 2 extractor calls `parse_outline` and the constants for `description`, `h1_count`, `word_count`, `images_without_alt`, `has_open_graph`, `jsonld_errors`, `hreflang`; `TITLE_MIN` and `TITLE_MAX` get one home (its `api/issues/catalogue.py` imports them from `crawl/outline.py`, since `crawl` may not import `api`) | none | One parser. If the Issues session wrote its own first, keep theirs, move the Outline to it and delete the duplicate |
 | `backend/src/idraft/api/main.py`, `reads.py` (`LinkReadService.__init__`) | the service takes the object store | none expected | none expected | Keep the new argument |
 | `backend/src/idraft/db/migrations/versions/0042_page_notes.py`, `db/tables.py`, `tests/db/*` | the table `core.page_notes` | maybe its slice 2 columns in a migration of its own | maybe `core.watched_pages` | Two branches may both take revision `0042`: the one that merges second renumbers its file and its `down_revision`, changes nothing else |
 | `backend/src/idraft/api/audit.py` | four `page_note.*` actions | none expected | maybe its own actions | Keep all |
