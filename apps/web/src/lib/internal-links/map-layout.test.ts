@@ -71,6 +71,12 @@ describe('layoutMap', () => {
     expect(positions.filter(([id]) => id.startsWith('loose')).every(([, , y]) => y > linkedBottom)).toBe(true);
   });
 
+  it('places a page whose link count is not a positive number in the block, never nowhere', () => {
+    const { positions } = layoutMap({ nodes: [{ id: 'a', links: Number.NaN, group: 1 }], edges: [], below: false });
+
+    expect(positions.map(([id]) => id)).toEqual(['a']);
+  });
+
   it('lays out a crawl with no links at all', () => {
     const { positions, groups } = layoutMap({ nodes: [{ id: 'a', links: 0, group: 1 }], edges: [], below: false });
 

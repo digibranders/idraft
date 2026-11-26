@@ -23,16 +23,23 @@ export function useMapLayout(input: LayoutInput | null): { layout: MapLayout | n
 
   useEffect(() => {
     if (input === null || !hasWorker()) return undefined;
+    // The cleanup ends the worker, but a message already on its way must not set the state of an old input
+    let current = true;
     const worker = new Worker(new URL('../../../lib/internal-links/map-layout.worker.ts', import.meta.url), {
       type: 'module',
     });
     worker.addEventListener('message', (event: MessageEvent<MapLayout>) => {
-      setState({ of: input, layout: event.data });
+      if (current) setState({ of: input, layout: event.data });
     });
     // A worker that cannot start (a blocked script) must not leave the map waiting for ever
-    worker.addEventListener('error', () => setState({ of: input, layout: layoutMap(input) }));
+    worker.addEventListener('error', () => {
+      if (current) setState({ of: input, layout: layoutMap(input) });
+    });
     worker.postMessage(input);
-    return () => worker.terminate();
+    return () => {
+      current = false;
+      worker.terminate();
+    };
   }, [input]);
 
   if (input === null) return { layout: null, pending: false };

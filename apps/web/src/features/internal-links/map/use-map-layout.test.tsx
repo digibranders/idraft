@@ -28,7 +28,7 @@ describe('useMapLayout', () => {
     expect(result.current.layout).toEqual(layoutMap(input));
   });
 
-  it('drops the old layout while a new input is laid out', async () => {
+  it('lays out a new input in place of the old one', async () => {
     const { result, rerender } = renderHook(({ value }) => useMapLayout(value), { initialProps: { value: input } });
     await waitFor(() => expect(result.current.pending).toBe(false));
 
@@ -80,6 +80,19 @@ describe('useMapLayout', () => {
 
       unmount();
       expect(worker?.terminated).toBe(true);
+    });
+
+    it('ignores an answer that arrives from the worker of an old input', () => {
+      vi.stubGlobal('Worker', FakeWorker);
+      const { result, rerender } = renderHook(({ value }) => useMapLayout(value), { initialProps: { value: input } });
+      const next = { ...input, below: true };
+      rerender({ value: next });
+      const [old, current] = FakeWorker.made;
+
+      act(() => old?.emit('message', { data: layoutMap(input) }));
+      expect(result.current).toEqual({ layout: null, pending: true });
+      act(() => current?.emit('message', { data: layoutMap(next) }));
+      expect(result.current).toEqual({ layout: layoutMap(next), pending: false });
     });
 
     it('lays out here when the worker cannot start', () => {

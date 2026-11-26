@@ -53,11 +53,14 @@ export function roundsFor(linked: number): { force: number; separation: number }
   return { force: Math.max(120, Math.round(120_000 / linked)), separation: 30 };
 }
 
+/** Ids in code unit order: the same on every browser and locale, unlike `localeCompare`. */
+const byId = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
 /** A read that `noUncheckedIndexedAccess` accepts without a non-null assertion; every index here is in range. */
 const at = (list: ArrayLike<number>, i: number): number => list[i] ?? 0;
 
 export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
-  const linked = nodes.filter((node) => node.links > 0).sort((a, b) => a.id.localeCompare(b.id));
+  const linked = nodes.filter((node) => node.links > 0).sort(byId);
   const count = linked.length;
   const index = new Map(linked.map((node, i) => [node.id, i]));
   const weight = linked.map((node) => node.links + 1);
@@ -151,7 +154,7 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
   const top = below ? extreme(y, Math.max) + BLOCK_GAP_BELOW : extreme(y, Math.min);
   const columns = below ? Math.max(COLUMNS, Math.floor((right - leftMost) / CELL)) : COLUMNS;
   const byGroup = new Map<number, string[]>();
-  for (const node of nodes.filter((candidate) => candidate.links === 0).sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const node of nodes.filter((candidate) => !(candidate.links > 0)).sort(byId)) {
     const list = byGroup.get(node.group) ?? [];
     list.push(node.id);
     byGroup.set(node.group, list);
