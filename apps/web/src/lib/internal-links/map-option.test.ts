@@ -169,6 +169,39 @@ describe('mapOption', () => {
     expect(seriesOf(option).links).toEqual([]);
   });
 
+  it('draws a map of only the block, or of nothing, without failing', () => {
+    const loose = toMapGraph(
+      {
+        run_id: 'r',
+        include_auto: false,
+        pages_total: 2,
+        truncated: false,
+        home_url_id: null,
+        nodes: [node('1', '/a', null, 0, 0), node('2', '/b', null, 0, 0)],
+        edges: [],
+      } as LinkGraph,
+      tiers,
+    );
+    const only = mapOption(
+      input({
+        graph: loose,
+        layout: layoutMap({
+          nodes: loose.nodes.map((item) => ({ id: item.id, links: 0, group: 99 })),
+          edges: [],
+          below: false,
+        }),
+        focus: focusOf(loose, { selected: null, query: '', lens: 'none' }),
+        colour: colourGroups(loose, 'tier', tiers),
+      }),
+    );
+    const nothing = mapOption(input({ hidden: new Set(['t1', '']) }));
+
+    expect(seriesOf(only).data.filter((item) => !item.name.startsWith(HEADER_PREFIX))).toHaveLength(2);
+    expect(Number.isFinite(dot(only, '1').symbolSize)).toBe(true);
+    expect(seriesOf(nothing).data).toEqual([]);
+    expect(seriesOf(nothing).links).toEqual([]);
+  });
+
   it('puts a dragged page where it was dropped', () => {
     const option = mapOption(input({ moved: new Map([['2', [5, 6] as const]]) }));
 
@@ -179,5 +212,10 @@ describe('mapOption', () => {
     expect((mapOption(input()).thumbnail as { show: boolean }).show).toBe(false);
     expect((mapOption(input({ view: { zoom: 2, center: null } })).thumbnail as { show: boolean }).show).toBe(true);
     expect(mapOption(input({ reducedMotion: true })).animation).toBe(false);
+    // The window of the minimap has a full strength frame and a faint fill
+    const window = (
+      mapOption(input({ view: { zoom: 2, center: null } })).thumbnail as { windowStyle: Record<string, unknown> }
+    ).windowStyle;
+    expect(window).toMatchObject({ borderColor: '#primary', opacity: 1 });
   });
 });

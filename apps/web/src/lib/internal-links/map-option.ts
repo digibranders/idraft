@@ -65,6 +65,14 @@ export function fitBox(
   return { left: 36 + (room.width - fitted.width) / 2, top: 28 + (room.height - fitted.height) / 2, ...fitted };
 }
 
+/** A colour at part of its strength. The tokens are opaque hex; anything else (no canvas to convert it) stays as it is. */
+const withAlpha = (colour: string, alpha: number): string =>
+  /^#[0-9a-f]{6}$/i.test(colour)
+    ? `${colour}${Math.round(alpha * 255)
+        .toString(16)
+        .padStart(2, '0')}`
+    : colour;
+
 function fill(colour: MapColour, tokens: ChartTokens, surface: string): { color: string; outline: string | null } {
   switch (colour.kind) {
     case 'palette':
@@ -117,8 +125,8 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
   const span = {
-    width: Math.max(1, Math.max(...xs, 0) - Math.min(...xs, 0)),
-    height: Math.max(1, Math.max(...ys, 0) - Math.min(...ys, 0)),
+    width: Math.max(1, Math.max(...xs) - Math.min(...xs)),
+    height: Math.max(1, Math.max(...ys) - Math.min(...ys)),
   };
   const box = fitBox(span, input.width, input.height);
   // On a big canvas the pages lie further apart, so the dots and the names grow with it; on a small one they shrink
@@ -176,13 +184,16 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
 
   const line = tokens.named?.('foreground-tertiary') ?? tokens.foregroundMuted;
   const faint = { color: line, opacity: 0.05, width: 1 };
+  // Out links are the own brand (`chart-1`); the minimap window and the lit links under the pointer use the primary
+  const brand = tokens.palette[0] ?? tokens.other;
+  const primary = tokens.named?.('primary') ?? brand;
   const positive = tokens.named?.('chart-positive') ?? tokens.palette[2] ?? tokens.other;
   const links = graph.edges.flatMap((edge, index) => {
     if (!shownIds.has(edge.from) || !shownIds.has(edge.to)) return [];
     let lineStyle: Record<string, unknown> = { color: line, opacity: 0.32, width: 1 };
     if (focus.selected !== null) {
       if (edge.to === focus.selected) lineStyle = { color: positive, opacity: 1, ...IN_LINE };
-      else if (edge.from === focus.selected) lineStyle = { color: tokens.palette[0], opacity: 0.95, width: 1.75 };
+      else if (edge.from === focus.selected) lineStyle = { color: brand, opacity: 0.95, width: 1.75 };
       else lineStyle = faint;
     } else if (focus.lit !== null && !(focus.lit.has(edge.from) && focus.lit.has(edge.to))) lineStyle = faint;
     return [{ source: edge.from, target: edge.to, edge: index, lineStyle }];
@@ -230,10 +241,10 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
       bottom: 12,
       itemStyle: { color: halo, borderColor: tokens.border, borderWidth: 1 },
       windowStyle: {
-        color: tokens.palette[0],
-        borderColor: tokens.palette[0],
+        color: withAlpha(primary, 0.14),
+        borderColor: primary,
         borderWidth: 1,
-        opacity: 0.14,
+        opacity: 1,
       },
     },
     series: [
@@ -266,7 +277,7 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
           focus: adjacency ? 'adjacency' : 'none',
           scale: 1.2,
           label: { show: true, color: tokens.foreground },
-          lineStyle: adjacency ? { width: 1.75, opacity: 0.95, color: tokens.palette[0] } : {},
+          lineStyle: adjacency ? { width: 1.75, opacity: 0.95, color: primary } : {},
         },
         blur: { itemStyle: { opacity: 0.4 }, lineStyle: { opacity: 0.1 }, label: { opacity: 0.35 } },
         data,
