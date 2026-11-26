@@ -16,6 +16,7 @@ export type TrackPagesAnswer = Schemas['TrackPagesResponse'];
 export type SuggestionRow = Schemas['SuggestionRow'];
 export type PageSearchDetail = Schemas['PageSearchData'];
 export type SeriesPoint = Schemas['SeriesPoint'];
+export type PageBreakdownAnswer = Schemas['PageBreakdownResponse'];
 export type BreakdownRow = Schemas['BreakdownRow'];
 export type SearchWindow = Schemas['SearchWindow'];
 export type Verdict = PageHealth['verdict'];

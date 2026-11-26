@@ -10266,6 +10266,12 @@
       "tablet": "Tablet"
     },
     "unknownLocation": "Unknown location",
+    "showAll": "Show all {count}",
+    "names": {
+      "queries": "Query",
+      "locations": "Location",
+      "devices": "Device"
+    },
     "coverage": "The queries shown cover {percent} of this page's clicks. Google does not report the rest.",
     "note": "Search Console, web search. Days are Pacific Time. Final data to {date}.",
     "notLive": "Only a page that answers 200 has search data.",

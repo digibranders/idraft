@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { BreakdownTabs } from './breakdown-tabs';
 import { MetricCharts } from './metric-charts';
 import { MetricTiles } from './metric-tiles';
 import { Busy, LoadError, NotConnected, NotLive, Pending, StaleBanner } from './panel-states';
@@ -185,6 +186,14 @@ function LivePanel({
           status={status}
         />
       </InspectorSection>
+      <BreakdownTabs
+        scope={scope}
+        urlId={urlId}
+        period={params}
+        metric={state.metrics[0] ?? 'clicks'}
+        tab={state.tab}
+        onTabChange={state.setTab}
+      />
       {meta.final_through === null ? null : (
         <p className="type-meta text-foreground-tertiary">
           {t('note', { date: formatBusinessDate(meta.final_through) })}
