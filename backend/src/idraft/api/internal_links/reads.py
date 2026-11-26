@@ -59,6 +59,7 @@ from idraft.api.internal_links.extras import (
     keywords_of,
     summarize_keywords,
 )
+from idraft.api.internal_links.graph import GraphLink, GraphPage, TemplateLinks, build_graph
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
@@ -70,6 +71,9 @@ from idraft.api.schemas.internal_links import (
     AnchorCount,
     EdgePage,
     EdgeRow,
+    GraphEdge,
+    GraphNode,
+    LinkGraph,
     Neighbor,
     NeighborFocus,
     NeighborMeta,
@@ -1241,6 +1245,107 @@ class LinkReadService:
             return TierFlow(
                 run_id=scope.run_id, scope=view.value, stale=stale, cells=cells, tiers=strip
             )
+
+    async def graph(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        *,
+        run: UUID | None,
+        include_auto: bool,
+        max_pages: int,
+    ) -> LinkGraph:
+        """The whole crawl as the Link map draws it (plan 10): three aggregates, one snapshot."""
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
+            home: int | None = (
+                await db.execute(
+                    select(crawl_runs.c.start_url_id).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
+                )
+            ).scalar_one()
+            pages = [
+                GraphPage(
+                    url_id=row.url_id,
+                    path=row.path,
+                    title=row.title,
+                    status_code=row.status_code,
+                    redirect_url_id=row.redirect_url_id,
+                    variant_of_url_id=row.variant_of_url_id,
+                    tier_id=row.tier_id,
+                )
+                for row in await db.execute(
+                    select(
+                        crawl_pages.c.url_id,
+                        urls.c.path,
+                        crawl_pages.c.title,
+                        crawl_pages.c.status_code,
+                        crawl_pages.c.redirect_url_id,
+                        crawl_pages.c.variant_of_url_id,
+                        project_pages.c.tier_id,
+                    )
+                    .select_from(page_rows(scope))
+                    .where(
+                        crawl_pages.c.workspace_id == scope.workspace_id,
+                        crawl_pages.c.run_id == scope.run_id,
+                    )
+                )
+            ]
+            of_run = and_(
+                crawl_links.c.workspace_id == scope.workspace_id,
+                crawl_links.c.run_id == scope.run_id,
+                crawl_links.c.ignored.is_(False),
+            )
+            drawn = [LinkScope.EDITORIAL.value]
+            if include_auto:
+                drawn.append(LinkScope.AUTO_GENERATED.value)
+            links = [
+                GraphLink(row.source_url_id, row.target_url_id, int(row.links))
+                for row in await db.execute(
+                    select(
+                        crawl_links.c.source_url_id,
+                        crawl_links.c.target_url_id,
+                        func.sum(crawl_links.c.occurrences).label("links"),
+                    )
+                    .where(of_run, crawl_links.c.scope.in_(drawn))
+                    .group_by(crawl_links.c.source_url_id, crawl_links.c.target_url_id)
+                )
+            ]
+            template = [
+                TemplateLinks(row.source_url_id, row.target_url_id)
+                for row in await db.execute(
+                    select(crawl_links.c.source_url_id, crawl_links.c.target_url_id)
+                    .where(of_run, crawl_links.c.scope == LinkScope.TEMPLATE.value)
+                    .distinct()
+                )
+            ]
+        built = build_graph(pages, links, template, home_url_id=home, max_pages=max_pages)
+        return LinkGraph(
+            run_id=scope.run_id,
+            include_auto=include_auto,
+            pages_total=built.pages_total,
+            truncated=built.truncated,
+            home_url_id=None if built.home_url_id is None else str(built.home_url_id),
+            nodes=[
+                GraphNode(
+                    url_id=str(node.url_id),
+                    path=node.path,
+                    title=node.title,
+                    tier_id=node.tier_id,
+                    links_in=node.links_in,
+                    links_out=node.links_out,
+                    sitewide_from=node.sitewide_from,
+                )
+                for node in built.nodes
+            ],
+            edges=[
+                GraphEdge(source=str(edge.source), target=str(edge.target), links=edge.links)
+                for edge in built.edges
+            ],
+        )
 
     async def worklists(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
