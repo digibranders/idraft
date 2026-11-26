@@ -876,6 +876,40 @@ async def weekly_counts(
     return {(row.prompt_id, row.engine_code, row.week_start): _counts(row) for row in rows}
 
 
+async def weekly_position_sums(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+    timezone: str,
+) -> dict[tuple[UUID, str, date], PositionSums]:
+    """`position_sums` by week as well, in one statement: the places of the own brand by prompt,
+    engine and week (a Monday at midnight in the project's timezone, as in `weekly_counts`)."""
+    if not prompt_ids:
+        return {}
+    c = _weekly_facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone).c
+    placed = and_(c.is_valid, c.own_mentioned, c.own_mention_order.is_not(None))
+    rows = await db.execute(
+        select(
+            c.prompt_id,
+            c.engine_code,
+            c.week_start,
+            func.count().filter(placed).label("ordered_answers"),
+            func.coalesce(func.sum(c.own_mention_order).filter(placed), 0).label("rank_sum"),
+        ).group_by(c.prompt_id, c.engine_code, c.week_start)
+    )
+    return {
+        (row.prompt_id, row.engine_code, row.week_start): PositionSums(
+            row.ordered_answers, int(row.rank_sum)
+        )
+        for row in rows
+    }
+
+
 async def entity_counts(
     db: AsyncSession,
     workspace_id: UUID,

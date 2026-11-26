@@ -43,31 +43,31 @@ export const cardDef = (key) => CARD_REGISTRY.find((card) => card.key === key);
  * widths the default layout gives the cards; stacked on a phone the cards are as tall as their content.
  */
 export const MIN_HEIGHT = {
-  'ai.visibility_split': 'xl:min-h-[203px]',
-  'ai.rate_trend_by_engine': 'md:min-h-[430px]',
-  'ai.outcome_mix': 'md:min-h-[430px]',
-  'ai.share_of_voice': 'md:min-h-[306px]',
-  'ai.sov_over_time': 'md:min-h-[362px]',
-  'ai.lost_to_competitor': 'md:min-h-[306px]',
-  'ai.topic_heatmap': 'md:min-h-[585px]',
-  'ai.topic_extremes': 'md:min-h-[518px]',
-  'sources.top_domains': 'md:min-h-[450px]',
-  'ai.citation_share_by_domain_type': 'md:min-h-[298px]',
-  'sources.own_pages': 'md:min-h-[306px]',
-  'ai.unlinked_mentions': 'md:min-h-[491px]',
-  'ai.position_distribution': 'md:min-h-[450px]',
-  'ai.sentiment_by_engine': 'md:min-h-[450px]',
-  'traffic.ai_referrals': 'md:min-h-[520px] xl:min-h-[346px]',
-  'ai.fanout_top': 'md:min-h-[346px]',
-  'activity.key_changes': 'md:min-h-[350px]',
-  'ops.answer_calendar': 'md:min-h-[214px]',
+  'ai.visibility_split': '@4xl:min-h-[203px]',
+  'ai.rate_trend_by_engine': '@2xl:min-h-[430px]',
+  'ai.outcome_mix': '@2xl:min-h-[430px]',
+  'ai.share_of_voice': '@2xl:min-h-[306px]',
+  'ai.sov_over_time': '@2xl:min-h-[362px]',
+  'ai.lost_to_competitor': '@2xl:min-h-[306px]',
+  'ai.topic_heatmap': '@2xl:min-h-[585px]',
+  'ai.topic_extremes': '@2xl:min-h-[518px]',
+  'sources.top_domains': '@2xl:min-h-[450px]',
+  'ai.citation_share_by_domain_type': '@2xl:min-h-[298px]',
+  'sources.own_pages': '@2xl:min-h-[306px]',
+  'ai.unlinked_mentions': '@2xl:min-h-[491px]',
+  'ai.position_distribution': '@2xl:min-h-[450px]',
+  'ai.sentiment_by_engine': '@2xl:min-h-[450px]',
+  'traffic.ai_referrals': '@2xl:min-h-[520px] @4xl:min-h-[346px]',
+  'ai.fanout_top': '@2xl:min-h-[346px]',
+  'activity.key_changes': '@2xl:min-h-[350px]',
+  'ops.answer_calendar': '@2xl:min-h-[214px]',
 };
 
 export const WIDTH_LABEL = { third: 'Third', half: 'Half', two_thirds: 'Two thirds', full: 'Full' };
 /** Grid classes of a width: the 12-column grid of the page (from 768 px a half is 6, and a third is 6 until 1280 px). */
 export const WIDTH_CLASS = {
-  third: 'md:col-span-6 xl:col-span-4',
-  half: 'md:col-span-6',
-  two_thirds: 'md:col-span-12 xl:col-span-8',
-  full: 'md:col-span-12',
+  third: '@2xl:col-span-6 @4xl:col-span-4',
+  half: '@2xl:col-span-6',
+  two_thirds: '@2xl:col-span-12 @4xl:col-span-8',
+  full: '@2xl:col-span-12',
 };

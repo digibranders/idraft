@@ -122,6 +122,7 @@ export const week = (weekStart: string, input: WeekCellsInput = {}): WeekCells =
   mentioned: input.mentioned ?? NO_CELL,
   cited: input.cited ?? NO_CELL,
   share_of_voice: input.share_of_voice ?? NO_CELL,
+  visibility: input.mentioned ?? NO_CELL,
   ...(input.entities === undefined ? {} : { entities: input.entities }),
 });
 

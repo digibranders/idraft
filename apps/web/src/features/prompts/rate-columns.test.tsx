@@ -221,6 +221,7 @@ describe('the weekly rates in the tooltip of the Mention rate cell', () => {
     mentioned: cell(Math.round(value * 8), 8),
     cited: cell(0, 8),
     share_of_voice: cell(0, 8),
+    visibility: cell(0, 8),
   });
   const WITH_SERIES: Row = {
     cells: [

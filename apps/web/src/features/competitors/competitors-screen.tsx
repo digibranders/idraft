@@ -288,7 +288,7 @@ function CompetitorsContent({
           items={tabItems}
           className="gap-3"
         >
-          <TabsPanel value={scope.tab} aria-busy={refetching || undefined} className="flex flex-col gap-3">
+          <TabsPanel value={scope.tab} aria-busy={refetching || undefined} className="@container flex flex-col gap-3">
             {panels[scope.tab]}
           </TabsPanel>
         </Tabs>

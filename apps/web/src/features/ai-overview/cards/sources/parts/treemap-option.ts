@@ -1,4 +1,4 @@
-import { chartMotion, fadeDown } from '@/lib/charts/rich-style';
+import { chartMotion } from '@/lib/charts/rich-style';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { readColorToken } from '@/lib/design/read-tokens';
 
@@ -70,7 +70,7 @@ export function treemapOption(tiles: readonly TreemapTile[], tokens: ChartTokens
           name: tile.name,
           value: tile.value,
           label: { formatter: tile.label },
-          itemStyle: { color: fadeDown(colorOf(tile.slot), 1, 0.74) },
+          itemStyle: { color: colorOf(tile.slot) },
         })),
       },
     ],

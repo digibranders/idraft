@@ -63,7 +63,8 @@ describe('stackedColumnsOption', () => {
       [0.7, null],
       [0.3, null],
     ]);
-    expect(series[0]?.itemStyle).toMatchObject({ borderRadius: 6, color: { type: 'linear' } });
+    expect(series[0]?.itemStyle).toMatchObject({ borderRadius: 6 });
+    expect(typeof (series[0]?.itemStyle as { color: unknown }).color).toBe('string');
   });
 
   it('says the segment under the pointer in its tooltip, escaped, and nothing for a mark it does not know', () => {

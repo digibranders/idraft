@@ -469,6 +469,11 @@ def _week(
     pool: PointPool | None,
     cells: EngineCells,
     entities: list[EntityCells] | None,
+    *,
+    visibility: MetricCell,
+    recommended: MetricCell | _NotAsked | None,
+    sentiment: SentimentCounts | _NotAsked | None,
+    position: PositionCounts | _NotAsked,
 ) -> WeekCells:
     """One point of a series, for the week starting `week`: the cells of its own week, or, with a
     `pool`, those of the weeks it pools (C-10, C-11); `entities` the same weeks' cells per
@@ -481,6 +486,10 @@ def _week(
         mentioned=cells.mentioned,
         cited=cells.cited,
         share_of_voice=cells.share_of_voice,
+        visibility=visibility,
+        recommended=recommended,
+        sentiment=sentiment,
+        position=position,
         entities=entities,
     )
 
@@ -513,6 +522,8 @@ class _Read:
     latest: Mapping[tuple[UUID, str], LatestAnswer] | None = None
     # `include=facts` was asked: the recommendation and sentiment cells are built from the counts.
     facts: bool = False
+    # With the series and the facts: the places of the own brand by prompt, engine and week.
+    weekly_position: Mapping[tuple[UUID, str, date], repository.PositionSums] | None = None
     # With `include=facts`: the keyword each prompt is linked to; a prompt without one is absent.
     linked: Mapping[UUID, repository.LinkedRow] | None = None
     # With `include=facts`: the places of the own brand, the brands the answers name and the pages
@@ -680,7 +691,29 @@ def _engine_row(
                 _week_entity(code, entity_id, by_prompt, read.weekly_named, held_weeks, topic=topic)
                 for entity_id in read.entity_ids
             ]
-        return _week(week, prompts, pool, cells(list(members.values())), entities)
+        held = list(members.values())
+        position: PositionCounts | _NotAsked = NOT_ASKED
+        if read.weekly_position is not None:
+            position = _placed(
+                [
+                    read.weekly_position[key]
+                    for p in prompt_ids
+                    for w in held_weeks
+                    if (key := (p, code, w)) in read.weekly_position
+                ],
+                held,
+            )
+        return _week(
+            week,
+            prompts,
+            pool,
+            cells(held),
+            entities,
+            visibility=_visibility(held, topic=topic),
+            recommended=_recommended(held, read, topic=topic),
+            sentiment=_sentiment(held, read),
+            position=position,
+        )
 
     return EngineSummary(
         engine_code=code,
@@ -701,6 +734,19 @@ def _engine_row(
         other_brands=_other_brands(code, prompt_ids, current, read, topic=topic),
         top_links=_top_links(code, prompt_ids, read, topic=topic),
     )
+
+
+def _visibility(members: Sequence[Counts], *, topic: bool) -> MetricCell:
+    """AI visibility: the valid answers that name the own brand or cite its domain, over the valid
+    answers, built as `mentioned` is."""
+
+    def reached(counts: Counts) -> int:
+        return counts.mentioned_and_cited + counts.mentioned_only + counts.cited_only
+
+    if topic:
+        return _weighted(members, reached)
+    counts = members[0] if members else _NONE
+    return _cell(reached(counts), counts.n_valid, counts.n_observations)
 
 
 def _recommended(
@@ -738,7 +784,12 @@ def _position(
     over prompts. `mentions` and `answers` are those of `mentioned`, so the row's numbers agree."""
     if read.position is None:
         return NOT_ASKED
-    placed = [read.position[key] for p in prompt_ids if (key := (p, code)) in read.position]
+    return _placed(
+        [read.position[key] for p in prompt_ids if (key := (p, code)) in read.position], current
+    )
+
+
+def _placed(placed: Sequence[repository.PositionSums], current: Sequence[Counts]) -> PositionCounts:
     return PositionCounts(
         rank_sum=sum(p.rank_sum for p in placed),
         ordered_answers=sum(p.ordered_answers for p in placed),
@@ -1143,6 +1194,13 @@ class SummaryService:
                 if window_facts
                 else None
             )
+            weekly_position = (
+                await repository.weekly_position_sums(
+                    db, ws, project_id, ids, **window, timezone=zone_row.timezone
+                )
+                if window_facts and weeks is not None
+                else None
+            )
             brands = (
                 await repository.named_brands(db, ws, project_id, ids, **window)
                 if prompt_facts
@@ -1187,6 +1245,7 @@ class SummaryService:
             facts=window_facts,
             linked=linked,
             position=position,
+            weekly_position=weekly_position,
             brands=brands,
             links=links,
             aio=aio,

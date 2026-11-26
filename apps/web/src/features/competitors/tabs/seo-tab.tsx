@@ -147,7 +147,7 @@ export function SeoTab(): ReactElement {
           ),
         ])}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 @4xl:grid-cols-3">
         <DonutCard
           title={t('seo.donutTitle')}
           summary={t('seo.donutSummary')}

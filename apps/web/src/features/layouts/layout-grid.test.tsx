@@ -187,8 +187,8 @@ function spanAt(frame: Element, breakpoint: Breakpoint): number {
   const base = spanOfPrefix('');
   if (base === null) throw new Error(`no col-span class in ${frame.className}`);
   if (breakpoint === 'narrow') return base;
-  const medium = spanOfPrefix('md:') ?? base;
-  return breakpoint === 'medium' ? medium : (spanOfPrefix('xl:') ?? medium);
+  const medium = spanOfPrefix('@2xl:') ?? base;
+  return breakpoint === 'medium' ? medium : (spanOfPrefix('@4xl:') ?? medium);
 }
 
 beforeEach(() => {
@@ -213,9 +213,9 @@ describe('LayoutGrid in view mode', () => {
     expect(region.querySelector('.grid-cols-12')).not.toBeNull();
     expect(frames().map((frame) => frame.dataset.layoutCard)).toEqual(BUILTIN_CARDS.map((card) => card.id));
     expect(SPAN_CLASS).toEqual({
-      third: 'col-span-12 md:col-span-6 xl:col-span-4',
-      half: 'col-span-12 md:col-span-6',
-      two_thirds: 'col-span-12 xl:col-span-8',
+      third: 'col-span-12 @2xl:col-span-6 @4xl:col-span-4',
+      half: 'col-span-12 @2xl:col-span-6',
+      two_thirds: 'col-span-12 @4xl:col-span-8',
       full: 'col-span-12',
     });
     for (const card of BUILTIN_CARDS) {

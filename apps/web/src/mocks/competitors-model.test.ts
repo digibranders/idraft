@@ -231,6 +231,7 @@ describe('pointOf', () => {
     cited: cell(0, 0),
     mentioned: cell(1, 3),
     share_of_voice: cell(2, 4),
+    visibility: cell(1, 3),
     entities: [
       {
         entity_id: ACME,

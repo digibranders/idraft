@@ -130,14 +130,14 @@ function visibilityRing({ shares, counts, visibility, detail, projectLine }) {
 
 export function headlineRow(ctx) {
   const { model } = ctx;
-  const grid = el('div', 'grid grid-cols-1 xl:grid-cols-12 gap-4');
+  const grid = el('div', 'grid grid-cols-1 @4xl:grid-cols-12 gap-4');
   grid.dataset.card = 'ai.visibility_split';
   grid.setAttribute('role', 'group');
   grid.setAttribute('aria-label', 'AI visibility rate (headline)');
 
   // The hero: a plain rate, with the four outcomes that make it up (decision D1)
   const visibility = model.shown('visibility');
-  const hero = el('section', 'xl:col-span-4 min-w-0 bg-surface border border-border rounded-lg px-4 py-3.5 flex flex-col justify-between gap-3');
+  const hero = el('section', '@4xl:col-span-4 min-w-0 bg-surface border border-border rounded-lg px-4 py-3.5 flex flex-col justify-between gap-3');
   hero.setAttribute('aria-label', 'AI visibility rate');
   const title = el('h2', 'type-section-title', MEASURES.visibility.label);
   // The prompts that contribute: on one platform only those with a valid answer there (one denominator, R12)
@@ -156,7 +156,7 @@ export function headlineRow(ctx) {
   );
 
   // The tiles share hairlines: a grid with a 1 px gap on the border color
-  const strip = el('section', 'xl:col-span-8 min-w-0 border border-border rounded-lg overflow-hidden bg-border grid grid-cols-2 md:grid-cols-4 gap-px');
+  const strip = el('section', '@4xl:col-span-8 min-w-0 border border-border rounded-lg overflow-hidden bg-border grid grid-cols-2 @2xl:grid-cols-4 gap-px');
   strip.setAttribute('aria-label', 'Key numbers');
   const cell = (measure) => model.shown(measure);
   const tiles = {

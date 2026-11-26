@@ -430,10 +430,10 @@ export function referralCard(ctx) {
     body.append(tr);
   });
   pages.append(head, body);
-  const grid = el('div', 'grid grid-cols-1 xl:grid-cols-5 gap-4 items-start');
-  const left = el('div', 'xl:col-span-3 min-w-0 px-4 pb-4');
+  const grid = el('div', 'grid grid-cols-1 @4xl:grid-cols-5 gap-4 items-start');
+  const left = el('div', '@4xl:col-span-3 min-w-0 px-4 pb-4');
   left.append(host, legend);
-  const right = el('div', 'xl:col-span-2 min-w-0 overflow-x-auto');
+  const right = el('div', '@4xl:col-span-2 min-w-0 overflow-x-auto');
   right.append(pages);
   grid.append(left, right);
   const connect = el('button', 'h-control-sm px-2.5 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body-strong text-foreground hover:bg-surface-hover');

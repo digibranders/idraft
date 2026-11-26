@@ -171,7 +171,7 @@ export function CompetitorsTab(): ReactElement {
           gapItem(ID.mover, t('strip.biggestMover'), mover?.change ?? null, mover?.name ?? null),
         ])}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 @4xl:grid-cols-3">
         <DonutCard
           title={t('charts.donut.sov.title')}
           summary={t('charts.donut.sov.summary')}

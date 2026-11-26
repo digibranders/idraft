@@ -167,13 +167,13 @@ function KeywordDetailContent({
         onValueChange={(next) => void setTab(next)}
         items={items}
       >
-        <TabsPanel<DetailTab> value="overview" className="pt-4">
-          {/* The evidence column is 8 of 12 from 1280 px and the full width below; the right rail joins it later */}
+        <TabsPanel<DetailTab> value="overview" className="@container pt-4">
+          {/* The evidence column is 8 of 12 from 896 px of its own width and the full width below; the right rail joins it later */}
           <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 flex min-w-0 flex-col gap-4 xl:col-span-8">
+            <div className="col-span-12 flex min-w-0 flex-col gap-4 @4xl:col-span-8">
               <RankHistoryPanel scope={scope} detail={data} timeZone={timeZone} />
             </div>
-            <div className="col-span-12 flex min-w-0 flex-col gap-4 xl:col-span-4">
+            <div className="col-span-12 flex min-w-0 flex-col gap-4 @4xl:col-span-4">
               <EventsPanel
                 scope={scope}
                 detail={data}

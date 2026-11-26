@@ -70,7 +70,7 @@ interface Model {
   hero: Hero;
   baselineHero: Reading | null;
   tiles: Readonly<Record<CellTile, TileModel>>;
-  facts: Readonly<Record<FactTile, Reading>>;
+  facts: Readonly<Record<FactTile, TileModel>>;
 }
 
 /** The figure of a reading for a file: a percent number, or nothing for a figure that is not there (never a 0). */
@@ -125,15 +125,16 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
       baseline: baselineSummary === undefined ? null : readTile(baselineSummary, platforms, tile),
       spark: sparkOf(summary, platforms, tile),
     });
+    const factOf = (tile: FactTile): TileModel => ({
+      reading: readFactTile(summary.prompts, platforms, tile),
+      baseline: null,
+      spark: sparkOf(summary, platforms, tile),
+    });
     return {
       hero: buildHero(summary.prompts, platforms, promptCount),
       baselineHero: baselinePrompts === undefined ? null : buildHero(baselinePrompts, platforms, null).reading,
       tiles: { mention: tileOf('mention'), sov: tileOf('sov'), citation: tileOf('citation') },
-      facts: {
-        position: readFactTile(summary.prompts, platforms, 'position'),
-        recommendation: readFactTile(summary.prompts, platforms, 'recommendation'),
-        sentiment: readFactTile(summary.prompts, platforms, 'sentiment'),
-      },
+      facts: { position: factOf('position'), recommendation: factOf('recommendation'), sentiment: factOf('sentiment') },
     };
   }, [summary, data.aggregates?.rowsRead, baselineSummary, baselinePrompts, platforms, promptCount]);
 
@@ -238,7 +239,9 @@ export default function HeadlineCard({ item, live }: CardProps): ReactElement {
       // A mean position has one decimal and no unit (OV-HEAD-11); the rates are whole percents
       const factWords =
         key === 'position' ? { ...words, formatValue: (value: number) => formatDecimal(value, 1) } : words;
-      return { face: describeReading(model.facts[key], factWords), baseline: null, spark: null, loading: false };
+      const entry = model.facts[key];
+      const spark = entry.spark === null ? null : <Sparkline points={entry.spark} height={22} />;
+      return { face: describeReading(entry.reading, factWords), baseline: null, spark, loading: false };
     }
     if (key === 'traffic') return { face: trafficFace, baseline: null, spark: null, loading: false };
     return { face: promptsFace(), baseline: null, spark: null, loading: false };

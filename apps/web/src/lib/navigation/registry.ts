@@ -11,6 +11,7 @@ import {
   Network,
   Plug,
   Quote,
+  Sparkles,
   Receipt,
   Settings,
   Users,
@@ -40,6 +41,7 @@ export type NavKey =
   | 'aiOverview'
   | 'prompts'
   | 'citations'
+  | 'insights'
   | 'competitors'
   | 'discover'
   | 'reports'
@@ -148,6 +150,15 @@ export const NAVIGATION: readonly NavDestination[] = [
     key: 'citations',
     path: '/ai/citations',
     icon: Quote,
+    section: 1,
+    group: 'ai',
+    permission: 'data:read',
+    status: 'live',
+  },
+  {
+    key: 'insights',
+    path: '/ai/insights',
+    icon: Sparkles,
     section: 1,
     group: 'ai',
     permission: 'data:read',

@@ -12,8 +12,7 @@ import {
   type Platforms,
   type Reading,
 } from './headline-model';
-import type { EngineCode, EngineSummary, PromptSummaryRow, Run } from '@/lib/api/types';
-import type { WeekWithVisibility } from '@/lib/api/week-visibility';
+import type { EngineCode, EngineSummary, PromptSummaryRow, Run, WeekCells } from '@/lib/api/types';
 import { cellOf as factCell, engine, rowOf } from '@/lib/prompt-facts/test-helpers';
 import type { PositionCounts, SentimentCounts } from '@/lib/prompt-facts';
 import { visibilityOfPrompts } from '@/lib/rates/visibility-model';
@@ -172,8 +171,8 @@ describe('the weekly points of a tile', () => {
     expect(points).toHaveLength(8);
   });
 
-  it('the hero line is the weekly visibility, and is not drawn while the API sends none', () => {
-    const withVisibility = (start: string, k: number, n: number): WeekWithVisibility => ({
+  it('the hero line is the weekly visibility, and is not drawn while no week has a visibility answer', () => {
+    const withVisibility = (start: string, k: number, n: number): WeekCells => ({
       ...week(start, { mentioned: [0, n], prompts: 1 }),
       visibility: factCell(k, n),
     });
@@ -184,7 +183,7 @@ describe('the weekly points of a tile', () => {
     ];
     const summary = summaryOf([promptRow('p1', [engineCells('chatgpt_web', { mentioned: [5, 10], series: weeks })])]);
     expect(sparkOf(summary, ONE, 'visibility')).toEqual([0.2, 0.4, 0.6]);
-    // The same weeks without the visibility cell: nothing is made up from the mention cells
+    // The same weeks with a visibility cell of no answers: nothing is made up from the mention cells
     const plain = summaryOf([
       promptRow('p1', [
         engineCells('chatgpt_web', {
@@ -197,6 +196,75 @@ describe('the weekly points of a tile', () => {
       ]),
     ]);
     expect(sparkOf(plain, ONE, 'visibility')).toBeNull();
+  });
+
+  describe('of the facts tiles, read from the weekly facts of the total', () => {
+    const factWeek = (
+      start: string,
+      facts: { position: PositionCounts; recommended?: ReturnType<typeof factCell>; sentiment?: SentimentCounts },
+    ): WeekCells => ({
+      ...week(start, { mentioned: [4, 8], prompts: 1 }),
+      position: facts.position,
+      ...(facts.recommended === undefined ? {} : { recommended: facts.recommended }),
+      ...(facts.sentiment === undefined ? {} : { sentiment: facts.sentiment }),
+    });
+    const place = (rankSum: number, ordered: number): PositionCounts => ({
+      rank_sum: rankSum,
+      ordered_answers: ordered,
+      mentions: ordered,
+      answers: 8,
+    });
+    const totalOf = (weeks: WeekCells[]): ReturnType<typeof summaryOf> => ({
+      ...summaryOf([]),
+      total: {
+        engines: [engineCells('chatgpt_web', { mentioned: [4, 8], series: weeks })],
+        last_observed_at: null,
+        last_valid_at: null,
+        prompt_count: 1,
+      },
+    });
+
+    it('draws the mean place of each week, and leaves a week under two ordered answers a gap', () => {
+      const summary = totalOf([
+        factWeek('2026-10-19', { position: place(8, 4) }),
+        factWeek('2026-10-26', { position: place(3, 1) }),
+        factWeek('2026-11-02', { position: place(6, 4) }),
+      ]);
+      expect(sparkOf(summary, ONE, 'position')).toEqual([2, null, 1.5]);
+    });
+
+    it('draws the recommendation rate and the positive share of the judged mentions, with their floors', () => {
+      const summary = totalOf([
+        factWeek('2026-10-19', {
+          position: place(0, 0),
+          recommended: factCell(2, 8),
+          sentiment: { positive: 3, neutral: 1, negative: 0, mixed: 0 },
+        }),
+        factWeek('2026-10-26', {
+          position: place(0, 0),
+          recommended: factCell(1, 2),
+          sentiment: { positive: 1, neutral: 0, negative: 0, mixed: 0 },
+        }),
+        factWeek('2026-11-02', {
+          position: place(0, 0),
+          recommended: factCell(4, 8),
+          sentiment: { positive: 2, neutral: 2, negative: 0, mixed: 0 },
+        }),
+      ]);
+      // The middle week has two answers and one judged mention: under both floors, so a gap
+      expect(sparkOf(summary, ONE, 'recommendation')).toEqual([0.25, null, 0.5]);
+      expect(sparkOf(summary, ONE, 'sentiment')).toEqual([0.75, null, 0.5]);
+    });
+
+    it('is not drawn when the weeks carry no facts, or from fewer than two points', () => {
+      const bare = totalOf([
+        week('2026-10-19', { mentioned: [4, 8], prompts: 1 }),
+        week('2026-10-26', { mentioned: [4, 8], prompts: 1 }),
+      ]);
+      expect(sparkOf(bare, ONE, 'position')).toBeNull();
+      expect(sparkOf(bare, ONE, 'recommendation')).toBeNull();
+      expect(sparkOf(totalOf([factWeek('2026-10-19', { position: place(8, 4) })]), ONE, 'position')).toBeNull();
+    });
   });
 
   it('is not drawn from fewer than two points', () => {

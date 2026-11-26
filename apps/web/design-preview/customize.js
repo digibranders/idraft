@@ -433,10 +433,10 @@ function openCatalog(customizer, index) {
 // One customizer per screen
 
 const WIDTH_CLASSES = {
-  third: ['md:col-span-6', 'xl:col-span-4'],
-  half: ['md:col-span-6'],
-  two_thirds: ['md:col-span-12', 'xl:col-span-8'],
-  full: ['md:col-span-12'],
+  third: ['@2xl:col-span-6', '@4xl:col-span-4'],
+  half: ['@2xl:col-span-6'],
+  two_thirds: ['@2xl:col-span-12', '@4xl:col-span-8'],
+  full: ['@2xl:col-span-12'],
 };
 const ALL_WIDTH_CLASSES = [...new Set(Object.values(WIDTH_CLASSES).flat())];
 const FRAME_EDIT = ['p-1', 'gap-1', 'rounded-lg', 'outline-1', 'outline-dashed', 'outline-border-strong', 'bg-surface-subtle'];
@@ -640,7 +640,7 @@ function createCustomizer(screen) {
       if (items.length === 0) {
         const empty = el('p', 'type-meta', 'This page has no cards. Add one from the catalog.');
         empty.dataset.empty = '';
-        if (orientation === 'grid') empty.classList.add('md:col-span-12');
+        if (orientation === 'grid') empty.classList.add('@2xl:col-span-12');
         cardsZone.append(empty);
       }
       if (items.length < LIMITS.cards) cardsZone.append(addSlot());

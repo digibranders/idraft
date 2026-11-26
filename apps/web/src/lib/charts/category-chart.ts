@@ -1,10 +1,10 @@
-import { chartMotion, fadeDown, fadingPointer, softShadow } from './rich-style';
+import { chartMotion, flatPointer, withAlpha } from './rich-style';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
  * The ECharts option of a line or bar chart over categories (months, days), styled by the rules of
  * 15-data-visualization.md sections 3, 4 and 1a: entrance motion (off for reduced motion), a fixed outer padding that holds
- * the axis labels, horizontal dashed gridlines, an x axis line only, smooth 3 px lines with a fade and a soft shadow, the
+ * the axis labels, horizontal dashed gridlines, an x axis line only, smooth 3 px lines with a fade and no glow, the
  * latest value written at the end of each line, markers on series of 60 points or fewer, bars at most 24 px wide. Colours come by role, never by position in the data.
  */
 
@@ -109,7 +109,7 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
       axisPointer:
         kind === 'bar'
           ? { type: 'shadow', lineStyle: { color: tokens.borderStrong, width: 1 } }
-          : fadingPointer(tokens.palette[0] ?? tokens.foreground),
+          : flatPointer(tokens.palette[0] ?? tokens.foreground),
       // Kept inside the chart, so a card that clips its content does not cut it off
       confine: true,
       borderRadius: 8,
@@ -157,7 +157,7 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
         };
       }
       // A reference or aggregate line stays a quiet dashed 2 px line; the series of the data are smooth 3 px lines with a fade
-      // under them and a soft shadow, and the latest value written at their end
+      // under them and no glow, and the latest value written at their end
       const dashed = entry.role.kind === 'reference' || entry.role.kind === 'other';
       return {
         ...base,
@@ -170,8 +170,8 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
         itemStyle: { color, borderColor: tokens.surfaceElevated, borderWidth: 2 },
         lineStyle: dashed
           ? { width: 2, type: dashOf(entry.role), join: 'round' }
-          : { width: 3, type: 'solid', join: 'round', cap: 'round', color, ...softShadow(color) },
-        ...(dashed ? {} : { areaStyle: { color: fadeDown(color, shown.length > 1 ? 0.16 : 0.32, 0) } }),
+          : { width: 3, type: 'solid', join: 'round', cap: 'round', color },
+        ...(dashed ? {} : { areaStyle: { color: withAlpha(color, shown.length > 1 ? 0.08 : 0.14) } }),
         emphasis: { focus: 'none', scale: 1.3 },
         endLabel: dashed
           ? { show: false }

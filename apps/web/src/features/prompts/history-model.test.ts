@@ -29,6 +29,7 @@ const week = (weekStart: string, k: number, n: number): WeekCells => ({
   mentioned: cell(k, n),
   cited: cell(0, n),
   share_of_voice: cell(0, 0),
+  visibility: cell(0, n),
 });
 /** A point the API pooled: a prompt row's point holds the week and the weeks before it, `weeks` in all. */
 const pooledWeek = (weekStart: string, k: number, n: number, weeks: number): WeekCells => ({

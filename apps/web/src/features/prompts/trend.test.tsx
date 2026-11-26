@@ -48,6 +48,7 @@ const week = (weekStart: string, value: number | null, answers = 4): WeekCells =
   mentioned: cell(value, answers),
   cited: cell(null),
   share_of_voice: cell(null),
+  visibility: cell(null),
 });
 const summaryOf = (code: string, series: readonly WeekCells[] | undefined): EngineSummary =>
   ({

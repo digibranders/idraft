@@ -26,16 +26,6 @@ const motion = () => ({
   animationEasing: 'cubicOut',
 });
 
-/** A vertical (or, with `horizontal`, left to right) fade of a token from `from` to `to` opacity. */
-const fade = (token, from, to, horizontal = false) =>
-  new echarts.graphic.LinearGradient(0, 0, horizontal ? 1 : 0, horizontal ? 0 : 1, [
-    { offset: 0, color: charts.token(token, from) },
-    { offset: 1, color: charts.token(token, to) },
-  ]);
-
-/** The soft shadow under a mark that gives it depth. */
-const glow = (token, strength = 1) => ({ shadowColor: charts.token(token, 0.4), shadowBlur: 12 * strength, shadowOffsetY: 5 * strength });
-
 /** The popover of the shared tooltip anatomy, for charts whose tooltip names one mark instead of an axis position. */
 function itemTooltip(rowOf) {
   return {
@@ -66,7 +56,7 @@ function itemTooltip(rowOf) {
 
 /**
  * Lines over the weekly runs, as `lineOption` of aiov-charts.js takes them (`{ name, token, values, dashed, width }`, an
- * optional 95% `band`, the `boundary` week of a comparison) with smooth curves, a fade under each line, a soft shadow
+ * optional 95% `band`, the `boundary` week of a comparison) with smooth curves, a fade under each line, no glow
  * and the latest value written at the end of every line.
  */
 export function richLineOption({ labels, lines, band, boundary, format = pctAxis, tooltipFormat, min, max, tooltipRows }) {
@@ -79,7 +69,7 @@ export function richLineOption({ labels, lines, band, boundary, format = pctAxis
   if (band) {
     series.push(
       { id: 'band-low', type: 'line', stack: 'band', smooth: 0.3, data: band.low, lineStyle: { opacity: 0 }, symbol: 'none', silent: true, tooltip: { show: false } },
-      { id: 'band-width', type: 'line', stack: 'band', smooth: 0.3, data: band.high.map((value, index) => (value === null ? null : value - band.low[index])), lineStyle: { opacity: 0 }, areaStyle: { color: fade(lines[0].token, 0.22, 0.06) }, symbol: 'none', silent: true, tooltip: { show: false } },
+      { id: 'band-width', type: 'line', stack: 'band', smooth: 0.3, data: band.high.map((value, index) => (value === null ? null : value - band.low[index])), lineStyle: { opacity: 0 }, areaStyle: { color: charts.token(lines[0].token, 0.14) }, symbol: 'none', silent: true, tooltip: { show: false } },
     );
   }
   lines.forEach((line, position) => {
@@ -100,9 +90,9 @@ export function richLineOption({ labels, lines, band, boundary, format = pctAxis
       z: line.dashed ? 2 : 3,
       lineStyle: line.dashed
         ? { width: line.width ?? 2, join: 'round', type: [4, 4], color: charts.token(line.token, line.dashedAlpha ?? 1) }
-        : { width: line.width ?? 3, join: 'round', cap: 'round', color, ...glow(line.token) },
+        : { width: line.width ?? 3, join: 'round', cap: 'round', color },
       // One line gets a strong fade; several share a lighter one so they stay legible where they cross
-      areaStyle: line.dashed ? undefined : { color: fade(line.token, solid > 1 ? 0.16 : 0.34, 0) },
+      areaStyle: line.dashed ? undefined : { color: charts.token(line.token, solid > 1 ? 0.08 : 0.14) },
       emphasis: { focus: 'none', scale: 1.3 },
       endLabel: line.dashed ? { show: false } : { show: true, color, fontFamily: charts.fontFamily(), fontSize: 12, fontWeight: 600, distance: 8, formatter: ({ value }) => (value === null || value === undefined ? '' : format(value)) },
       labelLayout: { moveOverlap: 'shiftY' },
@@ -153,7 +143,7 @@ export function richShareAreaOption({ labels, layers }) {
       data: layer.values,
       showSymbol: false,
       lineStyle: { width: 1.5, color: charts.token(layer.token) },
-      areaStyle: { color: fade(layer.token, layer.alpha ?? 0.9, (layer.alpha ?? 0.9) * 0.55) },
+      areaStyle: { color: charts.token(layer.token, (layer.alpha ?? 0.9) * 0.8) },
       emphasis: { focus: 'series' },
     })),
   };
@@ -226,10 +216,13 @@ export function ringTable({ rows, segments }) {
   headRow.append(
     corner,
     ...rows.map((row) => {
-      const th = el('th', 'text-right type-micro font-normal break-words pl-1 pb-1', row.label.replace(/^Google /, ''));
-      // The table head style of the page sets capitals and tracking, which break a short name apart in a narrow column
-      th.style.textTransform = 'none';
-      th.style.letterSpacing = 'normal';
+      // The platform's mark alone: a name takes two lines in a narrow column. The name stays for screen readers and the hover,
+      // and the rings above carry the names in the same order (the two Google platforms share one mark)
+      const th = el('th', 'type-micro font-normal pl-1 pb-1');
+      const mark = el('span', 'flex justify-end', null);
+      mark.append(window.PreviewUI.engineLogo(row.label), el('span', 'sr-only', row.label));
+      th.dataset.tip = row.label;
+      th.append(mark);
       return th;
     }),
   );
@@ -268,14 +261,14 @@ export function stackedColumnsOption({ rows, segments }) {
       barWidth: '46%',
       barMaxWidth: 64,
       data: rows.map((row) => (row.shares === null ? null : row.shares[at])),
-      itemStyle: { color: fade(segment.token, 1, 0.72), borderRadius: 6, borderColor: charts.token('surface'), borderWidth: 1.5, ...glow('foreground', 0.5) },
+      itemStyle: { color: charts.token(segment.token), borderRadius: 6, borderColor: charts.token('surface'), borderWidth: 1.5 },
       emphasis: { focus: 'series' },
     })),
   };
 }
 
 /** The line that follows the pointer over a time chart: 2 px, bright at the top and fading out toward the axis. */
-const pointerFade = (token = 'chart-1') => ({ type: 'line', z: 0, lineStyle: { width: 2, type: 'solid', color: fade(token, 0.7, 0) } });
+const pointerFade = (token = 'chart-1') => ({ type: 'line', z: 0, lineStyle: { width: 2, type: 'solid', color: charts.token(token, 0.4) } });
 
 // -------------------------------------------------------------------------------------------------
 // A treemap with rounded, shaded tiles
@@ -304,7 +297,7 @@ export function richTreemapOption({ types, total }) {
         data: types.map((entry) => {
           const token = tokenOf(entry.type);
           // The tooltip reads the tile's own color from `borderColor`, which the tile itself does not draw (width 0 on the series)
-          return { name: entry.type, value: entry.units, itemStyle: { color: fade(token, 1, 0.74), borderColor: charts.token(token) } };
+          return { name: entry.type, value: entry.units, itemStyle: { color: charts.token(token), borderColor: charts.token(token) } };
         }),
       },
     ],
@@ -334,7 +327,7 @@ export function ghostTrend({ title, text, height = 220 }) {
     grid: { left: 8, right: 8, top: '52%', bottom: 12 },
     xAxis: { type: 'category', show: false, boundaryGap: false, data: sample.map((_, index) => index) },
     yAxis: { type: 'value', show: false, min: 0, max: 1 },
-    series: [{ type: 'line', smooth: 0.4, data: sample, silent: true, symbol: 'none', lineStyle: { width: 3, type: [6, 6], color: charts.token('chart-other', 0.5) }, areaStyle: { color: fade('chart-other', 0.16, 0) } }],
+    series: [{ type: 'line', smooth: 0.4, data: sample, silent: true, symbol: 'none', lineStyle: { width: 3, type: [6, 6], color: charts.token('chart-other', 0.5) }, areaStyle: { color: charts.token('chart-other', 0.08) } }],
   });
   mountChart(host, build);
   return wrap;

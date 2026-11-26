@@ -11,7 +11,11 @@ const PREVIOUS = { from: '2026-09-21', to: '2026-10-18' };
 /** A week of one platform: `k` of `n` valid answers mention the brand, and `v` of `n` mention or cite it. */
 function point(weekStart: string, k: number, n: number, v?: number): WeekCells {
   const base = week(weekStart, { mentioned: cell(k, n), share: share(k, n) });
-  return v === undefined ? base : ({ ...base, visibility: cell(v, n) } as WeekCells & { visibility: MetricCell });
+  if (v !== undefined) return { ...base, visibility: cell(v, n) };
+  // A body without the weekly visibility (an older read)
+  const without: Partial<WeekCells> = { ...base };
+  delete without.visibility;
+  return without as WeekCells;
 }
 
 const summaryOfSeries = (series: Record<string, WeekCells[]>): PromptsSummary =>

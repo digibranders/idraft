@@ -14607,11 +14607,28 @@ export interface components {
             /** @description Present exactly when `is_pooled`: the weeks and days the cells hold, and why. */
             pool?: components["schemas"]["PointPool"] | null;
             /**
+             * Position
+             * @description With `include=series` and `facts` or `fact_counts`: where the own brand is named in the valid answers of the weeks the point holds, as counts that add up (the mean place is `rank_sum / ordered_answers`), zeros for a week without an answer. Left out otherwise.
+             */
+            position?: components["schemas"]["PositionCounts"];
+            /**
              * Prompts
              * @description The prompts of the row with a valid answer on the engine in that week alone, whether the point is pooled or not.
              */
             prompts: number;
+            /**
+             * Recommended
+             * @description With `include=series` and `facts` or `fact_counts`: the recommendation rate of the weeks the point holds, as the engine's `recommended` is. Null while none of those valid answers is classified. Left out otherwise.
+             */
+            recommended?: components["schemas"]["MetricCell"] | null;
+            /**
+             * Sentiment
+             * @description With `include=series` and `facts` or `fact_counts`: the tones of the valid answers that name the own brand in the weeks the point holds, as the engine's `sentiment` is. Null when none names it with a tone. Left out otherwise.
+             */
+            sentiment?: components["schemas"]["SentimentCounts"] | null;
             share_of_voice: components["schemas"]["MetricCell"];
+            /** @description AI visibility of the point: valid answers that name the own brand or cite its domain (every outcome but `neither`) over the valid answers, built as `mentioned` is (counts of answers in a prompt row, prompt weighted in a topic, total or country row), over the same answers. */
+            visibility: components["schemas"]["MetricCell"];
             /**
              * Week Start
              * Format: date

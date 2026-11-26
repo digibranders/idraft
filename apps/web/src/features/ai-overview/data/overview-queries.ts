@@ -118,10 +118,11 @@ export interface SummaryOptions {
  * and the rate trend while its metric is Share of voice): the `total` with a point per week, each point with the cells of
  * every tracked brand (`include=series,entities`, at most 20 brands, own ones first, pooled weeks as the point's `pool`
  * says, no `previous`). `total` is there because `rows=none` leaves out every row, and the weekly points of the whole
- * scope are the `total`'s. No other card asks for it: the prompt rows with weekly entity cells are megabytes.
+ * scope are the `total`'s. `fact_counts` puts the weekly places of the brand, recommendation rate and tones on the same
+ * points, which the headline tiles draw as lines. No other card asks for it: the prompt rows with weekly entity cells are megabytes.
  */
 export const WEEKLY_SHARE_READ = {
-  include: ['entities', 'series', 'total'],
+  include: ['entities', 'fact_counts', 'series', 'total'],
   rows: 'none',
 } as const satisfies SummaryOptions;
 

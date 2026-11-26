@@ -28317,13 +28317,46 @@
             ],
             "description": "Present exactly when `is_pooled`: the weeks and days the cells hold, and why."
           },
+          "position": {
+            "$ref": "#/components/schemas/PositionCounts",
+            "description": "With `include=series` and `facts` or `fact_counts`: where the own brand is named in the valid answers of the weeks the point holds, as counts that add up (the mean place is `rank_sum / ordered_answers`), zeros for a week without an answer. Left out otherwise.",
+            "title": "Position"
+          },
           "prompts": {
             "description": "The prompts of the row with a valid answer on the engine in that week alone, whether the point is pooled or not.",
             "title": "Prompts",
             "type": "integer"
           },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricCell"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series` and `facts` or `fact_counts`: the recommendation rate of the weeks the point holds, as the engine's `recommended` is. Null while none of those valid answers is classified. Left out otherwise.",
+            "title": "Recommended"
+          },
+          "sentiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series` and `facts` or `fact_counts`: the tones of the valid answers that name the own brand in the weeks the point holds, as the engine's `sentiment` is. Null when none names it with a tone. Left out otherwise.",
+            "title": "Sentiment"
+          },
           "share_of_voice": {
             "$ref": "#/components/schemas/MetricCell"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "AI visibility of the point: valid answers that name the own brand or cite its domain (every outcome but `neither`) over the valid answers, built as `mentioned` is (counts of answers in a prompt row, prompt weighted in a topic, total or country row), over the same answers."
           },
           "week_start": {
             "description": "The Monday the week starts on, in the project's zone.",
@@ -28338,7 +28371,8 @@
           "is_pooled",
           "mentioned",
           "cited",
-          "share_of_voice"
+          "share_of_voice",
+          "visibility"
         ],
         "title": "WeekCells",
         "type": "object"

@@ -14,7 +14,6 @@ import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, 
 import { initCompetitorDrawer, openCompetitor, refreshCompetitorDrawer } from './aiov-competitor.js';
 import { createCustomizer } from './aiov-customize.js';
 import { cardFrame, el, emptyBody, engineName, icon } from './aiov-parts.js';
-import { insightsBox } from './aiov-insights.js';
 import { cardDef } from './aiov-registry.js';
 
 const ui = window.PreviewUI;
@@ -23,7 +22,7 @@ const view = ui.$('[data-view="ai"]');
 // -------------------------------------------------------------------------------------------------
 // Static parts: header, scope bar, the grid
 
-const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
+const grid = el('div', 'grid grid-cols-1 @2xl:grid-cols-12 gap-4');
 const custom = createCustomizer({ grid, onChange: () => render() });
 
 // As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
@@ -74,8 +73,7 @@ toolbar.setAttribute('aria-label', 'Scope and actions');
 const right = el('div', 'flex items-center gap-x-4 min-w-0 xl:ml-auto');
 right.append(status, actions);
 toolbar.append(title, scopeBar, right);
-const insights = el('div', 'min-w-0');
-view.replaceChildren(toolbar, insights, grid, footnote, custom.bar, custom.live);
+view.replaceChildren(toolbar, grid, footnote, custom.bar, custom.live);
 
 // -------------------------------------------------------------------------------------------------
 // Drawing
@@ -102,10 +100,9 @@ function render() {
   custom.updateBar();
 
   grid.replaceChildren();
-  insights.replaceChildren(...(model.prompts.length === 0 || custom.customizing() ? [] : [insightsBox()]));
   if (model.prompts.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'No prompts in this scope', body: emptyBody('Nothing to show', 'No prompts match this group and branded setting. Reset the scope.') });
-    empty.className += ' md:col-span-12';
+    empty.className += ' @2xl:col-span-12';
     grid.append(empty);
     return;
   }
@@ -120,7 +117,7 @@ function render() {
   if (custom.customizing()) grid.append(custom.addSlot());
   else if (items.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'This page has no cards', body: emptyBody('Nothing on the page', 'Choose Customize, then Start from a preset or Add card.') });
-    empty.className += ' md:col-span-12';
+    empty.className += ' @2xl:col-span-12';
     grid.append(empty);
   }
 }

@@ -491,7 +491,8 @@
       "integrations": "Integrations",
       "runs": "Runs",
       "costs": "Costs",
-      "settings": "Settings"
+      "settings": "Settings",
+      "insights": "Insights"
     },
     "groups": {
       "seo": "SEO",
@@ -5502,37 +5503,6 @@
     "linkCopied": "Link copied",
     "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
-    "insights": {
-      "title": "Insights",
-      "meta": "Whole project",
-      "retry": "Try again",
-      "atLeastMark": "+",
-      "startTracking": "Start tracking",
-      "viewGaps": "View gaps",
-      "viewPages": "View pages",
-      "emptyTitle": "Nothing to act on",
-      "emptyReason": "Every keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.",
-      "lines": {
-        "untracked": {
-          "text": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
-          "failed": "Could not count the keywords with a Google AI Overview",
-          "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked"
-        },
-        "gaps": {
-          "text": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
-          "failed": "Could not count the citation gaps"
-        },
-        "citingCompetitors": {
-          "text": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
-          "failed": "Could not count the domains that cite your competitors",
-          "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked"
-        },
-        "newDomains": {
-          "text": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
-          "failed": "Could not count the new cited domains"
-        }
-      }
-    },
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The platforms of this project could not be read",
     "enginesFailedReason": "The server did not answer. Try again in a moment.",
@@ -7775,6 +7745,94 @@
         "fileName": "sentiment-by-platform",
         "infoWhat": "The tone AI uses when it mentions your brand.",
         "infoHow": "The share of mentions that are positive, neutral, negative or mixed, shown as four shares and never one score. Tone is rule-based, with a model check on low-confidence mentions."
+      }
+    }
+  },
+  "aiInsights": {
+    "title": "Insights",
+    "meta": "Whole project",
+    "noAccessTitle": "You cannot open insights",
+    "noAccessReason": "Your role cannot read AI data in this project.",
+    "noPlatformTitle": "No platform is turned on",
+    "noPlatformReason": "Insights count answers, and no platform collects any yet. Turn one on in the platform settings.",
+    "retry": "Try again",
+    "atLeastMark": "+",
+    "showMore": "Show {count} more",
+    "showFewer": "Show fewer",
+    "listLabel": "{section}: list",
+    "na": "n/a",
+    "sections": {
+      "untracked": {
+        "title": "Keywords not tracked as prompts",
+        "headline": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
+        "explain": "Your latest checks show a Google AI Overview for these keywords, and no prompt asks the same question yet.",
+        "failed": "Could not count the keywords with a Google AI Overview",
+        "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked.",
+        "emptyTitle": "Every keyword with a Google AI Overview is a prompt",
+        "emptyReason": "New keywords with a Google AI Overview show here after the next check.",
+        "startTracking": "Start tracking",
+        "startTrackingFor": "Start tracking: {keyword}",
+        "volumeUnknown": "Search volume is not collected for this keyword yet.",
+        "columns": {
+          "keyword": "Keyword",
+          "volume": "Volume",
+          "cited": "Your site",
+          "action": "Action"
+        },
+        "cited": {
+          "yes": "Cited",
+          "no": "Not cited"
+        },
+        "viewAll": "View prompts"
+      },
+      "gaps": {
+        "title": "Citation gaps",
+        "headline": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
+        "explain": "AI answers cite a tracked competitor on these prompts and leave your site out, on the platforms listed.",
+        "failed": "Could not count the citation gaps",
+        "emptyTitle": "No citation gaps",
+        "emptyReason": "No tracked competitor is cited on a prompt where your site is not, in the last runs.",
+        "viewGap": "View prompt",
+        "viewGapFor": "View prompt: {prompt}",
+        "viewAll": "View all gaps",
+        "columns": {
+          "prompt": "Prompt",
+          "platforms": "Platforms",
+          "competitors": "Competitors cited",
+          "action": "Action"
+        }
+      },
+      "citingCompetitors": {
+        "title": "Domains that cite your competitors",
+        "headline": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
+        "explain": "These websites are cited in answers that mention a tracked competitor, so they are places to earn a citation too.",
+        "failed": "Could not count the domains that cite your competitors",
+        "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked.",
+        "emptyTitle": "No domain cites your competitors",
+        "emptyReason": "No cited domain of another site is cited in answers that mention a tracked competitor in the last 28 days.",
+        "viewAll": "View all cited domains",
+        "columns": {
+          "domain": "Domain",
+          "role": "Role",
+          "answers": "Answers",
+          "competitors": "Competitors"
+        },
+        "answers": "{count, plural, one {# answer} other {# answers}}"
+      },
+      "newDomains": {
+        "title": "New cited domains",
+        "headline": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
+        "explain": "Domains that AI answers cite this month and did not cite in the month before.",
+        "failed": "Could not count the new cited domains",
+        "emptyTitle": "No new cited domains",
+        "emptyReason": "Every domain cited this month was cited in the month before.",
+        "viewAll": "View all cited domains",
+        "columns": {
+          "domain": "Domain",
+          "firstSeen": "First seen",
+          "citations": "Citations"
+        },
+        "firstSeenUnknown": "The first answer that cited this domain was not recorded."
       }
     }
   },
