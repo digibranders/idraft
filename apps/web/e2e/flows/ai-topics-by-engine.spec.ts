@@ -23,11 +23,11 @@ const inspectUrl = (topicId: string, params: Record<string, string> = {}): strin
   return `${TOPICS}?${query.toString()}`;
 };
 
-/** The drawer of a topic: beside the table on a wide window, a sheet over it on a narrow one. */
+/** The drawer of a topic: a card over the table from 900 px, a sheet below. */
 const drawerOf = (page: Page, name: string): Locator =>
   page.getByRole('complementary', { name }).or(page.getByRole('dialog', { name }));
 
-/** Whichever topic drawer is open (its tab list names it), docked or a sheet. */
+/** Whichever topic drawer is open (its tab list names it), a card or a sheet. */
 const anyDrawer = (page: Page): Locator =>
   page
     .getByRole('complementary')

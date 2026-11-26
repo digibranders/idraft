@@ -36,7 +36,7 @@ interface SignedInPage {
 /** The first keyword of Rankings, opened in the inspector with its volume chart drawn. */
 async function openFirstKeyword(page: Page): Promise<void> {
   await page.getByRole('grid', { name: 'Tracked keywords' }).getByRole('rowheader').first().click();
-  // Docked beside the table on a wide screen and a sheet on a narrow one, so it is found by its heading
+  // A card over the table from 900 px and a sheet below, so it is found by its heading
   await expect(page.getByRole('heading', { level: 2, name: 'seo agency' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Search volume by month' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Rank history' })).toBeVisible();

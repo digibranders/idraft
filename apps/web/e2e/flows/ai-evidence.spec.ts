@@ -15,7 +15,7 @@ const FIRST_PROMPT_INDEX = 1;
 const OPEN_ANSWER = /^Open the ChatGPT answer of /;
 const COMPARE_TITLE = 'Change since the last answer that mentioned the brand';
 
-/** The answer viewer: beside the table on a wide window, a sheet over it on a narrow one. */
+/** The answer viewer: a card over the table from 900 px, a sheet below. */
 const viewerOf = (page: Page): Locator =>
   page.getByRole('complementary', { name: /answer, / }).or(page.getByRole('dialog', { name: /answer, / }));
 

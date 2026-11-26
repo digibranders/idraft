@@ -20,7 +20,7 @@ const groupsGrid = (page: Page): Locator => page.getByRole('treegrid', { name: '
 const promptsGrid = (page: Page): Locator => page.getByRole('grid', { name: 'Prompts' });
 const toastsOf = (page: Page): Locator => page.getByRole('region', { name: 'Notifications' });
 
-/** A drawer is docked beside the table on a wide window and a sheet over it on a narrow one. */
+/** A drawer is a card over the table from 900 px and a sheet below. */
 const drawerOf = (page: Page, name: string): Locator =>
   page.getByRole('complementary', { name }).or(page.getByRole('dialog', { name }));
 
