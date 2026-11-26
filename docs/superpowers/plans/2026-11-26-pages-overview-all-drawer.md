@@ -5,7 +5,7 @@
 > reads "Rules for every task" and "Contracts" below, then its own task. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** The Website audit page Pages of the real app: Overview at `/{workspace}/{project}/seo/pages`, All pages
-at `/seo/pages/all`, and the page drawer with the tabs Overview, Search, Outline, Issues, AI and Links.
+at `/seo/pages/all`, and the page drawer with the tabs Overview, Search, Outline, Issues, AI, Links and Notes.
 
 **Architecture:** One new backend module (`api/internal_links/inventory.py`) holds the words of spec section 4
 as SQL, once. The Overview read counts with them and the pages list filters with them (`filter[view]`), so a
@@ -15,7 +15,9 @@ inspector of Internal links are not rewritten: they get narrow contexts, move un
 logic is in `src/lib/pages/`. What other sessions own (issues per page, tracking, the Search Console detail)
 is a typed seam in `src/lib/pages/` that answers `unavailable` on this branch. The drawer's Outline tab (owner
 addition of 2026-11-26, spec 9.6) is one read on demand: a pure parser in `backend/src/idraft/crawl/outline.py`
-reads the page's stored HTML of the latest crawl, and nothing is stored.
+reads the page's stored HTML of the latest crawl, and nothing is stored. The drawer's Notes tab (owner addition
+of 2026-11-26, spec 9.7) is full stack: a table `core.page_notes` keyed by project and URL, five routes with
+audit entries, and the tab.
 
 **Tech stack:** Python 3.13, FastAPI, SQLAlchemy Core (async), pytest with testcontainers Postgres, `uv`.
 Next.js (App Router), React, TypeScript, TanStack Query, nuqs, next-intl, Tailwind v4 tokens, vitest with Testing
@@ -69,7 +71,7 @@ cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all
 uv run ruff check <the files you changed>
 uv run ruff format --check <the files you changed>
 uv run mypy src/idraft/api/internal_links src/idraft/api/schemas <the test files you changed>
-# Tasks 5b and 5c name their own extra paths (src/idraft/crawl, src/idraft/storage, src/idraft/api/main.py).
+# Tasks 5b to 5e name their own extra paths (src/idraft/crawl, src/idraft/storage, src/idraft/db, src/idraft/api/main.py).
 uv run lint-imports
 uv run pytest -n 0 --no-cov <the test files of the task>
 ```
@@ -182,6 +184,8 @@ The web's `sectionOf` in `lib/internal-links/map-graph.ts` is another thing (the
 - `GET …/internal-links/pages/{url_id}/search?run=latest` answering `PageSearchDailyResponse` (spec 9.5).
 - `GET …/internal-links/pages/{url_id}/outline` answering `PageOutlineResponse` (spec 9.6.1, contract C6). It
   takes no `run`.
+- The five note routes under `…/internal-links/pages/{url_id}/notes` and `PageDetail.notes_count` (spec 9.7.2,
+  contract C7).
 
 ### C5. Web names
 
@@ -199,7 +203,9 @@ The web's `sectionOf` in `lib/internal-links/map-graph.ts` is another thing (the
 | `PageSearchDetailSlot` | `src/lib/pages/search-detail-slot.tsx` | spec 10.3 |
 | `usePageSearchDaily(scope, run, urlId)` | `src/lib/pages/search-daily.ts` | `Seam<PageSearchDaily>`, never `unavailable` on this branch |
 | `usePageOutline(scope, urlId, enabled)` | `src/lib/pages/outline.ts` | `Seam<PageOutline>`, never `unavailable`; `error` carries `notFound: boolean` (Task 9) |
-| `PAGE_DRAWER_TABS`, `PageDrawerTab`, `pageDrawerTab` | `src/lib/pages/drawer-tabs.ts` | `overview`, `search`, `outline`, `issues`, `ai`, `links` (Task 23) |
+| `PAGE_DRAWER_TABS`, `PageDrawerTab`, `pageDrawerTab` | `src/lib/pages/drawer-tabs.ts` | `overview`, `search`, `outline`, `issues`, `ai`, `links`, `notes` (Task 23) |
+| `PageNote`, `pageNotesQuery(scope, urlId)`, `NOTE_MAX` | `src/lib/internal-links/types.ts`, `queries.ts`, `src/lib/pages/notes.ts` | Task 25d |
+| `usePageNotes`, `usePageNoteWrites`, `noteDraft`, `setNoteDraft`, `clearNoteDraft` | `src/lib/pages/notes.ts`, `note-drafts.ts` | Task 25d |
 | `outlineModel`, `OutlineModel`, `OutlineFinding`, `OUTLINE_BLOCKS`, `HEADINGS_FOLDED` | `src/lib/pages/outline-model.ts` | Task 25b |
 | `PAGE_VIEW_MENU`, `viewCounts` | `src/lib/pages/views.ts` | Task 10 |
 | `overviewModel` | `src/lib/pages/overview-model.ts` | Task 10 |
@@ -400,6 +406,54 @@ class PageOutlineResponse(BaseModel):
 The check id of each finding (web, Task 25b) is the table "Findings" of spec 9.6.3. The ids are the Issues
 session's and are written with hyphens (`title-short`).
 
+### C7. Notes on a page (spec 9.7)
+
+The table is `core.page_notes` exactly as spec 9.7.1 writes it (Task 5d); in `db/tables.py` it is `page_notes`.
+
+API schemas, defined in Task 5e in a new file `backend/src/idraft/api/schemas/page_notes.py`:
+
+```python
+NOTE_MAX: Final = 2000
+
+
+class PageNoteAuthor(BaseModel):
+    id: UUID
+    name: str
+
+
+class PageNote(BaseModel):
+    id: UUID
+    author: PageNoteAuthor
+    body: str
+    created_at: datetime
+    edited_at: datetime | None
+    can_edit: bool
+    can_delete: bool
+
+
+class PageNoteWrite(BaseModel):
+    """The body of a create and of a change. Trimmed, 1 to 2,000 characters, no null character."""
+    body: str
+
+
+class PageNoteResponse(BaseModel):
+    data: PageNote
+
+
+class PageNoteList(BaseModel):
+    data: list[PageNote]
+    meta: CursorPageInfo
+```
+
+`PageDetail` gains `notes_count: int = 0`. The default is on purpose: the generated web type is then
+`notes_count?: number`, so the mocks and fixtures written before Task 25d still typecheck after Task 6. The
+API always sends it; the web reads `detail.notes_count ?? 0`.
+
+Routes (Task 5e), prefix `/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes`:
+`GET ""` (`data:read`), `POST ""` (`notes:write`, 201), `PATCH "/{note_id}"` (`notes:write`),
+`DELETE "/{note_id}"` (`notes:write`, 204), `POST "/{note_id}/restore"` (`notes:write`). Audit actions:
+`page_note.created`, `page_note.updated`, `page_note.deleted`, `page_note.restored`.
+
 ## File structure
 
 | File | Responsibility | Task |
@@ -417,7 +471,11 @@ session's and are written with hyphens (`title-short`).
 | `backend/src/idraft/storage/raw.py` | `inflate_head`: the first bytes of a stored object | 5c |
 | `backend/src/idraft/api/internal_links/outline.py`, `reads.py`, `read_routes.py`, `backend/src/idraft/api/main.py` | the outline read; the read service takes the object store | 5c |
 | `backend/tests/api/internal_links/test_page_outline.py` | its tests | 5c |
-| `backend/tests/api/test_route_access.py`, `backend/openapi/v1.json` | three rows; regenerated | 1 to 5c |
+| `backend/src/idraft/db/migrations/versions/0042_page_notes.py`, `db/tables.py`, `backend/tests/db/*`, `docs/04-data-model.md` | the table `core.page_notes` (C7) | 5d |
+| `backend/src/idraft/api/schemas/page_notes.py`, `api/internal_links/page_notes.py`, `page_note_routes.py`, `api/audit.py`, `api/main.py` | the note reads and writes, audited | 5e |
+| `backend/src/idraft/api/schemas/internal_links.py`, `reads.py` | `PageDetail.notes_count` | 5e |
+| `backend/tests/api/internal_links/test_page_notes.py`, `docs/19-api-specification.md`, `docs/24-security.md` | tests; the two docs that name `notes:write` | 5e |
+| `backend/tests/api/test_route_access.py`, `backend/openapi/v1.json` | eight rows; regenerated | 1 to 5e |
 | `apps/web/src/lib/api/schema.ts` | regenerated client, own commit | 6 |
 | `apps/web/src/lib/internal-links/{types,queries,page-sorts}.ts` | types, reads, sorts | 7 |
 | `apps/web/src/mocks/internal-links-inventory.ts`, `internal-links-outline.ts`, `mocks/handlers/internal-links.ts` | the mocked API | 8 |
@@ -431,11 +489,13 @@ session's and are written with hyphens (`title-short`).
 | `apps/web/src/features/internal-links/{tabs.ts,url-state.ts,internal-links-screen.tsx}`, `seo/internal-links/page.tsx` | the tab leaves, the redirect | 16 |
 | `apps/web/src/components/app/data-table/{types.ts,toolbar.tsx,data-table.tsx,column-chooser.tsx}` | `toolbarStart`, chooser groups | 17 |
 | `apps/web/src/features/internal-links/pages/*` | the table's changes | 11, 18 to 20 |
-| `apps/web/src/features/internal-links/inspector/*` | the tabbed drawer | 11, 23 to 25c |
+| `apps/web/src/features/internal-links/inspector/*` | the tabbed drawer | 11, 23 to 25e |
 | `apps/web/src/lib/pages/outline.ts`, `outline-model.ts` | the Outline's read and its pure model | 9, 25b |
 | `apps/web/src/features/internal-links/inspector/drawer-outline-tab.tsx`, `outline-block.tsx`, `outline-blocks.tsx`, `outline-more-blocks.tsx` | the Outline tab | 25b, 25c |
 | `docs/design-system/16-drawers-dialogs-popovers.md` | one sentence: the Outline's cards fold | 25b |
-| `docs/glossary/terms.md`, `final-list.md` | the row Outline, in its own commit | 23 |
+| `docs/glossary/terms.md`, `final-list.md` | the rows Outline, Notes and Add note, in their own commit | 23 |
+| `apps/web/src/lib/pages/notes.ts`, `note-drafts.ts`, `apps/web/src/mocks/internal-links-notes.ts` | the notes' reads, writes, drafts and mocks | 25d |
+| `apps/web/src/features/internal-links/inspector/drawer-notes-tab.tsx`, `note-editor.tsx`, `note-item.tsx` | the Notes tab | 25e |
 | `apps/web/messages/en.json`, `docs/design-system/11-navigation.md` | words (added by each UI task; audited in 26) | 13 to 26 |
 
 ---
@@ -1195,6 +1255,264 @@ uv run pytest -n 0 --no-cov <the storage test file of step 2>
 
 - [ ] **Step 8: Fix what the review found**, rerun, commit.
 
+### Task 5d: The table of page notes
+
+Spec 9.7.1, decision D15. Contract C7. A migration, the table object, the schema tests and the data model
+document. No route.
+
+**Files:**
+- Create: `backend/src/idraft/db/migrations/versions/0042_page_notes.py`
+- Modify: `backend/src/idraft/db/tables.py`
+- Modify: `backend/tests/db/test_tables.py`, `backend/tests/db/support.py`, `backend/tests/db/test_grants.py`
+- Create: `backend/tests/db/test_page_notes_schema.py`
+- Modify: `docs/04-data-model.md`
+
+- [ ] **Step 1: Read first.** `db/migrations/versions/0038_keyword_prompt_links.py` whole (the pattern: a
+  docstring that says what and who writes, `Revision ID` and `Revises`, the table as one SQL string,
+  `statements`, `tenant_isolation`, `grants`, `column_grant`, a `downgrade` that drops), `db/ddl.py` (those
+  four helpers), `ls backend/src/idraft/db/migrations/versions | tail -3` (the latest revision: this
+  migration revises it; if it is not `0041`, take the next free number and name the file after it),
+  `db/tables.py` `keyword_prompt_links` (how a table with a composite project key is written),
+  `tests/db/test_tables.py` near `"core.keyword_prompt_links"`, `tests/db/support.py` near lines 89 and 858
+  (the tenant column map and the seed row every tenant table needs for `test_rls.py`),
+  `tests/db/test_grants.py` near line 544, `tests/db/test_keywords_schema.py` or
+  `test_internal_links_schema.py` (how a schema test inserts and expects a check to refuse), and
+  `docs/04-data-model.md` sections 5.1 and 5.3 (how a table is documented).
+
+- [ ] **Step 2: Write the failing tests.**
+  - `test_tables.py`: `"core.page_notes"` in the list, in its alphabetical place.
+  - `support.py`: `"core.page_notes": "workspace_id"` in the tenant column map, and one seeded row (a note by
+    the seeded user on a seeded URL of the seeded project) where the other seed inserts are, so the
+    row-level security test covers the table.
+  - `test_grants.py`: the API role has `SELECT` and `INSERT` on the table and `UPDATE` on exactly `body`,
+    `edited_at`, `deleted_at`, `deleted_by`; it has no `DELETE`; the worker role has nothing.
+  - `test_page_notes_schema.py`: a body of 1 and of 2,000 characters is stored; an empty body, a body of
+    2,001 characters, `" x"` and `"x "` are each refused by the check; `deleted_at` without `deleted_by`
+    (and the reverse) is refused; a note for a URL id that does not exist is refused; deleting the project
+    removes its notes; as the API role, `DELETE FROM core.page_notes` and
+    `UPDATE core.page_notes SET author_id = …` are refused with a permission error; a second workspace's
+    session sees no row of the first (row-level security).
+
+- [ ] **Step 3: Run, expect failures.**
+  `uv run pytest -n 0 --no-cov tests/db/test_page_notes_schema.py tests/db/test_tables.py tests/db/test_grants.py`
+
+- [ ] **Step 4: Implement.** The migration:
+
+```python
+"""Notes on a page (Pages spec 9.7, decision D15).
+
+A note belongs to a project and an address (`core.urls`), not to a crawl's page row, so it stays
+when the site is crawled again and exists for an address that redirects or errors. The API adds
+a note, changes its body and marks it deleted (`deleted_at`, `deleted_by`); no role may delete a
+row, so Undo is one update and the audit log can always name the note. The worker does not read it.
+
+Revision ID: 0042
+Revises: 0041
+"""
+```
+
+  with the table and the index of spec 9.7.1 as one string, then
+
+```python
+def upgrade() -> None:
+    for statement in statements(_TABLE):
+        op.execute(statement)
+    for statement in tenant_isolation("core.page_notes"):
+        op.execute(statement)
+    for statement in (
+        *grants("core.page_notes", api="SELECT, INSERT"),
+        column_grant(
+            "core.page_notes",
+            role="app_api",
+            privilege="UPDATE",
+            columns=("body", "edited_at", "deleted_at", "deleted_by"),
+        ),
+    ):
+        op.execute(statement)
+
+
+def downgrade() -> None:
+    # Local development only: the notes are lost.
+    op.execute("DROP TABLE core.page_notes")
+```
+
+  `tables.py`: `page_notes = Table("page_notes", metadata, …, schema="core")` with the ten columns, the
+  foreign keys and `server_default=FetchedValue()` where the database sets the value, placed after
+  `page_terms`. `docs/04-data-model.md`: a new "### 5.4 Page notes" after section 5.3 with the `CREATE TABLE`
+  of the migration and four sentences: what a note is, why the key is the address and not a crawl row, that
+  a delete is soft and nobody may delete a row, and who reads and writes (API only).
+
+- [ ] **Step 5: Run the tests of step 3 and** `uv run pytest -n 0 --no-cov tests/db/test_migrations.py tests/db/test_rls.py tests/db/test_ddl.py`.
+  Expect pass. Then:
+
+```bash
+uv run ruff check src/idraft/db/migrations/versions/0042_page_notes.py src/idraft/db/tables.py tests/db/test_page_notes_schema.py tests/db/support.py tests/db/test_tables.py tests/db/test_grants.py
+uv run ruff format --check src/idraft/db/migrations/versions/0042_page_notes.py src/idraft/db/tables.py tests/db/test_page_notes_schema.py tests/db/support.py tests/db/test_tables.py tests/db/test_grants.py
+uv run mypy src/idraft/db tests/db/test_page_notes_schema.py
+uv run lint-imports
+```
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages: the table of notes on a page"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: the migration
+  follows `0038` (raw SQL, the helpers, a `downgrade`), revises the latest revision and changes no other
+  table; the key is `core.urls.id`, never a crawl page; row-level security is on and tested from a second
+  workspace; the API role cannot delete a row or change `author_id`, `url_id`, `project_id`, `workspace_id`
+  or `created_at`; the body check is in the database, not only in the API; the index serves "the notes of
+  one page, newest first, not deleted"; `tables.py` and the SQL agree column by column; the data model
+  document has the table; no dash in the SQL comments or the docstring.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 5e: The note reads and writes, audited, and the count on the page detail
+
+Spec 9.7.2, decision D16. Contracts C4, C7.
+
+**Files:**
+- Create: `backend/src/idraft/api/schemas/page_notes.py`, `backend/src/idraft/api/internal_links/page_notes.py`,
+  `page_note_routes.py`
+- Modify: `backend/src/idraft/api/audit.py` (four actions), `backend/src/idraft/api/main.py` and
+  `backend/src/idraft/api/resources.py` (the service and its router)
+- Modify: `backend/src/idraft/api/schemas/internal_links.py` (`PageDetail.notes_count`),
+  `backend/src/idraft/api/internal_links/reads.py` (`page_detail`)
+- Modify: `backend/tests/api/test_route_access.py`
+- Create: `backend/tests/api/internal_links/test_page_notes.py`
+- Modify: `backend/openapi/v1.json`, `docs/19-api-specification.md`, `docs/24-security.md`
+
+- [ ] **Step 1: Read first.** `api/internal_links/page_tiers.py` (a project write service: the constructor,
+  `workspace_transaction`, `audit.record` inside the transaction, `RequestInfo`), `page_tier_routes.py` (the
+  router, the `Annotated` dependencies, how `RequestInfo` reaches a write, a `204`), `api/audit.py`
+  (`AuditAction`, `record`, `Snapshot`), `api/pagination.py` (`Cursor`, `encode_cursor`, `decode_cursor`,
+  `cursor_instant`, `CursorPageInfo`) and one service that pages by `(created_at, id)` with them
+  (`grep -rln "encode_cursor" backend/src/idraft/api`), `api/workspaces/access.py` (`WorkspaceAccess.role`,
+  `user_id`), `api/permissions.py` (`Role`, `NOTES_WRITE`), how another service returns a user's name
+  (`grep -rn "users.c.name" backend/src/idraft/api | head`), the errors the API raises for 403 and 404
+  (`grep -n "class .*Error" backend/src/idraft/api/errors.py`), `tests/api/internal_links/test_page_tags.py`
+  (a write test with roles and `audit_rows`), and `grep -rn "page_tags.changed" backend` (every place that
+  lists audit actions: each needs the four new ones).
+
+- [ ] **Step 2: Write the failing tests** in `test_page_notes.py` (the crawl of `read_site`; an owner, an
+  admin, two editors and a viewer of the workspace; a member of a second workspace):
+  - an editor adds a note to `/pricing`: `201`, the note has their id and name, the body, `created_at`,
+    `edited_at` null, `can_edit` and `can_delete` true; the list returns it; the page detail has
+    `notes_count` 1;
+  - three notes are listed newest first; with `limit=2` the first page has two and a `next_cursor`, the
+    second page the third; two notes with the same `created_at` (set by an update in the test) are each
+    listed once across pages; `meta.total` is 3; `limit=0` and `limit=101` are `422`;
+  - the body: `"  a\r\nb  "` is stored as `"a\nb"`; 2,000 characters pass and 2,001 are `422`; `""`, `"   "`
+    and a body with `"\x00"` are `422`; `"<b>x</b> & <script>"` comes back character for character;
+  - change: the author changes the body, `edited_at` is set and `created_at` is not touched; sending the
+    same body again leaves `edited_at` as it was; the other editor, the admin and the owner each get `403`;
+    the viewer gets `403`;
+  - delete: the author gets `204`; the note is gone from the list and from `notes_count` and its row has
+    `deleted_at` and `deleted_by`; a second delete is `404`; the other editor gets `403`; the admin and the
+    owner each delete another person's note; the viewer gets `403`;
+  - restore: the one who deleted restores, `200`, the note is back with its first `created_at` and
+    `edited_at`; restoring a note that is not deleted is `404`; another editor restoring is `403`; an admin
+    who deleted an editor's note restores it;
+  - reading: the viewer lists notes with `can_edit` and `can_delete` false; an editor sees `can_edit` false
+    and `can_delete` false on another editor's note; an admin sees `can_edit` false and `can_delete` true
+    on it;
+  - the address: a `url_id` no crawl of the project holds is `404` for the list and for a create; a
+    `url_id` that is not digits is `422`; a note id that belongs to another page is `404` on change, delete
+    and restore; the member of the second workspace gets `404` on all five routes;
+  - across crawls: a note written under the first crawl is listed, and counted on the page detail, after a
+    second crawl is seeded and for `run=<the first crawl>` alike; a note on a page whose status the test
+    then sets to 301 is still listed;
+  - audit: one row each for `page_note.created`, `page_note.updated`, `page_note.deleted` and
+    `page_note.restored`, with `target_type` `page_note`, the note id, the actor, and the bodies in `before`
+    and `after` as spec 9.7.2 says; a refused write (`403`, `422`) leaves no audit row and no change;
+  - the page detail of a page without notes has `notes_count` 0.
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.**
+  `schemas/page_notes.py`: the classes of C7. `PageNoteWrite.body` has a `field_validator` that replaces
+  `"\r\n"` with `"\n"`, strips, and raises `ValueError` with a plain sentence when the result is empty,
+  longer than `NOTE_MAX` or holds `"\x00"`.
+  `audit.py`: the four actions in `AuditAction`, after `page_tags.changed`.
+  `internal_links/page_notes.py`:
+
+```python
+class PageNoteService:
+    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None: ...
+
+    async def list(
+        self, access: WorkspaceAccess, project_id: UUID, url_id: int, *, cursor: str | None, limit: int
+    ) -> PageNoteList: ...
+    async def create(
+        self, access: WorkspaceAccess, project_id: UUID, url_id: int, body: PageNoteWrite, info: RequestInfo
+    ) -> PageNote: ...
+    async def update(
+        self, access: WorkspaceAccess, project_id: UUID, url_id: int, note_id: UUID, body: PageNoteWrite,
+        info: RequestInfo,
+    ) -> PageNote: ...
+    async def delete(
+        self, access: WorkspaceAccess, project_id: UUID, url_id: int, note_id: UUID, info: RequestInfo
+    ) -> None: ...
+    async def restore(
+        self, access: WorkspaceAccess, project_id: UUID, url_id: int, note_id: UUID, info: RequestInfo
+    ) -> PageNote: ...
+
+
+async def notes_count(db: AsyncSession, workspace_id: UUID, project_id: UUID, url_id: int) -> int: ...
+```
+
+  - Every method runs in one `workspace_transaction` and every statement names the workspace and the
+    project. A project the caller may not see (`access.sees(project_id)` false) is `404`, as the
+    other project services answer it (follow `page_tiers.py`). First `_require_page`: `NotFoundError` unless a crawl page of this project has the `url_id`
+    (`crawl_pages` joined to `crawl_runs` on the run, the run's `project_id`, `LIMIT 1`).
+  - `list`: `page_notes` joined to `users` for the name, `deleted_at IS NULL`, ordered
+    `created_at DESC, id DESC`, `limit + 1` rows, the cursor over `(created_at, id)` with `encode_cursor` and
+    `decode_cursor` (scope: the project and the page), `total` from a count.
+  - `_may_delete(access, author_id)`: the author, or `access.role in (Role.OWNER, Role.ADMIN)`.
+    `can_edit` is `access.holds(Permission.NOTES_WRITE)` and the caller is
+    the author; `can_delete` is the permission and `_may_delete`.
+  - `update`: select the note `FOR UPDATE` (404 when absent, deleted, or of another page); the specific
+    forbidden error unless the caller is the author; when the body differs, update `body` and
+    `edited_at = now()` and record `page_note.updated` with both bodies; when it is the same, change and
+    record nothing.
+  - `delete`: 404 when absent or already deleted; forbidden unless `_may_delete`; set `deleted_at = now()`
+    and `deleted_by`; record `page_note.deleted`.
+  - `restore`: 404 unless the note is deleted; forbidden unless `deleted_by` is the caller; clear both
+    columns; record `page_note.restored`.
+  `page_note_routes.py`: a router with the prefix of C7 and `tags=["internal-links"]`; `ReadData` for the
+  list, `WriteNotes = Annotated[WorkspaceAccess, Depends(require_permission(Permission.NOTES_WRITE))]` for
+  the four writes; `UrlIdPath` for the page; `Cursor` for the list and `limit` as
+  `Annotated[int, Query(ge=1, le=100)] = 50`; summaries in plain words ("One page: its notes, newest first",
+  "Add a note to a page", "Change your note", "Delete a note", "Bring a deleted note back").
+  `resources.py` and `main.py`: `page_notes: PageNoteService`, built and its router included beside
+  `page_tier_routes_router`.
+  `schemas/internal_links.py`: `notes_count: int = 0` on `PageDetail`, with a `Field` description "Notes on
+  this address that are not deleted (they stay across crawls)". `reads.py` `page_detail`: one more
+  statement, `notes_count(db, scope.workspace_id, project_id, url_id)`.
+  `test_route_access.py`: the five rows (`GET` `data:read`, the four writes `notes:write`).
+  `docs/19-api-specification.md`: in the paragraph that lists `GET` and `POST {P}/notes`, one sentence that
+  the same permission guards the notes of a page and where they are. `docs/24-security.md`: the
+  `notes:write` row reads "add and delete notes on a project's charts, and write notes on a page".
+
+- [ ] **Step 5: Run the tests, expect pass. Regenerate the OpenAPI document. Run the backend commands**, with
+  `src/idraft/api/audit.py src/idraft/api/main.py src/idraft/api/resources.py` added to ruff and mypy, and
+
+```bash
+uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_notes.py tests/api/internal_links/test_reads_pages.py tests/api/test_audit.py tests/api/test_openapi.py tests/api/test_route_access.py
+```
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages API: notes on a page, with audit entries and the count on the page detail"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: author-only
+  enforcement is on the server and tested for every other role (editor, admin, owner, viewer) on change,
+  and the delete rule (author, owner, admin) likewise; `can_edit` and `can_delete` say exactly what the
+  writes allow; a delete is soft and no statement deletes a row; restore is only for the one who deleted
+  and only for a deleted note; the body is stored as written (trimmed, line breaks kept) and nothing
+  escapes, renders or strips markup on the server; the page check stops notes on addresses of other
+  projects; every statement names the workspace and the project; each write and its audit entry are in one
+  transaction, and a refused write records nothing; the audit snapshots hold what spec 9.7.2 lists; the
+  cursor is stable over equal instants; `notes_count` does not count deleted notes and does not depend on
+  the crawl in view; the chart notes routes (`api/notes/`) are untouched.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
 ### Task 6 (Haiku): Regenerate the web client, alone in its commit
 
 - [ ] **Step 1:**
@@ -1207,13 +1525,15 @@ git add src/lib/api/schema.ts
 git commit -m "Regenerate the API client for the Pages routes"
 ```
 
-  Run it after Task 5c, so one regeneration covers Tasks 1 to 5c.
+  Run it after Task 5e, so one regeneration covers Tasks 1 to 5e.
   Expected: `schema.ts` gains the paths `…/internal-links/overview`, `…/internal-links/pages/{url_id}/search`
   and `…/internal-links/pages/{url_id}/outline`, the schemas `PagesOverview`, `PageSearchDaily`, `PageOutline`
-  and `PageOutlineBody`, and `filter[view]`, `filter[folder]`, `filter[depth]` on the pages list. `pnpm typecheck` passes. If it fails, stop and report: do not edit `schema.ts` by hand.
+  and `PageOutlineBody`, `PageNote`, `PageNoteList` and `PageNoteWrite`, the five note paths under
+  `…/internal-links/pages/{url_id}/notes`, `notes_count?: number` on `PageDetail`, and `filter[view]`,
+  `filter[folder]`, `filter[depth]` on the pages list. `pnpm typecheck` passes. If it fails, stop and report: do not edit `schema.ts` by hand.
 
 - [ ] **Step 2: Independent senior review (Sonnet subagent).** The commit holds `schema.ts` only, and its
-  diff is only additions that the backend commits of Tasks 1 to 5c explain.
+  diff is only additions that the backend commits of Tasks 1 to 5e explain.
 
 - [ ] **Step 3: Fix what the review found** (regenerate again, never hand-edit), commit.
 
@@ -1573,7 +1893,8 @@ export function pagesContextOf(context: LinksTabContext): PagesContext;
 ```
 
   `page-drawer-context.ts` holds `PageDrawerContext` exactly as spec 9.2 writes it, and
-  `drawerContextOf(context: LinksTabContext, canWrite: boolean): PageDrawerContext`, whose `hrefs` are built
+  `drawerContextOf(context: LinksTabContext, can: { write: boolean; note: boolean }): PageDrawerContext`
+  (`canWrite` and `canNote` of spec 9.2), whose `hrefs` are built
   with `withQuery(context.hrefOf('/seo/internal-links'), …)`: `journey` is `tab=journey&focus=<id>`,
   `linksFrom` is `tab=links&src=<id>`, `linksTo` is `tab=links&tgt=<id>`; each also carries `run=<id>` when
   the crawl in view is not the latest and `scope=<scope>` when the link scope is not editorial (today's
@@ -1598,7 +1919,8 @@ export function pagesContextOf(context: LinksTabContext): PagesContext;
     `taxonomyHref` is `context.hrefs.taxonomy`. `neighbor-section.tsx`: `onViewAll: () => void` becomes
     `viewAllHref: Route` and its button a link.
   - `tabs.ts`: the `pages` entry renders `createElement(PagesTab, { context: pagesContextOf(context) })`.
-    `internal-links-screen.tsx`: passes `drawerContextOf(context, canWrite)` to `PageInspector`.
+    `internal-links-screen.tsx`: passes `drawerContextOf(context, { write: canWrite, note: useCan('notes:write') })`
+    to `PageInspector` (call the hook at the top of the component, beside `canWrite`).
   - Every other caller of `PageInspector` or `NeighborSection` (`grep -rn "PageInspector\|NeighborSection" apps/web/src`)
     is updated the same way.
 
@@ -2455,14 +2777,14 @@ Spec 6.3, 6.4 (cards 7 and 8, the Export paragraph), 10.1. UI task.
 
 ## Part F. Web: the page drawer
 
-The drawer is `PageInspector` on top of the shared `Inspector`. In Tasks 23 to 25c do not edit
+The drawer is `PageInspector` on top of the shared `Inspector`. In Tasks 23 to 25e do not edit
 `components/app/inspector/inspector.tsx`, `inspector-layout.tsx`, `use-inspector.ts` or `lib/inspector/*`;
 call them as they are. The drawer always lies over the table: write nothing about docking or width.
 
-### Task 23: Six tabs
+### Task 23: Seven tabs
 
 Spec 9.1, 9.4 (the first paragraph, and the tabs AI and Links), 11. UI task. (The task was "Five tabs" until
-the owner added Outline on 2026-11-26; its number stays.)
+the owner added Outline and Notes on 2026-11-26; its number stays.)
 
 **Files:**
 - Modify: `docs/glossary/terms.md`, `docs/glossary/final-list.md` (their own commit, first)
@@ -2478,9 +2800,16 @@ the owner added Outline on 2026-11-26; its number stays.)
   versions, sharing tags, structured data and content size."; not to be confused with "Not Issues (the
   checks a page fails, across the site). Not the page's Overview tab."; avoid "Structure, On-page, SEO
   audit, Content outline (as the tab name)"; where "Page drawer tabs"; "Safe"; "Owner decision 2026-11-26".
-  Add the matching line to `final-list.md` and one line to the change log of `terms.md`. If the id `A16` is
-  taken, use the next free one. Commit only these two files:
-  `git commit -m "Glossary: Outline, a tab of the page drawer"`.
+  Two more rows, the same way: `A17`, "Notes (a tab of the page drawer)": "What the team wrote about one
+  page, newest first, each note with its author and the time it was written. Notes belong to the page's
+  address and stay across crawls."; not to be confused with "Not the notes on a chart (a day marked on a
+  chart). Not Issues."; avoid "Comments, Annotations, Remarks, Log (as the tab name)"; where "Page drawer
+  tabs". And in the section of `terms.md` that holds button and action words (find the row of another
+  button, for example "Add keywords"), "Add note": "Saves the text in the note box as a new note on the
+  page."; avoid "Post, Comment, Submit, Save note (for a new note)".
+  Add the matching lines to `final-list.md` and one line per row to the change log of `terms.md`. If an id
+  is taken, use the next free one. Commit only these two files:
+  `git commit -m "Glossary: Outline and Notes, tabs of the page drawer, and Add note"`.
 
 - [ ] **Step 1: Read first.** `components/app/inspector/inspector-tabs.tsx` (`InspectorTabs`,
   `InspectorPanel`), `use-inspector.ts` (`tab`, `setTab`, `DEFAULT_INSPECTOR_TAB`), one tabbed inspector that
@@ -2488,18 +2817,23 @@ the owner added Outline on 2026-11-26; its number stays.)
 
 - [ ] **Step 2: Words** (namespace `pages.drawer`): `tabsLabel` "Page sections"; `tabs.overview` "Overview";
   `tabs.search` "Search"; `tabs.outline` "Outline"; `tabs.issues` "Issues"; `tabs.ai` "AI"; `tabs.links` "Links";
-  `ai.none` "No AI answer cited this page in the last 28 days"; `outline.pending` "The outline of this page
+  `tabs.notes` "Notes"; `tabsMore` "More sections"; `notes.pending` "The notes of this page appear here" (the
+  interim body of this task, removed by Task 25e); `ai.none` "No AI answer cited this page in the last 28 days"; `outline.pending` "The outline of this page
   appears here" (the interim body of this task, removed by Task 25b).
 
 - [ ] **Step 3: Write the failing tests.**
-  - `drawer-tabs.test.ts`: `PAGE_DRAWER_TABS` is `overview`, `search`, `outline`, `issues`, `ai`, `links`;
+  - `drawer-tabs.test.ts`: `PAGE_DRAWER_TABS` is `overview`, `search`, `outline`, `issues`, `ai`, `links`,
+    `notes`; `pageDrawerTab('notes')` is `notes`;
     `pageDrawerTab('links')` is `links`; `pageDrawerTab('nope')` and `pageDrawerTab('overview')` are
     `overview`.
   - `extras-sections.test.tsx`: `parts={['keywords']}` draws only the tracked keywords card; without `parts`
     every card is drawn as today.
-  - `page-inspector.test.tsx`: the drawer has a tab list "Page sections" with the six tabs in order
-    (Overview, Search, Outline, Issues, AI, Links); with no `itab` Overview is selected; `itab=links` selects
-    Links and `itab=outline` selects Outline; choosing a tab writes `itab` (and removes it
+  - `page-inspector.test.tsx`: the drawer has a tab list "Page sections" with the seven tabs in order
+    (Overview, Search, Outline, Issues, AI, Links, Notes); with no `itab` Overview is selected; `itab=links`
+    selects Links, `itab=outline` selects Outline and `itab=notes` selects Notes; the tab row is given the
+    More button's name "More sections" (`overflowLabel`), and a tab chosen from the More menu is selected and
+    written to `itab` like any other (read `components/ui/tabs.tsx` and its test for how the overflow is
+    measured and how a test makes tabs overflow); choosing a tab writes `itab` (and removes it
     for Overview) without a history entry; an unknown `itab` shows Overview; the Links tab holds the strip
     (depth, links in, links out), linking pages by tier and by placement, the anchors card, the changes
     card, linking pages and outlinks with "View all in Links" as links; the AI tab holds the citations card,
@@ -2510,14 +2844,16 @@ the owner added Outline on 2026-11-26; its number stays.)
     the Search tab holds the tracked keywords card and the Google card and the Issues tab holds the flags
     section: the tests of this task assert only that each existing section is in exactly one tab or in the
     tabs this list names. Until Task 25b the Outline tab holds one line, `outline.pending`, and no section
-    of the old inspector; this task asserts only that the tab exists, is third and can be selected.
+    of the old inspector; this task asserts only that the tab exists, is third and can be selected. Until
+    Task 25e the Notes tab holds one line, `notes.pending`; this task asserts only that it exists, is last
+    and can be selected.
 
 - [ ] **Step 4: Run, expect failures.**
 
 - [ ] **Step 5: Implement.** `drawer-tabs.ts`:
 
 ```ts
-export const PAGE_DRAWER_TABS = ['overview', 'search', 'outline', 'issues', 'ai', 'links'] as const;
+export const PAGE_DRAWER_TABS = ['overview', 'search', 'outline', 'issues', 'ai', 'links', 'notes'] as const;
 export type PageDrawerTab = (typeof PAGE_DRAWER_TABS)[number];
 export const pageDrawerTab = (value: string): PageDrawerTab;
 ```
@@ -2533,12 +2869,14 @@ export const pageDrawerTab = (value: string): PageDrawerTab;
   `src/features/internal-links/journey/journey-tab.test.tsx` and `internal-links-screen.test.tsx` (they open
   the drawer). Expect pass. Run the web commands and the two message tests.
 
-- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the tabs Overview, Search, Outline, Issues, AI and Links"`.
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the tabs Overview, Search, Outline, Issues, AI, Links and Notes"`.
 
 - [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: nothing of the old
   inspector was dropped (list its sections from `git show HEAD~1:apps/web/src/features/internal-links/inspector/page-inspector.tsx`
-  and find each in a tab); the tab order is the owner's (Overview, Search, Outline, Issues, AI, Links: six
-  tabs, within the six the tab row holds without a More menu); the glossary commit came first and holds only
+  and find each in a tab); the tab order is the owner's (Overview, Search, Outline, Issues, AI, Links, Notes);
+  seven tabs pass the six the tab row is written for, so `overflowLabel` is set and the reviewer reads in
+  `components/ui/tabs.tsx` that the last tabs, not the first, move into More, and that every tab stays
+  reachable with the keyboard at the drawer's least width; the glossary commit came first and holds only
   the two glossary files; the tab is in the address; the drawer still opens
   from every tab of Internal links; no shared drawer file in the diff; no width or docking code.
 
@@ -2694,7 +3032,8 @@ Spec 9.4 (Search, Issues), 9.5, 10.1, 10.3. UI task.
     `hrefs.issueCheck` gives one and absent when it gives `null`; `ready` with none: `issues.none`; `error`:
     the inline error with retry;
   - the Google card of the old inspector is gone from every tab (its numbers are the Search tab's);
-  - the Outline tab is untouched by this task: it still sits between Search and Issues.
+  - the Outline and Notes tabs are untouched by this task: Outline still sits between Search and Issues and
+    Notes is last.
 
 - [ ] **Step 4: Run, expect failures.**
 
@@ -3072,6 +3411,254 @@ Spec 9.6.3 (Languages, Social sharing, Structured data, Content), 9.6.1 (what is
 
 - [ ] **Step 9: Fix what the review found**, rerun, commit.
 
+### Task 25d: Notes on the web: types, reads, writes, drafts and the mocked API
+
+Spec 9.7.2, 9.7.3 (the first paragraph and the draft rule). Contracts C5, C7. No visible change.
+
+**Files:**
+- Modify: `apps/web/src/lib/internal-links/types.ts`, `queries.ts`, `queries.test.ts`
+- Create: `apps/web/src/lib/pages/notes.ts`, `notes.test.tsx`, `note-drafts.ts`, `note-drafts.test.ts`
+- Create: `apps/web/src/mocks/internal-links-notes.ts`, `internal-links-notes.test.ts`
+- Modify: `apps/web/src/mocks/handlers/internal-links.ts`, `handlers/internal-links.test.ts`,
+  `apps/web/src/mocks/internal-links-world.ts` (the page detail's `notes_count`)
+
+- [ ] **Step 1: Read first.** `lib/internal-links/queries.ts` (`pageDetailQuery`, `internalLinksKeys`, how a
+  cursor read is written: `grep -n "cursor" src/lib/internal-links/queries.ts`), one write hook of the
+  feature with its invalidation (`grep -rn "useMutation" src/features/internal-links src/lib/internal-links | head`),
+  the API client's call for `POST`, `PATCH` and `DELETE` (`src/lib/api`), the mock world's users and roles
+  (`mocks/internal-links-world.ts`, and how a handler knows the caller: `projectCaller`), the handler of
+  `pages/{url_id}` (line 791 of `mocks/handlers/internal-links.ts`).
+
+- [ ] **Step 2: Write the failing tests.**
+  - `queries.test.ts`: `pageNotesQuery(scope, '108')` has a key that starts with the project key and
+    `'internal-links'` and holds `'notes'` and the page; `pageNotesQuery(scope, 'abc')` throws `UrlIdError`.
+  - `note-drafts.test.ts`: `noteDraft(scope, '108')` is `''` at first; after `setNoteDraft(scope, '108', 'x')`
+    it is `'x'` for that project and page and `''` for another page and for another project; setting `''`
+    and `clearNoteDraft` both remove it; nothing is written to `localStorage` or `sessionStorage`.
+  - `internal-links-notes.test.ts` (the mock store): seeded notes for two pages, newest first; `add` puts a
+    note first with the caller as author; `change` by the author sets `edited_at`, by another user answers
+    forbidden; `remove` by the author or an admin hides it and `restore` by the one who removed it brings it
+    back in its place; `countOf(page)` leaves removed notes out; a body is trimmed and one over 2,000
+    characters or empty is refused.
+  - `handlers/internal-links.test.ts`: the five routes answer as spec 9.7.2 (201, 200, 204, 200; `403` for a
+    viewer's write and for another editor's change; `404` for an unknown page or note; `422` for an empty
+    body); the list is cursor paged with `limit`; the page detail's `notes_count` follows the writes;
+    `can_edit` and `can_delete` follow the caller.
+  - `notes.test.tsx` (`renderHook` in the providers, the mocked API): `usePageNotes(scope, '108', true)`
+    answers `loading`, then `ready` with the notes, `total`, `hasMore` and `loadMore`; with `enabled` false
+    it sends nothing; a 500 gives `error` with a working `retry`. `usePageNoteWrites(scope, '108')`:
+    `add('x')` resolves with the note, and afterwards the list holds it and the page detail query of that
+    page was invalidated (its `notes_count` is one more); `change`, `remove` and `restore` likewise; a
+    refused write rejects with the API's error and the list is unchanged; `pending` is true while a write
+    runs.
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.**
+  `types.ts`: `export type PageNote = Schemas['PageNote'];`. `queries.ts`: the path constants
+  `PAGE_NOTES` and `PAGE_NOTE` (`…/pages/{url_id}/notes` and `…/notes/{note_id}`), `pageNotesQuery(scope,
+  urlId)` written as the feature's other cursor read (an infinite query when that is how the feature pages
+  a "show more" list; otherwise the first page and a `cursor` argument), its key under the project's
+  `'internal-links'` key so `internalLinksKeys` reaches it.
+  `note-drafts.ts`:
+
+```ts
+/** Text typed into a page's note box and not saved yet. In memory only: it lives as long as the browser tab. */
+export function noteDraft(scope: LinksScope, urlId: string): string;
+export function setNoteDraft(scope: LinksScope, urlId: string, text: string): void;
+export function clearNoteDraft(scope: LinksScope, urlId: string): void;
+```
+
+  one module-level `Map` keyed by workspace, project and page.
+  `notes.ts`:
+
+```ts
+export const NOTE_MAX = 2000;
+/** From this length on the box shows its count. */
+export const NOTE_COUNT_FROM = 1800;
+export type NotesRead =
+  | { state: 'loading' }
+  | { state: 'error'; retry: () => void }
+  | { state: 'ready'; notes: readonly PageNote[]; total: number; hasMore: boolean; loadMore: () => void; loadingMore: boolean };
+export function usePageNotes(scope: LinksScope, urlId: string, enabled: boolean): NotesRead;
+export interface PageNoteWrites {
+  add: (body: string) => Promise<PageNote>;
+  change: (noteId: string, body: string) => Promise<PageNote>;
+  remove: (noteId: string) => Promise<void>;
+  restore: (noteId: string) => Promise<PageNote>;
+  pending: boolean;
+}
+export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWrites;
+```
+
+  Each write invalidates the notes of the page and the page detail of that page (every crawl: match the
+  detail key by its page, not by its run), and nothing else.
+  `mocks/internal-links-notes.ts`: an in-memory store per project (`notesOf`, `add`, `change`, `remove`,
+  `restore`, `countOf`, `resetNotes` for the tests), seeded with three notes on one live page and one on the
+  home page, by two users of the mock world, one of them edited; dates fixed, not `Date.now()`, for the
+  seed. The handlers: five `mock(…)` entries with `projectCaller` (`data:read` for the list, `notes:write`
+  for the writes) and the rules of the store. The mocked page detail sets `notes_count` from `countOf`.
+
+- [ ] **Step 5: Run the tests, expect pass. Run the web commands** on the files of this task, and
+  `pnpm exec vitest run --maxWorkers=1 src/mocks/internal-links-world.test.ts src/features/internal-links/inspector`.
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages: notes on a page, their reads, writes, drafts and mocked API"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: no hand-written
+  copy of a response type; the query keys and what each write invalidates (the notes and the page detail,
+  not the whole feature); the draft store is memory only and keyed by project and page; the mock enforces
+  the same rules as the API (author only, soft delete, restore by the one who deleted, the body limits), so
+  a UI test cannot pass against rules the server does not have; no user id is compared on the web
+  (`can_edit` and `can_delete` are the API's).
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 25e: The drawer's Notes tab
+
+Spec 9.7.3, 9.4 (the count on the tab), 11. Contracts C5, C7. UI task.
+
+**Files:**
+- Create: `apps/web/src/features/internal-links/inspector/drawer-notes-tab.tsx`, `note-editor.tsx`,
+  `note-item.tsx`, `drawer-notes-tab.test.tsx`
+- Modify: `apps/web/src/features/internal-links/inspector/page-inspector.tsx`, `page-inspector.test.tsx`
+- Modify: `apps/web/messages/en.json`
+
+- [ ] **Step 1: Read first.** Spec 9.7.3 whole. `lib/pages/notes.ts`, `note-drafts.ts`,
+  `components/ui/textarea.tsx`, `field.tsx` (how a field ties its hint with `aria-describedby`),
+  `icon-button.tsx`, `tooltip.tsx`, `avatar.tsx`, `toast.tsx` (`toast({ type, title, action })`),
+  `lib/a11y/announcer.ts` (`announce`), `lib/format/date.ts` (`formatDetailDateTime`, `browserTimeZone`),
+  `components/ui/tabs.tsx` (`TabItem.count`), and `components/app/inspector/inspector.tsx` lines 110 to 140:
+  the drawer closes on Escape through a native `keydown` listener on its card and skips an event that is
+  `defaultPrevented`. A React `onKeyDown` runs after that listener, so it cannot stop it; the edit box needs
+  a native listener on the `textarea` itself. Do not edit that file.
+
+- [ ] **Step 2: Words** (namespace `pages.drawer.notes`). `tabs.notes` exists (Task 23); remove
+  `notes.pending`.
+
+| Key | Text |
+|---|---|
+| `tabCount` | {count, plural, one {# note} other {# notes}} |
+| `addLabel` | Add a note to {path} |
+| `placeholder` | What changed on this page, what is planned, what to check later |
+| `add` | Add note |
+| `save` | Save |
+| `cancel` | Cancel |
+| `hint` | Cmd or Ctrl + Enter saves |
+| `count` | {count} of {max} |
+| `listLabel` | Notes, newest first |
+| `edited` | edited |
+| `editedAt` | Edited {when} |
+| `edit` | Edit note |
+| `editLabel` | Edit your note |
+| `delete` | Delete note |
+| `showOlder` | Show older notes |
+| `empty` | No notes on this page yet. |
+| `emptyWhy` | Write down what you changed and when, so the next drop or rise in its numbers has a reason beside it. |
+| `footer` | Everyone in this workspace can read these notes. They stay with this address when the site is crawled again. |
+| `loadFailed` | The notes of this page could not be loaded |
+| `added` | Note added |
+| `saved` | Note saved |
+| `deleted` | Note deleted |
+| `restored` | Note restored |
+| `undo` | Undo |
+| `addFailed` | The note could not be added. Your text is still in the box. |
+| `saveFailed` | The note could not be saved. Your text is still in the box. |
+| `deleteFailed` | The note could not be deleted |
+| `restoreFailed` | The note could not be restored |
+
+- [ ] **Step 3: Write the failing tests** in `drawer-notes-tab.test.tsx` (the tab inside the real `Inspector`
+  and the providers, the mocked API of Task 25d, an editor unless the case says otherwise):
+  - the box is a `textarea` with the accessible name "Add a note to /pricing", `maxLength` 2000, described
+    by the hint; "Add note" is disabled while the text is empty or only spaces;
+  - typing a note and pressing "Add note" sends it trimmed; the note is first in the list; the box is empty
+    and has the focus; "Note added" is announced (spy on `announce`); the same with Ctrl + Enter and with
+    Meta + Enter; Enter alone adds a line and sends nothing;
+  - the count appears from 1,800 characters ("1,800 of 2,000") and not below;
+  - the draft: type "half a thought", select another tab and come back (unmount and mount the tab): the
+    text is in the box; step to another page: its box is empty; step back: the text is there; after a save
+    the draft is gone;
+  - the list is an `ol` named "Notes, newest first"; each item shows the author's name, a `time` element
+    whose `dateTime` is the note's instant and whose text is `formatDetailDateTime` of it in the browser's
+    time zone, and the body; a body of two lines keeps its line break (the element has the pre-wrap class
+    and its text content holds the `\n`); an edited note shows "edited", whose accessible description is
+    "Edited" and that time;
+  - a body `<img src=x onerror=alert(1)>` and a body `<a href="https://x.test">x</a>` are in the document
+    as those characters; the list holds no `img` and no link;
+  - "Edit note" and "Delete note" are on the caller's own notes only; a viewer (no `notes:write`) sees the
+    list, no box, no button, and of the empty state only its first sentence; an admin sees "Delete note"
+    and no "Edit note" on another person's note;
+  - edit: pressing "Edit note" turns the body into a box named "Edit your note" holding the text, with
+    Save and Cancel; changing it and pressing Save shows the new text and "edited", announces "Note saved"
+    and returns the focus to that note's Edit button; Ctrl + Enter saves too; Save is disabled for an empty
+    text; saving the unchanged text sends no request; only one note is in edit at a time;
+  - Escape in the edit box cancels the edit, the first text is back, the focus is on the Edit button and the
+    drawer is still open (the `onClose` of the `Inspector` was not called); Escape in the add box closes the
+    drawer and the draft is kept; typing "j" and "k" in either box types the letters and does not step to
+    another page;
+  - delete: the note leaves the list, the tab's count goes down, a toast "Note deleted" with "Undo" shows
+    and "Note deleted" is announced; pressing Undo brings the note back in its place with its first time
+    and announces "Note restored"; the focus after a delete is in the add box;
+  - a failed add (the mock answers 500) keeps the text in the box, shows the error toast `addFailed` and
+    announces nothing as done; a failed save keeps the edit box open with the text;
+  - empty: both sentences for an editor; the footer line is always last;
+  - loading shows a skeleton; a failed list shows `loadFailed` with a Retry that works; "Show older notes"
+    appears with more than one page (seed 51 notes) and adds the next page, the focus staying on the button
+    or, when it goes, on the first new note;
+  - `axe` finds nothing with notes, in edit, and empty.
+  `page-inspector.test.tsx`: the Notes tab reads "Notes" with the count 3 for the seeded page (the count's
+  accessible text is "3 notes") and has no count for a page without notes; the count comes from the page
+  detail, with no notes request before the tab is selected; the tab is there for a redirect and for a 404
+  row.
+
+- [ ] **Step 4: Run, expect failures.**
+  `pnpm exec vitest run --maxWorkers=1 src/features/internal-links/inspector/drawer-notes-tab.test.tsx`
+
+- [ ] **Step 5: Implement.**
+  `note-editor.tsx`: `NoteEditor({ label, value, onChange, onSave, onCancel, saveLabel, pending, autoFocus })`:
+  the `Textarea` with `aria-label`, `maxLength={NOTE_MAX}`, `aria-describedby` the hint and the count; the
+  row under it: the primary small button (disabled while `value.trim() === ''` or `pending`), Cancel when
+  `onCancel` is given, the hint, and the count from `NOTE_COUNT_FROM`. Keys through one native `keydown`
+  listener on the `textarea` (a ref and an effect): Enter with `metaKey` or `ctrlKey` saves and is
+  prevented; Escape, only when `onCancel` is given, calls `preventDefault()` and `stopPropagation()` and
+  then `onCancel` (one comment says why it is native: the drawer's own Escape listener sits on its card
+  and runs before React's). Nothing else is stopped, so letters are typed as letters.
+  `note-item.tsx`: one `li`: `Avatar` from the author's name with `aria-hidden`, the name, the `time`, the
+  word "edited" inside a `Tooltip` and with `aria-description` or a visually hidden text carrying the same
+  sentence, the two `IconButton`s where `can_edit` and `can_delete` say so, and the body as
+  `<p className="whitespace-pre-wrap break-words">{note.body}</p>`; in edit, a `NoteEditor` in place of the
+  body. The body is a text child only: no `dangerouslySetInnerHTML`, no linkifying.
+  `drawer-notes-tab.tsx`: `usePageNotes(scope, urlId, active)`, `usePageNoteWrites(scope, urlId)`; the add
+  box (only with `context.canNote`) whose value is `noteDraft` in a `useState` started from the store and
+  written back on every change, cleared after a save; `editing: string | null`; the handlers call the
+  writes, then `announce` and, for a delete, `toast({ type: 'success', title: t('deleted'), action: { label:
+  t('undo'), onAction: restore } })`; a failed write shows `toast({ type: 'error', … })` and keeps the text;
+  focus is moved with refs after each write as the tests say; the list, "Show older notes", the empty
+  state, the footer.
+  `page-inspector.tsx`: the Notes panel renders the tab; the Notes item of the tab row gets
+  `count: formatNumber(detail.notes_count)` (the number formatter of `@/lib/format`) when
+  `(detail.notes_count ?? 0) > 0`, and the tab's accessible name carries `tabCount` if `TabItem.count` does
+  not already read as a number of notes (read `tabs.tsx`; do not change it).
+
+- [ ] **Step 6: Run** `src/features/internal-links/inspector`, expect pass. Run the web commands and the two
+  message tests (`src/i18n/messages.test.ts src/lib/glossary/glossary-words.test.ts`).
+
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the Notes tab, with add, edit, delete and undo"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: the body is rendered
+  as text (search the diff for `dangerouslySetInnerHTML`, `innerHTML` and any link built from a note; the
+  injection test would fail without that); author-only controls follow `can_edit` and `can_delete` and the
+  server still refuses when they are forced (Task 5e's tests); delete is followed by a working Undo and no
+  confirm dialog; the draft survives a tab switch and a step and is cleared only by a save; Escape in the
+  edit box cancels the edit and leaves the drawer open, proven against the real `Inspector`, with no shared
+  drawer file in the diff; J and K type letters in the boxes; the `textarea` has a name, its hint and count
+  are its description, the icon buttons have names; every write is announced once and a failed write is
+  not announced as done; "edited" gives its time to assistive technology, not only in a tooltip; times are
+  in a `time` element, in the viewer's time zone, through the app's formatter (no `Intl` or `toLocale` call
+  in the feature); focus after add, save, cancel, delete and undo; the tab's count comes from the page
+  detail; glossary words ("Notes", "Add note", never "comment").
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
 ---
 
 ## Part G. Words and the final checks
@@ -3099,8 +3686,9 @@ node -e "const m=require('./messages/en.json');const w=(o,p=[])=>Object.entries(
 
 - [ ] **Step 3: Read `docs/glossary/terms.md` rows A5, A12 and A15 and `final-list.md`.** They were written
   in commit afc686bf. Confirm the visible strings use "Pages", "All pages", "Overview", "Tracked",
-  "Parameter variant", "Orphan page", "Untiered", "Linking pages", "Outlinks", "Best rank", "Outline" as those
-  files write them, and that the Outline's strings say "the latest crawl", "alt text", "Open Graph" and
+  "Parameter variant", "Orphan page", "Untiered", "Linking pages", "Outlinks", "Best rank", "Outline", "Notes",
+  "Add note" as those files write them, that no string under `pages.drawer.notes` says "comment", "post" or
+  "annotation", and that the Outline's strings say "the latest crawl", "alt text", "Open Graph" and
   "X card" the same way everywhere. Report a mismatch; fix the string, not the glossary.
 
 - [ ] **Step 4: Commit** only if something changed:
@@ -3128,6 +3716,10 @@ uv run ruff format --check src/idraft/api/internal_links src/idraft/api/schemas 
 uv run mypy src/idraft/api/internal_links src/idraft/api/schemas src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py src/idraft/storage/raw.py src/idraft/api/main.py tests/api/internal_links tests/crawl/test_outline.py
 uv run lint-imports
 uv run pytest -n 0 --no-cov tests/crawl/test_outline.py
+uv run ruff check src/idraft/db/tables.py src/idraft/db/migrations/versions/0042_page_notes.py src/idraft/api/audit.py src/idraft/api/resources.py tests/db/test_page_notes_schema.py
+uv run mypy src/idraft/db src/idraft/api/audit.py src/idraft/api/resources.py
+uv run pytest -n 0 --no-cov tests/db/test_page_notes_schema.py tests/db/test_tables.py tests/db/test_grants.py tests/db/test_rls.py tests/db/test_migrations.py
+uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_notes.py tests/api/test_audit.py
 uv run pytest -n 0 --no-cov tests/api/internal_links/test_inventory.py tests/api/internal_links/test_page_search.py tests/api/internal_links/test_page_outline.py tests/api/internal_links/test_page_sort_extra.py tests/api/internal_links/test_reads_pages.py tests/api/internal_links/test_variants.py tests/api/test_openapi.py tests/api/test_route_access.py
 uv run python -m idraft.api.openapi | diff - openapi/v1.json
 ```
@@ -3140,11 +3732,11 @@ uv run python -m idraft.api.openapi | diff - openapi/v1.json
 cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all-drawer-f3d1f7/apps/web
 pnpm gen:api && git diff --exit-code src/lib/api/schema.ts
 pnpm typecheck
-pnpm exec eslint --max-warnings 0 src/lib/pages src/lib/internal-links src/lib/routes src/lib/navigation src/features/internal-links src/components/app/data-table src/mocks/handlers/internal-links.ts src/mocks/internal-links-inventory.ts src/mocks/internal-links-outline.ts src/test/pages-harness.tsx "src/app/[workspace]/[project]/seo"
+pnpm exec eslint --max-warnings 0 src/lib/pages src/lib/internal-links src/lib/routes src/lib/navigation src/features/internal-links src/components/app/data-table src/mocks/handlers/internal-links.ts src/mocks/internal-links-inventory.ts src/mocks/internal-links-outline.ts src/mocks/internal-links-notes.ts src/test/pages-harness.tsx "src/app/[workspace]/[project]/seo"
 pnpm exec prettier --check src/lib/pages src/features/internal-links src/components/app/data-table messages/en.json
 pnpm exec vitest run --maxWorkers=1 src/lib/pages
 pnpm exec vitest run --maxWorkers=1 src/lib/internal-links/queries.test.ts src/lib/routes src/lib/navigation
-pnpm exec vitest run --maxWorkers=1 src/mocks/internal-links-inventory.test.ts src/mocks/internal-links-outline.test.ts src/mocks/handlers/internal-links.test.ts
+pnpm exec vitest run --maxWorkers=1 src/mocks/internal-links-inventory.test.ts src/mocks/internal-links-outline.test.ts src/mocks/internal-links-notes.test.ts src/mocks/handlers/internal-links.test.ts
 pnpm exec vitest run --maxWorkers=1 src/components/app/data-table
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/pages-page
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/pages
@@ -3190,6 +3782,9 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
      - The drawer's Outline tab on a live page: four numbers, six blocks, Search listing and Headings open;
        fold and unfold one with the keyboard; "Show all N headings" on the page with 14; a redirect row
        shows its one sentence; no "See in Issues" link is drawn.
+     - The drawer's Notes tab: add a note with Ctrl + Enter, switch tabs with a draft typed and come back,
+       edit a note and press Escape (the drawer stays open), delete it and press Undo; the tab's count
+       follows; at the drawer's least width every tab is reachable (the last ones through More).
      - Overview: every strip number and every card row opens All pages, and the list's total equals the
        number on the mark. Check at least one row of each card.
      - `/seo/internal-links?tab=pages&view=orphans&tier=none` lands on
@@ -3206,7 +3801,8 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 - [ ] **Step 7: Independent senior review (Sonnet subagent).** It is given the whole range
   `git log --oneline a8167b06..HEAD` and `git diff --stat a8167b06..HEAD`, spec sections 13, 14 and 16, and
   the checklist of step 6. It checks: nothing of spec 13 ("Not in this build") was built (for the Outline: no
-  new table, column or cache, and no HTML reader other than `crawl/outline.py`); the only changes
+  new table, column or cache, and no HTML reader other than `crawl/outline.py`; for Notes: no Notes column
+  in All pages, no change to the chart notes routes, one new table and no other); the only changes
   to shared files are the Pages entries of spec 14; every acceptance line has its proof; the commits are in
   the order backend, client, web; no attribution line in any commit message
   (`git log a8167b06..HEAD --format=%B | grep -i "co-authored\|generated with"` prints nothing).
@@ -3221,7 +3817,7 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 
 | Spec section | Tasks |
 |---|---|
-| 3 decisions D1 to D14 | D13 5c; D14 5b; D1 14; D2 16; D3 13, 23; D4 11, 23; D5 23 to 25 (no shared drawer file); D6 18 (pager untouched); D7 3; D8 1, 3, 8, 10; D9 19; D10 20, 22; D11, D12 21 |
+| 3 decisions D1 to D16 | D13 5c; D14 5b; D15 5d; D16 5e; D1 14; D2 16; D3 13, 23; D4 11, 23; D5 23 to 25 (no shared drawer file); D6 18 (pager untouched); D7 3; D8 1, 3, 8, 10; D9 19; D10 20, 22; D11, D12 21 |
 | 4 words | 1 |
 | 5 routes, tabs, redirects, sidebar | 9, 13, 14, 16 |
 | 6 Overview | 3, 8, 10, 13, 21, 22 |
@@ -3229,6 +3825,7 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 | 8 layout and the budget | 13, 18, 19, 27 |
 | 9 drawer | 5, 9, 11, 23 to 25 |
 | 9.6 the Outline tab | 5b (parser), 5c (read), 6 (client), 7 (types, query), 8 (mock), 9 (hook), 23 (tab), 25b, 25c (the tab's body) |
+| 9.7 the Notes tab | 5d (table), 5e (API, audit, count), 6 (client), 11 (`canNote`), 23 (tab, glossary), 25d (reads, writes, drafts, mock), 25e (the tab's body) |
 | 10 seams | 9, 20, 22, 24, 25, 25b, 25c ("See in Issues" through `hrefs.issueCheck`) |
 | 11 words | every UI task, 26 |
 | 12 tests | every task, 27 |
