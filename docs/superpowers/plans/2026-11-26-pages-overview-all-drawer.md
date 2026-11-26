@@ -5,7 +5,7 @@
 > reads "Rules for every task" and "Contracts" below, then its own task. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** The Website audit page Pages of the real app: Overview at `/{workspace}/{project}/seo/pages`, All pages
-at `/seo/pages/all`, and the page drawer with the tabs Overview, Search, Issues, AI and Links.
+at `/seo/pages/all`, and the page drawer with the tabs Overview, Search, Outline, Issues, AI and Links.
 
 **Architecture:** One new backend module (`api/internal_links/inventory.py`) holds the words of spec section 4
 as SQL, once. The Overview read counts with them and the pages list filters with them (`filter[view]`), so a
@@ -13,7 +13,9 @@ mark's number and its list's total come from the same predicate. On the web the 
 inspector of Internal links are not rewritten: they get narrow contexts, move under a new screen
 (`features/internal-links/pages-page/`), and gain the View menu, the column groups and the drawer tabs. Pure
 logic is in `src/lib/pages/`. What other sessions own (issues per page, tracking, the Search Console detail)
-is a typed seam in `src/lib/pages/` that answers `unavailable` on this branch.
+is a typed seam in `src/lib/pages/` that answers `unavailable` on this branch. The drawer's Outline tab (owner
+addition of 2026-11-26, spec 9.6) is one read on demand: a pure parser in `backend/src/idraft/crawl/outline.py`
+reads the page's stored HTML of the latest crawl, and nothing is stored.
 
 **Tech stack:** Python 3.13, FastAPI, SQLAlchemy Core (async), pytest with testcontainers Postgres, `uv`.
 Next.js (App Router), React, TypeScript, TanStack Query, nuqs, next-intl, Tailwind v4 tokens, vitest with Testing
@@ -67,6 +69,7 @@ cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all
 uv run ruff check <the files you changed>
 uv run ruff format --check <the files you changed>
 uv run mypy src/idraft/api/internal_links src/idraft/api/schemas <the test files you changed>
+# Tasks 5b and 5c name their own extra paths (src/idraft/crawl, src/idraft/storage, src/idraft/api/main.py).
 uv run lint-imports
 uv run pytest -n 0 --no-cov <the test files of the task>
 ```
@@ -177,15 +180,17 @@ The web's `sectionOf` in `lib/internal-links/map-graph.ts` is another thing (the
   `-impressions`. `PageFilter` gains `view`, `folder`, `depth` (all optional, default `None`).
 - `GET …/internal-links/overview?run=latest` answering `PagesOverviewResponse` (spec 6.1).
 - `GET …/internal-links/pages/{url_id}/search?run=latest` answering `PageSearchDailyResponse` (spec 9.5).
+- `GET …/internal-links/pages/{url_id}/outline` answering `PageOutlineResponse` (spec 9.6.1, contract C6). It
+  takes no `run`.
 
 ### C5. Web names
 
 | Name | File | Shape |
 |---|---|---|
-| `PageView`, `PagesOverview`, `PageSearchDaily` | `src/lib/internal-links/types.ts` | from the generated client |
+| `PageView`, `PagesOverview`, `PageSearchDaily`, `PageOutline`, `PageOutlineBody` | `src/lib/internal-links/types.ts` | from the generated client |
 | `PAGE_SORTS` | `src/lib/internal-links/page-sorts.ts` | moved from `features/internal-links/url-state.ts`, which re-exports it |
 | `PageQuery` additions | `src/lib/internal-links/queries.ts` | `view: PageView \| null; folder: string \| null; depth: number \| null; includeVariants: boolean` |
-| `overviewQuery(scope, run)`, `pageSearchQuery(scope, urlId, run)` | `src/lib/internal-links/queries.ts` | `apiQuery` options, as `worklistsQuery` |
+| `overviewQuery(scope, run)`, `pageSearchQuery(scope, urlId, run)`, `pageOutlineQuery(scope, urlId)` | `src/lib/internal-links/queries.ts` | `apiQuery` options, as `worklistsQuery` |
 | `pagesTabPath(workspace, project, tab?)` | `src/lib/routes/paths.ts` | `tab` is `'overview' \| 'all'`; default `'overview'` |
 | `PAGES_TABS`, `PagesTabId` | `src/lib/pages/tabs.ts` | `overview`, `all`, `monitoring` |
 | `PagesState`, `parsePagesSearch`, `PAGES_DEFAULT_SORT`, `PAGES_REDIRECT_KEYS` | `src/lib/pages/url-state.ts` | below |
@@ -193,6 +198,9 @@ The web's `sectionOf` in `lib/internal-links/map-graph.ts` is another thing (the
 | `TRACKING_AVAILABLE`, `useTrackedPages`, `useTrackPages`, `TrackOutcome` | `src/lib/pages/tracking.ts` | spec 10.2 |
 | `PageSearchDetailSlot` | `src/lib/pages/search-detail-slot.tsx` | spec 10.3 |
 | `usePageSearchDaily(scope, run, urlId)` | `src/lib/pages/search-daily.ts` | `Seam<PageSearchDaily>`, never `unavailable` on this branch |
+| `usePageOutline(scope, urlId, enabled)` | `src/lib/pages/outline.ts` | `Seam<PageOutline>`, never `unavailable`; `error` carries `notFound: boolean` (Task 9) |
+| `PAGE_DRAWER_TABS`, `PageDrawerTab`, `pageDrawerTab` | `src/lib/pages/drawer-tabs.ts` | `overview`, `search`, `outline`, `issues`, `ai`, `links` (Task 23) |
+| `outlineModel`, `OutlineModel`, `OutlineFinding`, `OUTLINE_BLOCKS`, `HEADINGS_FOLDED` | `src/lib/pages/outline-model.ts` | Task 25b |
 | `PAGE_VIEW_MENU`, `viewCounts` | `src/lib/pages/views.ts` | Task 10 |
 | `overviewModel` | `src/lib/pages/overview-model.ts` | Task 10 |
 | `PagesContext` | `src/features/internal-links/pages/pages-context.ts` | Task 11 |
@@ -226,6 +234,172 @@ export function parsePagesSearch(search: Readonly<Partial<Record<PagesKey, strin
 The folder is not in `PagesState`: `folder` is a key of the filter bar (`useUrlFilters`), as `tier` and `status`
 are, so an Overview link that writes `folder=/blog/` sets the Folder filter (Task 20).
 
+### C6. The outline of one page (spec 9.6)
+
+Backend names, defined in Task 5b (`backend/src/idraft/crawl/outline.py`) and used by Task 5c:
+
+```python
+LengthState = Literal["ok", "short", "long", "missing"]
+TITLE_MIN: Final = 30
+TITLE_MAX: Final = 60
+DESCRIPTION_MIN: Final = 70
+DESCRIPTION_MAX: Final = 160
+THIN_WORDS: Final = 200
+WORDS_PER_MINUTE: Final = 230
+HTML_BYTES_MAX: Final = 2_000_000
+HEADINGS_MAX: Final = 200
+HEADING_TEXT_MAX: Final = 200
+META_TEXT_MAX: Final = 1_000
+HREF_MAX: Final = 2_048
+HREFLANG_MAX: Final = 100
+JSONLD_BLOCKS_MAX: Final = 20
+JSONLD_BLOCK_CHARS_MAX: Final = 200_000
+JSONLD_TYPES_MAX: Final = 10
+
+
+@dataclass(frozen=True, slots=True)
+class Heading:
+    level: int
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class HreflangPair:
+    code: str
+    href: str
+    is_self: bool
+    valid: bool
+    suggestion: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class JsonLdBlock:
+    types: tuple[str, ...]
+    parses: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedOutline:
+    description: str | None
+    description_chars: int
+    robots_meta: str | None
+    html_lang: str | None
+    headings: tuple[Heading, ...]
+    headings_total: int
+    level_counts: tuple[int, int, int, int, int, int]
+    skipped_at: int | None
+    hreflang: tuple[HreflangPair, ...]
+    x_default: bool
+    og_title: str | None
+    og_description: str | None
+    og_image: str | None
+    og_type: str | None
+    twitter_card: str | None
+    jsonld: tuple[JsonLdBlock, ...]
+    words: int
+    images: int
+    images_without_alt: int
+
+
+EMPTY_OUTLINE: Final[ParsedOutline]  # what a page with nothing readable gives
+
+def length_state(chars: int, low: int, high: int) -> LengthState: ...
+def read_minutes(words: int) -> int: ...
+def hreflang_valid(code: str) -> tuple[bool, str | None]: ...
+def parse_outline(html: str, page_url: str) -> ParsedOutline: ...
+```
+
+API schemas, defined in Task 5c (`backend/src/idraft/api/schemas/internal_links_extra.py`), field for field
+the table of spec 9.6.1:
+
+```python
+class OutlineText(BaseModel):
+    text: str | None
+    chars: int
+    state: Literal["ok", "short", "long", "missing"]
+
+
+class OutlineCanonical(BaseModel):
+    state: Literal["self", "elsewhere", "none"]
+    href: str | None
+
+
+class OutlineRobots(BaseModel):
+    meta: str | None
+    noindex: bool
+
+
+class OutlineHeading(BaseModel):
+    level: int = Field(ge=1, le=6)
+    text: str
+
+
+class OutlineLanguagePair(BaseModel):
+    code: str
+    href: str
+    is_self: bool
+    valid: bool
+    suggestion: str | None
+
+
+class OutlineLanguages(BaseModel):
+    x_default: bool
+    pairs: list[OutlineLanguagePair]
+
+
+class OutlineSocial(BaseModel):
+    og_title: str | None
+    og_description: str | None
+    og_image: str | None
+    og_type: str | None
+    twitter_card: str | None
+
+
+class OutlineStructuredBlock(BaseModel):
+    types: list[str]
+    parses: bool
+
+
+class OutlineContent(BaseModel):
+    words: int
+    read_minutes: int
+    thin: bool
+    images: int
+    images_without_alt: int
+
+
+class PageOutlineBody(BaseModel):
+    url: str
+    truncated: bool
+    title: OutlineText
+    description: OutlineText
+    canonical: OutlineCanonical
+    robots: OutlineRobots
+    html_lang: str | None
+    headings: list[OutlineHeading]
+    headings_total: int
+    level_counts: list[int] = Field(min_length=6, max_length=6)
+    skipped_at: int | None
+    languages: OutlineLanguages
+    social: OutlineSocial
+    structured_data: list[OutlineStructuredBlock]
+    content: OutlineContent
+
+
+class PageOutline(BaseModel):
+    state: Literal["ok", "redirect", "error", "not_html", "no_html"]
+    run_id: UUID
+    status_code: int | None
+    outline: PageOutlineBody | None
+
+
+class PageOutlineResponse(BaseModel):
+    data: PageOutline
+```
+
+The check id of each finding (web, Task 25b) is the table "Findings" of spec 9.6.3. The ids are the Issues
+session's and are written with hyphens (`title-short`).
+
 ## File structure
 
 | File | Responsibility | Task |
@@ -233,16 +407,20 @@ are, so an Overview link that writes `folder=/blog/` sets the Folder filter (Tas
 | `backend/src/idraft/api/internal_links/inventory.py` | C1, C2, C3 as SQL; the overview aggregate | 1, 2, 3 |
 | `backend/src/idraft/api/schemas/internal_links.py` | `PageView`, `PageFilter.view/folder/depth`, `PageSort` | 1, 2, 4 |
 | `backend/src/idraft/api/internal_links/page_filter.py` | applies view, folder, depth | 1, 2 |
-| `backend/src/idraft/api/internal_links/read_routes.py` | the three parameters and the two routes | 1, 2, 3, 5 |
+| `backend/src/idraft/api/internal_links/read_routes.py` | the three parameters and the three routes | 1, 2, 3, 5, 5c |
 | `backend/src/idraft/api/schemas/internal_links_extra.py` | overview and search schemas | 3, 5 |
-| `backend/src/idraft/api/internal_links/reads.py` | `LinkReadService.overview`, `.page_search`, `_sorter` | 3, 4, 5 |
+| `backend/src/idraft/api/internal_links/reads.py` | `LinkReadService.overview`, `.page_search`, `.page_outline`, `_sorter` | 3, 4, 5, 5c |
 | `backend/src/idraft/api/internal_links/page_sort.py` | the sort `impressions` | 4 |
 | `backend/src/idraft/api/internal_links/extras.py` | `page_search_daily` | 5 |
 | `backend/tests/api/internal_links/support_inventory.py`, `test_inventory.py`, `test_page_search.py` | tests | 1 to 5 |
-| `backend/tests/api/test_route_access.py`, `backend/openapi/v1.json` | two rows; regenerated | 1 to 5 |
+| `backend/src/idraft/crawl/outline.py`, `lang_codes.py`, `backend/tests/crawl/test_outline.py` | the pure reader of a page's HTML (C6), shared with the Issues session | 5b |
+| `backend/src/idraft/storage/raw.py` | `inflate_head`: the first bytes of a stored object | 5c |
+| `backend/src/idraft/api/internal_links/outline.py`, `reads.py`, `read_routes.py`, `backend/src/idraft/api/main.py` | the outline read; the read service takes the object store | 5c |
+| `backend/tests/api/internal_links/test_page_outline.py` | its tests | 5c |
+| `backend/tests/api/test_route_access.py`, `backend/openapi/v1.json` | three rows; regenerated | 1 to 5c |
 | `apps/web/src/lib/api/schema.ts` | regenerated client, own commit | 6 |
 | `apps/web/src/lib/internal-links/{types,queries,page-sorts}.ts` | types, reads, sorts | 7 |
-| `apps/web/src/mocks/internal-links-inventory.ts`, `mocks/handlers/internal-links.ts` | the mocked API | 8 |
+| `apps/web/src/mocks/internal-links-inventory.ts`, `internal-links-outline.ts`, `mocks/handlers/internal-links.ts` | the mocked API | 8 |
 | `apps/web/src/lib/pages/*.ts(x)`, `lib/routes/paths.ts` | tabs, address, seams, views, overview model | 9, 10 |
 | `apps/web/src/features/internal-links/pages/pages-context.ts`, `inspector/page-drawer-context.ts` | narrow contexts | 11 |
 | `apps/web/src/features/internal-links/crawl-shell.tsx`, `crawl-header.tsx` | the crawl shell both screens use; the one-line header | 12 |
@@ -253,7 +431,11 @@ are, so an Overview link that writes `folder=/blog/` sets the Folder filter (Tas
 | `apps/web/src/features/internal-links/{tabs.ts,url-state.ts,internal-links-screen.tsx}`, `seo/internal-links/page.tsx` | the tab leaves, the redirect | 16 |
 | `apps/web/src/components/app/data-table/{types.ts,toolbar.tsx,data-table.tsx,column-chooser.tsx}` | `toolbarStart`, chooser groups | 17 |
 | `apps/web/src/features/internal-links/pages/*` | the table's changes | 11, 18 to 20 |
-| `apps/web/src/features/internal-links/inspector/*` | the tabbed drawer | 11, 23 to 25 |
+| `apps/web/src/features/internal-links/inspector/*` | the tabbed drawer | 11, 23 to 25c |
+| `apps/web/src/lib/pages/outline.ts`, `outline-model.ts` | the Outline's read and its pure model | 9, 25b |
+| `apps/web/src/features/internal-links/inspector/drawer-outline-tab.tsx`, `outline-block.tsx`, `outline-blocks.tsx`, `outline-more-blocks.tsx` | the Outline tab | 25b, 25c |
+| `docs/design-system/16-drawers-dialogs-popovers.md` | one sentence: the Outline's cards fold | 25b |
+| `docs/glossary/terms.md`, `final-list.md` | the row Outline, in its own commit | 23 |
 | `apps/web/messages/en.json`, `docs/design-system/11-navigation.md` | words (added by each UI task; audited in 26) | 13 to 26 |
 
 ---
@@ -696,6 +878,323 @@ async def page_search(
 
 - [ ] **Step 8: Fix what the review found**, rerun, commit.
 
+### Task 5b: The outline parser, pure
+
+Spec 9.6.1 (the fields and where each verdict comes from), 9.6.2, decision D14. Contract C6. No database, no
+API, no storage: one pure module and its tests.
+
+**Before dispatching (the lead, not the subagent):** look at the Issues branch with git only, never a checkout:
+`git diff develop..claude/issues-page-8b4da8 --stat -- backend/src/idraft/crawl` and
+`git show claude/issues-page-8b4da8:backend/src/idraft/crawl/head.py | head -20`. On 2026-11-26 that branch has
+no HTML reader for descriptions, headings, hreflang, Open Graph, alt text or words (its plan
+`2026-11-26-issues-01-backend.md` only names "an extractor beside `crawl/head.py`" for its slice 2). If it has
+one by now, stop: tell the owner, and build Task 5c on that module instead of writing a second parser.
+
+**Files:**
+- Create: `backend/src/idraft/crawl/outline.py`, `backend/src/idraft/crawl/lang_codes.py`
+- Create: `backend/tests/crawl/test_outline.py`
+
+- [ ] **Step 1: Read first.** `backend/src/idraft/crawl/head.py` whole (the house style of a pure reader:
+  `HTMLParser` with `convert_charrefs=True`, the `_hidden` counter for `template` and `noscript`, feeding in
+  chunks, the `try` around the feed, `urljoin` and the http(s) test), `crawl/placement.py` lines 25 to 40
+  (`without_empty_comments`), `crawl/mentions.py` lines 80 to 160 (`visible_blocks`, which has no guard of
+  its own), `tests/crawl/test_head.py` (how the cases are written), and the contract "crawl is pure" in
+  `backend/pyproject.toml` (no `idraft.api`, `idraft.db`, `idraft.storage`, `sqlalchemy`, `httpx`).
+
+- [ ] **Step 2: Write the failing tests** in `tests/crawl/test_outline.py`. One small page used by most cases:
+
+```python
+PAGE = """<!doctype html><html lang="en-GB"><head>
+<title>Ignored here: the title comes from the crawl row</title>
+<meta name="description" content="  A description of the managed SOC service that is long enough to pass the lower limit.  ">
+<meta name="robots" content="index, follow">
+<link rel="alternate" hreflang="en" href="/soc">
+<link rel="alternate" hreflang="en-UK" href="https://example.com/uk/soc">
+<link rel="alternate" hreflang="x-default" href="https://example.com/soc">
+<meta property="og:title" content="Managed SOC"><meta property="og:image" content="/og/soc.png">
+<meta property="og:type" content="website"><meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Service"}</script>
+<script type="application/ld+json">{"@graph":[{"@type":"BreadcrumbList"},{"@type":["FAQPage","WebPage"]}]}</script>
+<script type="application/ld+json">{"@type": "Broken",</script>
+</head><body><header><h2>Menu heading</h2></header><main>
+<h1>Managed  SOC
+ service</h1><h3>Skipped a level</h3><h2>How it works</h2>
+<p>One two three four five.</p>
+<img src="a.png"><img src="b.png" alt=""><img src="c.png" alt="A chart">
+</main></body></html>"""
+URL = "https://example.com/soc"
+```
+
+  The cases, each one test function:
+  - `parse_outline(PAGE, URL)`: `description` is the trimmed text and `description_chars` its length;
+    `robots_meta == "index, follow"`; `html_lang == "en-GB"`; `headings` are, in order, (2, "Menu heading"),
+    (1, "Managed SOC service"), (3, "Skipped a level"), (2, "How it works") with whitespace as one space;
+    `headings_total == 4`; `level_counts == (1, 2, 1, 0, 0, 0)`; `skipped_at == 2`;
+  - hreflang: three pairs in order; `en` has `href == "https://example.com/soc"`, `is_self` true, `valid` true;
+    `en-UK` is not valid with `suggestion == "en-GB"`; `x-default` is valid; `x_default` is true;
+  - social: `og_title == "Managed SOC"`, `og_description is None`, `og_image == "https://example.com/og/soc.png"`,
+    `og_type == "website"`, `twitter_card == "summary_large_image"`;
+  - JSON-LD: three blocks: `(("Service",), True)`, `(("BreadcrumbList", "FAQPage", "WebPage"), True)`,
+    `((), False)`;
+  - content: `words == 5` (the paragraph in `main`; headings count too if `visible_blocks` returns them: read
+    what it returns for this page and assert that exact number, with a one-line comment saying which blocks
+    count); `images == 3`; `images_without_alt == 1` (an empty `alt` is described);
+  - `length_state`: `(0, 30, 60)` is `missing`; 29 `short`; 30 and 60 `ok`; 61 `long`; and `(69, 70, 160)`
+    `short`, 70 and 160 `ok`, 161 `long`;
+  - `read_minutes`: 0 gives 1, 230 gives 1, 345 gives 2 (round half to even is not wanted: write
+    `max(1, (words + WORDS_PER_MINUTE // 2) // WORDS_PER_MINUTE)` and assert 344 gives 1, 345 gives 2);
+  - `hreflang_valid`: `en`, `EN-gb`, `zh-Hant-TW`, `pt-BR`, `x-default` are `(True, None)`; `en-UK` is
+    `(False, "en-GB")`; `xx`, `english`, `en_GB`, `en-`, `` are `(False, None)`;
+  - `lang_codes`: `"en" in LANGUAGES`, `"zh" in LANGUAGES`, `"xx" not in LANGUAGES`, `"gb" in REGIONS`,
+    `"in" in REGIONS`, `"uk" not in REGIONS`, every member of both is two lower-case ASCII letters;
+  - no H1: a page with only `<h2>` has `level_counts[0] == 0` and `skipped_at is None` (a first heading
+    skips nothing); two `<h1>` give 2; an `<h1>` inside `<template>` or `<noscript>` is not a heading;
+  - no description: `description is None`, `description_chars == 0`; an empty `content` is the same; only the
+    first `<meta name="description">` counts; `NAME="Description"` is found (names compare without case);
+  - a hreflang href of `javascript:alert(1)` or `data:text/html,x` is dropped; a relative one is resolved;
+  - caps: 201 `<h2>` give `len(headings) == 200` and `headings_total == 201`; a heading of 500 characters is
+    cut to `HEADING_TEXT_MAX`; a description of 3,000 characters has `len(description) == META_TEXT_MAX` and
+    `description_chars == 3000`; 101 hreflang links give 100 pairs; 25 JSON-LD blocks give 20; a JSON-LD
+    block longer than `JSONLD_BLOCK_CHARS_MAX` is `((), False)` and is not given to `json.loads`; a block
+    with 30 types gives 10;
+  - hostile input, one parametrized test, each value passed to `parse_outline(value, URL)` inside nothing
+    but the call (the test fails if it raises) and each result is a `ParsedOutline`: `""`, `"<"`,
+    `"<" * 1_000_000`, `"<h1" * 10_000`, `"<div>" * 10_000 + "<h1>deep</h1>"`,
+    `'<script type="application/ld+json">' + "[" * 100_000 + "</script>"`, `"<h1>\x00null</h1>"`,
+    `"<!--" + "x" * 100_000`, `'<html lang="' + "a" * 100_000 + '">'`,
+    `b"\xff\xfe<h1>bytes</h1>".decode("utf-8", errors="replace")`, and `PAGE[:137]` (cut inside a tag);
+  - `parse_outline("", URL) == EMPTY_OUTLINE`.
+
+- [ ] **Step 3: Run, expect failures** (the module does not exist).
+  `uv run pytest -n 0 --no-cov tests/crawl/test_outline.py`
+
+- [ ] **Step 4: Implement `lang_codes.py`.** Two constants and nothing else, with a module docstring that
+  names the standards:
+
+```python
+LANGUAGES: Final[frozenset[str]]  # every two-letter language code of ISO 639-1, lower case
+REGIONS: Final[frozenset[str]]    # every officially assigned ISO 3166-1 alpha-2 code, lower case
+```
+
+  Write both lists out in full, sorted, ten codes a line. `uk` is not in `REGIONS` (it is reserved, not
+  assigned; the United Kingdom is `gb`). Do not add a dependency for this.
+
+- [ ] **Step 5: Implement `outline.py`** with the names of C6, in this shape:
+  - a module docstring in the style of `head.py`: what it reads, that the title, the canonical and the
+    noindex verdict are not read here but taken from the crawl row by the caller (spec 9.6.1), that pages are
+    untrusted so it never raises, and that the Issues checks of slice 2 use these functions and constants;
+  - `class _Outline(HTMLParser)` (`convert_charrefs=True`) with the `_hidden` counter of `head.py` extended to
+    `template`, `noscript`, `style`; it collects in one pass: the `lang` of the first `<html>`; in the head
+    the first `meta[name=description]`, the first `meta[name=robots]`, `meta[property|name]` for `og:title`,
+    `og:description`, `og:image`, `og:type`, `twitter:card` (first of each), `link[rel~=alternate][hreflang]`;
+    everywhere the `script[type="application/ld+json"]` texts; in the body the `h1` to `h6` texts and the
+    `img` elements. Every text it keeps is cut as it grows (never build a string past its cap and cut after);
+    every list stops growing at its cap while its counter keeps counting;
+  - `parse_outline`: `html = without_empty_comments(html)`; feed in chunks of 65,536 inside
+    `try: ... except Exception:` (keep what was read so far; the comment says why, as in `head.py`); then the
+    words in their own `try` (`visible_blocks` may raise on garbage: then 0 words); then the JSON-LD blocks,
+    each `json.loads` in its own `try: ... except Exception:` (`RecursionError` is one) giving
+    `JsonLdBlock((), False)`; the hreflang hrefs resolved with the page's URL and kept only as http or https
+    and at most `HREF_MAX` long, as `canonical_of` does; `og_image` resolved the same way and `None` when it
+    is not http or https;
+  - `skipped_at`: the first index `i > 0` with `headings[i].level - headings[i - 1].level > 1`, else `None`;
+  - `hreflang_valid(code)`: lower-case the code; `x-default` is valid; else split on `-`: one to three parts,
+    the first in `LANGUAGES`, an optional part of four letters (the script), an optional last part of two
+    letters in `REGIONS`; anything else is not valid. The suggestion is only for a known slip:
+    `_REGION_FIXES: Final = {"uk": "GB"}` gives `f"{language}-{fix}"` when the language is valid and the
+    region is a key; otherwise `None`;
+  - words: `sum(len(_WORD.findall(block)) for block in visible_blocks(html))` with
+    `_WORD: Final = re.compile(r"[^\W_]+")`.
+  No `# type: ignore`, explicit return types, constants as `Final`.
+
+- [ ] **Step 6: Run the tests, expect pass. Then:**
+
+```bash
+uv run ruff check src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py tests/crawl/test_outline.py
+uv run ruff format --check src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py tests/crawl/test_outline.py
+uv run mypy src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py tests/crawl/test_outline.py
+uv run lint-imports
+uv run pytest -n 0 --no-cov tests/crawl/test_outline.py tests/crawl/test_head.py tests/crawl/test_mentions.py
+```
+
+  Expected: all pass. `lint-imports` proves the module stayed pure. These tests need no Docker.
+
+- [ ] **Step 7: Commit.**
+  `git add backend/src/idraft/crawl/outline.py backend/src/idraft/crawl/lang_codes.py backend/tests/crawl/test_outline.py`
+  `git commit -m "Pages: a pure reader of a page's outline from its HTML"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: the parser never
+  raises on hostile input (the reviewer adds two inputs of its own in a scratch run, not in the commit, and
+  reports what happened); every list and every text has its cap and no string is built past it; the byte
+  cap is not this module's job but `HTML_BYTES_MAX` is defined here for Task 5c; the module imports only the
+  standard library and `idraft.crawl.*`; no href that is not http or https leaves the module; the limits
+  (30, 60, 70, 160, 200) are constants used by name, never literals; the title, canonical and noindex are
+  not parsed here; the two code lists are whole (spot-check ten codes of each against the standard).
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
+### Task 5c: The outline read
+
+Spec 9.6.1, 9.6.2 (the last paragraph), decision D13. Contracts C4, C6.
+
+**Files:**
+- Modify: `backend/src/idraft/storage/raw.py`, `backend/tests/storage/test_raw.py` (create it if the folder
+  has no test of `decompress`; find the right file with `grep -rln "decompress" backend/tests/storage`)
+- Create: `backend/src/idraft/api/internal_links/outline.py`
+- Modify: `backend/src/idraft/api/schemas/internal_links_extra.py`, `backend/src/idraft/api/internal_links/reads.py`,
+  `read_routes.py`, `backend/src/idraft/api/main.py`
+- Modify: `backend/tests/api/test_route_access.py`
+- Create: `backend/tests/api/internal_links/test_page_outline.py`
+- Modify: `backend/openapi/v1.json`
+
+- [ ] **Step 1: Read first.** `storage/raw.py` (`compress`, `decompress`, `RawStorageError`, `ObjectStore`,
+  `UNPACKED_MAX`); `collectors/crawl_store.py` (`html_key`, `latest_run`); `collectors/crawl_relink.py`
+  lines 100 to 125 (how the stored HTML is read and decoded, and which errors mean "not stored");
+  `api/main.py` lines 244 to 330 (`link_reads = LinkReadService(sessions=sessions)`, `import_store`,
+  `sources`); `api/ranks/service.py` `read_stored_answer` (how a service treats a `None` store);
+  `reads.py` `page_detail` and `read_scope`; `db/tables.py` `crawl_pages` and `urls` (`url`, `url_hash`);
+  `crawl/status.py` and `grep -rn "non_indexable_reason" backend/src/idraft` (the values a noindex page
+  has); how an API test gets an app with an object store (`grep -rn "raw_store\|import_store" backend/tests/api | head`)
+  and the in-memory stores the tests already have (`grep -rn "class MemoryStore\|class FakeStore" backend/tests`).
+
+- [ ] **Step 2: Write the failing tests.**
+  `tests/storage`: `inflate_head(compress(b"a" * 100), 10) == (b"a" * 10, True)`;
+  `inflate_head(compress(b"abc"), 10) == (b"abc", False)`; `inflate_head(b"not zstd", 10)` raises
+  `RawStorageError`; a limit equal to the size is not truncated.
+  `test_page_outline.py` (the crawl of `read_site`, an in-memory store that counts its `get` calls, the HTML of
+  a page stored with `compress(html.encode())` under `html_key(project_id, url_hash)`):
+  - a live page with a stored page: `state` is `ok`, `run_id` is the latest crawl's, `status_code` 200, and
+    `outline` has every field of C6; `outline.url` is the page's address; `headings`, `languages`, `social`,
+    `structured_data` and `content` equal what `parse_outline` gives for that HTML; `content.thin` is true
+    under 200 words and `read_minutes` follows `read_minutes`;
+  - the verdicts of the crawl row win: the stored HTML has `<title>Other</title>`,
+    `<link rel="canonical" href="https://example.com/else">` and `<meta name="robots" content="noindex">`,
+    while the crawl row has a title of 40 characters, `canonical_url_id` null and `is_indexable` true: the
+    answer has that title with `state` `ok` and `chars` 40, `canonical.state` `none`, `robots.noindex` false
+    and `robots.meta == "noindex"` (the text is shown as read);
+  - title states from the row: null or blank is `missing` with `text` null and `chars` 0; 29 characters
+    `short`; 61 `long`; the length is of the trimmed title;
+  - canonical: the page's own id is `self` with its address; another crawled page is `elsewhere` with that
+    page's address;
+  - noindex: a row whose `non_indexable_reason` is a noindex reason gives `robots.noindex` true;
+  - a redirect (301) is `redirect`, a 404 and a page with no status are `error`, a 200 with
+    `resource_type = 'other'` is `not_html`; each has `outline` null and the store's `get` was never called;
+  - `no_html`: no object under the key; an object that is not a zstd frame; and the app built with no store.
+    All three answer 200;
+  - `truncated`: an HTML of `HTML_BYTES_MAX + 10` bytes whose last element is an `<h2>` past the cap: `ok`,
+    `outline.truncated` true and that heading is absent;
+  - a variant page (`variant_of_url_id` set, 200, HTML) is `ok`;
+  - a page that only an older crawl holds: `404 not_found`; a `url_id` that is not digits: `422`; before any
+    crawl: `404 no_crawl`; a member of another workspace: `404`; a role without `data:read`: `403`;
+  - the request takes no `run`: `?run=latest` is `422` (the app rejects unknown query names; assert what
+    `reject_unknown_query` answers for another unknown name on the page detail and expect the same).
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.**
+  `storage/raw.py`, beside `decompress`:
+
+```python
+def inflate_head(data: bytes, limit: int) -> tuple[bytes, bool]:
+    """The first `limit` bytes of a stored payload, and whether it holds more. Unlike
+    `decompress` it never inflates the whole frame: a page of any size costs `limit` bytes."""
+    try:
+        with zstandard.ZstdDecompressor().stream_reader(io.BytesIO(data)) as reader:
+            body = reader.read(limit + 1)
+    except zstandard.ZstdError:
+        raise RawStorageError("not a compressed payload") from None
+    return body[:limit], len(body) > limit
+```
+
+  Schemas: the classes of C6, in `internal_links_extra.py`.
+  `api/internal_links/outline.py` (new, so `reads.py` does not grow by a screen):
+
+```python
+@dataclass(frozen=True, slots=True)
+class OutlineRow:
+    url: str
+    url_hash: bytes
+    url_id: int
+    status_code: int | None
+    resource_type: str | None
+    title: str | None
+    canonical_url_id: int | None
+    canonical_url: str | None
+    non_indexable_reason: str | None
+
+def row_state(row: OutlineRow) -> Literal["ok", "redirect", "error", "not_html"]: ...
+async def stored_html(store: ObjectStore | None, key: str) -> tuple[str, bool] | None: ...
+def outline_body(row: OutlineRow, parsed: ParsedOutline, truncated: bool) -> PageOutlineBody: ...
+```
+
+  - `row_state`: 300 to 399 is `redirect`; 200 with `resource_type == "html"` is `ok`; 200 otherwise is
+    `not_html`; everything else, a null status included, is `error`.
+  - `stored_html`: `None` for a `None` store; `data = await store.get(key)` and
+    `await asyncio.to_thread(inflate_head, data, HTML_BYTES_MAX)`, both inside
+    `try: ... except (RawStorageError, KeyError): return None` (the same pair `crawl_relink` catches); the
+    bytes decoded with `decode("utf-8", errors="replace")`. One line of comment: the compressed object is
+    read whole (`shortcut: the store has no ranged read, a page's HTML packs to well under a megabyte; add a
+    range to ObjectStore.get when a stored page is ever larger`).
+  - `outline_body`: the title from `row.title` trimmed (`text` null when empty, `chars`, `length_state` with
+    `TITLE_MIN` and `TITLE_MAX`); the description from `parsed` with `DESCRIPTION_MIN` and `DESCRIPTION_MAX`;
+    the canonical from `canonical_url_id` (null `none`, equal to `row.url_id` `self` with `row.url`, else
+    `elsewhere` with `row.canonical_url`); `robots.noindex` from `non_indexable_reason` with the values Step 1
+    found, compared through one constant named in this module; `thin` is `parsed.words < THIN_WORDS`;
+    `read_minutes(parsed.words)`.
+  `reads.py`: `LinkReadService.__init__(self, *, sessions, raw_store: ObjectStore | None = None)`, and
+
+```python
+async def page_outline(self, access: WorkspaceAccess, project_id: UUID, *, url_id: int) -> PageOutline:
+```
+
+  Inside `self._transaction(access)`: `scope = await read_scope(db, access, project_id, None)` (the latest
+  crawl), one select of `crawl_pages` joined to `urls` and outer-joined to `urls` again for the canonical,
+  for `(workspace, run, url_id)`; `NotFoundError` without a row. After the transaction is left: `row_state`;
+  when not `ok`, the answer with `outline=None`; else `stored_html(self._raw_store, html_key(project_id, row.url_hash))`;
+  `None` gives `no_html`; else `parsed = await asyncio.to_thread(parse_outline, html, row.url)` and the
+  answer. No storage call and no parse happen while the transaction is open.
+  `main.py`: `link_reads = LinkReadService(sessions=sessions, raw_store=import_store)` (move the line under
+  the place `import_store` is bound if it is bound later; change nothing else there).
+  Route, after `page_search`:
+
+```python
+@router.get(
+    "/pages/{url_id}/outline",
+    summary="One page: its outline, read from the stored HTML of the latest crawl",
+    description="Title, description, canonical, robots, headings, language versions, sharing tags, "
+    "structured data and content size. Read on demand; nothing is stored. Always the latest crawl.",
+)
+async def page_outline(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
+) -> PageOutlineResponse:
+```
+
+  The row in `test_route_access.py`:
+  `("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/outline"): "data:read",`.
+
+- [ ] **Step 5: Run the tests, expect pass. Regenerate the OpenAPI document. Run the backend commands**, with
+  these paths added to ruff and mypy: `src/idraft/storage/raw.py src/idraft/api/main.py`, and
+
+```bash
+uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_outline.py tests/api/internal_links/test_reads_pages.py tests/api/test_openapi.py tests/api/test_route_access.py
+uv run pytest -n 0 --no-cov <the storage test file of step 2>
+```
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages API: the outline of one page, read from its stored HTML"`
+  (it holds `openapi/v1.json`; the web client is Task 6, alone in its commit).
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: hostile and broken
+  input can never be a `5xx` (a damaged object, a missing object, no store, HTML that is all garbage: each
+  is a `200` with a state); the byte cap is applied while inflating, not after (`decompress` is not called
+  on this path); the heading and text caps of Task 5b reach the answer; no storage read for a redirect, an
+  error or a page that is not HTML; the read and the parse happen outside the database transaction and the
+  parse runs in a thread; the title, canonical and noindex verdicts come from the crawl row with the Issues
+  rules (trimmed title, 30 and 60); every statement names the workspace; the 404 is for the latest crawl;
+  the route takes no `run`; nothing is written anywhere (no new table, no column, no cache); the object key
+  is built only by `html_key`, never from request text.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
 ### Task 6 (Haiku): Regenerate the web client, alone in its commit
 
 - [ ] **Step 1:**
@@ -708,12 +1207,13 @@ git add src/lib/api/schema.ts
 git commit -m "Regenerate the API client for the Pages routes"
 ```
 
-  Expected: `schema.ts` gains the paths `…/internal-links/overview` and `…/internal-links/pages/{url_id}/search`,
-  the schemas `PagesOverview` and `PageSearchDaily`, and `filter[view]`, `filter[folder]`, `filter[depth]` on
-  the pages list. `pnpm typecheck` passes. If it fails, stop and report: do not edit `schema.ts` by hand.
+  Run it after Task 5c, so one regeneration covers Tasks 1 to 5c.
+  Expected: `schema.ts` gains the paths `…/internal-links/overview`, `…/internal-links/pages/{url_id}/search`
+  and `…/internal-links/pages/{url_id}/outline`, the schemas `PagesOverview`, `PageSearchDaily`, `PageOutline`
+  and `PageOutlineBody`, and `filter[view]`, `filter[folder]`, `filter[depth]` on the pages list. `pnpm typecheck` passes. If it fails, stop and report: do not edit `schema.ts` by hand.
 
 - [ ] **Step 2: Independent senior review (Sonnet subagent).** The commit holds `schema.ts` only, and its
-  diff is only additions that the five backend commits explain.
+  diff is only additions that the backend commits of Tasks 1 to 5c explain.
 
 - [ ] **Step 3: Fix what the review found** (regenerate again, never hand-edit), commit.
 
@@ -742,7 +1242,9 @@ Contracts C4, C5. Spec 7.2 (last paragraph), 7.3 (Server), 7.4.
   - `pageFilterOf` carries `view`, `folder`, `depth`, and `include_variants` is the query's `includeVariants`;
   - `overviewQuery(scope, null)` and `overviewQuery(scope, 'RUN')` have different keys, both starting with
     the project key and `'internal-links'` (so `internalLinksKeys` reaches them);
-  - `pageSearchQuery(scope, 'abc', null)` throws `UrlIdError` (as `pageDetailQuery` does).
+  - `pageSearchQuery(scope, 'abc', null)` throws `UrlIdError` (as `pageDetailQuery` does);
+  - `pageOutlineQuery(scope, '108')` has a key starting with the project key and `'internal-links'`, sends
+    no `run`, and `pageOutlineQuery(scope, 'abc')` throws `UrlIdError`.
   In `page-columns.test.tsx`: `sortOfKeys([{ id: 'impressions', desc: true }])` is `'-impressions'`.
 
 - [ ] **Step 3: Run, expect failures.**
@@ -751,17 +1253,21 @@ Contracts C4, C5. Spec 7.2 (last paragraph), 7.3 (Server), 7.4.
 - [ ] **Step 4: Implement.**
   - `types.ts`: `export type PageView = NonNullable<PageFilter['view']>;`,
     `export type PagesOverview = Schemas['PagesOverview'];`,
-    `export type PageSearchDaily = Schemas['PageSearchDaily'];`; `PageSort` gains `'impressions' | '-impressions'`.
+    `export type PageSearchDaily = Schemas['PageSearchDaily'];`,
+    `export type PageOutline = Schemas['PageOutline'];`,
+    `export type PageOutlineBody = Schemas['PageOutlineBody'];`; `PageSort` gains `'impressions' | '-impressions'`.
   - `page-sorts.ts`: `export const PAGE_SORTS: readonly PageSort[]` moved here from the feature's
     `url-state.ts`, with the two new keys after `'-clicks'`. `search-text.ts`: `searchText` and its
     `MAX_SEARCH_LENGTH` moved here. The feature's `url-state.ts` re-exports both
     (`export { PAGE_SORTS } from '@/lib/internal-links/page-sorts';`), so no other import changes.
   - `queries.ts`: `const OVERVIEW = \`${P}/internal-links/overview\` as const;` and
-    `const PAGE_SEARCH = \`${P}/internal-links/pages/{url_id}/search\` as const;`;
+    `const PAGE_SEARCH = \`${P}/internal-links/pages/{url_id}/search\` as const;` and
+    `const PAGE_OUTLINE = \`${P}/internal-links/pages/{url_id}/outline\` as const;`;
 
 ```ts
 export const overviewQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof OVERVIEW>;
 export const pageSearchQuery = (scope: LinksScope, urlId: string, run: string | null): ApiQueryOptions<typeof PAGE_SEARCH>;
+export const pageOutlineQuery = (scope: LinksScope, urlId: string): ApiQueryOptions<typeof PAGE_OUTLINE>;
 ```
 
     written as `worklistsQuery` and `pageDetailQuery` are. `PageQuery` gains the four fields of C5;
@@ -773,7 +1279,7 @@ export const pageSearchQuery = (scope: LinksScope, urlId: string, run: string | 
 - [ ] **Step 5: Run the tests, expect pass. Run the web commands** on the files of this task, and also
   `pnpm exec vitest run --maxWorkers=1 src/features/internal-links/url-state.test.ts src/features/internal-links/pages/page-filters.test.ts`.
 
-- [ ] **Step 6: Commit.** `git commit -m "Pages: types, reads and sorts for the overview, the views and the page search"`.
+- [ ] **Step 6: Commit.** `git commit -m "Pages: types, reads and sorts for the overview, the views, the page search and the outline"`.
 
 - [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: no hand-written copy
   of a response type; the query keys; nothing else in the app imports `PAGE_SORTS` or `searchText` from a
@@ -783,10 +1289,11 @@ export const pageSearchQuery = (scope: LinksScope, urlId: string, run: string | 
 
 ### Task 8: The mocked API
 
-Spec section 12 ("Mock handlers for the two new routes"). Contracts C2, C3, C4.
+Spec section 12 ("Mock handlers for the three new routes"), 9.6.1. Contracts C2, C3, C4, C6.
 
 **Files:**
-- Create: `apps/web/src/mocks/internal-links-inventory.ts`, `internal-links-inventory.test.ts`
+- Create: `apps/web/src/mocks/internal-links-inventory.ts`, `internal-links-inventory.test.ts`,
+  `internal-links-outline.ts`, `internal-links-outline.test.ts`
 - Modify: `apps/web/src/mocks/handlers/internal-links.ts`, `apps/web/src/mocks/handlers/internal-links.test.ts`
 
 - [ ] **Step 1: Read first.** `mocks/handlers/internal-links.ts` lines 55 to 275 (`PAGE_QUERY`, `Criteria`,
@@ -802,7 +1309,16 @@ Spec section 12 ("Mock handlers for the two new routes"). Contracts C2, C3, C4.
   (mapping of C2) equals `meta.total` of the list with `filter[view]`; `filter[folder]` and `filter[depth]`
   narrow the list; `filter[view]` with `filter[worklist]` is 422; `sort=-impressions` orders by impressions;
   `GET …/pages/{url_id}/search` answers `ok` with 28 days whose clicks add up to `clicks`; a viewer of
-  another workspace gets 404 for both new routes.
+  another workspace gets 404 for the three new routes.
+  `internal-links-outline.test.ts`: `outlineOf(row)` for a live row is `ok` with every field of C6, its title
+  text is the row's title and its `state` follows 30 and 60, `level_counts[0]` equals the H1 entries of
+  `headings`, `headings_total` is at least `headings.length`; a redirect row is `redirect`, a 404 row
+  `error`, both with `outline: null`; the same row always gives the same outline; `OUTLINE_LONG_PAGE` has
+  more than 12 headings, `OUTLINE_NO_HTML_PAGE` answers `no_html`, `OUTLINE_PROBLEM_PAGE` has no H1, a
+  description of 0 characters, one hreflang pair that is not valid, no `og_title`, one structured block that
+  does not parse, `thin: true` and one image without alt text. `handlers/internal-links.test.ts`:
+  `GET …/pages/{url_id}/outline` answers the outline of a page of the latest crawl whatever crawl the
+  screen shows, and 404 for an id the latest crawl does not hold.
 
 - [ ] **Step 3: Run, expect failures.**
 
@@ -824,11 +1340,28 @@ export function overviewOf(rows: readonly PageRow[], run: { run_id: string; fini
   as the `worklists` handler. The search handler spreads the page's 28 day totals of `pageExtras(run, page,
   ['gsc'])` over 28 days by a fixed rule (the whole part of total over 28 on each day, the rest on the first
   days), and answers `pending` or `not_connected` when the world's `gsc` state says so.
+  `internal-links-outline.ts`:
+
+```ts
+/** Three pages of the fixture crawl with a fixed outline, so each state of the tab can be opened. */
+export const OUTLINE_LONG_PAGE: string;     // url id of a live page: 14 headings
+export const OUTLINE_PROBLEM_PAGE: string;  // url id of a live page: one finding of every kind
+export const OUTLINE_NO_HTML_PAGE: string;  // url id of a live page whose HTML was not kept
+export function outlineOf(row: PageRow, runId: string): PageOutline;
+```
+
+  Choose the three ids from live pages of `crawledPages` that no existing test opens (say which in a
+  comment). Every other live page gets a plain, healthy outline built from its row: the row's title, a
+  description of 120 characters made from the title, one H1 (the title), four H2, `html_lang` `en`, no
+  language pairs, the five sharing tags, one `WebPage` block that parses, 640 words, 4 images, none without
+  alt text. No randomness. The handler is `mock('get', \`${P}/internal-links/pages/{url_id}/outline\`, …)`
+  with `projectCaller(…, { permission: 'data:read', query: [] })`, reading the latest crawl of the world
+  (not `readRun`), 404 for an id that crawl does not hold.
 
 - [ ] **Step 5: Run the tests, expect pass. Run the web commands** on the four files, and
   `pnpm exec vitest run --maxWorkers=1 src/mocks/internal-links-world.test.ts`.
 
-- [ ] **Step 6: Commit.** `git commit -m "Pages: the mocked overview, page views and page search"`.
+- [ ] **Step 6: Commit.** `git commit -m "Pages: the mocked overview, page views, page search and outline"`.
 
 - [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: the mock's conditions
   against C2 line by line; the answers validate against the generated types (no cast to `unknown`); the
@@ -838,11 +1371,11 @@ export function overviewOf(rows: readonly PageRow[], run: { run_id: string; fini
 
 ### Task 9: Tabs, the address, the path and the seams
 
-Spec 5.1, 5.2, 7.3 (last paragraph), 9.5 (last paragraph), 10. Contract C5.
+Spec 5.1, 5.2, 7.3 (last paragraph), 9.5 (last paragraph), 9.6.3 (the first paragraph), 10. Contract C5.
 
 **Files:**
 - Create: `apps/web/src/lib/pages/tabs.ts`, `tabs.test.ts`, `url-state.ts`, `url-state.test.ts`,
-  `issue-source.ts`, `tracking.ts`, `search-detail-slot.tsx`, `search-daily.ts`, `seams.test.tsx`
+  `issue-source.ts`, `tracking.ts`, `search-detail-slot.tsx`, `search-daily.ts`, `outline.ts`, `seams.test.tsx`
 - Modify: `apps/web/src/lib/routes/paths.ts`, `paths.test.ts`
 
 - [ ] **Step 1: Write the failing tests.**
@@ -860,7 +1393,10 @@ Spec 5.1, 5.2, 7.3 (last paragraph), 9.5 (last paragraph), 10. Contract C5.
     `usePageIssues` and `useTrackedPages` answer `{ state: 'unavailable' }`; `ISSUE_COLUMNS_AVAILABLE` and
     `TRACKING_AVAILABLE` are `false`; `issueCountsOf(row)` is `null`; `PageSearchDetailSlot` renders nothing; `usePageSearchDaily` answers
     `loading`, then `ready` with 28 days against the mocked API (page 108 of the fixture crawl), and `error`
-    with a working `retry` when the route answers 500.
+    with a working `retry` when the route answers 500; `usePageOutline(scope, '108', true)` answers
+    `loading`, then `ready` with `state: 'ok'`; with `enabled` false it stays `loading` and sends no request
+    (assert with the request log of the mocked API); a 500 gives `error` with `notFound: false` and a working
+    `retry`; a 404 gives `error` with `notFound: true`.
 
 - [ ] **Step 2: Run, expect failures.**
 
@@ -888,7 +1424,19 @@ export function usePageSearchDaily(scope: LinksScope, run: string | null, urlId:
 ```
 
   from `useQuery(pageSearchQuery(scope, urlId, run))`. If Task 5 was skipped, the lead gives the other
-  session's route here instead.
+  session's route here instead. `outline.ts`:
+
+```ts
+export type OutlineRead =
+  | { state: 'loading' }
+  | { state: 'error'; notFound: boolean; retry: () => void }
+  | { state: 'ready'; data: PageOutline };
+/** The outline of one page, of the latest crawl (spec 9.6). Asked only while `enabled` (the tab is open). */
+export function usePageOutline(scope: LinksScope, urlId: string, enabled: boolean): OutlineRead;
+```
+
+  from `useQuery({ ...pageOutlineQuery(scope, urlId), enabled })`; `notFound` is true for a 404 (use the
+  error type `apiQuery` throws; find it in `lib/api`, do not test a message text).
 
 - [ ] **Step 4: Run the tests, expect pass. Run the web commands.**
 
@@ -1907,36 +2455,51 @@ Spec 6.3, 6.4 (cards 7 and 8, the Export paragraph), 10.1. UI task.
 
 ## Part F. Web: the page drawer
 
-The drawer is `PageInspector` on top of the shared `Inspector`. In Tasks 23 to 25 do not edit
+The drawer is `PageInspector` on top of the shared `Inspector`. In Tasks 23 to 25c do not edit
 `components/app/inspector/inspector.tsx`, `inspector-layout.tsx`, `use-inspector.ts` or `lib/inspector/*`;
 call them as they are. The drawer always lies over the table: write nothing about docking or width.
 
-### Task 23: Five tabs
+### Task 23: Six tabs
 
-Spec 9.1, 9.4 (the first paragraph, and the tabs AI and Links). UI task.
+Spec 9.1, 9.4 (the first paragraph, and the tabs AI and Links), 11. UI task. (The task was "Five tabs" until
+the owner added Outline on 2026-11-26; its number stays.)
 
 **Files:**
+- Modify: `docs/glossary/terms.md`, `docs/glossary/final-list.md` (their own commit, first)
 - Create: `apps/web/src/lib/pages/drawer-tabs.ts`, `drawer-tabs.test.ts`
 - Modify: `apps/web/src/features/internal-links/inspector/page-inspector.tsx`, `extras-sections.tsx`,
   `page-inspector.test.tsx`, `extras-sections.test.tsx`
 - Modify: `apps/web/messages/en.json`
+
+- [ ] **Step 0: The glossary first.** Read rows A5, A12 and A15 of `docs/glossary/terms.md` and the change
+  log at its end, and how `final-list.md` lists a tab name. Add one row after A15, in the same columns:
+  id `A16`; term "Outline (a tab of the page drawer)"; definition "The tab that shows what one page says to
+  a search engine, read from the stored HTML of the latest crawl: its search listing, headings, language
+  versions, sharing tags, structured data and content size."; not to be confused with "Not Issues (the
+  checks a page fails, across the site). Not the page's Overview tab."; avoid "Structure, On-page, SEO
+  audit, Content outline (as the tab name)"; where "Page drawer tabs"; "Safe"; "Owner decision 2026-11-26".
+  Add the matching line to `final-list.md` and one line to the change log of `terms.md`. If the id `A16` is
+  taken, use the next free one. Commit only these two files:
+  `git commit -m "Glossary: Outline, a tab of the page drawer"`.
 
 - [ ] **Step 1: Read first.** `components/app/inspector/inspector-tabs.tsx` (`InspectorTabs`,
   `InspectorPanel`), `use-inspector.ts` (`tab`, `setTab`, `DEFAULT_INSPECTOR_TAB`), one tabbed inspector that
   exists (`grep -rln "InspectorTabs" apps/web/src/features`), `page-inspector.tsx`, `extras-sections.tsx`.
 
 - [ ] **Step 2: Words** (namespace `pages.drawer`): `tabsLabel` "Page sections"; `tabs.overview` "Overview";
-  `tabs.search` "Search"; `tabs.issues` "Issues"; `tabs.ai` "AI"; `tabs.links` "Links"; `ai.none` "No AI
-  answer cited this page in the last 28 days".
+  `tabs.search` "Search"; `tabs.outline` "Outline"; `tabs.issues` "Issues"; `tabs.ai` "AI"; `tabs.links` "Links";
+  `ai.none` "No AI answer cited this page in the last 28 days"; `outline.pending` "The outline of this page
+  appears here" (the interim body of this task, removed by Task 25b).
 
 - [ ] **Step 3: Write the failing tests.**
-  - `drawer-tabs.test.ts`: `PAGE_DRAWER_TABS` is `overview`, `search`, `issues`, `ai`, `links`;
+  - `drawer-tabs.test.ts`: `PAGE_DRAWER_TABS` is `overview`, `search`, `outline`, `issues`, `ai`, `links`;
     `pageDrawerTab('links')` is `links`; `pageDrawerTab('nope')` and `pageDrawerTab('overview')` are
     `overview`.
   - `extras-sections.test.tsx`: `parts={['keywords']}` draws only the tracked keywords card; without `parts`
     every card is drawn as today.
-  - `page-inspector.test.tsx`: the drawer has a tab list "Page sections" with the five tabs in order; with
-    no `itab` Overview is selected; `itab=links` selects Links; choosing a tab writes `itab` (and removes it
+  - `page-inspector.test.tsx`: the drawer has a tab list "Page sections" with the six tabs in order
+    (Overview, Search, Outline, Issues, AI, Links); with no `itab` Overview is selected; `itab=links` selects
+    Links and `itab=outline` selects Outline; choosing a tab writes `itab` (and removes it
     for Overview) without a history entry; an unknown `itab` shows Overview; the Links tab holds the strip
     (depth, links in, links out), linking pages by tier and by placement, the anchors card, the changes
     card, linking pages and outlinks with "View all in Links" as links; the AI tab holds the citations card,
@@ -1946,14 +2509,15 @@ Spec 9.1, 9.4 (the first paragraph, and the tabs AI and Links). UI task.
   - Until Task 24 the Overview tab holds the tier and tags section and the flags section, and until Task 25
     the Search tab holds the tracked keywords card and the Google card and the Issues tab holds the flags
     section: the tests of this task assert only that each existing section is in exactly one tab or in the
-    tabs this list names.
+    tabs this list names. Until Task 25b the Outline tab holds one line, `outline.pending`, and no section
+    of the old inspector; this task asserts only that the tab exists, is third and can be selected.
 
 - [ ] **Step 4: Run, expect failures.**
 
 - [ ] **Step 5: Implement.** `drawer-tabs.ts`:
 
 ```ts
-export const PAGE_DRAWER_TABS = ['overview', 'search', 'issues', 'ai', 'links'] as const;
+export const PAGE_DRAWER_TABS = ['overview', 'search', 'outline', 'issues', 'ai', 'links'] as const;
 export type PageDrawerTab = (typeof PAGE_DRAWER_TABS)[number];
 export const pageDrawerTab = (value: string): PageDrawerTab;
 ```
@@ -1969,11 +2533,13 @@ export const pageDrawerTab = (value: string): PageDrawerTab;
   `src/features/internal-links/journey/journey-tab.test.tsx` and `internal-links-screen.test.tsx` (they open
   the drawer). Expect pass. Run the web commands and the two message tests.
 
-- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the tabs Overview, Search, Issues, AI and Links"`.
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the tabs Overview, Search, Outline, Issues, AI and Links"`.
 
 - [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: nothing of the old
   inspector was dropped (list its sections from `git show HEAD~1:apps/web/src/features/internal-links/inspector/page-inspector.tsx`
-  and find each in a tab); the tab order is the owner's; the tab is in the address; the drawer still opens
+  and find each in a tab); the tab order is the owner's (Overview, Search, Outline, Issues, AI, Links: six
+  tabs, within the six the tab row holds without a More menu); the glossary commit came first and holds only
+  the two glossary files; the tab is in the address; the drawer still opens
   from every tab of Internal links; no shared drawer file in the diff; no width or docking code.
 
 - [ ] **Step 9: Fix what the review found**, rerun, commit.
@@ -2127,7 +2693,8 @@ Spec 9.4 (Search, Issues), 9.5, 10.1, 10.3. UI task.
     colour), its name and its detail, and "See all pages with this issue" as a link when
     `hrefs.issueCheck` gives one and absent when it gives `null`; `ready` with none: `issues.none`; `error`:
     the inline error with retry;
-  - the Google card of the old inspector is gone from every tab (its numbers are the Search tab's).
+  - the Google card of the old inspector is gone from every tab (its numbers are the Search tab's);
+  - the Outline tab is untouched by this task: it still sits between Search and Issues.
 
 - [ ] **Step 4: Run, expect failures.**
 
@@ -2151,6 +2718,357 @@ Spec 9.4 (Search, Issues), 9.5, 10.1, 10.3. UI task.
   offered; the slot is rendered with the props of spec 10.3 and draws nothing; the Issues tab is never empty
   and never invents an issue; "Search Console" is never abbreviated; the chart has its table and its
   summary.
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
+### Task 25b: The drawer's Outline tab: the model, the strip, the states and the first two blocks
+
+Spec 9.6.3, 10.1 (the last paragraph), 11. Contracts C5, C6. UI task. Tasks 25b and 25c are one tab in two
+contexts: this one builds everything a block needs and the two blocks that start open; 25c adds the other
+four.
+
+**Files:**
+- Create: `apps/web/src/lib/pages/outline-model.ts`, `outline-model.test.ts`
+- Create: `apps/web/src/features/internal-links/inspector/drawer-outline-tab.tsx`, `outline-block.tsx`,
+  `outline-blocks.tsx`, `drawer-outline-tab.test.tsx`
+- Modify: `apps/web/src/features/internal-links/inspector/page-inspector.tsx`, `page-inspector.test.tsx`
+- Modify: `apps/web/messages/en.json`
+- Modify: `docs/design-system/16-drawers-dialogs-popovers.md` (one sentence in section 2.4)
+
+- [ ] **Step 1: Read first.** Spec 9.6.3 whole. `lib/pages/outline.ts` (`usePageOutline`),
+  `mocks/internal-links-outline.ts` (the three fixed pages), `inspector/page-drawer-context.ts`
+  (`hrefs.issueCheck`, `crawl.older`), `components/app/inspector/inspector-section.tsx` (the card's look:
+  border, radius, header height; its comment says cards never collapse, which is why the Outline has its own
+  block), `components/ui/badge.tsx`, `components/ui/text-link.tsx`, `components/ui/skeleton.tsx`, the inline
+  error with Retry the Search tab of Task 25 uses, and `docs/design-system/16-drawers-dialogs-popovers.md`
+  section 2.4.
+
+- [ ] **Step 2: Words** (namespace `pages.drawer.outline`). `tabs.outline` exists (Task 23); remove
+  `outline.pending`.
+
+| Key | Text |
+|---|---|
+| `fine` | Fine |
+| `toFix` | To fix |
+| `seeInIssues` | See in Issues |
+| `footer` | Read from the stored HTML of the latest crawl, so it shows the page as the crawler saw it. |
+| `olderCrawl` | This is the outline from the latest crawl, not from the crawl you are viewing. |
+| `truncated` | This page is very long. The outline covers its first part. |
+| `loadFailed` | The outline of this page could not be loaded |
+| `state.redirect` | This address redirects to {path}, so it has no content of its own. Open the page it leads to for its outline. |
+| `state.redirectUnknown` | This address redirects to another page, so it has no content of its own. Open the page it leads to for its outline. |
+| `state.error` | This address answers with {status}, so there is no page to read. |
+| `state.errorNoStatus` | This address did not answer, so there is no page to read. |
+| `state.notHtml` | This address is not an HTML page, so it has no outline. |
+| `state.noHtml` | The HTML of this page was not kept in the latest crawl, so its outline cannot be shown. It appears after the next crawl. |
+| `state.notInCrawl` | This page is not in the latest crawl. |
+| `strip.label` | Outline numbers |
+| `strip.h1` | H1 |
+| `strip.h1None` | None |
+| `strip.h1One` | as it should be |
+| `strip.h1Missing` | missing |
+| `strip.h1Many` | more than one |
+| `strip.headings` | Headings |
+| `strip.headingsNote` | H2 {h2}, H3 {h3} |
+| `strip.words` | Words |
+| `strip.readTime` | {minutes} min read |
+| `strip.thin` | very little text |
+| `strip.images` | Images |
+| `strip.imagesFine` | all described |
+| `strip.imagesNoAlt` | {count} without alt text |
+| `listing.title` | Search listing |
+| `listing.summaryFine` | Title and description are the right length |
+| `listing.summaryToFix` | {count, plural, one {# thing to fix} other {# things to fix}} |
+| `listing.previewLabel` | How the page can look in search results |
+| `listing.noDescription` | No description. Google picks a sentence from the page. |
+| `listing.noTitle` | No title |
+| `listing.factTitle` | Title |
+| `listing.factDescription` | Description |
+| `listing.factCanonical` | Canonical |
+| `listing.factRobots` | Robots |
+| `listing.factLanguage` | Language |
+| `listing.lengthOk` | {chars, plural, one {# character} other {# characters}} |
+| `listing.lengthShort` | {chars, plural, one {# character} other {# characters}}, short of {min} |
+| `listing.lengthLong` | {chars, plural, one {# character} other {# characters}}, over {max} |
+| `listing.lengthMissing` | Missing |
+| `listing.canonicalSelf` | This page |
+| `listing.canonicalSelfChip` | Self |
+| `listing.canonicalElsewhereChip` | Elsewhere |
+| `listing.canonicalNone` | None named |
+| `listing.robotsNone` | No robots tag |
+| `listing.indexable` | Indexable |
+| `listing.notIndexed` | Not indexed |
+| `listing.languageNone` | Not set |
+| `headings.title` | Headings |
+| `headings.summary` | {count, plural, one {# heading} other {# headings}} |
+| `headings.summaryWithH1` | {count, plural, one {# heading} other {# headings}}, H1: {h1} |
+| `headings.none` | No headings |
+| `headings.listLabel` | Headings in page order |
+| `headings.level` | H{level} |
+| `headings.emptyText` | No text |
+| `headings.showAll` | Show all {count} headings |
+| `headings.showFewer` | Show fewer headings |
+| `headings.capped` | The first {shown} of {total} headings |
+| `finding.titleMissing` | The page has no title, so Google writes one from the page. |
+| `finding.titleShort` | The title is short. Add the words people search for. |
+| `finding.titleLong` | The title is long and Google will cut it off. |
+| `finding.descriptionMissing` | There is no meta description, so Google writes its own text under the title. |
+| `finding.descriptionShort` | The meta description is short. Use the room to say what the visitor gets. |
+| `finding.descriptionLong` | The meta description is long and Google will cut it off. |
+| `finding.descriptionDuplicate` | Other pages use this same description. |
+| `finding.noindex` | The page tells search engines not to index it. |
+| `finding.canonicalElsewhere` | The canonical points to another address, so this page is not the one Google keeps. |
+| `finding.h1Missing` | The page has no H1, so nothing names its topic. |
+| `finding.h1Multiple` | The page has {count} H1 headings. Keep one and make the others H2. |
+| `finding.skippedLevel` | "{text}" is an H{level} straight after an H{before}. Do not skip a level. |
+
+- [ ] **Step 3: Write the failing tests.**
+  `outline-model.test.ts`, on outlines written in the test (a healthy one and one with every problem):
+  - `strip`: four cells `h1`, `headings`, `words`, `images` with `value`, `note` (an id and its values) and
+    `warn`; H1 count 1 gives `note.id === 'h1One'` and `warn: false`; 0 gives value `null` (the tab writes
+    "None"), `h1Missing`, `warn: true`; 2 gives `h1Many`, `warn: true`; the headings note carries
+    `level_counts[1]` and `level_counts[2]`; words `thin` gives `thin` and `warn: true`, else `readTime` with
+    the minutes; images with `images_without_alt` 2 gives `imagesNoAlt` with 2 and `warn: true`;
+  - `blocks.listing`: `tone` `ok` and no findings for the healthy one; for the other, the findings in the
+    order title, description, duplicate, noindex, canonical, each with the `checkId` of spec 9.6.3
+    (`title-short`, `description-missing`, `noindex`, `canonical-elsewhere`) and `null` for a short or long
+    description; `tone` `warning`; `count` is the number of findings; `description-duplicate` is a finding
+    only when the second argument (the page's issues) lists that check;
+  - `blocks.headings`: `first` is the first `HEADINGS_FOLDED` (12) headings and `rest` the others; the
+    findings `h1-missing`, `h1-multiple` (with the count) and a skipped level (with the text, the level and
+    the level before, `checkId: null`); `h1Text` is the text of the first H1 or `null`; `capped` is
+    `{ shown: 200, total: 1240 }` when `headings_total` is over the list, else `null`;
+  - the model holds no visible text: every string in it is an id or comes from the page.
+  `drawer-outline-tab.test.tsx` (render the tab inside the providers with the mocked API; pages from
+  `mocks/internal-links-outline.ts`):
+  - a healthy page: the strip is a group "Outline numbers" with the four labels and values; the blocks
+    Search listing and Headings are present with `aria-expanded="true"`, each button controls a region named
+    by the block's title; the chip reads "Fine";
+  - pressing Enter on the Headings button hides its region and sets `aria-expanded="false"`; Space opens it
+    again; the focus is still on the button; the choice is kept after `rerender` with another `urlId`;
+  - `OUTLINE_LONG_PAGE`: 12 list items, a button "Show all 14 headings"; pressing it shows 14 and the button
+    reads "Show fewer headings" and has the focus; after `rerender` with another page and back, 12 again;
+  - the headings are an `ol` named "Headings in page order"; an item's accessible text starts with its
+    level ("H2");
+  - `OUTLINE_PROBLEM_PAGE`: the chip of Search listing reads "To fix", its summary "2 things to fix" (or the
+    count the fixture gives), the finding sentences are in the block; with `hrefs.issueCheck` returning
+    `null` there is no element named "See in Issues" anywhere; with it returning a route, the finding for
+    the missing description has a link "See in Issues" to that route and the finding for a skipped level has
+    none;
+  - the meter: the text "29 characters, short of 30" is in the document and the bar has `aria-hidden="true"`;
+  - the states: a redirect row shows `state.redirect` with the path of the row's redirect target and sends
+    no outline request that the tab waits on (the hook is still called; assert only the sentence); a 404
+    row shows `state.error` with 404; `OUTLINE_NO_HTML_PAGE` shows `state.noHtml`; the read answering 404
+    shows `state.notInCrawl`; the read answering 500 shows `loadFailed` with a Retry that works; while
+    loading there is a skeleton and no block;
+  - `crawl.older` true: the line `olderCrawl` is above the strip; the footer line is always last;
+  - text is text: with the outline's title `<img src=x onerror=alert(1)>` and a heading `<b>bold</b>` the
+    document holds those characters as text, `container.querySelector('img')` is null inside the preview and
+    `container.querySelector('b')` is null;
+  - `axe` finds nothing on the healthy page and on the problem page.
+  `page-inspector.test.tsx`: the Outline tab renders the tab of this task (the pending line is gone), and the
+  outline is not requested until the tab is selected.
+
+- [ ] **Step 4: Run, expect failures.**
+  `pnpm exec vitest run --maxWorkers=1 src/lib/pages/outline-model.test.ts src/features/internal-links/inspector/drawer-outline-tab.test.tsx`
+
+- [ ] **Step 5: Implement.** `outline-model.ts`, pure (no React, no text):
+
+```ts
+export const HEADINGS_FOLDED = 12;
+export const OUTLINE_BLOCKS = ['listing', 'headings', 'languages', 'sharing', 'structured', 'content'] as const;
+export type OutlineBlockId = (typeof OUTLINE_BLOCKS)[number];
+export const OUTLINE_OPEN_AT_START: readonly OutlineBlockId[] = ['listing', 'headings'];
+export type OutlineTone = 'ok' | 'warning' | 'neutral';
+export interface OutlineFinding {
+  /** The message key under `pages.drawer.outline.finding`. */
+  id: string;
+  values: Record<string, string | number>;
+  /** The Issues check this finding belongs to (spec 9.6.3), or null when no check covers it. */
+  checkId: string | null;
+}
+export interface OutlineStripCell {
+  id: 'h1' | 'headings' | 'words' | 'images';
+  value: number | null;
+  note: { id: string; values: Record<string, number> };
+  warn: boolean;
+}
+export interface OutlineModel {
+  strip: OutlineStripCell[];
+  listing: { tone: OutlineTone; findings: OutlineFinding[] };
+  headings: {
+    tone: OutlineTone; findings: OutlineFinding[]; first: PageOutlineBody['headings']; rest: PageOutlineBody['headings'];
+    h1Text: string | null; capped: { shown: number; total: number } | null;
+  };
+}
+/** `issues` are the page's issues when the Issues seam is ready, else null (spec 9.6.1: no invented duplicate). */
+export function outlineModel(outline: PageOutlineBody, issues: readonly PageIssue[] | null): OutlineModel;
+```
+
+  `outline-block.tsx`: `OutlineBlock({ id, title, summary, tone, open, onToggle, children })`: a `section`
+  with the card's border and radius; an `h3` holding one `button` (`aria-expanded`, `aria-controls`, the
+  caret icon turned when closed, the title in the strong body type, the summary in the meta type truncated
+  to one line, then the chip "Fine" or "To fix" through `Badge` with its positive or warning tone, no chip
+  for `neutral`); the body a `div` with `role="region"`, `aria-labelledby` the button's id and `hidden` when
+  closed. Also here: `OutlineFindingRow({ finding, href })` (the warning icon `aria-hidden`, the sentence,
+  and `TextLink` "See in Issues" only when `href` is not null), `OutlineFact({ label, children })` (a `dt`
+  and `dd` pair in a `dl` grid) and `LengthMeter({ chars, max, state, label })` (the bar `aria-hidden`, its
+  width `min(100, chars / max)` as a style width in percent, which is a computed size and not a design
+  token; the label beside it).
+  `outline-blocks.tsx`: `ListingBlock` and `HeadingsBlock`, each taking the outline, its part of the model,
+  `open`, `onToggle` and `issueHref: (checkId: string | null) => Route | null`. The preview is a `div` named
+  by `listing.previewLabel` with three text nodes: the host and path (from `new URL(outline.url)` inside a
+  `try`, falling back to the raw text), the title cut at 60 characters with three dots, the description
+  clamped to two lines. The headings list is an `ol`; each `li` has the level badge and the text, with a
+  left padding of one spacing step per level through a class lookup of six fixed classes (no inline
+  padding); the "Show all" button keeps its place in the DOM so the focus stays on it.
+  `drawer-outline-tab.tsx`: `usePageOutline(context.scope, urlId, active)` (the panel passes whether the tab
+  is selected); `usePageIssues` for the duplicate description; the open blocks in a `useState` set started
+  from `OUTLINE_OPEN_AT_START`, held by `page-inspector.tsx` so it survives stepping (pass `openBlocks` and
+  `onToggleBlock`); "show all headings" in a `useState` keyed by `urlId`; the states of spec 9.6.3 as one
+  sentence each; the strip as a `dl` in one joined panel, two columns that become four at the container
+  width the tiles of Task 24 use; then the two blocks; then the footer line. A page that is not live is
+  decided from the page row first (redirect, error), so its sentence shows without waiting for the read.
+  Every string from the page is a text child (`{value}`); never `dangerouslySetInnerHTML`, never an `href`,
+  `src` or `style` built from page text.
+  `page-inspector.tsx`: the Outline panel renders the tab.
+  `docs/design-system/16-drawers-dialogs-popovers.md` section 2.4, after "Cards are not collapsible.": add
+  "One exception: the blocks of the page drawer's Outline tab fold, because the tab is six long lists of
+  facts and two of them are what most people open it for (Pages spec 9.6.3)."
+
+- [ ] **Step 6: Run** `src/lib/pages/outline-model.test.ts` and `src/features/internal-links/inspector`,
+  expect pass. Run the web commands and the two message tests
+  (`src/i18n/messages.test.ts src/lib/glossary/glossary-words.test.ts`).
+
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the Outline tab with its numbers, search listing and headings"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: no HTML injection
+  (search the diff for `dangerouslySetInnerHTML`, `innerHTML`, and any `href`, `src` or `style` fed from the
+  outline: the title, description and headings are rendered as text only, and the injection test would fail
+  without that); the folding blocks (a real `button` in a heading, `aria-expanded`, `aria-controls`, a named
+  region, Enter and Space, focus kept, the closed body not reachable by Tab); the headings are an ordered
+  list and say their level in text; chips and meters carry words, colour is not the only sign; "See in
+  Issues" is absent, not disabled, when `hrefs.issueCheck` gives `null`, and no new seam was added; the
+  check ids against the table of spec 9.6.3; the duplicate description appears only from `usePageIssues`;
+  the outline is requested only while the tab is open; the six states each show one sentence; glossary
+  words ("Outline", "Alt text", "Canonical", "the latest crawl"); no shared drawer file in the diff.
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
+### Task 25c: The Outline tab's other four blocks
+
+Spec 9.6.3 (Languages, Social sharing, Structured data, Content), 9.6.1 (what is not in the answer). UI task.
+
+**Files:**
+- Modify: `apps/web/src/lib/pages/outline-model.ts`, `outline-model.test.ts`
+- Create: `apps/web/src/features/internal-links/inspector/outline-more-blocks.tsx`
+- Modify: `apps/web/src/features/internal-links/inspector/drawer-outline-tab.tsx`, `drawer-outline-tab.test.tsx`
+- Modify: `apps/web/messages/en.json`
+
+- [ ] **Step 1: Read first.** Task 25b's `outline-model.ts`, `outline-block.tsx` and `outline-blocks.tsx`
+  (reuse `OutlineBlock`, `OutlineFindingRow`, `OutlineFact`; write no second version of any of them).
+
+- [ ] **Step 2: Words** (namespace `pages.drawer.outline`):
+
+| Key | Text |
+|---|---|
+| `languages.title` | Languages |
+| `languages.summary` | {count, plural, one {# version} other {# versions}}, with x-default |
+| `languages.summaryNoDefault` | {count, plural, one {# version} other {# versions}}, no x-default |
+| `languages.summaryOne` | One language ({lang}), no versions |
+| `languages.summaryOneUnknown` | No language versions |
+| `languages.none` | The page names no other language versions. That is fine for a site in one language. |
+| `languages.thisPage` | This page |
+| `languages.wrongCode` | Wrong code |
+| `languages.listLabel` | Language versions |
+| `sharing.title` | Social sharing |
+| `sharing.summaryFine` | Open Graph and X card set |
+| `sharing.summaryPartly` | Open Graph set, no X card |
+| `sharing.summaryNone` | No Open Graph tags |
+| `sharing.factTitle` | Title |
+| `sharing.factDescription` | Description |
+| `sharing.factImage` | Image |
+| `sharing.factType` | Type |
+| `sharing.factCard` | X card |
+| `sharing.missing` | Missing |
+| `structured.title` | Structured data |
+| `structured.summary` | {count, plural, one {# block} other {# blocks}}: {types} |
+| `structured.summaryNone` | No structured data |
+| `structured.none` | The page has no structured data blocks. |
+| `structured.unnamed` | Unnamed block |
+| `structured.valid` | Valid JSON |
+| `structured.unreadable` | Cannot be read |
+| `structured.listLabel` | Structured data blocks |
+| `content.title` | Content |
+| `content.summary` | {words} words, {images, plural, one {# image} other {# images}} |
+| `content.factWords` | Words |
+| `content.factImages` | Images |
+| `content.factLinksOut` | Links out |
+| `content.readTime` | {minutes} min read |
+| `content.allAlt` | All have alt text |
+| `content.noAlt` | {count} without alt text |
+| `content.noImages` | No images |
+| `content.linksOut` | {count, plural, one {# internal link} other {# internal links}} |
+| `content.linksOutNote` | to other pages of the site |
+| `finding.hreflang` | "{code}" is not a language code Google reads. |
+| `finding.hreflangSuggest` | "{code}" is not a language code Google reads: use {suggestion}. |
+| `finding.socialTags` | The page has no Open Graph tags, so a shared link has no title or image. |
+| `finding.schemaErrors` | A structured data block cannot be read, so search engines skip it. |
+| `finding.thinContent` | The page has very little text. Add what a visitor needs to know, or merge it into a fuller page. |
+| `finding.imageAlt` | {count, plural, one {# image has} other {# images have}} no alt text, so screen readers and Google cannot tell what they show. |
+
+- [ ] **Step 3: Write the failing tests.**
+  `outline-model.test.ts` (added cases): `OutlineModel` gains `languages`, `sharing`, `structured`, `content`,
+  each `{ tone, findings, summary: { id, values } }`:
+  - languages: no pairs gives `tone: 'neutral'` and `summaryOne` with `html_lang` (or `summaryOneUnknown`
+    when it is null); pairs with `x_default` give `summary` whose count leaves the `x-default` pair out; a
+    pair that is not valid gives a finding `hreflangSuggest` (or `hreflang` without a suggestion) with
+    `checkId: 'hreflang'` and `tone: 'warning'`;
+  - sharing: `og_title` null gives `summaryNone`, one finding `social-tags`, `warning`; `og_title` set and
+    `twitter_card` null gives `summaryPartly` and `ok`; both set `summaryFine`;
+  - structured: no blocks gives `summaryNone` and `neutral`; blocks give `summary` with the count and the
+    types joined by ", " (a block without types counts and adds no name); one finding `schema-errors` per
+    block that does not parse;
+  - content: findings `thin-content` when `thin`, `image-alt` with the count when any image has no alt
+    text; `ok` with neither.
+  `drawer-outline-tab.test.tsx` (added cases):
+  - the four blocks follow Headings in the order Languages, Social sharing, Structured data, Content, each
+    closed at the start (`aria-expanded="false"`) with its summary visible;
+  - opening Languages on `OUTLINE_PROBLEM_PAGE` shows one row per pair (code, path, "Wrong code" for the bad
+    one, "This page" for the own one) and the finding with its suggestion;
+  - opening Social sharing on a page without tags shows "Missing" five times and the finding; the image of
+    a healthy page is shown as its address in text and the document has no `img` element in the block;
+  - Structured data: a row per block with its types or "Unnamed block" and "Valid JSON" or "Cannot be
+    read"; nothing in the tab claims to know what is wrong inside a block;
+  - Content: words with the read time, images with "All have alt text" or the count, "Links out" with the
+    `outlinks` of the page detail (not a field of the outline);
+  - Languages with no pairs has no chip; a block with a finding reads "To fix";
+  - "See in Issues": with `hrefs.issueCheck` returning a route, the findings for hreflang, Open Graph,
+    structured data, thin content and alt text each link to their check; with `null`, none is rendered;
+  - text is text: an `og_title` of `<script>alert(1)</script>` and a JSON-LD type of `<i>x</i>` are shown as
+    characters;
+  - `axe` finds nothing with all six blocks open.
+
+- [ ] **Step 4: Run, expect failures.**
+
+- [ ] **Step 5: Implement.** The four model parts in `outline-model.ts`. `outline-more-blocks.tsx`:
+  `LanguagesBlock`, `SharingBlock`, `StructuredBlock`, `ContentBlock`, built from the parts of Task 25b.
+  The pairs and the structured blocks are lists (`ul` with the labels above); the facts are `OutlineFact`
+  rows; the path of a pair's address is read with `new URL` inside a `try`, falling back to the raw text.
+  `ContentBlock` takes `outlinks: number` from the page detail the drawer already holds.
+  `drawer-outline-tab.tsx` renders the four after Headings and passes each its `open` and `onToggle`.
+
+- [ ] **Step 6: Run** `src/lib/pages/outline-model.test.ts` and `src/features/internal-links/inspector`,
+  expect pass. Run the web commands and the two message tests.
+
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the Outline tab's languages, sharing, structured data and content"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: the same checks as
+  Task 25b for the four new blocks (text only, no element from page text, the sharing image never drawn or
+  linked; folding and names; words on every chip); nothing the API does not return is shown (no image
+  size, no note on what is wrong inside a block, no "duplicate" without the Issues data); the block order
+  and which start open against spec 9.6.3; no component of Task 25b was copied; `messages/en.json` has no
+  key of this tab that nothing uses.
 
 - [ ] **Step 9: Fix what the review found**, rerun, commit.
 
@@ -2181,8 +3099,9 @@ node -e "const m=require('./messages/en.json');const w=(o,p=[])=>Object.entries(
 
 - [ ] **Step 3: Read `docs/glossary/terms.md` rows A5, A12 and A15 and `final-list.md`.** They were written
   in commit afc686bf. Confirm the visible strings use "Pages", "All pages", "Overview", "Tracked",
-  "Parameter variant", "Orphan page", "Untiered", "Linking pages", "Outlinks", "Best rank" as those files
-  write them. Report a mismatch; fix the string, not the glossary.
+  "Parameter variant", "Orphan page", "Untiered", "Linking pages", "Outlinks", "Best rank", "Outline" as those
+  files write them, and that the Outline's strings say "the latest crawl", "alt text", "Open Graph" and
+  "X card" the same way everywhere. Report a mismatch; fix the string, not the glossary.
 
 - [ ] **Step 4: Commit** only if something changed:
   `git commit -m "Pages: message audit"`.
@@ -2204,11 +3123,12 @@ nothing else running.
 colima status
 export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock" TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all-drawer-f3d1f7/backend
-uv run ruff check src/idraft/api/internal_links src/idraft/api/schemas tests/api/internal_links
-uv run ruff format --check src/idraft/api/internal_links src/idraft/api/schemas tests/api/internal_links
-uv run mypy src/idraft/api/internal_links src/idraft/api/schemas tests/api/internal_links
+uv run ruff check src/idraft/api/internal_links src/idraft/api/schemas src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py src/idraft/storage/raw.py src/idraft/api/main.py tests/api/internal_links tests/crawl/test_outline.py
+uv run ruff format --check src/idraft/api/internal_links src/idraft/api/schemas src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py src/idraft/storage/raw.py src/idraft/api/main.py tests/api/internal_links tests/crawl/test_outline.py
+uv run mypy src/idraft/api/internal_links src/idraft/api/schemas src/idraft/crawl/outline.py src/idraft/crawl/lang_codes.py src/idraft/storage/raw.py src/idraft/api/main.py tests/api/internal_links tests/crawl/test_outline.py
 uv run lint-imports
-uv run pytest -n 0 --no-cov tests/api/internal_links/test_inventory.py tests/api/internal_links/test_page_search.py tests/api/internal_links/test_page_sort_extra.py tests/api/internal_links/test_reads_pages.py tests/api/internal_links/test_variants.py tests/api/test_openapi.py tests/api/test_route_access.py
+uv run pytest -n 0 --no-cov tests/crawl/test_outline.py
+uv run pytest -n 0 --no-cov tests/api/internal_links/test_inventory.py tests/api/internal_links/test_page_search.py tests/api/internal_links/test_page_outline.py tests/api/internal_links/test_page_sort_extra.py tests/api/internal_links/test_reads_pages.py tests/api/internal_links/test_variants.py tests/api/test_openapi.py tests/api/test_route_access.py
 uv run python -m idraft.api.openapi | diff - openapi/v1.json
 ```
 
@@ -2220,11 +3140,11 @@ uv run python -m idraft.api.openapi | diff - openapi/v1.json
 cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all-drawer-f3d1f7/apps/web
 pnpm gen:api && git diff --exit-code src/lib/api/schema.ts
 pnpm typecheck
-pnpm exec eslint --max-warnings 0 src/lib/pages src/lib/internal-links src/lib/routes src/lib/navigation src/features/internal-links src/components/app/data-table src/mocks/handlers/internal-links.ts src/mocks/internal-links-inventory.ts src/test/pages-harness.tsx "src/app/[workspace]/[project]/seo"
+pnpm exec eslint --max-warnings 0 src/lib/pages src/lib/internal-links src/lib/routes src/lib/navigation src/features/internal-links src/components/app/data-table src/mocks/handlers/internal-links.ts src/mocks/internal-links-inventory.ts src/mocks/internal-links-outline.ts src/test/pages-harness.tsx "src/app/[workspace]/[project]/seo"
 pnpm exec prettier --check src/lib/pages src/features/internal-links src/components/app/data-table messages/en.json
 pnpm exec vitest run --maxWorkers=1 src/lib/pages
 pnpm exec vitest run --maxWorkers=1 src/lib/internal-links/queries.test.ts src/lib/routes src/lib/navigation
-pnpm exec vitest run --maxWorkers=1 src/mocks/internal-links-inventory.test.ts src/mocks/handlers/internal-links.test.ts
+pnpm exec vitest run --maxWorkers=1 src/mocks/internal-links-inventory.test.ts src/mocks/internal-links-outline.test.ts src/mocks/handlers/internal-links.test.ts
 pnpm exec vitest run --maxWorkers=1 src/components/app/data-table
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/pages-page
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/pages
@@ -2267,6 +3187,9 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
        It must be at or above 224 (spec section 8). The page does not scroll; the table scrolls inside its panel under a
        pinned header. Repeat at 1920 by 1080.
      - Open a row: the drawer lies over the table and the table keeps its width.
+     - The drawer's Outline tab on a live page: four numbers, six blocks, Search listing and Headings open;
+       fold and unfold one with the keyboard; "Show all N headings" on the page with 14; a redirect row
+       shows its one sentence; no "See in Issues" link is drawn.
      - Overview: every strip number and every card row opens All pages, and the list's total equals the
        number on the mark. Check at least one row of each card.
      - `/seo/internal-links?tab=pages&view=orphans&tier=none` lands on
@@ -2282,7 +3205,8 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 
 - [ ] **Step 7: Independent senior review (Sonnet subagent).** It is given the whole range
   `git log --oneline a8167b06..HEAD` and `git diff --stat a8167b06..HEAD`, spec sections 13, 14 and 16, and
-  the checklist of step 6. It checks: nothing of spec 13 ("Not in this build") was built; the only changes
+  the checklist of step 6. It checks: nothing of spec 13 ("Not in this build") was built (for the Outline: no
+  new table, column or cache, and no HTML reader other than `crawl/outline.py`); the only changes
   to shared files are the Pages entries of spec 14; every acceptance line has its proof; the commits are in
   the order backend, client, web; no attribution line in any commit message
   (`git log a8167b06..HEAD --format=%B | grep -i "co-authored\|generated with"` prints nothing).
@@ -2297,16 +3221,17 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 
 | Spec section | Tasks |
 |---|---|
-| 3 decisions D1 to D12 | D1 14; D2 16; D3 13, 23; D4 11, 23; D5 23 to 25 (no shared drawer file); D6 18 (pager untouched); D7 3; D8 1, 3, 8, 10; D9 19; D10 20, 22; D11, D12 21 |
+| 3 decisions D1 to D14 | D13 5c; D14 5b; D1 14; D2 16; D3 13, 23; D4 11, 23; D5 23 to 25 (no shared drawer file); D6 18 (pager untouched); D7 3; D8 1, 3, 8, 10; D9 19; D10 20, 22; D11, D12 21 |
 | 4 words | 1 |
 | 5 routes, tabs, redirects, sidebar | 9, 13, 14, 16 |
 | 6 Overview | 3, 8, 10, 13, 21, 22 |
 | 7 All pages | 1, 2, 4, 7, 11, 17 to 20 |
 | 8 layout and the budget | 13, 18, 19, 27 |
 | 9 drawer | 5, 9, 11, 23 to 25 |
-| 10 seams | 9, 20, 22, 24, 25 |
+| 9.6 the Outline tab | 5b (parser), 5c (read), 6 (client), 7 (types, query), 8 (mock), 9 (hook), 23 (tab), 25b, 25c (the tab's body) |
+| 10 seams | 9, 20, 22, 24, 25, 25b, 25c ("See in Issues" through `hrefs.issueCheck`) |
 | 11 words | every UI task, 26 |
 | 12 tests | every task, 27 |
 | 14 merge points | Rules, 14, 27 |
-| 15 blocks | 5 (before dispatching), 9, 20 |
+| 15 blocks | 5 (before dispatching), 5b (before dispatching), 5c (`no_html`), 9, 20 |
 | 16 acceptance | 27 |
