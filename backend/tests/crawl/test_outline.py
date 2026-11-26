@@ -179,6 +179,31 @@ def test_two_h1() -> None:
     assert parse_outline(body("<h1>A</h1><h1>B</h1>"), URL).level_counts[0] == 2
 
 
+@pytest.mark.parametrize(
+    "markup", ["<h1></h1>", '<h1><img alt="Brand"></h1>', "<h1> <b></b> </h1>"]
+)
+def test_a_heading_with_no_text_is_counted_but_not_listed(markup: str) -> None:
+    outline = parse_outline(body(markup), URL)
+    assert outline.level_counts[0] == 1
+    assert outline.headings_total == 1
+    assert outline.headings == ()
+
+
+def test_a_heading_with_no_text_counts_for_the_flags() -> None:
+    outline = parse_outline(body("<h1></h1><h1>B</h1>"), URL)
+    assert outline.level_counts[0] == 2
+    assert [h.text for h in outline.headings] == ["B"]
+    # An empty h2 between h1 and h3 means the h3 skips nothing; an empty h3 after an h1 is the skip.
+    assert parse_outline(body("<h1>A</h1><h2></h2><h3>C</h3>"), URL).skipped_at is None
+    assert parse_outline(body("<h1>A</h1><h3></h3><h3>C</h3>"), URL).skipped_at == 1
+
+
+def test_a_break_inside_a_heading_separates_words() -> None:
+    outline = parse_outline(body("<h2>Foo<br>Bar</h2><h2><div>Baz</div><p>Qux</p></h2>"), URL)
+    assert [h.text for h in outline.headings] == ["Foo Bar", "Baz Qux"]
+    assert parse_outline(body("<h2>Fo<b>o</b></h2>"), URL).headings[0].text == "Foo"
+
+
 @pytest.mark.parametrize("tag", ["template", "noscript"])
 def test_a_heading_in_a_hidden_element_is_not_a_heading(tag: str) -> None:
     outline = parse_outline(body(f"<{tag}><h1>Hidden</h1></{tag}><h2>Shown</h2>"), URL)
@@ -260,6 +285,16 @@ def test_a_block_with_many_types_gives_the_first_ten() -> None:
     assert block.parses
 
 
+def test_a_graph_that_is_one_object_gives_its_types() -> None:
+    markup = '<script type="application/ld+json">{"@graph": {"@type": "Article"}}</script>'
+    assert parse_outline(head(markup), URL).jsonld == (JsonLdBlock(("Article",), True),)
+
+
+def test_a_json_ld_script_that_is_never_closed_is_one_block_that_does_not_parse() -> None:
+    markup = '<script type="application/ld+json">{"@type": "Thing"}'
+    assert parse_outline(head(markup), URL).jsonld == (JsonLdBlock((), False),)
+
+
 def test_json_ld_in_a_hidden_element_is_not_read() -> None:
     markup = '<noscript><script type="application/ld+json">{}</script></noscript>'
     assert parse_outline(body(markup), URL).jsonld == ()
@@ -284,7 +319,15 @@ HOSTILE = [
 def test_hostile_input_never_raises(value: str) -> None:
     started = time.monotonic()
     assert isinstance(parse_outline(value, URL), ParsedOutline)
-    assert time.monotonic() - started < 10
+    assert time.monotonic() - started < 2
+
+
+@pytest.mark.parametrize("tag", ["nav", "form", "footer"])
+def test_deeply_nested_skipped_elements_read_in_linear_time(tag: str) -> None:
+    started = time.monotonic()
+    value = body(f"<{tag}>" * 150_000 + f"</{tag}>" * 100_000 + "<p>after</p>")
+    assert isinstance(parse_outline(value, URL), ParsedOutline)
+    assert time.monotonic() - started < 2
 
 
 def test_an_empty_page_gives_the_empty_outline() -> None:

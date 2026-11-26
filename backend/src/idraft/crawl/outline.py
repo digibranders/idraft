@@ -43,6 +43,10 @@ _CHUNK: Final = 65_536
 _CODE_MAX: Final = 64  # a language or hreflang code is far shorter; this only bounds junk
 _TYPE_MAX: Final = 100
 _HEADINGS: Final = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+# Inside a heading these end a word: "Foo<br>Bar" reads "Foo Bar".
+_BREAKS: Final = frozenset(
+    {"br", "hr", "p", "div", "li", "ul", "ol", "tr", "td", "th", "table", "section", "article"}
+)
 # `script` is here too: its text is never a heading's or a word's.
 _HIDDEN: Final = frozenset({"template", "noscript", "style", "script"})
 _SOCIAL: Final = frozenset({"og:title", "og:description", "og:image", "og:type", "twitter:card"})
@@ -78,6 +82,9 @@ class ParsedOutline:
     description_chars: int
     robots_meta: str | None
     html_lang: str | None
+    # `headings_total` and `level_counts` count every heading, one with no text too (an image
+    # or a stray tag), so an `<h1>` holding only a logo is not a missing H1. `headings` lists
+    # only those with text, at most HEADINGS_MAX; `skipped_at` indexes that list.
     headings: tuple[Heading, ...]
     headings_total: int
     level_counts: tuple[int, int, int, int, int, int]
@@ -193,9 +200,13 @@ class _Outline(HTMLParser):
         self.headings: list[Heading] = []
         self.headings_total = 0
         self.level_counts = [0] * 6
-        self.jsonld: list[tuple[str, bool]] = []  # (text, over the cap)
+        # (text, whether it is not to be parsed: over the cap, or never closed)
+        self.jsonld: list[tuple[str, bool]] = []
         self.images = 0
         self.images_without_alt = 0
+        self.skipped_at: int | None = None
+        self._prev_level = 0  # the level of the last counted heading, 0 before the first
+        self._skip_pending = False
         self._level = 0  # the open heading's level, 0 when none
         self._heading = ""
         self._ld: str | None = None  # the open JSON-LD block's text so far
@@ -204,6 +215,8 @@ class _Outline(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in _HEADINGS:
             self.finish_heading()
+        elif tag in _BREAKS and self._level and not self._hidden:
+            self.handle_data(" ")
         if tag in _HIDDEN:
             if tag == "script" and not self._hidden and self._is_json_ld(attrs):
                 self._ld, self._ld_over = "", False
@@ -231,6 +244,8 @@ class _Outline(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag in _HEADINGS:
             self.finish_heading()
+        elif tag in _BREAKS and self._level and not self._hidden:
+            self.handle_data(" ")
         elif tag in _HIDDEN:
             if tag == "script" and self._ld is not None:
                 if len(self.jsonld) < JSONLD_BLOCKS_MAX:
@@ -254,13 +269,28 @@ class _Outline(HTMLParser):
     def finish_heading(self) -> None:
         if not self._level:
             return
-        # A heading with no text (an image, a stray tag) is not worth a row and is not counted.
+        # Every heading is counted, so `<h1><img alt="Brand"></h1>` is an H1; one with no text
+        # (an image, a stray tag) is not worth a row in the list.
+        self.level_counts[self._level - 1] += 1
+        self.headings_total += 1
+        # A skip is measured against the previous counted heading and reported at the next
+        # one with text, the index of that row in `headings`.
+        if self._prev_level and self._level - self._prev_level > 1:
+            self._skip_pending = True
+        self._prev_level = self._level
         if text := self._heading.strip():
-            self.level_counts[self._level - 1] += 1
-            self.headings_total += 1
             if len(self.headings) < HEADINGS_MAX:
+                if self._skip_pending and self.skipped_at is None:
+                    self.skipped_at = len(self.headings)
                 self.headings.append(Heading(self._level, text))
+            self._skip_pending = False
         self._level, self._heading = 0, ""
+
+    def finish_json_ld(self) -> None:
+        """A JSON-LD script the page never closed is a block that does not parse."""
+        if self._ld is not None and len(self.jsonld) < JSONLD_BLOCKS_MAX:
+            self.jsonld.append((self._ld, True))
+        self._ld = None
 
     @staticmethod
     def _is_json_ld(attrs: list[tuple[str, str | None]]) -> bool:
@@ -307,7 +337,7 @@ def _types_of(data: object) -> list[str]:
         if not isinstance(node, dict):
             continue
         graph = node.get("@graph")
-        for item in [node, *(graph if isinstance(graph, list) else [])]:
+        for item in [node, *(graph if isinstance(graph, list) else [graph])]:
             kinds = item.get("@type") if isinstance(item, dict) else None
             for kind in kinds if isinstance(kinds, list) else [kinds]:
                 if not isinstance(kind, str):
@@ -319,20 +349,13 @@ def _types_of(data: object) -> list[str]:
     return found
 
 
-def _jsonld_block(text: str, over: bool) -> JsonLdBlock:
-    if over:
+def _jsonld_block(text: str, unparsed: bool) -> JsonLdBlock:
+    if unparsed:
         return JsonLdBlock((), False)
     try:
         return JsonLdBlock(tuple(_types_of(json.loads(text))), True)
     except Exception:  # not JSON, or nested past the recursion limit (RecursionError)
         return JsonLdBlock((), False)
-
-
-def _skipped_at(headings: list[Heading]) -> int | None:
-    for i in range(1, len(headings)):
-        if headings[i].level - headings[i - 1].level > 1:
-            return i
-    return None
 
 
 def parse_outline(html: str, page_url: str) -> ParsedOutline:
@@ -346,6 +369,7 @@ def parse_outline(html: str, page_url: str) -> ParsedOutline:
     except Exception:  # garbage in, so whatever the parser raises, keep what it has read
         pass
     parser.finish_heading()
+    parser.finish_json_ld()
     try:
         words = sum(len(_WORD.findall(block)) for block in visible_blocks(html))
     except Exception:  # `visible_blocks` has no guard of its own
@@ -360,7 +384,7 @@ def parse_outline(html: str, page_url: str) -> ParsedOutline:
         headings=tuple(parser.headings),
         headings_total=parser.headings_total,
         level_counts=(counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]),
-        skipped_at=_skipped_at(parser.headings),
+        skipped_at=parser.skipped_at,
         hreflang=tuple(parser.hreflang),
         x_default=parser.x_default,
         og_title=social.get("og:title"),
