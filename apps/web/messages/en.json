@@ -9313,6 +9313,53 @@
           "capped": "The first {shown} of {total} headings",
           "withoutText": "{count, plural, one {# heading has} other {# headings have}} no text, so no row"
         },
+        "languages": {
+          "title": "Languages",
+          "summary": "{count, plural, one {# version} other {# versions}}, with x-default",
+          "summaryNoDefault": "{count, plural, one {# version} other {# versions}}, no x-default",
+          "summaryOne": "One language ({lang}), no versions",
+          "summaryOneUnknown": "No language versions",
+          "none": "The page names no other language versions. That is fine for a site in one language.",
+          "thisPage": "This page",
+          "wrongCode": "Wrong code",
+          "listLabel": "Language versions"
+        },
+        "sharing": {
+          "title": "Social sharing",
+          "summaryFine": "Open Graph and X card set",
+          "summaryPartly": "Open Graph set, no X card",
+          "summaryNone": "No Open Graph tags",
+          "factTitle": "Title",
+          "factDescription": "Description",
+          "factImage": "Image",
+          "factType": "Type",
+          "factCard": "X card",
+          "missing": "Missing"
+        },
+        "structured": {
+          "title": "Structured data",
+          "summary": "{count, plural, one {# block} other {# blocks}}: {types}",
+          "summaryUnnamed": "{count, plural, one {# block} other {# blocks}}",
+          "summaryNone": "No structured data",
+          "none": "The page has no structured data blocks.",
+          "unnamed": "Unnamed block",
+          "valid": "Valid JSON",
+          "unreadable": "Cannot be read",
+          "listLabel": "Structured data blocks"
+        },
+        "content": {
+          "title": "Content",
+          "summary": "{words} words, {images, plural, one {# image} other {# images}}",
+          "factWords": "Words",
+          "factImages": "Images",
+          "factLinksOut": "Links out",
+          "readTime": "{minutes} min read",
+          "allAlt": "All have alt text",
+          "noAlt": "{count} without alt text",
+          "noImages": "No images",
+          "linksOut": "{count, plural, one {# internal link} other {# internal links}}",
+          "linksOutNote": "to other pages of the site"
+        },
         "finding": {
           "titleMissing": "The page has no title, so Google writes one from the page.",
           "titleShort": "The title is short. Add the words people search for.",
@@ -9325,7 +9372,13 @@
           "canonicalElsewhere": "The canonical points to another address, so this page is not the one Google keeps.",
           "h1Missing": "The page has no H1, so nothing says what it is about.",
           "h1Multiple": "The page has {count} H1 headings. Keep one and make the others H2.",
-          "skippedLevel": "“{text}” is an H{level} straight after an H{before}. Do not skip a level."
+          "skippedLevel": "“{text}” is an H{level} straight after an H{before}. Do not skip a level.",
+          "hreflang": "“{code}” is not a language code Google reads.",
+          "hreflangSuggest": "“{code}” is not a language code Google reads: use {suggestion}.",
+          "socialTags": "The page has no Open Graph tags, so a shared link has no title or image.",
+          "schemaErrors": "A structured data block cannot be read, so search engines skip it.",
+          "thinContent": "The page has very little text. Add what a visitor needs to know, or merge it into a fuller page.",
+          "imageAlt": "{count, plural, one {# image has} other {# images have}} no alt text, so screen readers and Google cannot tell what they show."
         }
       }
     },

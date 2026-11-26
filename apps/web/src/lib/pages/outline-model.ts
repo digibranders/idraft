@@ -28,8 +28,24 @@ export interface OutlineStripCell {
   warn: boolean;
 }
 
+/** The one line a folded block shows: a message key under its namespace and the values it takes. */
+export interface OutlineSummary {
+  id: string;
+  values: Record<string, string | number>;
+}
+
+export interface OutlineSummaryPart {
+  tone: OutlineTone;
+  findings: OutlineFinding[];
+  summary: OutlineSummary;
+}
+
 export interface OutlineModel {
   strip: OutlineStripCell[];
+  languages: OutlineSummaryPart;
+  sharing: OutlineSummaryPart;
+  structured: OutlineSummaryPart;
+  content: OutlineSummaryPart;
   listing: { tone: OutlineTone; findings: OutlineFinding[] };
   headings: {
     tone: OutlineTone;
@@ -116,6 +132,70 @@ function headingFindings(outline: PageOutlineBody): OutlineFinding[] {
   return found;
 }
 
+const summaryOf = (id: string, values: Record<string, string | number> = {}): OutlineSummary => ({ id, values });
+
+function languagesPart(outline: PageOutlineBody): OutlineSummaryPart {
+  const { pairs } = outline.languages;
+  if (pairs.length === 0) {
+    const { html_lang: lang } = outline;
+    return {
+      tone: 'neutral',
+      findings: [],
+      summary: lang === null ? summaryOf('summaryOneUnknown') : summaryOf('summaryOne', { lang }),
+    };
+  }
+  const findings = pairs
+    .filter((pair) => !pair.valid)
+    .map((pair) =>
+      pair.suggestion === null
+        ? finding('hreflang', 'hreflang', { code: pair.code })
+        : finding('hreflangSuggest', 'hreflang', { code: pair.code, suggestion: pair.suggestion }),
+    );
+  const count = pairs.filter((pair) => pair.code.toLowerCase() !== 'x-default').length;
+  return {
+    tone: toneOf(findings),
+    findings,
+    summary: summaryOf(outline.languages.x_default ? 'summary' : 'summaryNoDefault', { count }),
+  };
+}
+
+function sharingPart({ social }: PageOutlineBody): OutlineSummaryPart {
+  if (social.og_title === null) {
+    return { tone: 'warning', findings: [finding('socialTags', 'social-tags')], summary: summaryOf('summaryNone') };
+  }
+  return {
+    tone: 'ok',
+    findings: [],
+    summary: summaryOf(social.twitter_card === null ? 'summaryPartly' : 'summaryFine'),
+  };
+}
+
+function structuredPart({ structured_data: blocks }: PageOutlineBody): OutlineSummaryPart {
+  if (blocks.length === 0) return { tone: 'neutral', findings: [], summary: summaryOf('summaryNone') };
+  const findings = blocks.filter((block) => !block.parses).map(() => finding('schemaErrors', 'schema-errors'));
+  const types = blocks.flatMap((block) => block.types).join(', ');
+  return {
+    tone: toneOf(findings),
+    findings,
+    summary:
+      types === ''
+        ? summaryOf('summaryUnnamed', { count: blocks.length })
+        : summaryOf('summary', { count: blocks.length, types }),
+  };
+}
+
+function contentPart({ content }: PageOutlineBody): OutlineSummaryPart {
+  const findings: OutlineFinding[] = [];
+  if (content.thin) findings.push(finding('thinContent', 'thin-content'));
+  if (content.images_without_alt > 0)
+    findings.push(finding('imageAlt', 'image-alt', { count: content.images_without_alt }));
+  return {
+    tone: toneOf(findings),
+    findings,
+    summary: summaryOf('summary', { words: content.words, images: content.images }),
+  };
+}
+
 /** `issues` are the page's issues when the Issues seam is ready, else null (spec 9.6.1: no invented duplicate). */
 export function outlineModel(outline: PageOutlineBody, issues: readonly PageIssue[] | null): OutlineModel {
   const listing = listingFindings(outline, issues);
@@ -127,6 +207,10 @@ export function outlineModel(outline: PageOutlineBody, issues: readonly PageIssu
   const capped = listed >= HEADINGS_LISTED_MAX && gap > 0;
   return {
     strip: stripOf(outline),
+    languages: languagesPart(outline),
+    sharing: sharingPart(outline),
+    structured: structuredPart(outline),
+    content: contentPart(outline),
     listing: { tone: toneOf(listing), findings: listing },
     headings: {
       tone: toneOf(headings),

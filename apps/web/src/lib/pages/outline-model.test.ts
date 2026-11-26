@@ -188,3 +188,119 @@ describe('the headings', () => {
     for (const text of strings) expect(text).toMatch(/^(?:[A-Za-z0-9-]+|Who we are|Deep one)$/);
   });
 });
+
+describe('the languages', () => {
+  const pair = (
+    code: string,
+    valid = true,
+    suggestion: string | null = null,
+  ): PageOutlineBody['languages']['pairs'][number] => ({
+    code,
+    href: `https://example.com/${code}`,
+    is_self: false,
+    valid,
+    suggestion,
+  });
+
+  it('is neutral with no pairs and names the language of the page', () => {
+    expect(outlineModel(outline(), null).languages).toEqual({
+      tone: 'neutral',
+      findings: [],
+      summary: { id: 'summaryOne', values: { lang: 'en' } },
+    });
+    expect(outlineModel(outline({ html_lang: null }), null).languages.summary.id).toBe('summaryOneUnknown');
+  });
+
+  it('counts the versions without the x-default pair', () => {
+    const pairs = [pair('en'), pair('de'), pair('x-default')];
+    const withDefault = outlineModel(outline({ languages: { x_default: true, pairs } }), null).languages;
+    expect(withDefault).toEqual({ tone: 'ok', findings: [], summary: { id: 'summary', values: { count: 2 } } });
+    const without = outlineModel(outline({ languages: { x_default: false, pairs: pairs.slice(0, 2) } }), null);
+    expect(without.languages.summary).toEqual({ id: 'summaryNoDefault', values: { count: 2 } });
+  });
+
+  it('gives a finding with the suggestion, or without it, for a code that is not valid', () => {
+    const pairs = [pair('en-UK', false, 'en-GB'), pair('xx', false)];
+    const { languages } = outlineModel(outline({ languages: { x_default: false, pairs } }), null);
+    expect(languages.tone).toBe('warning');
+    expect(languages.findings).toEqual([
+      { id: 'hreflangSuggest', values: { code: 'en-UK', suggestion: 'en-GB' }, checkId: 'hreflang' },
+      { id: 'hreflang', values: { code: 'xx' }, checkId: 'hreflang' },
+    ]);
+  });
+});
+
+describe('the social sharing', () => {
+  const social = (overrides: Partial<PageOutlineBody['social']>): PageOutlineBody =>
+    outline({
+      social: { og_title: 'T', og_description: null, og_image: null, og_type: null, twitter_card: null, ...overrides },
+    });
+
+  it('says none, with one finding, when there is no og:title', () => {
+    const { sharing } = outlineModel(social({ og_title: null }), null);
+    expect(sharing).toEqual({
+      tone: 'warning',
+      findings: [{ id: 'socialTags', values: {}, checkId: 'social-tags' }],
+      summary: { id: 'summaryNone', values: {} },
+    });
+  });
+
+  it('says partly when only the X card is missing, and fine when both are set', () => {
+    const partly = outlineModel(social({}), null).sharing;
+    expect(partly).toMatchObject({ tone: 'ok', findings: [], summary: { id: 'summaryPartly' } });
+    const fine = outlineModel(social({ twitter_card: 'summary' }), null).sharing;
+    expect(fine).toMatchObject({ tone: 'ok', summary: { id: 'summaryFine' } });
+  });
+});
+
+describe('the structured data', () => {
+  it('is neutral with no blocks', () => {
+    expect(outlineModel(outline(), null).structured).toEqual({
+      tone: 'neutral',
+      findings: [],
+      summary: { id: 'summaryNone', values: {} },
+    });
+  });
+
+  it('joins the types, counts a block without types, and finds each block that does not parse', () => {
+    const blocks = [
+      { types: ['Article', 'WebPage'], parses: true },
+      { types: [], parses: false },
+      { types: ['Organization'], parses: false },
+    ];
+    const { structured } = outlineModel(outline({ structured_data: blocks }), null);
+    expect(structured.summary).toEqual({
+      id: 'summary',
+      values: { count: 3, types: 'Article, WebPage, Organization' },
+    });
+    expect(structured.tone).toBe('warning');
+    expect(structured.findings).toEqual([
+      { id: 'schemaErrors', values: {}, checkId: 'schema-errors' },
+      { id: 'schemaErrors', values: {}, checkId: 'schema-errors' },
+    ]);
+  });
+
+  it('counts blocks that name no type without a list of types', () => {
+    const { structured } = outlineModel(outline({ structured_data: [{ types: [], parses: true }] }), null);
+    expect(structured).toEqual({ tone: 'ok', findings: [], summary: { id: 'summaryUnnamed', values: { count: 1 } } });
+  });
+});
+
+describe('the content', () => {
+  it('is ok with no finding for a healthy page', () => {
+    expect(outlineModel(outline(), null).content).toEqual({
+      tone: 'ok',
+      findings: [],
+      summary: { id: 'summary', values: { words: 690, images: 4 } },
+    });
+  });
+
+  it('finds thin text and images without alt text', () => {
+    const { content } = outlineModel(problem(), null);
+    expect(content.tone).toBe('warning');
+    expect(content.findings).toEqual([
+      { id: 'thinContent', values: {}, checkId: 'thin-content' },
+      { id: 'imageAlt', values: { count: 2 }, checkId: 'image-alt' },
+    ]);
+  });
+});

@@ -5,6 +5,7 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import type { PageDrawerContext } from './page-drawer-context';
 import { HeadingsBlock, ListingBlock } from './outline-blocks';
+import { ContentBlock, LanguagesBlock, SharingBlock, StructuredBlock } from './outline-more-blocks';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatInteger } from '@/lib/format';
@@ -111,6 +112,7 @@ export function DrawerOutlineTab({
     <OutlineBody
       older={context.crawl.older}
       outline={answer.outline}
+      outlinks={page?.outlinks ?? null}
       issues={issues}
       issueCheck={context.hrefs.issueCheck}
       openBlocks={openBlocks}
@@ -130,9 +132,12 @@ function OutlineBody({
   onToggleBlock,
   showAll,
   onToggleAll,
+  outlinks,
 }: {
   older: boolean;
   outline: PageOutlineBody;
+  /** The links out of the page row, which the outline does not carry. */
+  outlinks: number | null;
   issues: Seam<readonly PageIssue[]>;
   issueCheck: PageDrawerContext['hrefs']['issueCheck'];
   openBlocks: ReadonlySet<OutlineBlockId>;
@@ -165,6 +170,35 @@ function OutlineBody({
         issueHref={issueHref}
         showAll={showAll}
         onToggleAll={onToggleAll}
+      />
+      <LanguagesBlock
+        outline={outline}
+        part={model.languages}
+        open={openBlocks.has('languages')}
+        onToggle={onToggleBlock}
+        issueHref={issueHref}
+      />
+      <SharingBlock
+        outline={outline}
+        part={model.sharing}
+        open={openBlocks.has('sharing')}
+        onToggle={onToggleBlock}
+        issueHref={issueHref}
+      />
+      <StructuredBlock
+        outline={outline}
+        part={model.structured}
+        open={openBlocks.has('structured')}
+        onToggle={onToggleBlock}
+        issueHref={issueHref}
+      />
+      <ContentBlock
+        outline={outline}
+        part={model.content}
+        open={openBlocks.has('content')}
+        onToggle={onToggleBlock}
+        issueHref={issueHref}
+        outlinks={outlinks}
       />
       <p className="type-meta text-foreground-tertiary">{t('footer')}</p>
     </>

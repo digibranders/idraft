@@ -68,12 +68,14 @@ function Harness({
   urlId,
   context = contextOf(),
   issues = UNAVAILABLE,
+  opened = OUTLINE_OPEN_AT_START,
 }: {
   urlId: string;
   context?: PageDrawerContext;
   issues?: Seam<readonly PageIssue[]>;
+  opened?: readonly OutlineBlockId[];
 }): ReactElement {
-  const [open, setOpen] = useState<ReadonlySet<OutlineBlockId>>(() => new Set(OUTLINE_OPEN_AT_START));
+  const [open, setOpen] = useState<ReadonlySet<OutlineBlockId>>(() => new Set(opened));
   return (
     <DrawerOutlineTab
       context={context}
@@ -125,7 +127,8 @@ describe('a healthy page', () => {
       expect(button).toHaveAttribute('aria-expanded', 'true');
       expect(document.getElementById(button.getAttribute('aria-controls') ?? '')).toBe(block(name));
     }
-    expect(screen.getAllByText('Fine')).toHaveLength(2);
+    // Languages has no chip with no pairs; the other five blocks have nothing to fix
+    expect(screen.getAllByText('Fine')).toHaveLength(5);
     expect(
       screen.getByText('Read from the stored HTML of the latest crawl, so it shows the page as the crawler saw it.'),
     ).toBeInTheDocument();
@@ -395,5 +398,169 @@ describe('text from the page is text', () => {
     expect(screen.getAllByText('<b>bold</b>').length).toBeGreaterThan(0);
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('b')).toBeNull();
+  });
+});
+
+const ALL_BLOCKS: readonly OutlineBlockId[] = ['listing', 'headings', 'languages', 'sharing', 'structured', 'content'];
+const issuesRoute = (checkId: string): Route => `/issues/${checkId}` as Route;
+
+/** The mocked outline of a page with parts changed, served for the next read. */
+function serve(id: string, change: (body: NonNullable<ReturnType<typeof outlineOf>['outline']>) => void): void {
+  server.use(http.get(OUTLINE, () => HttpResponse.json(outlineWith(id, change))));
+}
+
+describe('the other four blocks', () => {
+  it('follow Headings in order, closed, each with its summary', async () => {
+    renderWithProviders(<Harness urlId={HEALTHY} />);
+    await screen.findByRole('group', { name: 'Outline numbers' });
+    const blockName = /^(Search listing|Headings|Languages|Social sharing|Structured data|Content)/;
+    const names = screen
+      .getAllByRole('button')
+      .map((button) => blockName.exec(button.textContent ?? '')?.[0])
+      .filter((name) => name !== undefined);
+    expect(names).toEqual(['Search listing', 'Headings', 'Languages', 'Social sharing', 'Structured data', 'Content']);
+    const languages = screen.getByRole('button', { name: /^Languages/ });
+    expect(languages).toHaveAttribute('aria-expanded', 'false');
+    expect(languages).toHaveTextContent('One language (en), no versions');
+    expect(screen.getByRole('button', { name: /^Social sharing/ })).toHaveTextContent('Open Graph and X card set');
+    expect(screen.getByRole('button', { name: /^Structured data/ })).toHaveTextContent('1 block: WebPage');
+    expect(screen.getByRole('button', { name: /^Content/ })).toHaveTextContent('640 words, 4 images');
+    expect(screen.getByRole('button', { name: /^Languages/ })).not.toHaveTextContent('Fine');
+  });
+
+  it('Languages lists a row per pair with its path, the wrong code and this page', async () => {
+    serve(OUTLINE_PROBLEM_PAGE, (body) => {
+      body.languages = {
+        x_default: false,
+        pairs: [
+          { code: 'en', href: 'https://example.com/pricing', is_self: true, valid: true, suggestion: null },
+          { code: 'en-UK', href: 'https://example.com/uk/pricing', is_self: false, valid: false, suggestion: 'en-GB' },
+        ],
+      };
+    });
+    renderWithProviders(<Harness urlId={OUTLINE_PROBLEM_PAGE} opened={['languages']} />);
+    const list = await screen.findByRole('list', { name: 'Language versions' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('en');
+    expect(rows[0]).toHaveTextContent('/pricing');
+    expect(rows[0]).toHaveTextContent('This page');
+    expect(rows[1]).toHaveTextContent('/uk/pricing');
+    expect(rows[1]).toHaveTextContent('Wrong code');
+    expect(screen.getByText('“en-UK” is not a language code Google reads: use en-GB.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Languages/ })).toHaveTextContent('To fix');
+  });
+
+  it('Languages with no pairs says it is fine for one language', async () => {
+    renderWithProviders(<Harness urlId={HEALTHY} opened={['languages']} />);
+    expect(
+      await screen.findByText('The page names no other language versions. That is fine for a site in one language.'),
+    ).toBeInTheDocument();
+  });
+
+  it('Social sharing says Missing five times without tags, and shows the image address as text', async () => {
+    serve(HEALTHY, (body) => {
+      body.social = { og_title: null, og_description: null, og_image: null, og_type: null, twitter_card: null };
+    });
+    const first = renderWithProviders(<Harness urlId={HEALTHY} opened={['sharing']} />);
+    const region = await screen.findByRole('region', { name: 'Social sharing' });
+    expect(within(region).getAllByText('Missing')).toHaveLength(5);
+    expect(
+      within(region).getByText('The page has no Open Graph tags, so a shared link has no title or image.'),
+    ).toBeInTheDocument();
+    first.unmount();
+    server.resetHandlers();
+    renderWithProviders(<Harness urlId={HEALTHY} opened={['sharing']} />);
+    const healthy = await screen.findByRole('region', { name: 'Social sharing' });
+    expect(within(healthy).getByText(/\/og\/default\.png$/)).toBeInTheDocument();
+    expect(healthy.querySelector('img')).toBeNull();
+    expect(within(healthy).queryByRole('link')).toBeNull();
+  });
+
+  it('Structured data has a row per block, and claims nothing about what is wrong inside one', async () => {
+    serve(HEALTHY, (body) => {
+      body.structured_data = [
+        { types: ['Article', 'WebPage'], parses: true },
+        { types: [], parses: false },
+      ];
+    });
+    renderWithProviders(<Harness urlId={HEALTHY} opened={['structured']} />);
+    const list = await screen.findByRole('list', { name: 'Structured data blocks' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('Article, WebPage');
+    expect(rows[0]).toHaveTextContent('Valid JSON');
+    expect(rows[1]).toHaveTextContent('Unnamed block');
+    expect(rows[1]).toHaveTextContent('Cannot be read');
+    expect(screen.getByText('A structured data block cannot be read, so search engines skip it.')).toBeInTheDocument();
+  });
+
+  it('Content shows words with the read time, images, and the links out of the page row', async () => {
+    renderWithProviders(<Harness urlId={HEALTHY} opened={['content']} />);
+    const region = await screen.findByRole('region', { name: 'Content' });
+    expect(region).toHaveTextContent('640');
+    expect(region).toHaveTextContent('3 min read');
+    expect(region).toHaveTextContent('All have alt text');
+    const links = row(HEALTHY).outlinks;
+    expect(region).toHaveTextContent(`${String(links)} internal link`);
+    expect(region).toHaveTextContent('to other pages of the site');
+  });
+
+  it('Content says the count of images without alt text, and No images', async () => {
+    serve(HEALTHY, (body) => {
+      body.content = { ...body.content, images: 3, images_without_alt: 2 };
+    });
+    const first = renderWithProviders(<Harness urlId={HEALTHY} opened={['content']} />);
+    // The strip says it too, so the block is read on its own
+    expect(
+      within(await screen.findByRole('region', { name: 'Content' })).getByText('2 without alt text'),
+    ).toBeInTheDocument();
+    first.unmount();
+    serve(HEALTHY, (body) => {
+      body.content = { ...body.content, images: 0, images_without_alt: 0 };
+    });
+    renderWithProviders(<Harness urlId={HEALTHY} opened={['content']} />);
+    expect(await screen.findByText('No images')).toBeInTheDocument();
+  });
+
+  it('links each finding to its check, and renders no link when the host gives no route', async () => {
+    serve(OUTLINE_PROBLEM_PAGE, (body) => {
+      body.languages = {
+        x_default: false,
+        pairs: [{ code: 'xx', href: 'https://example.com/xx', is_self: false, valid: false, suggestion: null }],
+      };
+    });
+    const first = renderWithProviders(
+      <Harness urlId={OUTLINE_PROBLEM_PAGE} opened={ALL_BLOCKS} context={contextOf({ issueCheck: issuesRoute })} />,
+    );
+    await screen.findByRole('region', { name: 'Content' });
+    const hrefs = screen.getAllByRole('link', { name: 'See in Issues' }).map((link) => link.getAttribute('href'));
+    for (const check of ['hreflang', 'social-tags', 'schema-errors', 'thin-content', 'image-alt']) {
+      expect(hrefs).toContain(`/issues/${check}`);
+    }
+    first.unmount();
+    renderWithProviders(<Harness urlId={OUTLINE_PROBLEM_PAGE} opened={ALL_BLOCKS} />);
+    await screen.findByRole('region', { name: 'Content' });
+    expect(screen.queryByText('See in Issues')).toBeNull();
+  });
+
+  it('shows markup in an og:title and a type as characters', async () => {
+    serve(HEALTHY, (body) => {
+      body.social = { ...body.social, og_title: '<script>alert(1)</script>' };
+      body.structured_data = [{ types: ['<i>x</i>'], parses: true }];
+    });
+    const { container } = renderWithProviders(<Harness urlId={HEALTHY} opened={ALL_BLOCKS} />);
+    await screen.findByRole('region', { name: 'Social sharing' });
+    expect(screen.getByText('<script>alert(1)</script>')).toBeInTheDocument();
+    expect(screen.getAllByText('<i>x</i>').length).toBeGreaterThan(0);
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('i')).toBeNull();
+  });
+
+  it('has no axe violations with all six blocks open', async () => {
+    const { container } = renderWithProviders(
+      <Harness urlId={OUTLINE_PROBLEM_PAGE} opened={ALL_BLOCKS} context={contextOf({ issueCheck: issuesRoute })} />,
+    );
+    await screen.findByRole('region', { name: 'Content' });
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

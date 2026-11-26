@@ -19,7 +19,7 @@ import {
   type OutlineModel,
 } from '@/lib/pages/outline-model';
 
-interface BlockProps {
+export interface BlockProps {
   outline: PageOutlineBody;
   open: boolean;
   onToggle: (id: OutlineBlockId) => void;
@@ -30,9 +30,9 @@ interface BlockProps {
 /** The title is cut at this many characters in the preview, as a search result cuts it. */
 const PREVIEW_TITLE_CHARS = 60;
 
-type Translate = ReturnType<typeof useTranslations<'pages.drawer.outline'>>;
+export type Translate = ReturnType<typeof useTranslations<'pages.drawer.outline'>>;
 
-function Findings({
+export function Findings({
   findings,
   issueHref,
   t,
@@ -44,9 +44,10 @@ function Findings({
   if (findings.length === 0) return null;
   return (
     <ul className="flex flex-col gap-2">
-      {findings.map((finding) => (
+      {findings.map((finding, index) => (
         <OutlineFindingRow
-          key={finding.id}
+          // A page can have the same finding twice (two blocks that do not parse), so the place is part of the key
+          key={`${finding.id}-${String(index)}`}
           // The ids are those of `OutlineFinding.id`, all under `finding`
           text={t(`finding.${finding.id}` as 'finding.noindex', finding.values)}
           href={issueHref(finding.checkId)}
