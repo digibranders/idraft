@@ -51,6 +51,8 @@ Plan 03 tasks 0 to 4 (design system and pure modules, no API needed) ───�
 | 01 | `.claude/worktrees/internal-links-spike` | `feat/internal-links-spike` |
 | 02 | `.claude/worktrees/internal-links-backend` | `feat/internal-links-backend` |
 | 03 | `.claude/worktrees/internal-links-web` | `feat/internal-links-web` |
+| 10 | `.claude/worktrees/link-map-backend` | `feat/link-map-backend` |
+| 11 | `.claude/worktrees/link-map-web` | `feat/link-map-web` |
 
 All three are cut from `origin/develop` and merge into `develop`. Nothing goes to `main` except through `infra/ship.sh` when the owner says to release (AGENTS.md). Shared files that other tracks also change (messages, design-system registry, tokens, `ProjectSettings`) are named in each plan; merge `develop` into the branch before the final gate.
 
@@ -143,3 +145,19 @@ New owner decisions these plans need (each is an open point in the plan named):
 | D14 | The canvas is the mock's viewport ported to the app, without React Flow and elkjs named in the spec | 05, P4 | Accept |
 | D15 | The client summary is a download built in the browser; a shareable link is not in this release | 05, P3 | Accept |
 | D16 | Rank, citation and anchor columns do not sort (only Change does) | 05, P6 | Accept |
+
+## Link map (plans 10 and 11)
+
+On 2026-11-26 the owner approved a "Link map" tab: the whole crawl as one interactive graph (a dot per live page, an arrow per body link), after a mock in `apps/web/design-preview` that went through two rounds of feedback on finding pages, naming them, colours and hover. It replaces the spec's "Whole-site graph picture: when asked".
+
+- Plan 10, backend, `2026-11-26-internal-links-10-link-map-backend.md`: `GET .../internal-links/graph`, the whole crawl as nodes and edges, capped by `max_pages`.
+- Plan 11, web, `2026-11-26-internal-links-11-link-map-web.md` (10 tasks): the graph query, the model, the deterministic layout in a Web Worker, the focus, the ECharts option, the canvas component, the tab, the design system entry and one browser flow. Plan 11 starts after plan 10 is on `origin/develop`.
+
+Owner decisions taken on 2026-11-26:
+
+| # | Decision | Plan | Taken |
+|---|---|---|---|
+| D17 | Menu and footer links are a property of the page, not edges of the graph; the card and a Highlight choice show them | 10 and 11, W4 | 2026-11-26 |
+| D18 | The map is a tab of its own, named "Link map", after Journey | 11, W12 | 2026-11-26 |
+| D19 | The renderer is the ECharts graph series with a cap of 3,000 pages; sigma.js is the upgrade when a customer needs a bigger map | 11, W1 and W3 | 2026-11-26 |
+| D20 | Tiers are one hue each on the map, not the one-blue scale of the tier badge | 11, W5 | 2026-11-26 |

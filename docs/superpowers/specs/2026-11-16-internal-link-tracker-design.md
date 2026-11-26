@@ -49,7 +49,7 @@ Later slices (named so nothing is lost). On 2026-11-16 the owner asked for every
 | Tier suggestions from tracked keyword targets and Search Console clicks | 3 |
 | AI citation columns per page | 3 |
 | Reordering tiers, per-project tier lists | When asked |
-| Whole-site graph picture | When asked |
+| Whole-site graph picture (the Link map tab, section 7.11) | Plans 10 and 11, 2026-11-26 |
 
 ## 4. Concepts
 
@@ -190,7 +190,7 @@ A tier or rule change updates `core.project_pages`, then recomputes `crawl.tier_
 
 ### 7.1 Place in the app
 
-A new SEO sidebar item, "Internal links", with tabs Pages, Links, Journey and Tier flow (slice 1), then Changes and Opportunities (slices 2 and 3, section 7.10). Worklists are saved views of the Pages and Links tabs, with counts in the page header. Exact routes follow the existing project routes and are settled in the plan.
+A new SEO sidebar item, "Internal links", with tabs Pages, Links, Journey and Tier flow (slice 1), then Changes and Opportunities (slices 2 and 3, section 7.10) and the Link map (section 7.11, placed after Journey). Worklists are saved views of the Pages and Links tabs, with counts in the page header. Exact routes follow the existing project routes and are settled in the plan.
 
 The page header shows the crawl in scope ("Crawled 14 Nov, 2,148 pages") with a menu of earlier runs, plus Crawl now and Export.
 
@@ -384,6 +384,20 @@ These are specified by the mock in `apps/web/design-preview/il-*.js`; the real a
 
 **Client summary.** Export menu entry "Client summary (HTML)": a standalone page with the tier table (pages, share of pages, equity share, average depth), the editorial tier flow, the open worklists with counts and the lost links to T1 and T2.
 
+### 7.11 Link map tab (2026-11-26)
+
+The whole crawl as one interactive graph, so a reader can find a page, tell pages apart and see which pages link to which. The reference is the mock `apps/web/design-preview/il-map.js`; the reads are plan 10 and the screen is plan 11.
+
+- **Node and edge.** A node is a live page under its canonical address. A redirect folds into the page it points to and a variant (a page whose canonical is another crawled page) into that page, so a link to either lands on the real page. An edge is one page linking to another in the body, however many times; auto-generated links are drawn only when asked ("Editorial and auto-generated"). Menu, header, footer, sidebar and breadcrumb links are never edges: nearly every page has the same ones, so they are a property of the page they point to (`sitewide_from`, zero unless at least half of the pages link to it). The card says so and the Highlight choice "In the menu or footer" lights those pages.
+- **The block of unlinked pages.** Pages with no drawn link in or out stand in a block of their own, one grid per tier, to the right of the map or under it when the canvas is taller than wide. The summary sentence counts them.
+- **Finding a page.** A search box lights the pages whose address or title contains the text and says "n of N pages"; Enter zooms to them and selects the page when there is one. The search, the auto-generated links, the colouring (by tier or by section), the highlight (no links in, dead ends, in the menu or footer) and the selected page are in the address (`mq`, `mauto`, `mcol`, `mhl`, `mpage`); the zoom, dragged pages, legend switches and the minimap are not.
+- **Reading a page.** Pointing shows a two line tooltip and dims the rest a little. A click selects: the page and the pages it links with stay lit, links into it green and dotted, links out blue and solid, and a card opens with "Page details" (the inspector) and "Open in Journey". Escape, the card's close button or a click on the background lets go. A click does not open the inspector by itself.
+- **Names, dots, colours.** Every page carries the last part of its address; names that would overlap give way to the bigger dot and return on zoom. A dot grows with links in plus links out. One hue per tier (15 §13.1). Full screen fills the window and asks the browser for its own full screen.
+- **The cap.** The tab asks for at most 3,000 pages. When the crawl has more, a banner says the map shows the pages with the most links.
+- **States.** Skeleton, error with Try again, "Nothing to map" for a crawl with no live page, the links dropped message for a crawl whose links are no longer stored (a link level tab: such a crawl cannot be chosen for it).
+- **Accessible version.** The canvas is `role="img"` with a sentence that says what the map shows; the Pages tab lists every page with its links. Every control is a real button or field.
+- **Export.** The page's Export menu downloads the pages of the map (address, title, tier, links in, links out, on the map or not, menu and footer links from) as CSV.
+
 ## 8. API
 
 `{P}` is `/api/v1/projects/{project_id}`. Every list takes `run` (default `latest`), `scope` (`editorial`, `auto_generated`, `template` or `all`, default `editorial`), cursor paging and `format=csv` where export applies.
@@ -396,6 +410,7 @@ These are specified by the mock in `apps/web/design-preview/il-*.js`; the real a
 | `GET {P}/internal-links/edges` | Links table |
 | `GET {P}/internal-links/neighbors` | One journey step, either side. Takes `url_id`, `direction` (`in` or `out`), `scope`, `limit` (8), `offset`. Returns the children in scope with edge fields, tier, metrics, `has_children` and `reciprocal`, plus a count per other scope for the group cards. The canvas decides "new", "back link" or "seen elsewhere" itself, because only it knows what is on screen |
 | `GET {P}/internal-links/tier-flow` | Matrix and per-tier strip |
+| `GET {P}/internal-links/graph` | The Link map: nodes (live pages with tier, links in and out, menu and footer count) and edges, `include_auto`, `max_pages` (100 to 5,000), `run` |
 | `GET {P}/internal-links/worklists` | Counts for the saved views |
 | `PUT {P}/pages/tiers` | Bulk set or clear a tier: `{url_ids}` or `{filter}`, plus `{tier_id or null}` |
 | `POST {P}/pages/tiers/reset` | Reset pages to their rule tier |
