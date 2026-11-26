@@ -30,7 +30,7 @@ import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { livePagesTabs, type PagesTabId } from '@/lib/pages/tabs';
 import { PAGES_DEFAULT_SORT } from '@/lib/pages/url-state';
 import { useCan } from '@/lib/permissions';
-import { pagesTabPath, projectPath, withQuery } from '@/lib/routes/paths';
+import { integrationsPath, pagesTabPath, projectPath, withQuery } from '@/lib/routes/paths';
 
 const HEADING_ID = 'pages-heading';
 const INTERNAL_LINKS_PATH = '/seo/internal-links';
@@ -151,6 +151,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
         }),
       issueCheck: () => null,
       taxonomy: pagesContext.taxonomyHref,
+      integrations: integrationsPath(workspaceSlug, project.slug),
     },
   };
 

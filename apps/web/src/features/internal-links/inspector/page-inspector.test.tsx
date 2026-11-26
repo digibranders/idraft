@@ -1,6 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
+import type { Route } from 'next';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { DrawerIssuesTab } from './drawer-issues-tab';
 
 import { READ_LIMIT } from '@/lib/internal-links/journey-layout';
 import type { PageIssue, Seam } from '@/lib/pages/issue-source';
@@ -16,6 +20,7 @@ import {
 } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
+import { chartSummaryText } from '@/test/chart-summary';
 import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { mockBrowser } from '@/test/mock-api';
 import { server } from '@/test/msw';
@@ -36,7 +41,17 @@ vi.mock('@/lib/pages/issue-source', async (importOriginal) => ({
   usePageIssues: (): Seam<readonly PageIssue[]> => seam.current,
 }));
 
+/** The Search Console session's slot: a test turns its marker on to see where the tab draws it. */
+const slot = vi.hoisted(() => ({ marker: false, props: [] as unknown[] }));
+vi.mock('@/lib/pages/search-detail-slot', () => ({
+  PageSearchDetailSlot: (props: unknown): ReactElement | null => {
+    slot.props.push(props);
+    return slot.marker ? <p>Slot marker</p> : null;
+  },
+}));
+
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
+const SEARCH = mswPath(`${P}/internal-links/pages/{url_id}/search`);
 const DETAIL = mswPath(`${P}/internal-links/pages/{url_id}`);
 const NEIGHBORS = mswPath(`${P}/internal-links/neighbors`);
 const SUMMARY = mswPath(`${P}/internal-links/changes/summary`);
@@ -47,6 +62,8 @@ const SERVER_ERROR = { type: 'about:blank', title: 'Server error', status: 500 }
 beforeEach(() => {
   stubWideScreen();
   seam.current = { state: 'unavailable' };
+  slot.marker = false;
+  slot.props.length = 0;
 });
 afterEach(() => {
   restoreWideScreen();
@@ -97,6 +114,37 @@ function writes(): () => string[] {
   });
   return () => seen;
 }
+
+/** The page 108 read with some of its parts changed: the tiles then do not depend on the fixture's numbers. */
+const withOverview = (page: Record<string, unknown>, gsc: Record<string, unknown>): void =>
+  server.use(
+    http.get(DETAIL, () =>
+      HttpResponse.json({
+        data: {
+          page: {
+            ...pageRow(crawledPage('108') as NonNullable<ReturnType<typeof crawledPage>>, 'editorial'),
+            ...page,
+          },
+          linking_by_tier: [],
+          linking_by_placement: [],
+          top_anchors: [],
+          links_available: true,
+          linking_pages: [],
+          outlinks: [],
+          linking_pages_total: 0,
+          outlinks_total: 0,
+          notes_count: 0,
+          extras: {
+            anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] },
+            change: null,
+            citations: { chatgpt: 1, gemini: 0, ai_mode: 0, total: 1 },
+            gsc: { state: 'ok', clicks: 1240, impressions: 30500, window_start: null, window_end: null, ...gsc },
+            keywords: [],
+          },
+        },
+      }),
+    ),
+  );
 
 describe('the page inspector (spec 7.4)', () => {
   it('shows the tier with its source, the strip, the linking pages and the flags, and no equity', async () => {
@@ -405,29 +453,30 @@ describe('the page inspector (spec 7.4)', () => {
       links.unmount();
       renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
       const search = await panelOf('/pricing');
-      await within(search).findByRole('heading', { name: 'Google Search Console' });
+      await within(search).findByRole('heading', { name: 'Search Console, last 28 days' });
       expect(within(search).getByRole('heading', { name: 'Tracked keywords' })).toBeInTheDocument();
       expect(within(search).queryByRole('heading', { name: 'AI citations' })).toBeNull();
     });
 
-    it('shows the Google data of the page in Search and the citation counts in AI', async () => {
+    it('shows the Search Console totals of the page in Search and the citation counts in AI', async () => {
       const search = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
-      expect(await section('Google Search Console')).toHaveTextContent(
-        '960 clicks, 12,000 impressions, last 28 days (Google data)',
-      );
+      await section('Search Console, last 28 days');
+      const totals = within(await panelOf('/pricing')).getByRole('group', { name: 'Search Console totals' });
+      expect(totals).toHaveTextContent('960');
+      expect(totals).toHaveTextContent('12,000');
       search.unmount();
       renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('ai'));
       expect(await section('AI citations')).toHaveTextContent('Cited in 1 answer');
     });
 
-    it('says Search Console is syncing, or not connected', async () => {
+    it('says the Search Console numbers are not collected yet, or that it is not connected', async () => {
       setLinksScenario({ gsc: 'pending' });
       const pending = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
-      expect(await section('Google Search Console')).toHaveTextContent('Search Console is syncing.');
+      expect(await section('Search Console, last 28 days')).toHaveTextContent('Not collected yet');
       pending.unmount();
       setLinksScenario({ gsc: 'not_connected' });
       renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
-      expect(await section('Google Search Console')).toHaveTextContent('Search Console is not connected.');
+      expect(await section('Search Console, last 28 days')).toHaveTextContent('Search Console is not connected');
     });
 
     it('has no changes section on a first crawl, and says Updating or Not available while the comparison is not ready', async () => {
@@ -607,7 +656,7 @@ describe('the page inspector (spec 7.4)', () => {
       server.use(http.get(DETAIL, () => new Promise<never>(() => undefined)));
       for (const [tab, title] of [
         ['overview', 'Needs attention'],
-        ['search', 'Google Search Console'],
+        ['search', 'Tracked keywords'],
         ['issues', 'Flags'],
         ['ai', 'AI citations'],
       ] as const) {
@@ -668,11 +717,11 @@ describe('the page inspector (spec 7.4)', () => {
       ).toBeInTheDocument();
     });
 
-    it('holds the tracked keywords and the Google data in Search, and the flags in Issues', async () => {
+    it('holds the Search Console days and the tracked keywords in Search, and the flags in Issues', async () => {
       const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
       const panel = await panelOf('/pricing');
       expect(await within(panel).findByRole('heading', { name: 'Tracked keywords' })).toBeInTheDocument();
-      expect(within(panel).getByRole('heading', { name: 'Google Search Console' })).toBeInTheDocument();
+      expect(await within(panel).findByRole('heading', { name: 'Search Console, last 28 days' })).toBeInTheDocument();
       await user.click(within(panel).getByRole('tab', { name: 'Issues' }));
       expect(await within(panel).findByRole('heading', { name: 'Flags' })).toBeInTheDocument();
     });
@@ -699,37 +748,6 @@ describe('the page inspector (spec 7.4)', () => {
   });
 
   describe('the Overview tab (spec 9.4)', () => {
-    /** The page 108 read with some of its parts changed: the tiles then do not depend on the fixture's numbers. */
-    const withOverview = (page: Record<string, unknown>, gsc: Record<string, unknown>): void =>
-      server.use(
-        http.get(DETAIL, () =>
-          HttpResponse.json({
-            data: {
-              page: {
-                ...pageRow(crawledPage('108') as NonNullable<ReturnType<typeof crawledPage>>, 'editorial'),
-                ...page,
-              },
-              linking_by_tier: [],
-              linking_by_placement: [],
-              top_anchors: [],
-              links_available: true,
-              linking_pages: [],
-              outlinks: [],
-              linking_pages_total: 0,
-              outlinks_total: 0,
-              notes_count: 0,
-              extras: {
-                anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] },
-                change: null,
-                citations: { chatgpt: 1, gemini: 0, ai_mode: 0, total: 1 },
-                gsc: { state: 'ok', clicks: 1240, impressions: 30500, window_start: null, window_end: null, ...gsc },
-                keywords: [],
-              },
-            },
-          }),
-        ),
-      );
-
     it('draws the chips from the page row, with Parameter variant only for a variant', async () => {
       withOverview(
         { status_code: 200, is_indexable: true, in_sitemap: false, flags: ['variant'] },
@@ -875,6 +893,239 @@ describe('the page inspector (spec 7.4)', () => {
         renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
         expect(await screen.findByText('Nothing needs attention on this page')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('the Search tab (spec 9.4, 9.5)', () => {
+    const day = (index: number, clicks: number, impressions: number): Record<string, unknown> => ({
+      date: new Date(Date.UTC(2026, 9, 28 + index)).toISOString().slice(0, 10),
+      clicks,
+      impressions,
+    });
+    const okDays = Array.from({ length: 28 }, (_, index) => day(index, index + 1, (index + 1) * 10));
+    const serveSearch = (data: Record<string, unknown>): void =>
+      server.use(http.get(SEARCH, () => HttpResponse.json({ data })));
+    const ok = (days: Record<string, unknown>[], clicks: number, impressions: number): Record<string, unknown> => ({
+      state: 'ok',
+      window_start: '2026-10-28',
+      window_end: '2026-11-24',
+      clicks,
+      impressions,
+      days,
+    });
+    const section = async (panel: HTMLElement): Promise<HTMLElement> =>
+      (await within(panel).findByRole('heading', { name: 'Search Console, last 28 days' })).closest(
+        'section',
+      ) as HTMLElement;
+
+    it('draws the Search Console section, then the slot, then the tracked keywords, in that order', async () => {
+      slot.marker = true;
+      serveSearch(ok(okDays, 406, 4060));
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      const heading = await within(panel).findByRole('heading', { name: 'Search Console, last 28 days' });
+      const marker = await within(panel).findByText('Slot marker');
+      const keywords = await within(panel).findByRole('heading', { name: 'Tracked keywords' });
+      expect(heading.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(marker.compareDocumentPosition(keywords) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(slot.props.at(-1)).toMatchObject({ urlId: '108', url: expect.stringContaining('/pricing') });
+    });
+
+    it('draws nothing for the slot while it is empty, and no Google card on any tab', async () => {
+      slot.marker = false;
+      serveSearch(ok(okDays, 406, 4060));
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      await section(panel);
+      for (const name of TAB_NAMES) {
+        await user.click(within(panel).getByRole('tab', { name }));
+        expect(within(panel).queryByRole('heading', { name: 'Google' })).toBeNull();
+      }
+    });
+
+    it('shows the two totals and a chart of the 28 days with a Table view of 28 rows', async () => {
+      serveSearch(ok(okDays, 406, 4060));
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      const region = await section(panel);
+      const totals = within(panel).getByRole('group', { name: 'Search Console totals' });
+      expect(totals).toHaveTextContent('Clicks');
+      expect(totals).toHaveTextContent('406');
+      expect(totals).toHaveTextContent('Impressions');
+      expect(totals).toHaveTextContent('4,060');
+      expect(chartSummaryText(within(panel).getByRole('heading', { name: 'Search Console, last 28 days' }))).toBe(
+        '406 clicks and 4,060 impressions from Oct 28, 2026 to Nov 24, 2026',
+      );
+      await user.click(within(region).getByRole('button', { name: 'Table' }));
+      const table = within(region).getByRole('table');
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .map((header) => header.textContent),
+      ).toEqual(['Day', 'Clicks', 'Impressions']);
+      expect(within(table).getAllByRole('row')).toHaveLength(29);
+    });
+
+    it('reads 0 and says Google reported nothing, instead of drawing a flat chart', async () => {
+      serveSearch(
+        ok(
+          Array.from({ length: 28 }, (_, index) => day(index, 0, 0)),
+          0,
+          0,
+        ),
+      );
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      expect(
+        await within(panel).findByText('Google reported no clicks or impressions for this page in these 28 days'),
+      ).toBeInTheDocument();
+      expect(within(panel).getByRole('group', { name: 'Search Console totals' })).toHaveTextContent('0');
+      expect(within(panel).queryByRole('button', { name: 'Table' })).toBeNull();
+    });
+
+    it('says Search Console is not connected, with the Integrations link only for a member who may connect', async () => {
+      const gone = {
+        state: 'not_connected',
+        window_start: null,
+        window_end: null,
+        clicks: null,
+        impressions: null,
+        days: [],
+      };
+      serveSearch(gone);
+      const first = renderWithProviders(pagesAs('admin', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      expect(await within(panel).findByText('Search Console is not connected')).toBeInTheDocument();
+      expect(
+        within(panel).getByText("Connect Search Console to see this page's clicks and impressions."),
+      ).toBeInTheDocument();
+      expect(within(panel).getByRole('link', { name: 'Open Integrations' })).toHaveAttribute(
+        'href',
+        expect.stringContaining('/integrations/google'),
+      );
+      first.unmount();
+      serveSearch(gone);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      expect(await screen.findByText('Search Console is not connected')).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Open Integrations' })).toBeNull();
+    });
+
+    it('says the numbers are not collected yet while Search Console has not answered', async () => {
+      serveSearch({
+        state: 'pending',
+        window_start: null,
+        window_end: null,
+        clicks: null,
+        impressions: null,
+        days: [],
+      });
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      expect(await within(panel).findByText('Not collected yet')).toBeInTheDocument();
+      expect(
+        within(panel).getByText('The page numbers arrive after the next Search Console update.'),
+      ).toBeInTheDocument();
+    });
+
+    it('shows an inline error when the read fails, and its retry reads again', async () => {
+      let calls = 0;
+      server.use(
+        http.get(SEARCH, () => {
+          calls += 1;
+          return calls === 1
+            ? HttpResponse.json(SERVER_ERROR, { status: 500 })
+            : HttpResponse.json({ data: ok(okDays, 406, 4060) });
+        }),
+      );
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      expect(await within(panel).findByText('The Search Console numbers could not be loaded')).toBeInTheDocument();
+      await user.click(within(panel).getByRole('button', { name: 'Try again' }));
+      expect(await within(panel).findByRole('group', { name: 'Search Console totals' })).toHaveTextContent('406');
+    });
+
+    it('holds a skeleton, not an empty panel, while the numbers load', async () => {
+      server.use(http.get(SEARCH, () => new Promise<never>(() => undefined)));
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      expect(await within(panel).findByRole('heading', { name: 'Search Console, last 28 days' })).toBeInTheDocument();
+      expect(within(panel).getByRole('tabpanel')).not.toBeEmptyDOMElement();
+    });
+  });
+
+  describe('the Issues tab (spec 9.4, 10.1)', () => {
+    it('says the checks are not available yet and lists the flags of the page, never empty', async () => {
+      withOverview({ flags: ['orphan'] }, {});
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('issues'));
+      const panel = await panelOf('/pricing');
+      expect(
+        await within(panel).findByText('Checks from the Issues page appear here once they are available'),
+      ).toBeInTheDocument();
+      const flags = within(panel).getByRole('heading', { name: 'Flags' }).closest('section') as HTMLElement;
+      await waitFor(() => expect(within(flags).getAllByRole('listitem').length).toBeGreaterThan(0));
+    });
+
+    it('lists each issue with a severity word, its words, and the link only when the route exists', async () => {
+      const issues: PageIssue[] = [
+        { checkId: 'a', severity: 'warning', detail: 'Two H1 headings' },
+        { checkId: 'b', severity: 'error', detail: null },
+      ];
+      const { rerender } = renderWithProviders(
+        <DrawerIssuesTab
+          issues={{ state: 'ready', data: issues }}
+          detail={null}
+          linkScope="editorial"
+          issueHref={() => '/issues/a' as Route}
+        />,
+      );
+      const items = screen.getAllByRole('listitem');
+      expect(items[0]).toHaveTextContent('Error');
+      expect(items[1]).toHaveTextContent('Warning');
+      expect(items[1]).toHaveTextContent('Two H1 headings');
+      expect(screen.getAllByRole('link', { name: 'See all pages with this issue' })).toHaveLength(2);
+      rerender(
+        <DrawerIssuesTab
+          issues={{ state: 'ready', data: issues }}
+          detail={null}
+          linkScope="editorial"
+          issueHref={() => null}
+        />,
+      );
+      expect(screen.queryByRole('link', { name: 'See all pages with this issue' })).toBeNull();
+    });
+
+    it('says no issues were found for a page with none', () => {
+      renderWithProviders(
+        <DrawerIssuesTab
+          issues={{ state: 'ready', data: [] }}
+          detail={null}
+          linkScope="editorial"
+          issueHref={() => null}
+        />,
+      );
+      expect(screen.getByText('No issues found on this page')).toBeInTheDocument();
+    });
+
+    it('shows an inline error with a retry that calls the seam', async () => {
+      const retry = vi.fn();
+      const { user } = renderWithProviders(
+        <DrawerIssuesTab
+          issues={{ state: 'error', retry }}
+          detail={null}
+          linkScope="editorial"
+          issueHref={() => null}
+        />,
+      );
+      expect(screen.getByText('The issues of this page could not be loaded')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(retry).toHaveBeenCalledOnce();
+    });
+
+    it('keeps Outline between Search and Issues and Notes last', async () => {
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const panel = await panelOf('/pricing');
+      const names = within(panel).getAllByRole('tab').map(tabLabel);
+      expect(names).toEqual([...TAB_NAMES]);
     });
   });
 

@@ -1,13 +1,15 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Copy, ExternalLink, Flag, Globe, Layers, Sparkles, Workflow, type LucideIcon } from 'lucide-react';
+import { Copy, ExternalLink, Layers, Search, Sparkles, Workflow, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
 import { DrawerLinksTab } from './drawer-links-tab';
-import { DrawerOverviewTab, FlagsList } from './drawer-overview-tab';
+import { DrawerIssuesTab } from './drawer-issues-tab';
+import { DrawerOverviewTab } from './drawer-overview-tab';
+import { DrawerSearchTab } from './drawer-search-tab';
 import { ExtrasSections, type ExtrasPart } from './extras-sections';
 import { BulkTagDialog } from '../pages/bulk-tag-dialog';
 import { usePageBulk, type BulkTarget } from '../pages/use-page-bulk';
@@ -67,7 +69,8 @@ export interface PageInspectorProps {
 
 /**
  * The tabbed drawer of one crawled page (spec 9, mock `il-drawer.js`). Overview holds the tier with its source and
- * tags and the flags; Search the tracked keywords and the Google data; Issues the flags; AI the citations; Links
+ * tags and Needs attention; Search the 28 days of Search Console and the tracked keywords; Issues the page's issues
+ * or, until they exist, its flags; AI the citations; Links
  * the strip, the linking pages by tier and placement, the changes and anchors cards and the neighbors; Outline and
  * Notes hold a line until their tabs land. Equity share is never shown (decision W4).
  */
@@ -222,15 +225,6 @@ export function PageInspector({
         )}
       </InspectorSection>
     );
-    // Until the Issues tab lands (Task 25) it holds the flags, which Overview shows as Needs attention
-    const flagsSection =
-      detail === null ? (
-        loadingSection(t('flags'), Flag)
-      ) : (
-        <InspectorSection title={t('flags')} icon={Flag} status="ready">
-          <FlagsList page={detail.page} linkScope={linkScope} />
-        </InspectorSection>
-      );
     // A panel is never empty while the page loads: it draws the skeleton of its first card
     const extras = (parts: readonly ExtrasPart[], pendingTitle: string, pendingIcon: LucideIcon): ReactElement =>
       detail === null ? (
@@ -255,9 +249,18 @@ export function PageInspector({
           tierSection={tierSection}
         />
       ),
-      search: extras(['keywords', 'google'], extrasWords('google'), Globe),
+      search: (
+        <DrawerSearchTab
+          context={context}
+          urlId={urlId}
+          url={page?.url ?? null}
+          keywords={extras(['keywords'], extrasWords('keywords'), Search)}
+        />
+      ),
       outline: <p className="type-body text-foreground-tertiary">{drawer('outline.pending')}</p>,
-      issues: flagsSection,
+      issues: (
+        <DrawerIssuesTab issues={issues} detail={detail} linkScope={linkScope} issueHref={context.hrefs.issueCheck} />
+      ),
       ai:
         detail === null ? (
           loadingSection(extrasWords('citations'), Sparkles)

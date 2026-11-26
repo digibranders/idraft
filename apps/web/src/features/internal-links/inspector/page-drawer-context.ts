@@ -8,6 +8,7 @@ import { withQuery } from '@/lib/routes/paths';
 
 const INTERNAL_LINKS_PATH = '/seo/internal-links';
 const TAXONOMY_PATH = '/settings/taxonomy';
+const INTEGRATIONS_PATH = '/integrations/google';
 
 /** What the page drawer needs from its host (spec 9.2): the host builds the exits as links with `projectPath`. */
 export interface PageDrawerContext {
@@ -28,6 +29,8 @@ export interface PageDrawerContext {
     /** `null` while the Issues page is not on the branch: the links that need it are not rendered. */
     issueCheck: (checkId: string) => Route | null;
     taxonomy: Route;
+    /** Integrations > Google, where the Search tab sends a member who may connect Search Console. */
+    integrations: Route;
   };
 }
 
@@ -56,6 +59,7 @@ export function drawerContextOf(context: LinksTabContext, can: { write: boolean;
       linksTo: (urlId) => exit({ tab: 'links', tgt: urlId }),
       issueCheck: () => null,
       taxonomy: context.hrefOf(TAXONOMY_PATH),
+      integrations: context.hrefOf(INTEGRATIONS_PATH),
     },
   };
 }

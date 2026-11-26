@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 
 /** Most issues the card lists before it sends the reader to the Issues tab. */
 const MOST_ISSUES = 5;
-const SEVERITY_TONE = { error: 'negative', warning: 'warning', notice: 'neutral' } as const satisfies Record<
+export const SEVERITY_TONE = { error: 'negative', warning: 'warning', notice: 'neutral' } as const satisfies Record<
   IssueSeverity,
   'negative' | 'warning' | 'neutral'
 >;

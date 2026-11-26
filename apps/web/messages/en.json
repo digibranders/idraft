@@ -9206,6 +9206,34 @@
           "copyUrl": "Copy URL"
         }
       },
+      "search": {
+        "title": "Search Console, last 28 days",
+        "label": "Search Console totals",
+        "clicks": "Clicks",
+        "impressions": "Impressions",
+        "day": "Day",
+        "summary": "{clicks} clicks and {impressions} impressions from {start} to {end}",
+        "notConnectedTitle": "Search Console is not connected",
+        "notConnectedReason": "Connect Search Console to see this page's clicks and impressions.",
+        "connect": "Open Integrations",
+        "pendingTitle": "Not collected yet",
+        "pendingReason": "The page numbers arrive after the next Search Console update.",
+        "none": "Google reported no clicks or impressions for this page in these 28 days",
+        "loadFailed": "The Search Console numbers could not be loaded"
+      },
+      "issues": {
+        "pending": "Checks from the Issues page appear here once they are available",
+        "none": "No issues found on this page",
+        "seeAll": "See all pages with this issue",
+        "loadFailed": "The issues of this page could not be loaded",
+        "title": "Issues",
+        "flags": "Flags",
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "notice": "Notice"
+        }
+      },
       "notes": {
         "pending": "The notes of this page appear here"
       },
