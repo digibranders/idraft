@@ -40,7 +40,14 @@ import {
   type EntityCounts,
 } from '../prompt-summary';
 import { isShotStored, latestOf, sampleShot, shotPathOf, shotStateOf, storeShot } from '../answer-screenshots';
-import { aiOverviewBlock, aiOverviewCellOf, answerFactsExtra, factsBuilder } from '../prompt-facts';
+import {
+  aiOverviewBlock,
+  aiOverviewCellOf,
+  answerFactsExtra,
+  enginePieceOf,
+  factsBuilder,
+  weekFactsOf,
+} from '../prompt-facts';
 import { promptsOf } from '../prompts-state';
 import { invalid, mock, problem } from '../respond';
 import { shiftIsoDate, validateDateWindow } from '../serp-views';
@@ -825,26 +832,34 @@ export const promptAnswerHandlers: HttpHandler[] = [
       }
     }
     /** The series of an engine row: a prompt row's one prompt, or a topic row's prompts, pooled as the API pools them. */
-    const seriesOf = (ids: readonly string[], code: string, topic: boolean): WeekCells[] | null =>
-      weeks === null
-        ? null
-        : weeklySeries(
-            code,
-            weeks,
-            { from: firstDate, to: lastDate, timezone: zone },
-            ids.map((id) => weeks.map((week) => weekly.get(`${id} ${code} ${week}`) ?? NO_COUNTS)),
-            topic,
-            cellIds === null
-              ? undefined
-              : {
-                  ids: cellIds,
-                  named: (prompt, week, entityId) =>
-                    entityCountsOf(
-                      entityId,
-                      weeklyAnswers.get(`${ids[prompt] ?? ''} ${code} ${weeks[week] ?? ''}`) ?? [],
-                    ),
-                },
-          );
+    const seriesOf = (ids: readonly string[], code: string, topic: boolean): WeekCells[] | null => {
+      if (weeks === null) return null;
+      const series = weeklySeries(
+        code,
+        weeks,
+        { from: firstDate, to: lastDate, timezone: zone },
+        ids.map((id) => weeks.map((week) => weekly.get(`${id} ${code} ${week}`) ?? NO_COUNTS)),
+        topic,
+        cellIds === null
+          ? undefined
+          : {
+              ids: cellIds,
+              named: (prompt, week, entityId) =>
+                entityCountsOf(entityId, weeklyAnswers.get(`${ids[prompt] ?? ''} ${code} ${weeks[week] ?? ''}`) ?? []),
+            },
+      );
+      if (!include.facts) return series;
+      // With the facts, each point also carries the places, recommendation rate and tones of the weeks it holds
+      return series.map((point) => {
+        const at = weeks.indexOf(point.week_start);
+        const held = weeks.slice(Math.max(0, at - (point.pool?.weeks ?? 1) + 1), at + 1);
+        const pieces = ids.flatMap((id) => {
+          const answers = held.flatMap((week) => weeklyAnswers.get(`${id} ${code} ${week}`) ?? []);
+          return answers.length === 0 ? [] : [enginePieceOf(id, code, answers)];
+        });
+        return { ...point, ...weekFactsOf(code, pieces, topic) };
+      });
+    };
     const withBlocks = (
       cells: EngineSummary,
       series: WeekCells[] | null,

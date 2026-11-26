@@ -129,7 +129,7 @@ describe('useCompetitorReads', () => {
     expect(shapes).toEqual(
       expect.arrayContaining([
         ['co_mentions,entities,total', 'none'],
-        ['entities,series,total', 'none'],
+        ['entities,fact_counts,series,total', 'none'],
         ['entities,total', null],
         ['entities,total', 'none'],
       ]),

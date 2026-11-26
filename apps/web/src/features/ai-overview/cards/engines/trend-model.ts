@@ -28,9 +28,9 @@ export const TREND_METRICS: readonly TrendMetric[] = ['mention', 'citation', 'sh
 export const isTrendMetric = (value: string): value is TrendMetric => TREND_METRICS.some((metric) => metric === value);
 
 /**
- * The metrics a week can carry: the three of the trend cards, and AI visibility (named or cited), which the API does
- * not put on a week yet (backend request 1, `WeekCells.visibility`). A summary without it has no weekly visibility,
- * and says so (`hasWeeklyVisibility`); the figure is never made up from the mention and citation cells.
+ * The metrics a week can carry: the three of the trend cards, and AI visibility (named or cited), which the API puts on
+ * every week (`WeekCells.visibility`). A body without it has no weekly visibility, and says so
+ * (`hasWeeklyVisibility`); the figure is never made up from the mention and citation cells.
  */
 export type WeekMetric = TrendMetric | 'visibility';
 

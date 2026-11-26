@@ -88,7 +88,7 @@ describe('the weekly share of voice cards ask for the per-brand weekly cells', (
   ] as const)('%s: include=series,entities with the total, and no rows', async (_name, type, Card, searchParams) => {
     const urls = await readsOf(type, Card, searchParams);
     for (const url of urls) {
-      expect(includeOf(url)).toEqual(['entities', 'series', 'total']);
+      expect(includeOf(url)).toEqual(['entities', 'fact_counts', 'series', 'total']);
       expect(url.searchParams.get('rows')).toBe('none');
     }
   });
@@ -97,12 +97,12 @@ describe('the weekly share of voice cards ask for the per-brand weekly cells', (
     const urls = serveRecording(weeklySummary());
     renderCard('ai.visibility_split', HeadlineCard, { engine: 'chatgpt_web' }, { searchParams: 'cmp=off' });
     await waitFor(() => {
-      expect(urls.map((url) => includeOf(url).join(','))).toContain('entities,series,total');
+      expect(urls.map((url) => includeOf(url).join(','))).toContain('entities,fact_counts,series,total');
     });
     const reads = urls.map((url) => ({ include: includeOf(url).join(','), rows: url.searchParams.get('rows') }));
-    expect(reads).toContainEqual({ include: 'entities,series,total', rows: 'none' });
+    expect(reads).toContainEqual({ include: 'entities,fact_counts,series,total', rows: 'none' });
     // No read asks the topic rows with the weekly points (the older counts read), and no row list carries `series`
-    expect(reads).not.toContainEqual({ include: 'entities,series,total', rows: 'topics' });
+    expect(reads).not.toContainEqual({ include: 'entities,fact_counts,series,total', rows: 'topics' });
     expect(reads.filter((read) => read.rows !== 'none').every((read) => !read.include.includes('series'))).toBe(true);
   });
 
@@ -129,7 +129,7 @@ describe('the weekly share of voice cards ask for the per-brand weekly cells', (
       expect(urls.length).toBeGreaterThan(before);
     });
     const asked = urls.slice(before).map((url) => includeOf(url).join(','));
-    expect(asked).toContain('entities,series,total');
+    expect(asked).toContain('entities,fact_counts,series,total');
   });
 });
 

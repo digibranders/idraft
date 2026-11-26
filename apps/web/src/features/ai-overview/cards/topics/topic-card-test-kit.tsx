@@ -134,6 +134,7 @@ function weekOf(spec: WeekSpec): WeekCells {
     mentioned: one(spec.mentioned),
     cited: one(spec.cited),
     share_of_voice: one(spec.sov),
+    visibility: one(spec.mentioned),
     ...(spec.sov === undefined ? {} : { entities: entitiesOf(spec.sov) }),
     is_pooled: pool !== undefined,
     pool:

@@ -44,6 +44,10 @@ const WEEK = z.object({
   mentioned: CELL,
   cited: CELL,
   share_of_voice: CELL,
+  visibility: CELL,
+  position: z
+    .object({ rank_sum: z.number(), ordered_answers: z.number(), mentions: z.number(), answers: z.number() })
+    .optional(),
   entities: z.array(ENTITY).nullable().optional(),
 });
 const ENGINE = z.object({
@@ -135,6 +139,25 @@ describe('the weekly series of the prompts summary', () => {
           ).toEqual([0, 2, 4, 6, 8]);
         }
       }
+    }
+  });
+
+  it('carries AI visibility on every point, and the places, recommendation and tones only with the facts', async () => {
+    for (const { name, base } of PROJECTS) {
+      const plain = await summaryOf(mockBrowser('viewer'), base, '?include=series');
+      const facts = await summaryOf(mockBrowser('viewer'), base, '?include=series,fact_counts');
+      for (const engine of engineRows(plain)) {
+        for (const point of seriesOf(engine)) {
+          expect(point.position, name).toBeUndefined();
+          expect(point.visibility.denominator, name).toBe(point.mentioned.denominator);
+        }
+      }
+      // Every week carries its own places, the last one pooling the weeks before it: they never shrink
+      const placed = engineRows(facts)
+        .flatMap((engine) => seriesOf(engine).map((point) => point.position))
+        .filter((position) => position !== undefined);
+      expect(placed.length, name).toBeGreaterThan(0);
+      for (const position of placed) expect(position.ordered_answers).toBeLessThanOrEqual(position.mentions);
     }
   });
 
