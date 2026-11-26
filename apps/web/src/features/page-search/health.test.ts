@@ -72,10 +72,40 @@ describe('health', () => {
     expect(healthTone('low_data')).toBe('neutral');
   });
 
+  it('puts the pages judged on clicks before the ones judged on impressions inside a verdict', () => {
+    const rows = [
+      health('declining', -9000, { basis: 'impressions' }),
+      health('declining', -40),
+      health('growing', 5000, { basis: 'impressions' }),
+      health('declining', -300),
+      health('growing', 60),
+      health('declining', -700, { basis: 'impressions' }),
+    ];
+    const sorted = [...rows].sort((a, b) => attentionOrder(a) - attentionOrder(b));
+    expect(sorted.map((row) => [row.verdict, row.basis, row.absolute])).toEqual([
+      ['declining', 'clicks', -300],
+      ['declining', 'clicks', -40],
+      ['declining', 'impressions', -9000],
+      ['declining', 'impressions', -700],
+      ['growing', 'clicks', 60],
+      ['growing', 'impressions', 5000],
+    ]);
+  });
+
+  it('has its own sentence for a page that grew from nothing, which has no percentage', () => {
+    expect(verdictMessage(health('growing', 40, { change: 0.5 }), true)).toBe('growing');
+    expect(verdictMessage(health('growing', 40, { change: null }), true)).toBe('growingFromZero');
+  });
+
+  it('does not claim a comparison for a stable page with no previous numbers', () => {
+    const previous = null;
+    expect(verdictMessage(health('stable'), previous !== null)).toBe('stableAlone');
+  });
+
   it('names the sentence of a verdict', () => {
     expect(verdictMessage(health('declining'), true)).toBe('declining');
-    expect(verdictMessage(health('sharp_drop'), true)).toBe('sharp_drop');
-    expect(verdictMessage(health('growing'), true)).toBe('growing');
+    expect(verdictMessage(health('sharp_drop'), true)).toBe('sharpDrop');
+    expect(verdictMessage(health('growing', 0, { change: 0.2 }), true)).toBe('growing');
     expect(verdictMessage(health('stable'), true)).toBe('stable');
     expect(verdictMessage(health('stable'), false)).toBe('stableAlone');
     expect(verdictMessage(health('new'), true)).toBe('new');

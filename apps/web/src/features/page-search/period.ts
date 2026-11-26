@@ -3,7 +3,8 @@ import { resolveRange, type DateRangeValue } from '@/components/app/date-range/r
 
 import type { CompareParam, PeriodParams } from './types';
 
-export interface Window {
+/** A period of days, both ends included. Not `Window`: that name is the browser's own type. */
+export interface PeriodWindow {
   from: BusinessDate;
   to: BusinessDate;
 }
@@ -18,7 +19,7 @@ const parts = (day: string): [number, number, number] => {
 const monthLength = (year: number, month: number): number => new Date(Date.UTC(year, month, 0)).getUTCDate();
 
 /** The last calendar month that ends on or before the last final day. */
-export function lastFullMonth(finalThrough: string): Window {
+export function lastFullMonth(finalThrough: string): PeriodWindow {
   const [year, month, day] = parts(finalThrough);
   if (day === monthLength(year, month)) return { from: iso(year, month, 1), to: iso(year, month, day) };
   const before = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
@@ -56,7 +57,7 @@ const yearBefore = (day: string): BusinessDate => {
 };
 
 /** The days compared with, as the API computes them (the response's `compare_window` is the truth; this labels the control). */
-export function compareWindow(from: string, to: string, compare: CompareParam): Window | null {
+export function compareWindow(from: string, to: string, compare: CompareParam): PeriodWindow | null {
   if (compare === 'none') return null;
   if (compare === 'previous_year') return { from: yearBefore(from), to: yearBefore(to) };
   if (isCalendarMonth(from, to)) return lastFullMonth(addDays(from, -1));

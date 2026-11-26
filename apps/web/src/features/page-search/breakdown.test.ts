@@ -74,24 +74,30 @@ describe('sortRows', () => {
 });
 
 describe('nameOf', () => {
-  const countries = new Map([['IND', 'India']]);
-
   it('shows a query as it is', () => {
-    expect(nameOf('query', 'seo audit', countries)).toEqual({ kind: 'text', text: 'seo audit' });
+    expect(nameOf('query', 'seo audit', 'en')).toEqual({ kind: 'text', text: 'seo audit' });
+    expect(nameOf('query', 'IND', 'en')).toEqual({ kind: 'text', text: 'IND' });
   });
 
-  it('names a country from the lookup and falls back to the code', () => {
-    expect(nameOf('country', 'IND', countries)).toEqual({ kind: 'text', text: 'India' });
-    expect(nameOf('country', 'ZZZ', countries)).toEqual({ kind: 'text', text: 'ZZZ' });
+  it('names a country from the three-letter code the API sends, in any case', () => {
+    expect(nameOf('country', 'IND', 'en')).toEqual({ kind: 'text', text: 'India' });
+    expect(nameOf('country', 'gbr', 'en')).toEqual({ kind: 'text', text: 'United Kingdom' });
+    expect(nameOf('country', 'XKK', 'en')).toEqual({ kind: 'text', text: 'Kosovo' });
+    expect(nameOf('country', 'DEU', 'de')).toEqual({ kind: 'text', text: 'Deutschland' });
+  });
+
+  it('points the unknown region and a code that is no country at the unknown location message', () => {
+    expect(nameOf('country', 'ZZZ', 'en')).toEqual({ kind: 'message', key: 'unknownLocation' });
+    expect(nameOf('country', 'QQQ', 'en')).toEqual({ kind: 'message', key: 'unknownLocation' });
   });
 
   it('points a device at its message key', () => {
-    expect(nameOf('device', 'MOBILE', countries)).toEqual({ kind: 'message', key: 'devices.MOBILE' });
-    expect(nameOf('device', 'DESKTOP', countries)).toEqual({ kind: 'message', key: 'devices.DESKTOP' });
-    expect(nameOf('device', 'TABLET', countries)).toEqual({ kind: 'message', key: 'devices.TABLET' });
+    expect(nameOf('device', 'MOBILE', 'en')).toEqual({ kind: 'message', key: 'devices.mobile' });
+    expect(nameOf('device', 'DESKTOP', 'en')).toEqual({ kind: 'message', key: 'devices.desktop' });
+    expect(nameOf('device', 'tablet', 'en')).toEqual({ kind: 'message', key: 'devices.tablet' });
   });
 
   it('shows a device the catalog does not know as it came', () => {
-    expect(nameOf('device', 'WATCH', countries)).toEqual({ kind: 'text', text: 'WATCH' });
+    expect(nameOf('device', 'WATCH', 'en')).toEqual({ kind: 'text', text: 'WATCH' });
   });
 });

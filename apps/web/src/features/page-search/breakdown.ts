@@ -1,4 +1,5 @@
 import type { BreakdownDimension, BreakdownRow, MetricKey } from './types';
+import { countryNameOfIso3 } from '@/lib/locations/iso3';
 
 /**
  * How much a row changed in a metric, in the unit its formatter reads: a count difference for clicks and impressions,
@@ -32,17 +33,33 @@ export function sortRows(rows: readonly BreakdownRow[], metric: MetricKey): Brea
   return keyed.map(({ row }) => row);
 }
 
-const DEVICES: ReadonlySet<string> = new Set(['DESKTOP', 'MOBILE', 'TABLET']);
+/** The catalog key of a device under `pageSearch`: keys are camelCase, the API's codes are upper case. */
+const DEVICE_KEYS = {
+  DESKTOP: 'devices.desktop',
+  MOBILE: 'devices.mobile',
+  TABLET: 'devices.tablet',
+} as const;
+
+const isDevice = (key: string): key is keyof typeof DEVICE_KEYS => Object.hasOwn(DEVICE_KEYS, key);
 
 /** What names a row: text to show as it is, or a key under `pageSearch` for the caller to translate. */
-export type RowName = { kind: 'text'; text: string } | { kind: 'message'; key: `devices.${string}` };
+export type RowName =
+  | { kind: 'text'; text: string }
+  | { kind: 'message'; key: (typeof DEVICE_KEYS)[keyof typeof DEVICE_KEYS] | 'unknownLocation' };
 
 /**
- * The name of a row. A query is its text. A country is the API's three-letter code looked up in `countryNames`
- * (code to name, built by the caller), the code itself when it is not there. A device is a message key.
+ * The name of a row. A query is its text. A country is the API's three-letter code named in the reader's language
+ * (`locale`); the unknown region and a code that is no country are the "unknown location" message. A device is a
+ * message key; one the catalog does not know is shown as it came.
  */
-export function nameOf(dimension: BreakdownDimension, key: string, countryNames: ReadonlyMap<string, string>): RowName {
-  if (dimension === 'country') return { kind: 'text', text: countryNames.get(key) ?? key };
-  if (dimension === 'device' && DEVICES.has(key)) return { kind: 'message', key: `devices.${key}` };
+export function nameOf(dimension: BreakdownDimension, key: string, locale: string): RowName {
+  if (dimension === 'country') {
+    const name = countryNameOfIso3(key, locale);
+    return name === null ? { kind: 'message', key: 'unknownLocation' } : { kind: 'text', text: name };
+  }
+  if (dimension === 'device') {
+    const device = key.toUpperCase();
+    if (isDevice(device)) return { kind: 'message', key: DEVICE_KEYS[device] };
+  }
   return { kind: 'text', text: key };
 }

@@ -452,22 +452,31 @@ function healthOf(cur: Totals, prev: Totals | null, curDays: number, prevDays: n
 
 export interface PageSearch {
   current: PageNumbers;
-  /** Null with no comparison, or when the compared period starts before the page's history. */
+  /** Null with no comparison, or when no day of the compared period is inside the page's history. */
   previous: PageNumbers | null;
   health: PageHealth;
   series: SeriesPoint[];
   previousSeries: SeriesPoint[];
 }
 
-/** A page's numbers, verdict and series for a period and the period compared with. */
+/**
+ * A page's numbers, verdict and series for a period and the period compared with. A compared period that starts
+ * before the history is served from the days that are stored, as the API does (backend `previous_totals` and
+ * `_points`): the days before the history are 0 with no position, and the totals are the sum of the rest.
+ */
 export function searchOf(
   urlId: string,
   period: { window: SearchWindow; compare: SearchWindow | null },
   history: string,
 ): PageSearch {
   const series = seriesOf(urlId, period.window.from, period.window.to);
-  const compare = period.compare !== null && period.compare.from >= history ? period.compare : null;
-  const previousSeries = compare === null ? [] : seriesOf(urlId, compare.from, compare.to);
+  const compare = period.compare !== null && period.compare.to >= history ? period.compare : null;
+  const previousSeries =
+    compare === null
+      ? []
+      : seriesOf(urlId, compare.from, compare.to).map((point) =>
+          point.date < history ? { date: point.date, clicks: 0, impressions: 0, position: null } : point,
+        );
   const current = totalsOf(series);
   const previous = compare === null ? null : totalsOf(previousSeries);
   return {
@@ -534,9 +543,9 @@ const COUNTRY_SPLIT: readonly Split[] = [
   { key: 'DEU', weight: 10, in: 'both' },
 ];
 const DEVICE_SPLIT: readonly Split[] = [
-  { key: 'desktop', weight: 58, in: 'both' },
-  { key: 'mobile', weight: 39, in: 'both' },
-  { key: 'tablet', weight: 3, in: 'both' },
+  { key: 'DESKTOP', weight: 58, in: 'both' },
+  { key: 'MOBILE', weight: 39, in: 'both' },
+  { key: 'TABLET', weight: 3, in: 'both' },
 ];
 const SPLITS: Record<BreakdownDimension, readonly Split[]> = {
   query: QUERY_SPLIT,

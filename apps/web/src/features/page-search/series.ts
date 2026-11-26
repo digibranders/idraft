@@ -31,7 +31,8 @@ export function chartOf(
     categories: series.map((point) => point.date),
     current: series.map((point) => valueOf(point, metric)),
     previous:
-      previous === null
+      // The API sends an empty list, not null, when the period is not compared or has nothing to compare with
+      previous === null || previous.length === 0
         ? null
         : series.map((_, index) => {
             const point = previous[index];

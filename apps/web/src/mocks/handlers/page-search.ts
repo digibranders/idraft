@@ -47,7 +47,8 @@ const MAX_INPUTS = 500;
 const MAX_REMOVALS = 200;
 const SUGGESTIONS_LIMIT = 25;
 const BUSY_SECONDS = 20;
-const ROW_LIMITS = { query: 100, country: 50, device: 10 } as const;
+/** The backend's `KEEP_LIMITS` (`collectors/gsc_page_detail.py`). */
+const ROW_LIMITS = { query: 100, country: 50, device: 25 } as const;
 
 type State = Schemas['TrackedPagesMeta']['state'];
 type Windows = { window: Schemas['SearchWindow']; compare: Schemas['SearchWindow'] | null };
@@ -200,7 +201,8 @@ export const pageSearchHandlers: HttpHandler[] = [
           title: page.title,
           tier_id: tierIdOf(page),
           added_at: tracked.get(page.urlId) ?? '',
-          history: isLoading(projectId, page.urlId) ? 'loading' : 'ready',
+          // A page with nothing stored is still loading, whatever the reason (backend `_page_row`)
+          history: ready ? 'ready' : 'loading',
           current: search?.current ?? null,
           previous: search?.previous ?? null,
           health: search?.health ?? null,
@@ -249,6 +251,10 @@ export const pageSearchHandlers: HttpHandler[] = [
         : [bodyError('dry_run', 'bool_type', 'Input should be a valid boolean')]),
     ];
     if (errors.length > 0 || isErrors(urls) || isErrors(urlIds)) return invalid(request, errors);
+    // Left out or empty, both lists: nothing to track (the request model's own check)
+    if (urls.length === 0 && urlIds.length === 0) {
+      return invalid(request, [bodyError('', 'value_error', 'Give urls, url_ids or both.')]);
+    }
     const dryRun = body.dry_run === true;
     const projectId = caller.project.project_id;
     const tracked = trackedOf(projectId);

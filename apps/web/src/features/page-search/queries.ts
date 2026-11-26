@@ -7,7 +7,7 @@ import type { BreakdownDimension, PeriodParams, SearchScope, TrackPagesAnswer } 
 import { api, unwrap } from '@/lib/api/client';
 import { projectKey, type QueryKey } from '@/lib/api/keys';
 import type { ApiProblem } from '@/lib/api/problem';
-import { apiQuery } from '@/lib/api/query';
+import { apiQuery, type ApiResponse } from '@/lib/api/query';
 
 /**
  * The reads and writes of the page search detail and Monitoring (the backend OpenAPI, spec section 7). Every key
@@ -44,9 +44,19 @@ export const trackedIdsQuery = (scope: SearchScope) => apiQuery(TRACKED_IDS, { p
 
 export const suggestionsQuery = (scope: SearchScope) => apiQuery(SUGGESTIONS, { params: { path: pathOf(scope) } });
 
+/** The part of a cache entry `staleTime` reads: the answer it holds, if any. */
+interface Held<T> {
+  state: { data: T | undefined };
+}
+
+/**
+ * Only an answer with numbers is final. One without them (Google busy, the history not fetched, nothing stored)
+ * is stale at once, so the next mount or focus asks again instead of showing it for five minutes.
+ */
 export const pageSearchQuery = (scope: SearchScope, urlId: string, period: PeriodParams) => ({
   ...apiQuery(PAGE, { params: { path: { ...pathOf(scope), url_id: urlId }, query: period } }),
-  staleTime: FINAL_STALE_MS,
+  staleTime: (query: Held<ApiResponse<'get', typeof PAGE>>): number =>
+    query.state.data?.data.current != null ? FINAL_STALE_MS : 0,
 });
 
 export const breakdownQuery = (
@@ -58,7 +68,9 @@ export const breakdownQuery = (
   ...apiQuery(BREAKDOWN, {
     params: { path: { ...pathOf(scope), url_id: urlId }, query: { ...period, dimension } },
   }),
-  staleTime: FINAL_STALE_MS,
+  // The breakdown has no totals: an answer with rows is final, an empty one is asked again
+  staleTime: (query: Held<ApiResponse<'get', typeof BREAKDOWN>>): number =>
+    (query.state.data?.data.length ?? 0) > 0 ? FINAL_STALE_MS : 0,
 });
 
 /** The key prefixes of every read above, for the invalidation after a write. */

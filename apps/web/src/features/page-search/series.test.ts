@@ -44,6 +44,10 @@ describe('chartOf', () => {
     expect(chartOf(now, null, 'clicks').previous).toBeNull();
   });
 
+  it('has no compared series for the empty list the API sends when nothing is compared', () => {
+    expect(chartOf(now, [], 'clicks').previous).toBeNull();
+  });
+
   it('is empty for an empty period', () => {
     expect(chartOf([], null, 'clicks')).toEqual({ categories: [], current: [], previous: null });
   });

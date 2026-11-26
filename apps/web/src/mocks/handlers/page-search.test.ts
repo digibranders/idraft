@@ -183,7 +183,14 @@ describe('the tracked pages list of the mock', () => {
     expect(answer.data).toHaveLength(8);
     expect(answer.meta).toMatchObject({ state: 'not_connected', window: null, compare_window: null, tracked: 8 });
     for (const row of answer.data) {
-      expect(row).toMatchObject({ current: null, previous: null, health: null, trend: null, queries: null });
+      expect(row).toMatchObject({
+        history: 'loading',
+        current: null,
+        previous: null,
+        health: null,
+        trend: null,
+        queries: null,
+      });
     }
   });
 
@@ -285,6 +292,16 @@ describe('tracking and untracking', () => {
     expect(again.meta.added).toBe(0);
   });
 
+  it('refuses a request with nothing to track, lists left out or empty', async () => {
+    const browser = await connected();
+    for (const body of [{}, { dry_run: true }, { urls: [], url_ids: [] }]) {
+      const answer = await browser.call('POST', TRACKED, body);
+      expect(answer.status).toBe(422);
+      expect(answer.code).toBe('validation_failed');
+    }
+    expect((await list(browser)).data).toHaveLength(8);
+  });
+
   it('answers one outcome per input, in order', async () => {
     const browser = await connected();
     const answer = OUTCOMES.parse(
@@ -374,6 +391,33 @@ describe('the page search routes of the mock', () => {
     expect(meta.history_from).not.toBeNull();
   });
 
+  it('compares with the stored days of a period that starts before the history, and with nothing when none is stored', async () => {
+    const browser = await connected();
+    const [row] = (await list(browser)).data.filter((one) => one.history === 'ready');
+    const read = async (period: string): Promise<z.infer<typeof DETAIL>> =>
+      DETAIL.parse(
+        (await browser.call('GET', `${PROJECT}/fp/page-search/${row?.url_id ?? ''}?${period}&compare=previous_year`))
+          .body,
+      );
+    // The history starts on 25 July 2025, inside the month compared with
+    const partial = await read('from=2026-07-01&to=2026-07-31');
+    const history = partial.meta.history_from ?? '';
+    expect(history > '2025-07-01' && history <= '2025-07-31').toBe(true);
+    const { previous, previous_series: earlier } = partial.data;
+    expect(earlier).toHaveLength(31);
+    const unstored = earlier.filter((point) => point.date < history);
+    expect(unstored.length).toBeGreaterThan(0);
+    for (const point of unstored) expect(point).toMatchObject({ clicks: 0, impressions: 0, position: null });
+    expect(previous).not.toBeNull();
+    expect(previous?.impressions).toBeGreaterThan(0);
+    expect(previous?.impressions).toBe(earlier.reduce((sum, point) => sum + point.impressions, 0));
+    // A month wholly before the history has nothing to compare with
+    const none = await read('from=2026-06-01&to=2026-06-30');
+    expect(none.data.previous).toBeNull();
+    expect(none.data.previous_series).toEqual([]);
+    expect(none.data.current).not.toBeNull();
+  });
+
   it('answers a page that is not tracked, and not_found for one that is not a page of the project', async () => {
     const browser = await connected();
     const suggestion = dataOf(await browser.call('GET', `${TRACKED}/suggestions`), SUGGESTIONS.shape.data)[0];
@@ -419,7 +463,11 @@ describe('the page search routes of the mock', () => {
     const countries = await read('country');
     expect(sumOf(countries)).toBe(total);
     expect(countries.data.map((one) => one.key)).toEqual(expect.arrayContaining(['USA', 'IND', 'GBR', 'DEU']));
-    expect(sumOf(await read('device'))).toBe(total);
+    const devices = await read('device');
+    expect(sumOf(devices)).toBe(total);
+    // Upper case, as the contract and the backend's stored keys
+    expect(devices.data.map((one) => one.key).sort()).toEqual(['DESKTOP', 'MOBILE', 'TABLET']);
+    expect(devices.meta.row_limit).toBe(25);
     const clicks = countries.data.map((one) => one.current?.clicks ?? 0);
     expect(clicks).toEqual([...clicks].sort((a, b) => b - a));
   });

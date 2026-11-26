@@ -17,9 +17,16 @@ export const HEALTH_ORDER: readonly Verdict[] = [
 /** A verdict whose pages lost traffic: the bigger loss is the one to see first. */
 const LOSSES: ReadonlySet<Verdict> = new Set<Verdict>(['lost', 'sharp_drop', 'declining']);
 
-/** The verdict decides the order; inside it, the bigger loss or gain (`absolute`) comes first. Smaller sorts first. */
+/** Wider than any `absolute` (clicks or impressions of one page in at most 92 days), so the bands never overlap. */
+const BAND = 1e12;
+
+/**
+ * The verdict decides the order. Inside it the pages judged on clicks come before the ones judged on impressions,
+ * because `absolute` is in the unit of `basis` and the two cannot be compared; inside a basis the bigger loss or gain
+ * comes first. Smaller sorts first.
+ */
 export function attentionOrder(health: PageHealth): number {
-  const base = HEALTH_ORDER.indexOf(health.verdict) * 1e9;
+  const base = (HEALTH_ORDER.indexOf(health.verdict) * 2 + (health.basis === 'clicks' ? 0 : 1)) * BAND;
   return LOSSES.has(health.verdict) ? base + health.absolute : base - health.absolute;
 }
 
@@ -39,12 +46,13 @@ const TONES: Readonly<Record<Verdict, BadgeTone>> = {
 
 export const healthTone = (verdict: Verdict): BadgeTone => TONES[verdict];
 
-/** The keys under `pageSearch.verdict` that hold the sentence of a verdict. */
+/** The keys under `pageSearch.verdict` that hold the sentence of a verdict (catalog keys are camelCase). */
 export type VerdictMessage =
   | 'lost'
-  | 'sharp_drop'
+  | 'sharpDrop'
   | 'declining'
   | 'growing'
+  | 'growingFromZero'
   | 'stable'
   | 'stableAlone'
   | 'new'
@@ -52,16 +60,26 @@ export type VerdictMessage =
   | 'smallNumbers'
   | 'noData';
 
-/** The sentence of a verdict; `compared` is false when the period is shown without a comparison. */
+/**
+ * The sentence of a verdict. `compared` is whether the answer has numbers to compare with (`previous !== null`), not
+ * whether a comparison was asked for: a compared period before the page's history has none, and its sentence must
+ * not name one. A page that grew from nothing has no percentage (`change` is null), so it has its own sentence.
+ */
 export function verdictMessage(health: PageHealth, compared: boolean): VerdictMessage {
   switch (health.verdict) {
     case 'stable':
       return compared ? 'stable' : 'stableAlone';
+    case 'growing':
+      return health.change === null ? 'growingFromZero' : 'growing';
+    case 'sharp_drop':
+      return 'sharpDrop';
     case 'low_data':
       return health.small ? 'smallNumbers' : 'lowData';
     case 'no_data':
       return 'noData';
-    default:
+    case 'lost':
+    case 'declining':
+    case 'new':
       return health.verdict;
   }
 }
