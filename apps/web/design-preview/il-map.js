@@ -8,7 +8,7 @@
  * The canvas zooms, pans and lets a page be dragged; hovering a page shows its links in and out, a click opens the
  * page inspector. The Pages tab is the accessible version of the same pages. Graph and layout: il-map-layout.js.
  */
-import { icon, popover, popoverOpen } from './perf-ui.js';
+import { BUTTON_SM, icon, popover, popoverOpen } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 import { HOST } from './il-data-source.js';
 import { activePages, isActiveLink, links, number, pageById, plural, refresh, state, tierIdOf, tierLabel, tierPosition, tiers } from './il-model.js';
@@ -125,7 +125,7 @@ function tooltip(params, data) {
   );
 }
 
-function option(data) {
+function option(data, width, height) {
   const { graph, layout, colour, lens } = data;
   const hidden = m().hidden;
   const colourOf = new Map(colour.list.map((group) => [group.key, token(group.token)]));
@@ -167,6 +167,14 @@ function option(data) {
     emphasis: { disabled: true },
     label: { show: true, formatter: header.text, color: token(header.strong ? 'foreground' : 'foreground-secondary'), fontWeight: header.strong ? 600 : 400, fontSize: header.strong ? 12 : 11 },
   }));
+  // The map keeps its shape in any canvas: the largest box of the map's own proportions, centred, with room
+  // below for the zoom controls. A box given by its four edges would stretch the map to the canvas.
+  const xs = nodes.map((node) => node.x);
+  const ys = nodes.map((node) => node.y);
+  const shape = Math.max(1, Math.max(...xs) - Math.min(...xs)) / Math.max(1, Math.max(...ys) - Math.min(...ys));
+  const room = { width: Math.max(1, width - 48), height: Math.max(1, height - 80) };
+  const fitted = room.width / room.height > shape ? { width: room.height * shape, height: room.height } : { width: room.width, height: room.width / shape };
+  const box = { left: 24 + (room.width - fitted.width) / 2, top: 24 + (room.height - fitted.height) / 2, ...fitted };
   const matched = new Set(graph.nodes.filter((node) => lens(node)).map((node) => node.id));
   const edges = graph.edges.flatMap((edge, index) => (shown.has(edge.from) && shown.has(edge.to) ? [{ source: edge.from, target: edge.to, edge: index, lineStyle: { opacity: matched.has(edge.from) && matched.has(edge.to) ? 0.5 : 0.05 } }] : []));
   return {
@@ -184,11 +192,7 @@ function option(data) {
       scaleLimit: ZOOM,
       // Dots grow slower than the map when zooming in, so a dense group opens up
       nodeScaleRatio: 0.35,
-      left: 24,
-      right: 24,
-      top: 24,
-      // Room for the zoom controls
-      bottom: 56,
+      ...box,
       edgeSymbol: ['none', 'arrow'],
       edgeSymbolSize: 5,
       // A slight curve keeps a link and its return link apart
@@ -236,8 +240,22 @@ function toolbar(data) {
     menuSelect('Colour', COLOUR_MENU, m().colour, set('colour'), 'Colour pages by'),
     menuSelect('Highlight', LENSES.map(([key, label]) => [key, label]), m().lens, set('lens'), 'Highlight pages'),
   );
+  const full = el('button', `${BUTTON_SM} ${FOCUS_RING}`);
+  full.type = 'button';
+  full.dataset.restore = 'map-full';
+  full.append(icon(maximised ? 'minimize' : 'maximize', 'size-icon-sm text-foreground-tertiary'), el('span', '', maximised ? 'Leave full screen' : 'Full screen'));
+  full.addEventListener('click', toggleFull);
+  controls.append(full);
   bar.append(pickerBox, controls);
   return bar;
+}
+
+/** The map takes the whole window, and the whole screen where the browser allows its own full screen. */
+function toggleFull() {
+  maximised = !maximised;
+  if (maximised) document.documentElement.requestFullscreen?.().catch(() => {});
+  else if (document.fullscreenElement) document.exitFullscreen();
+  refresh();
 }
 
 /** The colours and what they stand for. A group is a switch: off takes its pages off the map. */
@@ -311,7 +329,7 @@ export function render(host) {
   host.append(panel);
 
   chart = echarts.init(canvas);
-  const paint = () => chart.setOption(option(data), { notMerge: true });
+  const paint = () => chart.setOption(option(data, chart.getWidth(), chart.getHeight()), { notMerge: true });
 
   const control = (name, label, run) => {
     const button = el('button', CONTROL);
@@ -344,14 +362,7 @@ export function render(host) {
     paint();
     sync();
   });
-  const fullButton = control(maximised ? 'minimize' : 'maximize', maximised ? 'Leave full screen' : 'Full screen', () => {
-    maximised = !maximised;
-    // The browser's own full screen comes on top where it is allowed; the map fills the window either way
-    if (maximised) document.documentElement.requestFullscreen?.().catch(() => {});
-    else if (document.fullscreenElement) document.exitFullscreen();
-    refresh();
-  });
-  fullButton.dataset.restore = 'map-full';
+  const fullButton = control(maximised ? 'minimize' : 'maximize', maximised ? 'Leave full screen' : 'Full screen', toggleFull);
   const helpButton = control('circle-help', 'Reading the map', () => {});
   help(helpButton);
   function sync() {
@@ -394,7 +405,10 @@ export function render(host) {
     paint();
   });
 
-  const resizer = new ResizeObserver(() => chart.resize());
+  const resizer = new ResizeObserver(() => {
+    chart.resize();
+    paint();
+  });
   resizer.observe(canvas);
   // The colours are read from the theme: a theme switch repaints
   const theme = new MutationObserver(paint);
