@@ -812,41 +812,6 @@ class PointPool(BaseModel):
     )
 
 
-class WeekCells(BaseModel):
-    """One point of a series, for the week starting `week_start`. It holds the answers of that
-    week alone when `is_pooled` is false (a topic, total or country row with enough prompts
-    answering). Otherwise it holds the trailing four weeks to that week, inside the window, and
-    `pool` says which days (a prompt row always pools: one prompt answers once or twice a week).
-    A pooled prompt cell is answers over answers. A pooled topic, total or country cell sums
-    each prompt's counts over the pooled weeks first and is then prompt weighted, as the window
-    cell is. The points of a prompt row therefore do not add up to its window cell. Weeks before
-    the window are never read, so the first points of a window pool fewer weeks."""
-
-    week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
-    prompts: int = Field(
-        description="The prompts of the row with a valid answer on the engine in that week "
-        "alone, whether the point is pooled or not."
-    )
-    is_pooled: bool = Field(description="Whether the cells hold more than the week's own answers.")
-    pool: PointPool | None = Field(
-        default=None,
-        exclude_if=_absent,
-        description="Present exactly when `is_pooled`: the weeks and days the cells hold, and why.",
-    )
-    mentioned: MetricCell
-    cited: MetricCell
-    share_of_voice: MetricCell
-    entities: list[EntityCells] | None = Field(
-        default=None,
-        exclude_if=_absent,
-        description="With `include=series,entities`: the cells of each tracked entity of the "
-        "engine's `entities` (the own ones first, at most 20) over the weeks the point holds: "
-        "its own week, or, when `is_pooled`, the weeks of `pool`. Weighted as the point's own "
-        "cells are: Mentioned prompt weighted in a topic, total or country row. Has no "
-        "`previous`. Left out otherwise.",
-    )
-
-
 class PositionCounts(BaseModel):
     """Where the own brand is named in the answers of an engine, as counts that add up over
     prompts: the mean place is `rank_sum / ordered_answers`."""
@@ -872,6 +837,72 @@ class SentimentCounts(BaseModel):
     neutral: int
     negative: int
     mixed: int
+
+
+class WeekCells(BaseModel):
+    """One point of a series, for the week starting `week_start`. It holds the answers of that
+    week alone when `is_pooled` is false (a topic, total or country row with enough prompts
+    answering). Otherwise it holds the trailing four weeks to that week, inside the window, and
+    `pool` says which days (a prompt row always pools: one prompt answers once or twice a week).
+    A pooled prompt cell is answers over answers. A pooled topic, total or country cell sums
+    each prompt's counts over the pooled weeks first and is then prompt weighted, as the window
+    cell is. The points of a prompt row therefore do not add up to its window cell. Weeks before
+    the window are never read, so the first points of a window pool fewer weeks."""
+
+    week_start: date = Field(description="The Monday the week starts on, in the project's zone.")
+    prompts: int = Field(
+        description="The prompts of the row with a valid answer on the engine in that week "
+        "alone, whether the point is pooled or not."
+    )
+    is_pooled: bool = Field(description="Whether the cells hold more than the week's own answers.")
+    pool: PointPool | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="Present exactly when `is_pooled`: the weeks and days the cells hold, and why.",
+    )
+    mentioned: MetricCell
+    cited: MetricCell
+    share_of_voice: MetricCell
+    visibility: MetricCell = Field(
+        description="AI visibility of the point: valid answers that name the own brand or cite "
+        "its domain (every outcome but `neither`) over the valid answers, built as `mentioned` "
+        "is (counts of answers in a prompt row, prompt weighted in a topic, total or country "
+        "row), over the same answers."
+    )
+    recommended: MetricCell | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=series` and `facts` or `fact_counts`: the recommendation "
+        "rate of the weeks the point holds, as the engine's `recommended` is. Null while none "
+        "of those valid answers is classified. Left out otherwise.",
+    )
+    sentiment: SentimentCounts | SkipJsonSchema[_NotAsked] | None = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=series` and `facts` or `fact_counts`: the tones of the valid "
+        "answers that name the own brand in the weeks the point holds, as the engine's "
+        "`sentiment` is. Null when none names it with a tone. Left out otherwise.",
+    )
+    position: PositionCounts | SkipJsonSchema[_NotAsked] = Field(
+        default=NOT_ASKED,
+        exclude_if=_not_asked,
+        json_schema_extra={"default": None},
+        description="With `include=series` and `facts` or `fact_counts`: where the own brand is "
+        "named in the valid answers of the weeks the point holds, as counts that add up (the "
+        "mean place is `rank_sum / ordered_answers`), zeros for a week without an answer. Left "
+        "out otherwise.",
+    )
+    entities: list[EntityCells] | None = Field(
+        default=None,
+        exclude_if=_absent,
+        description="With `include=series,entities`: the cells of each tracked entity of the "
+        "engine's `entities` (the own ones first, at most 20) over the weeks the point holds: "
+        "its own week, or, when `is_pooled`, the weeks of `pool`. Weighted as the point's own "
+        "cells are: Mentioned prompt weighted in a topic, total or country row. Has no "
+        "`previous`. Left out otherwise.",
+    )
 
 
 class OtherBrand(BaseModel):

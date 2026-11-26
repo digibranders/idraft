@@ -90,6 +90,15 @@ def _cases(term: str, rival: uuid.UUID, co_mentions: int) -> list[Case]:
         ),
         # The counts alone, as the Overview reads them: the places of the own brand.
         ("include=fact_counts", {"include": "fact_counts"}, {}, 1),
+        # Beside the series, the weekly places of the own brand are one more statement than the
+        # series alone (the weekly counts, 1); the weekly recommendation and tone counts are
+        # columns of the weekly counts statement.
+        (
+            "include=series with fact_counts",
+            {"include": "series,fact_counts"},
+            {"include": "fact_counts"},
+            2,
+        ),
         # The latest rank checks of the linked keywords: one statement, whatever the rows.
         ("include=ai_overview", {"include": "ai_overview"}, {}, 1),
         (

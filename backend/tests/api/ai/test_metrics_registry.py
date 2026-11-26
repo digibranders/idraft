@@ -639,6 +639,7 @@ def _week(
         mentioned=mentioned,
         cited=cell(0.5, 2, 3, (1, 3)),
         share_of_voice=cell(1, 2, 3),
+        visibility=cell(0.5, 2, 3, (1, 3)),
         entities=entities,
     )
 

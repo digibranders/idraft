@@ -509,6 +509,7 @@ def test_a_summary_without_the_additions_is_a_valid_summary() -> None:
         "mentioned": _cell(),
         "cited": _cell(),
         "share_of_voice": _cell(),
+        "visibility": _cell(),
     }
     entity = {
         "entity_id": str(uuid.uuid4()),
@@ -520,6 +521,7 @@ def test_a_summary_without_the_additions_is_a_valid_summary() -> None:
     point = WeekCells.model_validate(week).model_dump(mode="json")
     assert "entities" not in point
     assert "pool" not in point
+    assert not {"recommended", "sentiment", "position"} & point.keys()
     assert "previous" not in EntityCells.model_validate(entity).model_dump(mode="json")
 
 
