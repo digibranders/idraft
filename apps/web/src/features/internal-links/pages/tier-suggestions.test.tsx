@@ -58,6 +58,15 @@ const actionOf = async (path: string, name: string): Promise<HTMLElement> =>
 const chip = (): Promise<HTMLElement> => screen.findByRole('button', { name: /^Suggested tiers \d+$/ });
 
 describe('the Suggested tiers chip and popover', () => {
+  it('sits in the table toolbar, after the View menu', async () => {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    const found = await chip();
+    const view = screen.getByRole('button', { name: 'View: All pages' });
+    // The menu's trigger is a direct child of the toolbar's bar, so the chip is in the bar when it is inside it
+    expect(view.parentElement).toContainElement(found);
+    expect(view.compareDocumentPosition(found) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('lists each page with its tier now, the suggested tier and the reasons in words', async () => {
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
@@ -114,7 +123,7 @@ describe('the Suggested tiers chip and popover', () => {
     expect(sent()[1]?.body).toEqual({ url_ids: expect.arrayContaining([expect.stringMatching(/^\d+$/)]) });
     expect(sent()[1]?.body).not.toHaveProperty('all'); // Nothing left: the chip goes, and focus goes to All pages
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Suggested tiers/ })).toBeNull());
-    await waitFor(() => expect(screen.getByRole('button', { name: 'All pages' })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'View: All pages' })).toHaveFocus());
   });
 
   it('says what the answer says: a count that differs from the rows, and a neutral line for none', async () => {
@@ -163,7 +172,7 @@ describe('the Suggested tiers chip and popover', () => {
   it('shows no chip when there is nothing to suggest', async () => {
     setLinksScenario({ noSuggestions: true });
     renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
-    await screen.findByRole('button', { name: 'All pages' });
+    await screen.findByRole('button', { name: 'View: All pages' });
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Suggested tiers/ })).toBeNull());
   });
 

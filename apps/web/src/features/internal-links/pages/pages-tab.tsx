@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Layers, Tag, Tags, Workflow } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import { BulkTagDialog } from './bulk-tag-dialog';
 import { LinksDropped } from '../links-dropped';
@@ -12,11 +12,12 @@ import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
-import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf, variantsOnly } from './page-filters';
+import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf, UNTIERED_VALUE } from './page-filters';
 import { useSearchDraft } from './search-draft';
 import { TierKeys } from './tier-keys';
+import { TierSuggestions } from './tier-suggestions';
 import { usePageBulk, type BulkTarget } from './use-page-bulk';
-import { WorklistChips } from './worklist-chips';
+import { activeViewId, useViewLabel, ViewMenu } from './view-menu';
 import { ScopeMenu } from '../scope-menu';
 import type { PagesContext } from './pages-context';
 import { DataTable } from '@/components/app/data-table/data-table';
@@ -27,7 +28,9 @@ import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
+import { enumValuesOf } from '@/lib/filters/filter-values';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatList } from '@/lib/format';
 import { formatIsoDate } from '@/lib/format/date';
@@ -69,7 +72,7 @@ const EMPTY_KEY = {
 } as const satisfies Record<PageWorklist, string>;
 
 /**
- * The Pages tab (spec 7.2, mock `il-pages.js`): worklist chips and the table, whose toolbar holds the filter bar and the scope chip. The
+ * The Pages tab (spec 7.2, mock `il-pages.js`): the table, whose toolbar holds the View menu, the filter bar and the scope chip. The
  * server filters, sorts and pages (cursors, 100 or 200 rows a page, decision W6). The tab hands the page's Export the
  * server's CSV of the same filter. Equity share is never a column, a sort or an export column (decision W4).
  */
@@ -215,11 +218,26 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
   const searched = state.q !== null;
   // While the rows of the last query stay on screen, the cursors in hand belong to it, not to the one loading
   const settled = !read.isPlaceholderData;
-  const filtered = Object.keys(values).length > 0 || searched || state.worklist !== null;
+  const filtered = Object.keys(values).length > 0 || searched || state.worklist !== null || state.view !== null;
   const clear = (): void => {
     setValues({});
     setSearch({ q: null, view: null });
   };
+  // The View menu: a view is a history entry; Untiered is the tier filter, not a view
+  const tierNow = enumValuesOf(values.tier);
+  const untieredActive = tierNow.length === 1 && tierNow[0] === UNTIERED_VALUE;
+  const activeView = activeViewId({ view: state.view, worklist: state.worklist }, untieredActive);
+  const viewWords = useTranslations('pages.view');
+  const viewLabel = useViewLabel(scope);
+  const viewTrigger = useRef<HTMLButtonElement>(null);
+  const focusView = useCallback((): void => viewTrigger.current?.focus(), []);
+  // The announcement is of the total the new view lists, so it waits for that read and speaks once per change
+  const announcedView = useRef<string>(activeView);
+  useEffect(() => {
+    if (activeView === announcedView.current || !settled || total === null) return;
+    announcedView.current = activeView;
+    announce(viewWords('announce', { view: viewLabel(activeView), count: total }));
+  }, [activeView, settled, total, viewLabel, viewWords]);
   const status: DataTableProps<PageRow>['status'] =
     read.isError && read.data === undefined
       ? 'error'
@@ -310,26 +328,35 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <WorklistChips
-        scope={scope}
-        run={chosenRun}
-        linksAvailable={linksAvailable}
-        current={state.worklist}
-        onPick={(worklist) => setSearch({ view: worklist })}
-        onPickEdges={context.openEdgeWorklist}
-        variants={context.crawl.crawl?.pages_variant ?? null}
-        onShowVariants={() => {
-          setSearch({ view: null });
-          setValues(variantsOnly(values));
-        }}
-      />
       <DataTable<PageRow>
         caption={t('pages.caption')}
         columnGroups
         compactToolbar
         toolbarParts={{ sortNote: false }}
+        toolbarStart={
+          <ViewMenu
+            scope={scope}
+            run={chosenRun}
+            linksAvailable={linksAvailable}
+            state={{ view: state.view, worklist: state.worklist }}
+            untieredActive={untieredActive}
+            onView={(next) => {
+              // Back to All pages also lets go of the Untiered choice, which is a filter and not a view
+              if (next === null && untieredActive)
+                setValues(Object.fromEntries(Object.entries(values).filter(([key]) => key !== 'tier')));
+              setSearch({ view: next }, { history: 'push' });
+            }}
+            onUntiered={() => {
+              setValues({ ...values, tier: { kind: 'enum', values: [UNTIERED_VALUE] } });
+              setSearch({ view: null }, { history: 'push' });
+            }}
+            onEdgeWorklist={context.openEdgeWorklist}
+            triggerRef={viewTrigger}
+          />
+        }
         toolbarEnd={
           <>
+            <TierSuggestions scope={scope} onEmptied={focusView} />
             <FilterBar compact fields={fields} values={values} onChange={setValues} />
             {scopeShown ? (
               <ScopeMenu

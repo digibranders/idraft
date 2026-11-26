@@ -121,17 +121,21 @@ describe('the flag and the worklists of slice 2', () => {
     await waitFor(() => expect(reads().some((read) => read.get('filter[flags]') === 'generic_anchors')).toBe(true));
   });
 
-  it('shows the two new chips with their counts, and sets the view from them', async () => {
+  it('lists the two new views in the View menu with their counts, and sets the view from them', async () => {
     const reads = pageReads();
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
-    const lost = await screen.findByRole('button', { name: /^Lost links to T1 and T2 \d+$/ });
-    expect(await screen.findByRole('button', { name: /^T1 pages linking out to weak pages \d+$/ })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    const lost = await screen.findByRole('menuitemradio', { name: 'Lost links to T1 and T2' });
+    await waitFor(() => expect(lost).toHaveAccessibleDescription(/^\d+$/));
+    expect(
+      await screen.findByRole('menuitemradio', { name: 'T1 pages linking out to weak pages' }),
+    ).toHaveAccessibleDescription(/^\d+$/);
     await user.click(lost);
-    expect(lost).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('button', { name: 'View: Lost links to T1 and T2' })).toBeInTheDocument();
     await waitFor(() => expect(reads().some((read) => read.get('filter[worklist]') === 'lost_links_top')).toBe(true));
   });
 
-  it('holds the lost links chip until the alert setting answers, so its name never changes under the user', async () => {
+  it('holds the lost links view until the alert setting answers, so its name never changes under the user', async () => {
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => (release = resolve));
     server.use(
@@ -142,14 +146,15 @@ describe('the flag and the worklists of slice 2', () => {
     );
     const names: string[] = [];
     const watcher = new MutationObserver(() => {
-      for (const button of screen.queryAllByRole('button', { name: /^Lost links/ })) names.push(button.textContent);
+      for (const item of screen.queryAllByRole('menuitemradio', { name: /^Lost links/ })) names.push(item.textContent);
     });
     watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
-    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
-    await screen.findByRole('button', { name: /^T1 pages linking out to weak pages/ });
-    expect(screen.queryByRole('button', { name: /^Lost links/ })).toBeNull();
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    await screen.findByRole('menuitemradio', { name: /^T1 pages linking out to weak pages/ });
+    expect(screen.queryByRole('menuitemradio', { name: /^Lost links/ })).toBeNull();
     release();
-    await screen.findByRole('button', { name: /^Lost links to T1 and T2 \d*$/ });
+    await screen.findByRole('menuitemradio', { name: 'Lost links to T1 and T2' });
     watcher.disconnect();
     expect(names.every((name) => name.startsWith('Lost links to T1 and T2'))).toBe(true);
   });
@@ -185,10 +190,12 @@ describe('the flag and the worklists of slice 2', () => {
     await waitFor(() => expect(reads().some((read) => read.get('filter[worklist]') === 'weak_outlinks')).toBe(true));
   });
 
-  it('offers no weak outlinks chip for a crawl whose links were dropped', async () => {
-    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `?run=${DROPPED}` });
-    await screen.findByRole('button', { name: /^Lost links to T1 and T2 \d+$/ });
-    expect(screen.queryByRole('button', { name: /weak pages/ })).toBeNull();
+  it('offers no weak outlinks view for a crawl whose links were dropped', async () => {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `?run=${DROPPED}` });
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    const live = await screen.findByRole('menuitemradio', { name: 'Live pages' });
+    await waitFor(() => expect(live).toHaveAccessibleDescription(/\d/));
+    expect(screen.queryByRole('menuitemradio', { name: /weak pages/ })).toBeNull();
   });
 });
 

@@ -153,8 +153,3 @@ export function pageExportQuery(query: PageQuery): DownloadQuery {
   }
   return { ...wanted, format: 'csv' };
 }
-
-/** The filter values with only the Parameter variant flag on: what the variants count beside the total opens. */
-export function variantsOnly(values: FilterValues): FilterValues {
-  return { ...values, flag: { kind: 'enum', values: ['variant'] } };
-}

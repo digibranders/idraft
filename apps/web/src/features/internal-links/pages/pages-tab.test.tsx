@@ -94,21 +94,40 @@ describe('the Pages tab (spec 7.2)', () => {
     expect(row).toHaveTextContent('No editorial links in');
   });
 
-  it('narrows to a worklist from its chip and back to all pages, and counts each chip', async () => {
+  it('narrows to a worklist from the View menu and back to all pages, and counts each view', async () => {
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
-    const orphans = await screen.findByRole('button', { name: /^Orphans 1$/ });
     await rowOf('/pricing');
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    const orphans = await screen.findByRole('menuitemradio', { name: 'Orphans' });
+    await waitFor(() => expect(orphans).toHaveAccessibleDescription('1'));
     await user.click(orphans);
-    expect(orphans).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('button', { name: 'View: Orphans' })).toBeInTheDocument();
     expect(await rowOf('/partners')).toBeInTheDocument();
     await waitFor(() => expect(within(screen.getByRole('grid', { name: 'Pages' })).queryByText('/pricing')).toBeNull());
-    await user.click(screen.getByRole('button', { name: 'All pages' }));
+    await user.click(screen.getByRole('button', { name: 'View: Orphans' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'All pages' }));
     expect(await rowOf('/pricing')).toBeInTheDocument();
+  });
+
+  it('has no row of worklist chips above the table', async () => {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    expect(screen.queryByRole('group', { name: 'Worklists' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'View: All pages' })).toBeInTheDocument();
+  });
+
+  it('sends a server view as filter[view] and a worklist as filter[worklist], from the address', async () => {
+    const reads = pageReads();
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?view=live' });
+    await rowOf('/pricing');
+    expect(reads()[0]?.get('filter[view]')).toBe('live');
+    expect(reads()[0]?.has('filter[worklist]')).toBe(false);
   });
 
   it('opens the Links tab for the two link worklists, which count links, in the scope of every link', async () => {
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
-    const chip = await screen.findByRole('button', { name: /^Broken and redirected links \d+ links?$/ });
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    const chip = await screen.findByRole('menuitem', { name: 'Broken and redirected links' });
     await user.click(chip);
     await waitFor(() => expect(push).toHaveBeenCalled());
     const [address] = push.mock.calls.at(-1) as [string];
@@ -551,7 +570,8 @@ describe('paging (decision W6)', () => {
     await screen.findByText('Showing 1 to 100 of 120');
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await screen.findByText('Showing 101 to 120 of 120');
-    await user.click(await screen.findByRole('button', { name: 'Orphans 1' }));
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Orphans' }));
     expect(await screen.findByText('Showing 1 to 100 of 120')).toBeInTheDocument();
     expect(cursors().at(-1)).toBeNull();
   });
@@ -623,7 +643,7 @@ describe('a crawl that ends while a later page is open', () => {
 });
 
 describe('the crawl in view on All pages', () => {
-  it('sends the chosen crawl with every read: the list, the summary strip and the worklist chips', async () => {
+  it('sends the chosen crawl with every read: the list, the summary strip and the View menu counts', async () => {
     const seen: URL[] = [];
     server.events.on('request:start', ({ request }) => {
       const url = new URL(request.url);

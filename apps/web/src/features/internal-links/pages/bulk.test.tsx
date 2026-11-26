@@ -246,10 +246,15 @@ describe('bulk tiers (spec 5.2)', () => {
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await chooseAllMatching(user);
     expect(await screen.findByRole('group', { name: /250/ })).toBeInTheDocument();
-    // The worklist chips live outside the bar: another worklist is another query, and so is "All pages" again
-    await user.click(await screen.findByRole('button', { name: /^Orphans/ }));
+    // The View menu is in the toolbar, which the bulk bar takes the place of: no query can change while rows are
+    // chosen, and once the choice is cleared another worklist is another query, and so is "All pages" again
+    expect(screen.queryByRole('button', { name: 'View: All pages' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Orphans' }));
     await waitFor(() => expect(screen.queryByRole('group', { name: /selected/ })).toBeNull());
-    await user.click(screen.getByRole('button', { name: 'All pages' }));
+    await user.click(screen.getByRole('button', { name: 'View: Orphans' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'All pages' }));
     await grid();
     expect(screen.queryByRole('group', { name: /selected/ })).toBeNull();
     expect(screen.queryByRole('group', { name: /250/ })).toBeNull();
