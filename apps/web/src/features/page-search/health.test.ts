@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import messages from '../../../messages/en.json';
 import { attentionOrder, HEALTH_ORDER, healthTone, verdictMessage } from './health';
 import type { PageHealth } from './types';
 
@@ -100,6 +101,17 @@ describe('health', () => {
   it('does not claim a comparison for a stable page with no previous numbers', () => {
     const previous = null;
     expect(verdictMessage(health('stable'), previous !== null)).toBe('stableAlone');
+  });
+
+  it('names only sentences the catalog has, for every verdict', () => {
+    const sentences: Readonly<Record<string, string>> = messages.pageSearch.verdict;
+    for (const verdict of HEALTH_ORDER) {
+      for (const more of [{}, { change: 0.3 }, { small: true }]) {
+        for (const compared of [true, false]) {
+          expect(sentences[verdictMessage(health(verdict, 0, more), compared)]).toEqual(expect.any(String));
+        }
+      }
+    }
   });
 
   it('names the sentence of a verdict', () => {

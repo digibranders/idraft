@@ -38,6 +38,8 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | A9 | Reports / Integrations / Runs / Costs / Settings | The page names equal the plural of what they list. | | Engines, Topics, Panels, Taxonomy (see C6) | Navigation | Safe | Firm |
 | A10 | Matrix, Discover | Not defined in any spec read for this work. | | | Navigation | Name them before the application pass | D20 |
 | A11 | Link map (a tab of Internal links) | The tab that draws every live page of a crawl, and the links in page bodies between them, as one graph. Menu and footer links are not drawn: they are a property of the page they point to. | Not Journey (one page and its neighbours). Not Tier flow (link counts between tiers). | Site map, Network, Graph (as the tab name) | Internal links tabs, page titles | Safe | Firm |
+| A12 | Monitoring (a tab of Pages) | The tab that lists the pages you track, with their Search Console numbers for a period, the change, a health verdict and a trend. Always a noun: the name of the tab. | Not a verb. Not a state of a page: a page in it is "Tracked" (B7). Not All pages. | Performance, Watchlist, Monitored pages, Monitored | Pages tabs, page title | Safe | Firm |
+| A13 | What changed | The section of a page's search detail that lists its queries, locations and devices for the period and the period compared with, the biggest change first. | Not the health verdict. Not a list of edits to the page. | Breakdown, Segments, Dimensions | Page search detail | Safe | Firm |
 
 ## 2. Where we ask, and where we check
 
@@ -130,6 +132,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M15 | Impressions, Clicks | As Google Search Console defines them. | Not AI numbers. | Views, Visits (for clicks) | Pages, performance | Follow Google's local wording | Firm |
 | M16 | AI referral visits | Visits to your site that Google Analytics attributes to AI platforms. | Not clicks in an answer. | Referral traffic, Sessions (in plain text) | Overview card | Safe | Firm |
 | M17 | They lead / You lead / Equal | In one prompt, a brand leads when it is mentioned in at least 2 more answers than the other, over the platforms in scope, and the prompt has at least 4 valid answers. A smaller difference is Equal. | Not a win in any single answer. | Winning, Losing, Lost to (as a column) | Competitor card and drawer | Safe | Firm |
+| M18 | Health (of a tracked page; values: Lost traffic, Sharp drop, Declining, Stable, Growing, New, Not enough data, Not collected yet) | The verdict on a tracked page's Search Console clicks (impressions when the clicks are too few) in the period against the period compared with. Lost traffic: clicks before, none now. Sharp drop: down 40% or more. Declining: down 10% or more. Growing: up 10% or more. New: impressions now, none before. Not enough data (S4) and Not collected yet (S5) keep their meaning. | Not a score. Not the page's HTTP status. Not the state of a crawl. | Status, Score, Performance, Rating | Monitoring column and filter, page search detail | Safe | Firm |
 
 ## 7. Brands, sites and states
 
@@ -147,6 +150,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | B10 | Project / Projects | One brand and its site, with its keywords, prompts, competitors and schedules. | Not a workspace. Not a client. | Client, Site, Campaign, Property, Account | Everywhere | Safe | Firm |
 | B11 | Workspace / Workspaces | A team's account: its members and its projects. | Not a project. | Organisation, Team, Account, Agency | Sign-in, settings, switcher | Often kept in English | Firm |
 | B12 | Client | Not a product level. Allowed only in example text. | | Client (as a level, filter or page) | Role help text | Safe | D22 |
+| B13 | Track in Monitoring / Stop tracking | The two actions on a page. Track in Monitoring adds it to the Monitoring tab (at most 200 pages in a project). Stop tracking takes it out; the numbers stored for it are kept, so adding it again shows them. | Stop tracking is not Pause and not Archive: nothing is deleted and nothing stops being collected for the site. | Monitor, Watch, Unwatch, Untrack, Remove from Monitoring | All pages, Monitoring bulk bar | Safe | Firm |
 
 ## 8. Data states and statistics
 
@@ -391,3 +395,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-17 | Compare with (P15) | "vs previous period" and "No comparison" | Adds "vs same period last year" and the words that follow each mode | The real Prompts screen already offers the year back; the glossary now knows the words |
 | 2026-11-23 | Compare with (P15), Rate by platform over time, how it is counted | "With Compare on, a dashed vertical line separates the previous 28 days from the current 28 days" for every mode | The same text with the previous period; with "vs same period last year" the last sentence is "With Compare on, a second dashed line shows the same period last year, week for week." | The real card draws last year as a dashed line under the current weeks and has no boundary line for it; the preview does not draw it yet |
 | 2026-11-26 | Link map (A11) | | Added as the name of the Internal links tab that draws the whole crawl as one graph | Owner approved the tab and its name on 2026-11-26 |
+| 2026-11-26 | Monitoring (A12), What changed (A13), Health (M18), Track in Monitoring and Stop tracking (B13) | | Added for the Monitoring tab of Pages and the page search detail | Spec 2026-11-26 page search and monitoring, section 12 |

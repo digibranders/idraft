@@ -10234,6 +10234,162 @@
       "unknownReason": "The latest crawl is not among the most recent runs, so this page cannot tell what it holds yet. Try again."
     }
   },
+  "pageSearch": {
+    "period": "Period",
+    "compareWith": "Compare with",
+    "compare": {
+      "previousPeriod": "vs previous period",
+      "previousYear": "vs same period last year",
+      "none": "No comparison"
+    },
+    "metrics": {
+      "clicks": "Clicks",
+      "impressions": "Impressions",
+      "ctr": "CTR",
+      "position": "Average position"
+    },
+    "overTime": "Over time",
+    "whatChanged": "What changed",
+    "tabs": {
+      "queries": "Queries",
+      "locations": "Locations",
+      "devices": "Devices"
+    },
+    "columns": {
+      "now": "Now",
+      "before": "Before",
+      "change": "Change"
+    },
+    "devices": {
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "tablet": "Tablet"
+    },
+    "unknownLocation": "Unknown location",
+    "coverage": "The queries shown cover {percent} of this page's clicks. Google does not report the rest.",
+    "note": "Search Console, web search. Days are Pacific Time. Final data to {date}.",
+    "notLive": "Only a page that answers 200 has search data.",
+    "positionImproved": "improved {places}",
+    "positionSlipped": "slipped {places}",
+    "health": {
+      "lost": "Lost traffic",
+      "sharpDrop": "Sharp drop",
+      "declining": "Declining",
+      "stable": "Stable",
+      "growing": "Growing",
+      "new": "New",
+      "lowData": "Not enough data",
+      "noData": "Not collected yet"
+    },
+    "verdict": {
+      "lost": "Lost all search traffic: no clicks, against {before} in {period}.",
+      "sharpDrop": "{metric} are down {change} ({before} to {now}) against {period}.",
+      "declining": "{metric} are down {change} ({before} to {now}) against {period}.",
+      "growing": "{metric} are up {change} ({before} to {now}) against {period}.",
+      "growingFromZero": "{metric} are up from none to {now} against {period}.",
+      "stable": "{metric} are steady ({before} to {now}) against {period}.",
+      "stableAlone": "{clicks} clicks and {impressions} impressions in {period}.",
+      "new": "New in search: {clicks} clicks, none in {period}.",
+      "lowData": "Too little traffic to judge: {clicks} clicks and {impressions} impressions over both periods.",
+      "smallNumbers": "Small numbers: {metric} went from {before} to {now}, too few to count as a real change.",
+      "noData": "Google reported no impressions for this page in this period.",
+      "perDay": "Counted per day, because the two periods differ in length.",
+      "positionSlipped": "Average position slipped {places} places.",
+      "positionImproved": "Average position improved {places} places.",
+      "ctrFellImpressionsRose": "Impressions rose but fewer people clicked. Check the title and the snippet."
+    },
+    "states": {
+      "notConnected": "Connect Search Console to see how your pages perform.",
+      "askAdmin": "Ask an owner or admin to connect Search Console.",
+      "pending": "Not collected yet. The first numbers arrive within minutes.",
+      "reauth": "Search Console needs a new sign-in. The numbers stop at {date}.",
+      "noAccess": "This Google account can no longer read the property. The numbers stop at {date}.",
+      "noImpressions": "Google reported no impressions for this page in this period.",
+      "busy": "Google is busy. Trying again in {seconds} s.",
+      "retry": "Retry",
+      "unavailable": "Google did not answer. Try again.",
+      "notCollected": "Not collected yet"
+    }
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "context": "{host}, final data to {date}",
+    "contextTip": "Search Console property {property}. Final data to {date}, Pacific Time.",
+    "export": "Export CSV",
+    "addPages": "Add pages",
+    "tier": "Tier",
+    "allTiers": "All tiers",
+    "untiered": "Untiered",
+    "health": "Health",
+    "allHealth": "All",
+    "searchPlaceholder": "Search pages",
+    "searchLabel": "Search pages",
+    "caption": "Tracked pages",
+    "one": "tracked page",
+    "other": "tracked pages",
+    "columns": {
+      "page": "Page",
+      "tier": "Tier",
+      "health": "Health",
+      "trend": "Trend",
+      "queries": "Queries",
+      "queriesTip": "Different search queries that gave this page an impression in the period. Counts the queries Google reports: it leaves out anonymized queries, so the real number is higher.",
+      "cannibalization": "Cannibalization"
+    },
+    "queries": {
+      "previous": "{count, plural, one {# query} other {# queries}} in the period before",
+      "capped": "Google returned its limit of 25,000 queries for this page, so the real number is higher."
+    },
+    "cannibalization": {
+      "none": "None",
+      "keywords": "{count, plural, one {# keyword} other {# keywords}}",
+      "tip": "Competes with another of your pages on {count, plural, one {# tracked keyword} other {# tracked keywords}}: {parts}. Opens Cannibalization.",
+      "likely": "{count} likely",
+      "coRanking": "{count} co-ranking",
+      "unstable": "{count} unstable",
+      "label": "{path} competes with another page on {count, plural, one {# keyword} other {# keywords}}. Opens Cannibalization."
+    },
+    "bulk": {
+      "stopTracking": "Stop tracking",
+      "exportSelection": "Export selection"
+    },
+    "removed": "{count, plural, one {Stopped tracking # page} other {Stopped tracking # pages}}",
+    "removedDetail": "Their history is kept, so adding them again shows it.",
+    "empty": {
+      "title": "Add the pages that matter",
+      "reason": "Paste addresses or pick the pages with the most clicks. You can track up to {limit} pages in a project."
+    },
+    "noMatch": "No tracked pages match these filters.",
+    "noAccessTitle": "You do not have access to Monitoring",
+    "noAccessReason": "You do not have permission to view search data. Ask an admin of this workspace.",
+    "loadingHistory": "Loading this page's history",
+    "add": {
+      "title": "Add pages",
+      "tabs": {
+        "paste": "Paste addresses",
+        "suggested": "Suggested from Search Console"
+      },
+      "urlsLabel": "Addresses",
+      "urlsHint": "One per line, up to 500. Paths or full addresses on {host}.",
+      "check": "Check pages",
+      "outcome": {
+        "ok": "Found, {clicks} clicks in 28 days",
+        "okNoClicks": "Found, no clicks collected yet",
+        "added": "Added",
+        "alreadyTracked": "Already tracked",
+        "invalidUrl": "Not a valid address",
+        "wrongHost": "Not on {host}",
+        "notCrawled": "Not in the crawl",
+        "overLimit": "Over the limit of {limit} pages"
+      },
+      "suggestedIntro": "The pages with the most clicks in the last 28 days that are not tracked yet.",
+      "allTracked": "Every page found is already tracked.",
+      "count": "{tracked} of {limit} pages tracked",
+      "submit": "{count, plural, =0 {Add pages} one {Add # page} other {Add # pages}}",
+      "added": "{count, plural, one {Added # page} other {Added # pages}}",
+      "addedDetail": "Loading their history, the last 16 months."
+    }
+  },
   "setupChecklist": {
     "label": "Project setup",
     "loading": "Checking setup",
