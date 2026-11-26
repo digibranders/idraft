@@ -6,7 +6,7 @@ import uuid
 from typing import Final
 
 from tests.api.auth.support import Workspace, execute
-from tests.api.internal_links.support import SeedLink, seed_crawl
+from tests.api.internal_links.support import SeedLink, seed_crawl, url_id
 from tests.conftest import PostgresServer
 
 LONG_PATH: Final = "/" + "x" * 120
@@ -50,12 +50,27 @@ PAGES: Final[list[tuple[str, int]]] = [
     # Live HTML with no click depth, and a row the crawler got no status for.
     ("/no-depth", 200),
     ("/no-status", 200),
+    # Three pages with one title: byte order is /Zulu-dup, /alpha-dup, /mike-dup; a locale
+    # order puts /Zulu-dup last.
+    ("/Zulu-dup", 200),
+    ("/alpha-dup", 200),
+    ("/mike-dup", 200),
+    # Redirects without a target row, and a canonical whose target has no status.
+    ("/redir-null", 301),
+    ("/redir-away", 301),
+    ("/canon-nostatus", 200),
 ]
+# An address that is in core.urls but is not a page of the crawl.
+OFF_CRAWL: Final = "/off-crawl"
 LINKS: Final = [
     SeedLink("/", "/services", "content"),
     SeedLink("/", "/pricing", "navigation"),
     SeedLink("/Plans_Old", "/services", "content", followed=False),
+    SeedLink("/Plans_Old", "/pricing", "content", followed=False),
+    # A page that links to itself with nofollow: it does not count.
+    SeedLink("/Plans_Old", "/Plans_Old", "content", followed=False),
 ]
+DUPLICATE_TITLE: Final = "Title that three pages share here"
 SHARED_TITLE: Final = "Shared title of two different pages here"
 # Pages that differ from the default: a title of 30 to 60 characters that no other page has,
 # in the sitemap, indexable, one click deep, no flags and no counters.
@@ -108,6 +123,16 @@ _COLUMNS: Final[dict[str, dict[str, object]]] = {
     "/depth-3": {"click_depth": 3},
     "/no-depth": {"click_depth": None, "non_indexable_reason": None},
     "/no-status": {"status_code": None, "resource_type": "other"},
+    "/Zulu-dup": {"title": DUPLICATE_TITLE},
+    "/alpha-dup": {"title": DUPLICATE_TITLE},
+    "/mike-dup": {"title": DUPLICATE_TITLE},
+    "/redir-null": {"in_sitemap": False},
+    "/redir-away": {"in_sitemap": False},
+    "/canon-nostatus": {
+        "is_indexable": False,
+        "non_indexable_reason": "canonical",
+        "in_sitemap": False,
+    },
 }
 # path -> column that holds a URL id -> path of the page it names
 _TARGETS: Final[dict[str, dict[str, str]]] = {
@@ -121,6 +146,8 @@ _TARGETS: Final[dict[str, dict[str, str]]] = {
     "/canon-redirect": {"canonical_url_id": "/old"},
     "/canon-blocked": {"canonical_url_id": "/private", "variant_of_url_id": "/private"},
     "/to-blocked": {"redirect_url_id": "/private"},
+    "/redir-away": {"redirect_url_id": OFF_CRAWL},
+    "/canon-nostatus": {"canonical_url_id": "/no-status"},
 }
 
 EXPECTED: Final[dict[str, list[str]]] = {
@@ -129,10 +156,16 @@ EXPECTED: Final[dict[str, list[str]]] = {
     "redirect-broken": ["/dead-end"],
     "redirect-chain": ["/old"],
     "links-to-redirect": ["/services"],
-    "redirect-pages": ["/dead-end", "/old", "/older", "/to-blocked"],
+    "redirect-pages": ["/dead-end", "/old", "/older", "/redir-away", "/redir-null", "/to-blocked"],
     "canonical-broken": ["/canon-dead", "/canon-redirect"],
     "noindex": ["/hidden"],
-    "canonical-elsewhere": ["/canon-blocked", "/canon-dead", "/canon-redirect", "/services-copy"],
+    "canonical-elsewhere": [
+        "/canon-blocked",
+        "/canon-dead",
+        "/canon-nostatus",
+        "/canon-redirect",
+        "/services-copy",
+    ],
     "sitemap-broken": ["/blocked-noindex", "/gone"],
     "sitemap-nonindexable": ["/hidden", "/services-copy"],
     "not-in-sitemap": ["/Plans_Old"],
@@ -143,10 +176,10 @@ EXPECTED: Final[dict[str, list[str]]] = {
     "deep-pages": ["/a/b/c/d"],
     "nofollow-internal": ["/Plans_Old"],
     "title-missing": ["/lost"],
-    "title-duplicate": ["/Plans_Old", "/pricing"],
+    "title-duplicate": ["/Plans_Old", "/Zulu-dup", "/alpha-dup", "/mike-dup", "/pricing"],
     "title-long": ["/long-title"],
     "title-short": ["/services"],
-    "url-format": ["/About", "/Plans_Old", "/Zed_page", "/aa_x", "/old_page"],
+    "url-format": ["/About", "/Plans_Old", "/Zed_page", "/Zulu-dup", "/aa_x", "/old_page"],
     "url-long": [LONG_PATH],
 }
 
@@ -159,6 +192,7 @@ async def audit_site(
     """A finished crawl of `PAGES` with the columns each check reads set as the table of the
     spec says. The paths are the ids of the pages, as `seed_crawl` returns them."""
     run_id, ids = await seed_crawl(pg, workspace, project_id, PAGES, LINKS)
+    targets = {**ids, OFF_CRAWL: await url_id(pg, f"https://example.com{OFF_CRAWL}")}
     for number, path in enumerate(ids):
         values: dict[str, object] = {
             "title": f"A unique page title number {number:03d} of the site",
@@ -167,7 +201,7 @@ async def audit_site(
             "click_depth": 1,
         }
         values.update(_COLUMNS.get(path, {}))
-        values.update({column: ids[target] for column, target in _TARGETS.get(path, {}).items()})
+        values.update({column: targets[found] for column, found in _TARGETS.get(path, {}).items()})
         sets = ", ".join(f"{column} = ${position}" for position, column in enumerate(values, 3))
         await execute(pg, _UPDATE.format(sets=sets), run_id, ids[path], *values.values())
     await execute(

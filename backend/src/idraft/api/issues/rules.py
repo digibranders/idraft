@@ -121,6 +121,7 @@ def _shared_titles(crawl: CrawlRef) -> Select[Any]:
 _PATH_NO_ESCAPES: Final = func.regexp_replace(urls.c.path, "%[0-9A-Fa-f]{2}", "", "g")
 HAS_CAPITALS: Final = _PATH_NO_ESCAPES.op("~")("[A-Z]")
 HAS_UNDERSCORES: Final = func.strpos(urls.c.path, "_") > 0
+PATH_LENGTH: Final = func.char_length(urls.c.path)
 NOFOLLOW_LINKS: Final = and_(
     crawl_links.c.workspace_id == crawl_pages.c.workspace_id,
     crawl_links.c.run_id == crawl_pages.c.run_id,
@@ -194,7 +195,7 @@ _RULES: Final[dict[str, Rule]] = {
         _live(crawl_pages), title_key(crawl_pages) != "", title_length(crawl_pages) < TITLE_MIN
     ),
     "url-format": lambda _: and_(_live(crawl_pages), or_(HAS_CAPITALS, HAS_UNDERSCORES)),
-    "url-long": lambda _: and_(_live(crawl_pages), func.char_length(urls.c.path) > PATH_MAX),
+    "url-long": lambda _: and_(_live(crawl_pages), PATH_LENGTH > PATH_MAX),
 }
 
 

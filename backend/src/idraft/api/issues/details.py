@@ -17,6 +17,7 @@ from idraft.api.issues.rules import (
     HAS_CAPITALS,
     HAS_UNDERSCORES,
     NOFOLLOW_LINKS,
+    PATH_LENGTH,
     CrawlRef,
     title_key,
     title_length,
@@ -25,15 +26,15 @@ from idraft.api.issues.rules import (
 from idraft.api.schemas.issues import IssueDetail
 from idraft.db.tables import crawl_links, crawl_pages, urls
 
+Rows = Select[*tuple[Any, ...]]
 # Checks whose value is the page another column of the row names, and which column.
-_TARGET_COLUMN: Final = {
+_TARGET_COLUMN: Final[dict[str, ColumnElement[int]]] = {
     "redirect-broken": crawl_pages.c.redirect_url_id,
     "redirect-chain": crawl_pages.c.redirect_url_id,
     "redirect-pages": crawl_pages.c.redirect_url_id,
     "canonical-broken": crawl_pages.c.canonical_url_id,
     "canonical-elsewhere": crawl_pages.c.canonical_url_id,
 }
-Rows = Select[*tuple[Any, ...]]
 _COUNT: Final[dict[str, ColumnElement[Any]]] = {
     "status-4xx": crawl_pages.c.linking_pages_all,
     "editorial-orphans": crawl_pages.c.linking_pages_all,
@@ -43,7 +44,7 @@ _COUNT: Final[dict[str, ColumnElement[Any]]] = {
     "deep-pages": crawl_pages.c.click_depth,
     "title-long": title_length(crawl_pages),
     "title-short": title_length(crawl_pages),
-    "url-long": func.char_length(urls.c.path),
+    "url-long": PATH_LENGTH,
     "nofollow-internal": select(func.count())
     .select_from(crawl_links)
     .where(NOFOLLOW_LINKS)

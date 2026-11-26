@@ -191,4 +191,6 @@ async def test_a_title_is_trimmed_of_every_kind_of_whitespace(
 
     assert await _paths(api, url, viewer.headers, "title-missing") == ["/lost"]
     assert await _paths(api, url, viewer.headers, "title-short") == ["/services", "/title-30"]
-    assert await _paths(api, url, viewer.headers, "title-duplicate") == ["/Plans_Old", "/pricing"]
+    assert sorted(await _paths(api, url, viewer.headers, "title-duplicate")) == sorted(
+        EXPECTED["title-duplicate"]
+    )

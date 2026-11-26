@@ -10,7 +10,7 @@ import pytest
 
 from idraft.api.resources import Resources
 from tests.api.auth.support import execute, make_workspace
-from tests.api.entities.support import member
+from tests.api.entities.support import member, problem
 from tests.api.issues.support import LONG_PATH, SHARED_TITLE, audit_site
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
@@ -33,6 +33,9 @@ CASES = [
     ("redirect-chain", "/old", _detail(target_path="/older", target_status=301)),
     ("redirect-pages", "/older", _detail(target_path="/services", target_status=200)),
     ("redirect-pages", "/to-blocked", _detail(target_path="/private", target_status=403)),
+    ("redirect-pages", "/redir-null", NONE),
+    ("redirect-pages", "/redir-away", _detail(target_path="/off-crawl")),
+    ("canonical-elsewhere", "/canon-nostatus", _detail(target_path="/no-status")),
     ("canonical-broken", "/canon-dead", _detail(target_path="/gone", target_status=404)),
     ("canonical-broken", "/canon-redirect", _detail(target_path="/old", target_status=301)),
     ("canonical-elsewhere", "/services-copy", _detail(target_path="/services", target_status=200)),
@@ -44,9 +47,13 @@ CASES = [
     ("links-to-nonindexable", "/services", _detail(count=1)),
     ("editorial-orphans", "/pricing", _detail(count=1)),
     ("deep-pages", "/a/b/c/d", _detail(count=4)),
-    ("nofollow-internal", "/Plans_Old", _detail(count=1)),
+    ("nofollow-internal", "/Plans_Old", _detail(count=2)),
     ("title-duplicate", "/pricing", _detail(count=1, target_path="/Plans_Old")),
     ("title-duplicate", "/Plans_Old", _detail(count=1, target_path="/pricing")),
+    # Byte order is /Zulu-dup, /alpha-dup, /mike-dup (a locale order would end with /Zulu-dup).
+    ("title-duplicate", "/Zulu-dup", _detail(count=2, target_path="/alpha-dup")),
+    ("title-duplicate", "/alpha-dup", _detail(count=2, target_path="/Zulu-dup")),
+    ("title-duplicate", "/mike-dup", _detail(count=2, target_path="/Zulu-dup")),
     ("title-long", "/long-title", _detail(count=70)),
     ("title-short", "/services", _detail(count=8)),
     ("url-format", "/Plans_Old", _detail(reason="both")),
@@ -129,12 +136,103 @@ async def test_a_title_shared_by_three_pages_names_the_first_other_page(
 
     issues = await _issue_of(api, url, viewer.headers, "title-duplicate")
 
-    # In byte order the three are /Plans_Old, /pricing and /title-60.
-    assert issues == {
+    # Three pages share the title: each names the first of the other two by path.
+    assert {path: issues[path] for path in ("/Plans_Old", "/pricing", "/title-60")} == {
         "/Plans_Old": _detail(count=2, target_path="/pricing"),
         "/pricing": _detail(count=2, target_path="/Plans_Old"),
         "/title-60": _detail(count=2, target_path="/Plans_Old"),
     }
+
+
+def _csv_cells(text: str) -> dict[str, list[str]]:
+    """The five detail cells of each row of a check's CSV, by path."""
+    return {row[1]: row[-5:] for row in list(csv.reader(io.StringIO(text)))[1:]}
+
+
+async def _csv_of(
+    api: httpx.AsyncClient, url: str, headers: dict[str, str], check_id: str
+) -> httpx.Response:
+    return await api.get(url, params={"format": "csv", "filter[issue]": check_id}, headers=headers)
+
+
+@pytest.mark.parametrize("chunk", [None, 2])
+async def test_the_csv_of_duplicate_titles_keeps_each_rows_cells(
+    chunk: int | None,
+    monkeypatch: pytest.MonkeyPatch,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    if chunk is not None:
+        monkeypatch.setattr("idraft.api.issues.details._CHUNK", chunk)
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    await audit_site(migrated, workspace, project)
+    url = project_url(workspace, project, "internal-links", "pages")
+
+    found = await _csv_of(api, url, viewer.headers, "title-duplicate")
+
+    assert found.status_code == 200, found.text
+    assert _csv_cells(found.text) == {
+        "/Plans_Old": ["/pricing", "", "1", "", ""],
+        "/pricing": ["/Plans_Old", "", "1", "", ""],
+        "/Zulu-dup": ["/alpha-dup", "", "2", "", ""],
+        "/alpha-dup": ["/Zulu-dup", "", "2", "", ""],
+        "/mike-dup": ["/Zulu-dup", "", "2", "", ""],
+    }
+
+
+async def test_the_csv_of_long_titles_has_the_count(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    await audit_site(migrated, workspace, project)
+    url = project_url(workspace, project, "internal-links", "pages")
+
+    long_titles = await _csv_of(api, url, viewer.headers, "title-long")
+    noindex = await _csv_of(api, url, viewer.headers, "noindex")
+
+    assert _csv_cells(long_titles.text) == {"/long-title": ["", "", "70", "", ""]}
+    assert _csv_cells(noindex.text) == {"/hidden": ["", "", "", "meta_tag", ""]}
+
+
+async def test_the_csv_of_nofollow_on_a_crawl_without_links_is_410(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    run_id, _ = await audit_site(migrated, workspace, project)
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET links_dropped_at = now() WHERE id = $1", run_id
+    )
+    url = project_url(workspace, project, "internal-links", "pages")
+
+    found = await _csv_of(api, url, viewer.headers, "nofollow-internal")
+
+    assert problem(found) == (410, "links_dropped")
+
+
+async def test_the_issue_of_another_workspaces_project_is_404(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    await audit_site(migrated, workspace, project)
+    other = await make_workspace(migrated)
+    stranger = await member(resources, migrated, other, "viewer")
+    url = project_url(other, project, "internal-links", "pages")
+
+    found = await api.get(
+        url,
+        params={"filter[issue]": "redirect-pages", "include": "issue"},
+        headers=stranger.headers,
+    )
+
+    assert problem(found) == (404, "not_found")
 
 
 async def test_the_csv_of_a_check_has_the_detail_columns(

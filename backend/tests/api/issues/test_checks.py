@@ -256,9 +256,9 @@ async def test_the_example_path_is_the_first_in_byte_order(
 ) -> None:
     rows = _rows(await _read(api, resources, migrated))
 
-    # "/Zed_page" sorts before "/aa_x" in bytes and after it in most locales; "/About" is first.
-    assert "/Zed_page" < "/aa_x"
-    assert rows["url-format"]["pages"] == 5
+    # In byte order "/About" is the first of the url-format pages; in an English locale
+    # "/aa_x" would come first.
+    assert rows["url-format"]["pages"] == len(EXPECTED["url-format"])
     assert rows["url-format"]["example_path"] == "/About"
 
 
