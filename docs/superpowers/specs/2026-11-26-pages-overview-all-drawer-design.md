@@ -1,7 +1,7 @@
 # Pages: Overview, All pages and the page drawer: design
 
 Status: written 2026-11-26 for the real-app build. The owner's settled decisions are in section 1. Technical
-decisions taken here are numbered D1 to D16 in section 3, each with its reason. What blocks or narrows the build
+decisions taken here are numbered D1 to D28 in section 3, each with its reason. What blocks or narrows the build
 is in section 15.
 
 Reference mock (not committed, read only, main checkout): `apps/web/design-preview/pages-overview.js`,
@@ -40,6 +40,11 @@ no unmerged code: every dependency is a seam of section 10.
     on a page and when; a note shows its author and the date and time. The author can edit or delete their
     own note (delete has Undo). Notes belong to the page's address, so they stay across crawls and exist for
     redirect and error pages too. Everyone in the workspace sees them. Built in full, with its own table.
+11. Added 2026-11-27: the Notes box has three helpers (section 9.8). The at sign mentions a teammate, a page,
+    an issue found on the page or a tracked keyword of the page, and the mention shows as a chip when the note
+    is read. Slash commands (`/page`, `/issue`, `/keyword`, `/date`) do the same from the keyboard. A paperclip,
+    drop and paste attach up to 5 files of 10 MB (images, PDF, text, CSV) to a note, kept in the existing
+    private storage. No notification is sent to a mentioned teammate in this slice.
 
 ## 2. What is true in the code today
 
@@ -120,6 +125,18 @@ on a page. `api/audit.py` records project writes (`audit.record`, the `AuditActi
 | D14 | The parser is one pure module, `backend/src/idraft/crawl/outline.py`, with the limits (title 30 to 60, description 70 to 160, thin under 200 words) as its constants. The Issues session's slice 2 fills its new `crawl_pages` columns by calling the same functions. | Then the Outline and the Issues checks cannot disagree on a count. The Issues branch has no HTML reader yet (its plan names "an extractor beside `crawl/head.py`"), so this build writes it and that session reuses it. |
 | D15 | Notes are rows of a new table `core.page_notes`, keyed by project and `core.urls.id`, never by a crawl page row. A delete sets `deleted_at`. | A note must outlive the crawl it was written under and must exist for an address that redirects or errors. A soft delete makes Undo one request and keeps the audit trail readable. |
 | D16 | Reading notes needs `data:read`; writing needs the existing `notes:write`. Only the author changes a note; the author, an owner or an admin deletes one. The page detail carries `notes_count`. | The permission exists for exactly this kind of write and editors hold it. An admin can clear a note nobody else can, without a new permission. The count on the detail gives the tab its badge with no extra request. |
+| D17 | A note's mentions are a `jsonb` list in a column of `core.page_notes` (`mentions`, at most 20), next to the text. | They are only ever read with the note, are small, and need no query of their own. A table would add a join to every list of notes for no use. |
+| D18 | The server checks each mention's target by type (page: an address of this project; user: a member of the workspace; keyword: a tracked keyword of this project; issue: a check that exists) and refuses a failing one with `422`. A mention whose label is not in the text is dropped, not refused. | The web builds the list, the server does not trust it. A label deleted while typing is normal, so it is not an error. |
+| D19 | Issue lists and issue-id validation are seams (web `usePageIssues`, backend `IssueChecks`) that answer unavailable here; the tracked keywords come from the real data (`extras.keywords` of the page detail; targets checked against `seo.tracked_keywords`). On this branch every `issue` mention is refused. | The Issues session owns the checks. The keywords already exist in the real app. |
+| D20 | Slash commands are client only. They produce the same mentions as the at sign, and `/date` inserts text. | Nothing about them needs the server; they are a faster way to the same list. |
+| D21 | A file is uploaded alone (`POST …/note-attachments`, one file per request) and attached by id when the note is created or changed. | One size limit per request, a refusal per file, a retry of the note without sending the files again. The box uploads only on save, so removing a chip costs nothing. |
+| D22 | Files go to the raw bucket the API already writes to, under `notes/v1/<workspace_id>/<project_id>/<attachment_id>.zst`, zstd compressed through `ObjectStore` as screenshots are. No new bucket, no change to the server. | The bucket, the client and the pattern exist; `notes/` is outside the prefixes the lifecycle rules expire. |
+| D23 | The file's type is decided by its first bytes (and, for text, by its whole content), never by its name or the browser's type. SVG and HTML are never accepted. | A name or a header can lie; an SVG or HTML file served from the app's own address runs script. |
+| D24 | Files are served by an API route (`data:read`) that checks the permission on every read, with `nosniff`, a sandboxing policy, `inline` for four image types and `attachment` for the rest. No signed URLs. | A signed URL outlives the permission; the store has no presign; the screenshot route is the precedent. |
+| D25 | Each workspace may store 1 GiB of note files (`core.workspace_quotas.max_note_file_bytes`), counted over every row, enforced under a lock. Storage writes no cost-ledger row; it stays in the fixed R2 line of doc 27. | Bytes that are stored count, whatever their state. The ledger holds provider spend and a file is not a provider call. |
+| D26 | A note may be files only: the body check becomes 0 to 2,000 characters, and the service refuses an empty body with no live file. | The mock allows it, and a screenshot with no sentence is a real note. |
+| D27 | Nothing is removed from storage in this slice. Files of deleted notes, removed files and orphans stay until a purge slice. | No purge job exists and `ObjectStore` cannot delete; building both is outside this change. The key shape lets that slice list by prefix. |
+| D28 | No notification to a mentioned teammate and no virus scan. | The app has no notification channel for notes; the serving rules of D24 are the defence. Both are later options. |
 
 ## 4. Words
 
@@ -936,7 +953,7 @@ is that crawl's and the outline is the latest crawl's, so the tab waits for the 
 ### 9.7 The Notes tab
 
 Owner addition of 2026-11-26 (D15, D16). Mock: `il-notes.js` (the tab), `il-drawer.js` (the tab strip and its
-count badge).
+count badge). The box's mentions, slash commands and attachments (2026-11-27) are section 9.8.
 
 #### 9.7.1 The table
 
@@ -961,6 +978,9 @@ CREATE TABLE core.page_notes (
 CREATE INDEX page_notes_page ON core.page_notes (project_id, url_id, created_at DESC, id DESC)
     WHERE deleted_at IS NULL;
 ```
+
+The body check above is the one migration `0042` made; `0043` and `0044` add `mentions` and relax the body
+check to 0 to 2,000 characters (9.8.1, 9.8.5).
 
 Row-level security by `workspace_id` (`tenant_isolation`). Grants: the API role `SELECT, INSERT` and `UPDATE`
 on `body`, `edited_at`, `deleted_at`, `deleted_by` only; no `DELETE` for anyone (a row leaves only with its
@@ -1016,7 +1036,8 @@ internal links routers are.
   actions are added to `AuditAction`.
 - `PageDetail` (the page detail read) gains `notes_count: int`: the notes of the page that are not deleted.
   It is the tab's badge.
-- No limit on the notes of a page, no mentions, no notification, no attachment (section 13).
+- No limit on the notes of a page, no notification (section 13). Mentions and attachments are section 9.8,
+  which also changes the body rule (a note may be files only) and the shape of `PageNote`.
 
 `docs/19-api-specification.md` (the paragraph that lists `{P}/notes`) and the `notes:write` row of
 `docs/24-security.md` say that the permission now also covers notes on a page.
@@ -1066,6 +1087,491 @@ its own Escape (cancel the edit) and stops it there, as the mock does, so the dr
 in either box types the letter. Escape in the add box closes the drawer as anywhere else, and the draft is
 kept. This build tests all three against the real `Inspector` and changes no shared file; if the shared drawer
 cannot be stopped from inside a field, that is a request to the shared drawer session, not a workaround here.
+
+### 9.8 The Notes box: mentions, slash commands and attachments
+
+Owner addition of 2026-11-27 (D17 to D28). Mock: `il-notes.js`, rewritten (the reference for behaviour and
+wording). It extends 9.7; where the two differ, this section wins. What it changes in 9.7: a note has text, or
+files, or both (9.8.5); a note carries `mentions` and `attachments` (9.8.6); section 13 no longer lists
+mentions and attachments as unbuilt (it lists what remains, 9.8.9).
+
+What exists in the code, read on 2026-11-27:
+
+| Thing | State |
+|---|---|
+| Teammates | `GET /api/v1/workspaces/{workspace_id}/members` (any member may read it; `auth.memberships`). The user target is a member of the workspace. |
+| Tracked keywords | `seo.tracked_keywords` joined to `seo.keywords` (text). A keyword belongs to a page by decision D8 of Internal links: its target address, else the address it ranks with. `api/internal_links/extras.py` `keywords_of` already reads this for the page detail (`include=keywords`), so the drawer has the page's tracked keywords with no new route. |
+| Issues | Nothing on this branch (section 10.1). `usePageIssues` answers `unavailable`; there is no list of check ids to validate against. |
+| Object storage | `idraft.storage.raw`: `ObjectStore` has `put` and `get` only (no delete, no presign). The API already writes through it: AI answer screenshots (`storage/screenshots.py`) are stored zstd compressed under `screenshots/v1/<workspace>/<project>/…` in the raw bucket and served by an API route with `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`. The bucket's lifecycle rules expire only `raw/v1/serp_raw/`, `raw/v1/first_party_raw/` and `raw/v1/error/` (doc 23 section 9.2). Without storage settings a route that needs the store answers `503 storage_unavailable` (`StorageUnavailableError`). |
+| Request size | `api/body_limit.py`: 1 MB for a JSON body, and one larger limit registered (the keyword import upload, 50 MB plus 1 MB of framing). The middleware refuses an announced size over the limit and counts a chunked body as it arrives. |
+| Purge | None. No code deletes an object from storage; the workspace purge of doc 24 section 13 and doc 23 section 9.3 is designed, not built. A project's rows go with it (`ON DELETE CASCADE`), its objects do not. |
+| Cost ledger | `ops.provider_cost_events` and `ops.cost_daily` hold provider spend (DataForSEO, LLMs). Storage is not a provider call: doc 27 section 7 counts R2 in the fixed infrastructure line ("negligible"). |
+
+#### 9.8.1 Mentions: the data
+
+One new column, migration `0043_page_note_mentions.py` (revises `0042`; the next number on this branch, see
+section 14 for the clash risk):
+
+```sql
+ALTER TABLE core.page_notes
+    ADD COLUMN mentions jsonb NOT NULL DEFAULT '[]'
+    CHECK (jsonb_typeof(mentions) = 'array' AND jsonb_array_length(mentions) <= 20);
+```
+
+The API role may `UPDATE` it (it joins `body`, `edited_at`, `deleted_at`, `deleted_by` in the column grant).
+A note's mentions are a small list that is only ever read with the note, so they are a column and not a
+table (D17). Each entry:
+
+```json
+{ "type": "page", "label": "@/pricing", "target": "1042" }
+```
+
+| Field | Rule |
+|---|---|
+| `type` | `page`, `user`, `issue` or `keyword` |
+| `label` | The exact text that was inserted into the note: starts with `@`, 2 to 200 characters, no line break. A page is `@/path`, a teammate `@Arjun Mehta`, an issue `@Issue name`, a keyword `@"the keyword"`. The server does not check that the label spells the target (it is display text; no notification is sent) |
+| `target` | A string, by type: page, the `core.urls.id` (digits); user, the user id; issue, the check id; keyword, the keyword's text as `seo.keywords` stores it |
+
+Server rules, on every create and change (the web builds the same list, the server does not trust it):
+
+- At most 20 entries. More is `422`.
+- An entry whose `label` does not occur in the saved body is ignored (dropped, not an error), as is every
+  entry of a body that no longer mentions it: the stored list is exactly the entries whose label is in the
+  text. When two entries share a label, the first is kept and the others are dropped.
+- **page:** the `target` is an address that a crawl of this project holds (any crawl, as for the note's own
+  page). Otherwise `422` with the field `mentions[i].target` and code `mention_target_unknown`. The chip shows
+  the address's current path, which the read returns as `path` (a redirect's old path still resolves: a
+  `core.urls` row is never deleted).
+- **user:** the `target` is a member of this workspace (`auth.memberships`). A person who left is refused on
+  a new write and still shows as a chip on the notes already written. A project scope on the membership is not
+  checked: a teammate of the workspace is enough.
+- **keyword:** the `target` is the text of a tracked keyword of this project that is active and not deleted
+  (any device or location). That the keyword is the page's own is a rule of the box (it offers only the page's
+  keywords), not of the server.
+- **issue:** the `target` must be a check id the Issues catalogue knows. The catalogue is the Issues session's
+  and is not on this branch, so it is a seam (below). On this branch every `issue` mention is refused with
+  `422` and code `mention_type_unavailable`; the box offers none, so only a hand-made request meets this.
+- The `type` of an entry that fails to parse, or a `target` of the wrong shape (a page that is not digits, a
+  user that is not a UUID), is `422` `validation_failed`.
+
+The issue seam is one small module on the backend, `api/internal_links/mention_sources.py`:
+
+```python
+class IssueChecks(Protocol):
+    async def known(self, check_ids: Collection[str]) -> frozenset[str] | None:
+        """The ids among `check_ids` that are real checks, or None when this installation has no Issues."""
+
+class NoIssueChecks:
+    async def known(self, check_ids: Collection[str]) -> frozenset[str] | None:
+        return None
+```
+
+The service takes an `IssueChecks` (default `NoIssueChecks`). When the Issues session lands it replaces the
+default with a class that reads its catalogue (`api/issues/catalogue.py`); nothing else changes. What is
+validated on this branch, exactly: page, user and keyword targets against the database; issue targets not at
+all (refused); labels not at all (display text).
+
+No notification is sent to a mentioned teammate in this slice. It is a later option: it needs a
+notification channel the app does not have (no inbox, no email template for notes) and a rule for who may be
+told about which project.
+
+#### 9.8.2 The box
+
+The add box and the edit box are one component with three helpers, in this order under the text: the list of
+suggestions (only while it is open), the files (9.8.5), the line of refusals, then the row: Add note (or
+Save), Cancel (edit only), the paperclip button "Attach files", the hint, the count.
+
+**At sign.** Typing `@` at the start of a word (start of the text, or after a space or a line break; not
+inside `a@b.com`) opens a list under the box and narrows it as the word after the `@` grows. It offers, in
+this order and at most 8 rows in all:
+
+1. teammates of the workspace (`GET …/members`, matched on the name);
+2. live pages of the crawl in view (the pages list read, `filter[view]=live`, `q` the typed word, `limit` 8,
+   asked after a short pause; matched by path and title; each row shows the path and the title);
+3. the issues found on this page (`usePageIssues`, seam 10.1: none on this branch);
+4. the tracked keywords of this page (`extras.keywords` of the page detail the drawer already holds).
+
+With nothing typed the list shows the first rows of each kind, so a teammate is always one `@` away. A pick
+replaces the `@` and what was typed after it with the label and a space, and adds the entry to the box's
+`mentions`. The caret stays after the inserted space and the box keeps the focus.
+
+**Slash commands**, client only, no backend (D20). `/` at the start of a word opens the four commands, narrowed
+as the word grows: `/page`, `/issue`, `/keyword` (then a space and a search word: the same lists as the at
+sign, one kind each) and `/date`, which inserts today's date as text (through the app's date formatter, in the
+viewer's time zone, for example "27 Nov 2026") and a space, and adds no mention. `/page`, `/issue` and
+`/keyword` produce the same mentions as the at sign. A `/` followed by a word that is none of the four
+commands closes the list and stays as typed. A slash inside a word (`and/or`, a path in the middle of a
+sentence) is not a trigger.
+
+**Keys and focus (combobox).** The `textarea` is a `combobox` (`aria-autocomplete="list"`,
+`aria-expanded`, `aria-controls` the list, `aria-activedescendant` the active row); the list is a
+`listbox` of `option`s with `aria-selected`; the box keeps the focus while the list is open.
+
+| Key | List open | List closed |
+|---|---|---|
+| Down, Up | Move the active row, wrapping | Move the caret |
+| Enter, Tab | Pick the active row (Enter without Cmd or Ctrl) | Enter adds a line; Tab leaves the box |
+| Escape | Close the list, and nothing else: the drawer stays open and an edit is not cancelled | Add box: the drawer closes (as in 9.7.3). Edit box: the edit is cancelled |
+| Cmd or Ctrl + Enter | Saves the note | Saves the note |
+| Letters, J and K | Typed, and they narrow the list | Typed |
+
+Escape closes the list through a native listener on the `textarea` that calls `stopPropagation` (as 9.7.3
+does for the edit box: the drawer's own listener sits on its card and runs before React's). A pick with the
+mouse uses `mousedown` and prevents its default, so the box keeps its caret. The list closes when the box
+loses focus, when nothing matches, and when the caret leaves the trigger word. When the list opens or its
+rows change, the count is announced once through `announce` ("5 suggestions, use the arrow keys").
+
+**What a note keeps.** The box's `mentions` are filtered to the labels still in the text at the moment of
+saving, and sent with the body (9.8.6). The draft of 9.7.3 keeps the box's `mentions` and files together with
+the text.
+
+#### 9.8.3 Reading a note
+
+Each label of the note's `mentions` that occurs in the body is drawn as a chip, in place of its text (a text
+node is split around it; every other character stays a text node, so no markup of a note is ever read; chips
+are built from the label as text). A label that is not in the text is left out; an occurrence of a label the
+mention list does not hold is plain text. Longer labels are matched first, every occurrence.
+
+| Type | Chip | Opens |
+|---|---|---|
+| page | button with the page icon and the current path (`path`) | That page in this drawer (`?inspect=page:<target>`, the same tab) |
+| issue | button with the alert icon | The check on the Issues page (`hrefs.issueCheck`); when the host gives no route the chip is plain text, never a dead link (10.1) |
+| user | plain, with the at-sign icon | Nothing |
+| keyword | plain, with the search icon | Nothing |
+
+A chip that is a button has an accessible name that says where it goes ("Open /pricing"). A teammate who
+left, a page that is gone from every crawl view, and an issue the catalogue no longer has still draw their
+chip from the stored label; they are never an error.
+
+#### 9.8.4 Attachments: what a person sees
+
+A paperclip button "Attach files" opens the file chooser; files can also be dropped anywhere on the box, and
+an image or file pasted into the text goes in as a file (the paste adds no text). Limits, the same in the
+box and on the server: up to 5 files per note, 10 MB each (10 times 1,048,576 bytes), types PNG, JPEG, GIF,
+WebP, PDF, plain text and CSV only. The box checks what it can before sending (the browser's type, or the
+file's extension when the type is empty, which is what CSV often gives) and shows every refusal in one line
+under the box, in plain words: "At most 5 files per note.", "report.zip: only images (PNG, JPEG, GIF, WebP),
+PDF, text and CSV files.", "scan.pdf: over 10 MB.". The line is a `role="alert"`, replaced by the next
+refusal, and cleared by the next accepted file. The server decides again (9.8.5); its refusals are shown in
+the same line.
+
+Files chosen but not saved are chips above the row: a thumbnail (images; a local object URL, nothing is sent
+yet) or a file icon, the name, the size and a "Remove" button. Saving uploads them (9.8.5), then adds the note.
+Under a saved note: images as thumbnails (a link wrapping the image, 56 px square, `alt` the file name), other
+files as a row with the file icon, the name and the size. Every one is a link with `target="_blank"` and
+`rel="noopener noreferrer"` and a name that says what it is ("report.pdf, 214 KB. Opens in a new tab."). A
+file that is not an image is served as a download (9.8.5), so a PDF is saved by the browser and does not
+preview; this is a decision for the owner (section 15, item 9).
+
+#### 9.8.5 Attachments: how they are stored and served
+
+**Two steps (D21).** A file is sent on its own, before the note exists: `POST …/note-attachments`
+(multipart, one `file` part) stores it and returns its id; then the note is created or changed with
+`attachment_ids`. One file per request keeps each request inside one size limit, lets the box show a
+refusal per file, and lets a failed note be retried without sending the files again (the box keeps the ids it
+got). A file that is uploaded and never attached (the note failed, the person left) is an orphan: it stays
+stored and counted against the cap (9.8.5, cap) until the purge slice. The box uploads only when the note is
+saved, so removing a chip costs nothing.
+
+**Size, before the bytes are read.** The body limit of `api/body_limit.py` gets a second registered limit
+for `POST` on this path: 10 MB plus 1 MB of framing. An announced larger size is refused before anything is
+read; a chunked body is counted and cut at the limit; both are `413 payload_too_large` (`limit_bytes`
+10,485,760). The route then reads at most 10 MB plus one byte of the file part and refuses a file that gave
+that extra byte with the same `413`. A file of 0 bytes is `422`.
+
+**The type is decided by the content (D23).** A pure module `backend/src/idraft/notes_files.py` (no database,
+no storage; it is the only judge) reads the first bytes and returns the content type or refuses; the file's
+name and the browser's type are never used to choose it.
+
+| Content type | Accepted when |
+|---|---|
+| `image/png` | starts with `89 50 4E 47 0D 0A 1A 0A` |
+| `image/jpeg` | starts with `FF D8 FF` |
+| `image/gif` | starts with `GIF87a` or `GIF89a` |
+| `image/webp` | `RIFF`, then 4 size bytes, then `WEBP` |
+| `application/pdf` | starts with `%PDF-` (byte 0, not "within the first kilobyte") |
+| `text/plain`, `text/csv` | The whole file is UTF-8 (a byte order mark is fine), holds no NUL and no control character other than tab, line feed, carriage return and form feed, and its first 1,024 bytes, lower-cased, hold none of `<html`, `<!doctype`, `<svg`, `<script`, `<iframe`, `<?xml`. It is `text/csv` when the name ends in `.csv` (the name only chooses between these two harmless types), else `text/plain` |
+
+Everything else is `415 unsupported_media_type`: SVG and HTML in every disguise (a `.png` that starts with
+`<svg`, an `.html` file with a `.txt` name, an XML prolog), archives, executables, Office files. A file
+whose name ends in `.html`, `.htm`, `.xhtml`, `.svg`, `.xml`, `.js`, `.mjs` or `.hta` is refused even when its
+content is plain text (a defence for whoever opens the download on their own computer). A polyglot that
+passes (a PNG with HTML after its image data) is stored as the type its first bytes say and is harmless where
+it is served (below). No image is decoded, resized or re-encoded on the server and no thumbnail is made
+there (the browser scales the stored image; no decoder runs on the API).
+
+The name is kept only to show: path parts and control characters removed, 255 characters at most, stored
+as written otherwise. It is never part of a storage key.
+
+**Where it lives (D22).** The raw bucket the API already writes to, under a prefix of its own:
+`notes/v1/<workspace_id>/<project_id>/<attachment_id>.zst`, the file compressed with `raw.compress` and
+stored and read through `ObjectStore` exactly as screenshots are (`storage/screenshots.py` is the pattern;
+new module `storage/note_files.py`). `notes/` is outside the three `raw/v1/<class>/` prefixes that the
+lifecycle rules expire, so nothing expires it. The key names the workspace and the project (not the note: the
+note is not known when the file is sent, and the table maps a file to its note); the prefix by project is
+what a later purge lists. No bucket is created and the server is not touched. Without storage settings the
+upload answers `503 storage_unavailable` and nothing is recorded; when the store fails after the check, the
+route answers `503` and records nothing (the row is written after the object, so a row always has its
+object; an object without a row is the only half-state, and it is only a few kilobytes of waste).
+
+**The table and the body check (D26).** Migration `0044_page_note_attachments.py` (revises `0043`):
+
+```sql
+CREATE TABLE core.page_note_attachments (
+    id            uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id  uuid NOT NULL,
+    project_id    uuid NOT NULL,
+    url_id        bigint NOT NULL REFERENCES core.urls(id),
+    note_id       uuid REFERENCES core.page_notes(id),
+    uploaded_by   uuid NOT NULL REFERENCES auth.users(id),
+    storage_key   text NOT NULL UNIQUE,
+    original_name text NOT NULL CHECK (char_length(original_name) BETWEEN 1 AND 255),
+    size_bytes    bigint NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    content_type  text NOT NULL CHECK (content_type IN ('image/png', 'image/jpeg', 'image/gif',
+                  'image/webp', 'application/pdf', 'text/plain', 'text/csv')),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    removed_at    timestamptz,
+    CHECK (removed_at IS NULL OR note_id IS NOT NULL),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
+        ON DELETE CASCADE
+);
+CREATE INDEX page_note_attachments_note ON core.page_note_attachments (note_id)
+    WHERE note_id IS NOT NULL AND removed_at IS NULL;
+CREATE INDEX page_note_attachments_workspace ON core.page_note_attachments (workspace_id)
+    INCLUDE (size_bytes);
+
+ALTER TABLE core.page_notes DROP CONSTRAINT page_notes_body_check;
+ALTER TABLE core.page_notes ADD CONSTRAINT page_notes_body_check
+    CHECK (char_length(body) <= 2000 AND body = btrim(body));
+ALTER TABLE core.workspace_quotas
+    ADD COLUMN max_note_file_bytes bigint NOT NULL DEFAULT 1073741824 CHECK (max_note_file_bytes >= 0);
+```
+
+Row-level security by `workspace_id`. Grants: the API role `SELECT, INSERT` and `UPDATE` on `note_id` and
+`removed_at` only (a row is attached once, and "removed" is a mark); no `DELETE` for anyone; the worker role
+nothing. The body check is relaxed because a note may be files only (the mock allows it); the service
+refuses a note with an empty body and no live file (`422`), so "an empty note is never sent" still holds.
+`db/tables.py` gains `page_note_attachments` and the quota column; the table lists of the schema tests, the
+tenant column maps and seeds, and `docs/04-data-model.md` (a new section 5.5) get the table, and its section
+4.1 the column.
+
+**Attaching.** A note create or change carries `attachment_ids`. Each id must be a file that this caller
+uploaded (`uploaded_by`), for this project and this page (`url_id`), with `note_id` null (not attached to
+any note, not removed). On a create the ids become the note's files. On a change, `attachment_ids` is the
+exact list of files the note has afterwards: a current file missing from it is marked `removed_at`; omitted,
+the files are unchanged. At most 5 files are live on a note after the change (`422` code
+`too_many_attachments`, `limit` 5). A file is attached once: it cannot move to another note. Everything
+runs in the note's transaction, with the note's audit entry.
+
+**Cap and costs (D25).** Each workspace may store 1 GiB of note files (`core.workspace_quotas.
+max_note_file_bytes`, default 1,073,741,824, changed by an operator like the other quotas). An upload is
+refused with `422 quota_exceeded` (`limit`, `used`, `requested`, as the other quotas answer) when the sum of
+`size_bytes` of every row of the workspace (attached, removed and orphaned alike, because the bytes are still
+stored) plus the new file passes it. The check and the insert run under a transaction-scoped advisory lock on
+the workspace, so two uploads cannot both pass it. Storage is not a provider call, so it writes nothing to
+`ops.provider_cost_events` or `ops.cost_daily`; it stays in the fixed R2 line of doc 27 section 7, which
+gets one sentence: at the cap a workspace's note files cost at most 1 GiB times $0.015 per GB-month, about
+$0.016 a month, and R2 egress is free. No usage meter is added to the quota report in this slice.
+
+**Serving (D24).** `GET …/pages/{url_id}/note-attachments/{attachment_id}` (`data:read`) streams the file
+through the API, as the screenshot route does, so the permission and the workspace check are on every
+read and no URL outlives them (a signed URL would, for its lifetime; the store has no presign and the
+screenshot route is the precedent). It answers `404` when the file is not attached, is removed, belongs to a
+note that is deleted, or is of another page, project or workspace; the file of a note comes back with the
+note when it is restored. Headers on every success:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | The stored content type, never a type from the request |
+| `X-Content-Type-Options` | `nosniff` |
+| `Content-Security-Policy` | `default-src 'none'; sandbox` |
+| `Content-Disposition` | `inline` for `image/png`, `image/jpeg`, `image/gif` and `image/webp`; `attachment; filename="…"; filename*=UTF-8''…` for every other type (the name's quotes, backslashes, line breaks and non-ASCII characters are escaped or encoded) |
+| `Cache-Control` | `private, max-age=3600` |
+| `Content-Length` | The size |
+
+The soft delete and the restore of a note carry its files with no copy: a file is visible when its note is
+not deleted, so deleting a note hides its files at once and restoring brings them back. Removing a file from a
+note (a change without its id) hides it for good.
+
+**Purge (D27).** Nothing removes a stored file in this slice. No note purge exists (section 13) and no
+workspace purge is built, and `ObjectStore` cannot delete. Files of deleted notes, removed files, orphans
+and the files of a deleted project stay in the bucket under their prefix. The later purge lists
+`notes/v1/<workspace_id>/` (or one project's prefix) and deletes by key, and for a note purge by the
+`storage_key` of its rows first. Whether the API's storage token may delete objects is not known from the
+code (doc 23 names the `raw-worker` token as scoped to the bucket); the owner confirms it before that slice
+(section 15, item 8).
+
+**Not done: no virus scan (D28).** Files are not scanned. The defence is what is served and how: types by
+content, no SVG or HTML, `nosniff`, a sandboxing policy, and a download for everything but four image types.
+Someone who downloads a PDF is as exposed as with any PDF.
+
+#### 9.8.6 API changes
+
+All under `…/internal-links/pages/{url_id}`, in the modules of 9.7.2 and two new ones
+(`api/internal_links/page_note_files.py`, `page_note_file_routes.py`).
+
+| Method and path | Needs | Does |
+|---|---|---|
+| `POST …/notes` | `notes:write` | Body gains `mentions` and `attachment_ids` (both optional). `201` |
+| `PATCH …/notes/{note_id}` | `notes:write`, the author | Body gains `mentions` (omitted: the stored ones that are still in the text stay) and `attachment_ids` (omitted: unchanged). `edited_at` is set when the body, the kept mentions or the set of files really changed |
+| `POST …/note-attachments` | `notes:write` | Multipart, one part `file`. `201` with the file. `413`, `415`, `422` (empty, `quota_exceeded`), `503` as 9.8.5 says |
+| `GET …/note-attachments/{attachment_id}` | `data:read` | The bytes, with the headers of 9.8.5 |
+| `GET …/notes` | `data:read` | Each note gains `mentions` and `attachments` |
+
+```json
+{
+  "data": {
+    "id": "0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11",
+    "author": { "id": "0192…", "name": "Priya Nair" },
+    "body": "Client wants the pricing table moved above the FAQ. Same layout as @/pricing, ask @Meera Iyer.",
+    "mentions": [
+      { "type": "page", "label": "@/pricing", "target": "1042", "path": "/pricing" },
+      { "type": "user", "label": "@Meera Iyer", "target": "0192…", "path": null }
+    ],
+    "attachments": [
+      { "id": "0192…", "name": "faq-layout.png", "size": 182044, "content_type": "image/png",
+        "is_image": true, "url": "/api/v1/workspaces/…/pages/1008/note-attachments/0192…" }
+    ],
+    "created_at": "2026-11-18T16:40:00Z",
+    "edited_at": null,
+    "can_edit": true,
+    "can_delete": true
+  }
+}
+```
+
+- `PageNoteWrite.mentions` entries have `type`, `label` and `target`; the read adds `path` (the page's
+  current path; null for the other types). `PageNoteWrite.attachment_ids` is a list of UUIDs, at most 5.
+- The upload's answer is the same object as an entry of `attachments` (`id`, `name`, `size`, `content_type`,
+  `is_image`, `url`).
+- Both new fields have defaults in the schemas (`mentions` empty, `attachments` empty), so the generated web
+  types make them optional and the mocks written before them still typecheck, as for `notes_count`.
+- The body rule of 9.7.2 becomes: 1 to 2,000 characters after trimming, or 0 to 2,000 when the note has at
+  least one live file; `\r\n`, trimming and the null character rule are unchanged.
+- Audit: `page_note.created` and `page_note.updated` also record `mentions` and `attachment_ids` (with names
+  and sizes) in `after` (and `before`), and one more action, `page_note.file_uploaded` (`target_type`
+  `page_note_attachment`, `target_id` the file id, `after`: `url_id`, name, size, content type), is written
+  by the upload in its transaction. `AuditAction` gains it.
+- `docs/19-api-specification.md` gets the two routes and the changed bodies; the `notes:write` row of
+  `docs/24-security.md` says the permission also covers files on a note and gets one paragraph on the file
+  rules (types by content, serving headers, no scan); `docs/04-data-model.md` sections 4.1, 5.4 and 5.5;
+  `docs/27-cost-model.md` section 7 the one sentence; `docs/23-backup-disaster-recovery.md` section 9.1 one
+  sentence that `notes/v1/` is a prefix of the same bucket that no lifecycle rule expires.
+
+#### 9.8.7 Words and accessibility
+
+Messages go in `pages.drawer.notes` (the keys are listed in the plan, Tasks 25g to 25j). The glossary rules of
+section 11 apply: "mention" is the word for `@` (never "tag"), "file" for an attachment ("Attach files",
+"Remove file"), "teammate" in the list's hint, "tracked keyword", "issue"; a refusal says what is true and
+what is allowed; no dash. The placeholder gains "Type @ to mention, / for commands."
+
+- The box is a `combobox` as 9.8.2 says; the list has an accessible name ("Suggestions"); each option's text
+  is its label plus its hint, read as one string; the first row is active as soon as the list opens (as
+  the mock does), so Enter picks it.
+- Every group of rows in the list names its kind in the hint ("Teammate", "Page", "Issue on this page",
+  "Tracked keyword"), so colour and icon are never the only sign.
+- Chips that are buttons have names that say where they go; plain chips are text with an icon that is hidden
+  from assistive technology.
+- The paperclip is an icon button named "Attach files"; the file chips' Remove buttons say which file
+  ("Remove report.pdf"); the refusal line is `role="alert"`; file links say their name, size and that they
+  open in a new tab.
+- Each file upload progress ("Uploading 2 of 3 files") is announced once and the Add note button says it is
+  busy; a failure keeps the text, the mentions and the files in the box.
+- Drag over the box shows a visible drop state in text ("Drop files to attach") and not by colour alone.
+
+#### 9.8.8 Tests
+
+Targeted and serial (section 12's rule).
+
+**Backend:**
+
+- `tests/test_notes_files.py` (pure): a real tiny PNG, JPEG, GIF87a, GIF89a, WebP and PDF are accepted as
+  their types; an SVG, an HTML page, an XML prolog and a script, each under the names `a.png`, `a.jpg`,
+  `a.pdf`, `a.txt` and with no name, are refused; a PNG header followed by HTML is accepted as PNG (its first
+  bytes decide); `%PDF-` after 10 bytes of junk is refused; `RIFF` with `WAVE` is refused; a ZIP, an
+  executable and a Mach-O header are refused; text with a NUL, with a lone invalid UTF-8 byte, with a form
+  feed (accepted) and a BEL (refused); a text file that starts `  <HTML>` or holds `<script` in its first
+  1,024 bytes is refused, and one that holds it at byte 2,000 is accepted; `.csv` selects `text/csv`, any
+  other name `text/plain`; the names `x.html`, `x.SVG`, `x.js` are refused even with plain text; an empty
+  file is refused; the display name loses path parts and control characters and is cut at 255.
+- `tests/api/internal_links/test_page_note_mentions.py`: the four types, each valid and each invalid (an
+  address of another project, a user of another workspace, a user who is not a member, a keyword not tracked
+  in this project, an inactive or deleted tracked keyword); an `issue` entry is `422` `mention_type_unavailable`
+  with the default catalogue, and is accepted with a fake `IssueChecks` that knows its id; 20 entries pass
+  and 21 are `422`; a label that is not in the body is dropped; two entries with one label keep the first;
+  a change that removes a label drops its entry; a change without `mentions` keeps the entries still in the
+  text; the read gives `path` for a page and null otherwise, and the current path after the page was
+  redirected; `edited_at` is set when only the mentions changed and not when they are equal; a viewer gets
+  `403`; audit snapshots hold the mentions; the migration column check refuses a non-array and 21 entries.
+- `tests/api/internal_links/test_page_note_files.py`: upload of each accepted type (`201`, size, name,
+  type from the content, key under `notes/v1/<workspace>/<project>/`); the hostile files of
+  `test_notes_files.py` through the route (`415`, and no row and no object written: the fake store counts its
+  writes); an upload announced over the limit is refused before reading (`413`, the test's receive counts
+  zero reads of the body) and a chunked one is cut; a file of 10 MB passes and 10 MB plus one byte is `413`;
+  an empty file is `422`; a missing `file` part is `422`; the quota (`quota_exceeded` with `limit`, `used` and
+  `requested`; orphans and removed files count; two concurrent uploads at the edge cannot both pass); no
+  storage is `503`; a store failure records no row; a viewer is `403`; another workspace's member is `404`;
+  `url_id` no crawl holds is `404`; attach on create (`attachment_ids`), the sixth file is `422`
+  `too_many_attachments`; a file of another uploader, another page, another project, an already attached
+  file and a removed file are each `422`; a change that drops an id marks it removed and frees a slot; a note
+  with an empty body and one file is `201`, with an empty body and none is `422`, and a change that
+  leaves an empty body with no live file is `422`; the download: the bytes equal the upload, the headers of
+  9.8.5 for a PNG (inline) and for a PDF, a text file and a name with a quote, a CRLF and non-ASCII
+  characters (attachment, escaped), `nosniff` and the sandbox policy on all; `404` for a pending file, a
+  removed file, a file of a deleted note (and `200` again after restore), another page, another workspace;
+  a viewer reads it; a note's soft delete and restore leave the file rows untouched; one audit row per
+  upload.
+- `tests/db`: the migrations up and down; the table in `test_tables.py`, the tenant map and seed in
+  `support.py`, `test_grants.py` (the API role cannot `DELETE`, cannot update `storage_key`, `size_bytes`,
+  `content_type` or `url_id`); the checks (size 0 and 10,485,761, an unknown content type, `removed_at`
+  without `note_id`); the relaxed body check (empty passes, 2,001 and untrimmed fail); the quota column and
+  its default; the quota tests that list columns.
+- Route access rows for the two new routes; `tests/api/test_openapi.py`; the body limit test gets the new
+  path (`tests/api/test_body_limit.py`).
+
+**Web:**
+
+- `lib/pages/note-mentions.test.ts` (pure): the trigger finder (start of text, after a space and a newline;
+  not inside `a@b.com` or `and/or`; caret in the middle of a word; `/page pri`; `/xyz` is no trigger); the
+  choices narrowed by type and by text, in order, at most 8; picking inserts the label and a space and moves
+  the caret; the same pick twice adds one entry; `/date` inserts the date and no entry; the kept entries are
+  those whose label is in the text; `splitNoteText` with no mention, one, the same label twice, a label
+  that is the start of another (longest first), overlapping, a label with regular-expression characters, and
+  a body that holds markup (every part is a plain string).
+- `lib/pages/note-files.test.ts` (pure): the checks of 9.8.4 (count, type by type and by extension, size),
+  one refusal line for several files, `10 MB` edge cases.
+- `lib/pages/note-sources.test.tsx`: teammates, pages, issues (seam), keywords; the page search is asked
+  only after a pause and only with the box open.
+- `inspector/drawer-notes-tab.test.tsx` and `note-editor.test.tsx` extended: the combobox roles and states;
+  arrow keys wrap; Enter and Tab pick; Escape closes the list and the drawer stays open, then a second Escape
+  in the edit box cancels it and in the add box closes the drawer; the mouse picks without losing the caret;
+  the announcement of the count; a pick adds the entry and the save sends it; a label deleted from the text
+  is not sent; chips: page opens that page in the drawer, issue is a link only with a route, user and keyword
+  are plain; a body with `<img src=x onerror=alert(1)>` next to a mention adds no element but the chip;
+  `/date`; the paperclip, a drop and a paste each add files; the sixth file, a `.zip` and an 11 MB file each
+  show their line; the files upload before the note and the note carries their ids; a failed upload keeps
+  everything; thumbnails and rows under a saved note, with their links and names; editing removes and adds
+  files; files-only note saves; `axe` finds nothing with the list open, with chips and with files.
+- Mock handlers for the upload and the download and the mention rules of the server, so a test cannot pass
+  against rules the API does not have (the mock store of 25d enforces the same limits).
+
+**On the running app** (by the lead): the box at 1280 by 720 with the list open and with five file chips
+keeps the Add note button visible without scrolling the drawer's page; the list is not clipped by the
+drawer's edge; drag a file over the box.
+
+#### 9.8.9 Not built in this slice
+
+- Notifications of any kind to a mentioned teammate (a later option; it needs an inbox or an email template
+  and a rule for who may be told about which project).
+- A virus scan, thumbnails or previews made on the server, a PDF preview (a PDF downloads), an editor for
+  images, a gallery of all files of a page, a file column in All pages and files in the CSV export.
+- Any removal from storage: no purge of deleted notes, removed files, orphans, a deleted project's or a
+  deleted workspace's files (9.8.5). The prefix and the table are shaped for it.
+- A usage meter or a per-file cost line for storage; a per-project cap; a per-file-type cap.
+- Mentions that notify, mentions in the CSV export, a list of "notes that mention me", mentions of other
+  pages' notes, mentions of competitors, and any validation that the issue belongs to the page (the issue
+  catalogue is the Issues session's).
+- Links made from addresses typed in a note (still plain text), Markdown, emoji pickers.
 
 ## 10. Seams
 
@@ -1160,6 +1666,10 @@ Rules that bite here (`src/lib/glossary/glossary-words.test.ts` fails on a banne
   A sentence says "the latest crawl", never "the last crawl" for this tab.
 - "Notes" is the tab and "Add note" its button (glossary rows first). A note is "added", "saved", "deleted"
   and "restored"; never "posted", "comment" or "annotation".
+- For the box (9.8): "mention" and "Attach files" ("file", never "attachment" or "upload" in a visible
+  string except where a sentence needs "uploading"), "teammate", "tracked keyword", "issue". The words of the
+  suggestion list's hints are "Teammate", "Page", "Issue on this page" and "Tracked keyword". A refusal says
+  what was refused and what is allowed.
 
 Accessibility, by the rules the repository already has (`AI_DEVELOPMENT_UI_RULES.md`, `DESIGN_SYSTEM.md`):
 
@@ -1176,7 +1686,8 @@ Accessibility, by the rules the repository already has (`AI_DEVELOPMENT_UI_RULES
   words.
 - The note box is a labelled `textarea`; its hint and its count are tied to it with `aria-describedby`; the
   icon buttons have names ("Edit note", "Delete note"); every write is announced; the time is a `time`
-  element; "edited" has its time as text for assistive technology, not only in a tooltip.
+  element; "edited" has its time as text for assistive technology, not only in a tooltip. The box's combobox,
+  its list, its chips, its file controls and its refusal line are in 9.8.7.
 
 ## 12. Tests
 
@@ -1225,6 +1736,7 @@ Targeted and serial only (the machine rule): `pytest -n 0 --no-cov <path>`, `vit
   listed after a second crawl and on a page that now redirects; one audit row per write with its action;
   `notes_count` on the page detail.
 - The five note routes in `tests/api/test_route_access.py`.
+- Mentions, slash commands and files: 9.8.8 (backend and web).
 
 **Web:**
 
@@ -1275,9 +1787,10 @@ mark opens a list whose total is the mark's number.
 - Per-page issue counts, the Issues column's data, the list of a page's issues.
 - Page types.
 - For Notes: a Notes count column in All pages (it needs the count on every row of the pages list and its
-  sort; the drawer's badge does not), notes in the CSV export, mentions, notifications, attachments, links
-  made from addresses in a note, a history of a note's edits in the app (the audit log has it), a purge of
-  deleted notes, and any use of the chart notes routes (`{P}/notes`).
+  sort; the drawer's badge does not), notes in the CSV export, links made from addresses in a note, a history
+  of a note's edits in the app (the audit log has it), a purge of deleted notes, and any use of the chart notes
+  routes (`{P}/notes`). Mentions and attachments are built (9.8); what remains of them is 9.8.9: notifications,
+  a virus scan, server-side thumbnails, any removal from storage, a usage meter.
 - For the Outline: storing any of its fields, an outline of an older crawl, a rendered page (the stored HTML is
   what the server sent, before scripts run), a validator of what is inside a JSON-LD block, the size of the
   sharing image, "other pages use this description" without the Issues data, and the Issues session's slice 2
@@ -1303,6 +1816,9 @@ mark opens a list whose total is the mark's number.
 | `backend/src/idraft/db/migrations/versions/0042_page_notes.py`, `db/tables.py`, `tests/db/*` | the table `core.page_notes` | maybe its slice 2 columns in a migration of its own | maybe `core.watched_pages` | Two branches may both take revision `0042`: the one that merges second renumbers its file and its `down_revision`, changes nothing else |
 | `backend/src/idraft/api/audit.py` | four `page_note.*` actions | none expected | maybe its own actions | Keep all |
 | `docs/04-data-model.md`, `docs/19-api-specification.md`, `docs/24-security.md` | section 5.4; the notes paragraph; the `notes:write` row | none expected | its tables | Keep all |
+| `backend/src/idraft/db/migrations/versions/0043_page_note_mentions.py`, `0044_page_note_attachments.py`, `db/tables.py`, `tests/db/*` | the `mentions` column, the table `core.page_note_attachments`, the relaxed body check, the quota column `max_note_file_bytes` | none expected | `0042_page_search` is already taken on its branch; maybe more | Whichever branch merges second renumbers its files and their `down_revision` and changes nothing else. `workspace_quotas` is shared: keep every added column |
+| `backend/src/idraft/api/body_limit.py`, `api/internal_links/page_note_file_routes.py`, `page_note_files.py`, `mention_sources.py`, `storage/note_files.py`, `notes_files.py` | one more registered larger limit (the note upload), the file routes, the pure judge of a file's type, the issue seam | `api/issues` replaces `NoIssueChecks` with its catalogue | none expected | Keep both limits in `UPLOADS`; the Issues session changes the one default in `mention_sources.py` and nothing else |
+| `apps/web/src/lib/pages/note-mentions.ts`, `note-files.ts`, `note-sources.ts`, `features/internal-links/inspector/note-*` | the box's helpers and chips | replaces the body of `usePageIssues` (10.1): the box then offers issues, with no change here | none expected | Keep both |
 | `docs/design-system/16-drawers-dialogs-popovers.md` | one sentence in 2.4: the Outline's blocks fold | none expected | none expected | Keep the sentence |
 | `docs/glossary/terms.md`, `final-list.md` | A5 changed, All pages added, Website audit (same text as Issues) | A12 to A14, U9b, U13 to U15 | Monitoring, Tracked wording | Keep both; drop the duplicate Website audit row |
 | `docs/design-system/11-navigation.md` | the Pages row | the group and the Issues row | the Monitoring tab | Keep all |
@@ -1326,6 +1842,22 @@ mark opens a list whose total is the mark's number.
 6. **The thin content limit (200 words) and the description limits (70 to 160) are set here**, because the
    Issues spec names the checks but not their numbers. The Issues session confirms or changes them in
    `crawl/outline.py`, the one place both read.
+7. **Migration numbers.** The Notes table already takes `0042`, and the Search Console branch
+   (`claude/gsc-page-detail-monitoring-6f43c3`) has its own `0042_page_search`. The mentions column (`0043`)
+   and the files table (`0044`) will clash with whatever that branch adds next. Whoever merges second
+   renumbers (section 14); nothing else changes.
+8. **Deleting objects needs a storage permission nobody has checked.** `ObjectStore` cannot delete and no
+   code does. Doc 23 says the API's storage token is scoped to the bucket, not whether it may delete.
+   Before the later purge slice the owner confirms that the token may delete under `notes/`. This slice
+   needs only put and get, which the API already uses for screenshots. No new bucket is needed.
+9. **A PDF downloads, it does not preview.** The owner asked that every type except four images be served
+   as an attachment, and that every file open in a new tab. A browser downloads an attachment, so a PDF is
+   saved, not shown. Serving PDFs inline would let the browser's viewer run on the app's own address; it is a
+   decision for the owner, not taken here.
+10. **Files are not scanned and are not removed** (9.8.5). Orphans and removed files count against the cap
+    of 1 GiB until the purge slice.
+11. **The issue part of the box waits for the Issues session** (10.1): its lists and its catalogue are
+    seams, so mentions of issues are refused on this branch and the box offers none.
 
 ## 16. Acceptance checklist
 
@@ -1391,6 +1923,26 @@ Drawer
 - [ ] A note written before a new crawl is still on the page after it. A viewer reads notes and sees no box
       and no edit or delete button. A note that holds markup is shown as its characters.
 - [ ] Every note write has its audit entry; no route removes a note's row.
+- [ ] Typing `@` at the start of a word opens a list of at most 8 rows (teammates, live pages by path and
+      title, the page's issues once they exist, the page's tracked keywords), narrowed as you type. Arrow keys,
+      Enter and Tab work; Escape closes the list and never the drawer; the box keeps its focus.
+- [ ] A pick inserts readable text (`@/pricing`, `@Arjun Mehta`, `@"keyword"`) and the saved note shows each as a
+      chip. A page chip opens that page in the drawer; user and keyword chips are plain; an issue chip is a link
+      only when the Issues page exists. A label deleted from the text is not saved as a mention.
+- [ ] `/page`, `/issue`, `/keyword` and `/date` work from the keyboard; no request is made for a command.
+- [ ] The server refuses (`422`) a page of another project, a user who is not a member, a keyword that is not
+      tracked and, on this branch, every issue mention; it drops a mention whose label is not in the text.
+- [ ] No notification is sent to a mentioned teammate, and the spec says so.
+- [ ] The paperclip, a drop and a paste attach files: 5 at most, 10 MB each, PNG, JPEG, GIF, WebP, PDF, text and
+      CSV only; a refusal shows in one line under the box. Images show as thumbnails under the note and other
+      files as a row with name and size; all open in a new tab.
+- [ ] The server decides the type by content: an SVG or an HTML page renamed `.png` or `.txt` is refused (`415`),
+      and so is a text file named `.html`. A file over 10 MB is refused before it is read (`413`).
+- [ ] Files are served through the API with `nosniff`, a sandboxing policy and `attachment` for every type but
+      the four images; deleting a note hides its files and restoring it brings them back; a viewer can read
+      files and cannot upload.
+- [ ] A workspace that has stored 1 GiB of note files is refused the next upload (`quota_exceeded`).
+- [ ] No bucket was created and no server file changed; the files are under `notes/v1/` of the raw bucket.
 - [ ] The drawer opens from every tab of Internal links exactly as before, and its exits (journey, links) are
       links that work from All pages.
 - [ ] At every width the drawer lies over the table and the table keeps its width; no shared drawer file is
