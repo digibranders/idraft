@@ -10305,6 +10305,95 @@
       "unknownReason": "The latest crawl is not among the most recent runs, so this page cannot tell what it holds yet. Try again."
     }
   },
+  "pageHistory": {
+    "strip": {
+      "label": "Dates of this page",
+      "lastEdited": "Last edited",
+      "lastChange": "Last change seen",
+      "firstSeen": "First seen",
+      "googleCrawled": "Google crawled",
+      "none": "None"
+    },
+    "note": {
+      "editedFrom": "{origin, select, json_ld {From JSON-LD} meta_modified {From the page's modified time} og_updated {From the page's updated time} sitemap {From the sitemap} other {From the page}}",
+      "editedNone": "The page declares no date",
+      "editedUnreliable": "Most pages of this site share one date",
+      "changeCount": "{count, plural, one {# change} other {# changes}} in the crawls kept",
+      "changeSince": "Since {date}",
+      "changeNoHistory": "No crawl kept yet",
+      "firstNew": "A new page",
+      "firstStarts": "History starts {date}",
+      "googleBefore": "Before the last change",
+      "googleAfter": "After the last change",
+      "googleFrom": "From Search Console",
+      "googleNone": "Read for pages in Monitoring",
+      "googleNoDate": "Search Console gave no date"
+    },
+    "behind": "Google last crawled this page on {crawled}, before the change of {changed}. Ask Google to crawl it again in Search Console.",
+    "timeline": {
+      "label": "Crawls of this page, newest first",
+      "capped": "Only the newest {count} crawls are shown.",
+      "content": "Content change",
+      "siteWide": "Site-wide change",
+      "first": "First seen",
+      "siteWideSummary": "The menu and footer changed on every page. The content of this page did not.",
+      "siteWideNote": "idraft leaves the site template out when it compares pages, so a change to the menu or footer shows once here and not as an edit to each page.",
+      "firstFound": "The first crawl that found this page.",
+      "firstKept": "The oldest crawl idraft kept a copy of.",
+      "headingLevel": "Heading level {level}"
+    },
+    "change": {
+      "title": "Title changed",
+      "description": "Meta description changed",
+      "headingAdded": "Heading added",
+      "headingRemoved": "Heading removed",
+      "wordsGrew": "Text grew by {count, plural, one {# word} other {# words}}",
+      "wordsShrank": "Text shrank by {count, plural, one {# word} other {# words}}",
+      "linksAdded": "{count, plural, one {# internal link} other {# internal links}} added",
+      "linksRemoved": "{count, plural, one {# internal link} other {# internal links}} removed",
+      "editorialAdded": "{count, plural, one {# editorial link} other {# editorial links}} added",
+      "editorialRemoved": "{count, plural, one {# editorial link} other {# editorial links}} removed",
+      "edited": "Text edited"
+    },
+    "howRead": {
+      "title": "How these dates are read",
+      "lastEditedTerm": "Last edited",
+      "lastEdited": "The date the page declares about itself (JSON-LD dateModified, article:modified_time or the sitemap lastmod). It is the real edit date on a site that fills it in.",
+      "lastChangeTerm": "Last change seen",
+      "lastChange": "The first crawl whose text differs from the crawl before. Scripts, styles and the site template are left out, so a rebuild that changes nothing on the page shows no change. It is only as exact as the crawl schedule.",
+      "googleTerm": "Google crawled",
+      "google": "Read from the URL Inspection of Search Console for the pages in Monitoring.",
+      "unusedTerm": "Not used",
+      "unused": "The Last-Modified header of the page. On a site behind a cache every page reports the time of the last cache rebuild, so it says nothing about the page."
+    },
+    "footer": {
+      "starts": "History starts on {date}, the first crawl idraft kept a copy of the page. Older changes cannot be known.",
+      "startsNone": "idraft has not kept a copy of this page yet.",
+      "limitsTitle": "What this history cannot show",
+      "exact": "A change is dated to the crawl that saw it, so it is only as exact as the crawl schedule.",
+      "scripts": "A site that draws its text with JavaScript needs the rendering option of the crawl. Without it the page holds no text to compare.",
+      "login": "Pages behind a login are not covered.",
+      "rotating": "A test that shows visitors different versions, or a block that rotates (related posts, a date in the sidebar), can show a change that is not an edit.",
+      "sitemapDate": "The date in the sitemap comes from your site's provider and is not verified."
+    },
+    "state": {
+      "loading": "Loading the history of this page",
+      "loadFailed": "Could not load the history of this page",
+      "loadFailedReason": "The server returned an error. Nothing else changed.",
+      "emptyTitle": "No history yet",
+      "emptyReason": "idraft has not kept a copy of this page yet. History appears after the next crawl.",
+      "redirectTitle": "This address redirects",
+      "redirectReason": "It has no content of its own to follow. Open the page it leads to.",
+      "errorTitle": "This address is not a page",
+      "errorReason": "{status, select, none {It did not answer with a page, so there is nothing to follow.} other {It answers with {status}, so there is no page to follow.}}"
+    },
+    "line": {
+      "lastEdited": "Last edited {date}.",
+      "lastChange": "Last change seen {date}.",
+      "noChange": "No change seen since {date}.",
+      "seeHistory": "See history"
+    }
+  },
   "setupChecklist": {
     "label": "Project setup",
     "loading": "Checking setup",
