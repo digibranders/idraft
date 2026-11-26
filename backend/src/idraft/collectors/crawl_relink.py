@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import structlog
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, literal, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.collectors.crawl_enrich import CrawlEnrichTask, enrich_run
@@ -40,13 +40,17 @@ from idraft.collectors.crawl_runs import CrawlIngestTask
 from idraft.collectors.crawl_store import html_key
 from idraft.crawl.hosts import site_hosts
 from idraft.crawl.template import template_placements
-from idraft.db.tables import crawl_links, crawl_pages, crawl_runs, urls
+from idraft.db.tables import crawl_alerts, crawl_links, crawl_pages, crawl_runs, urls
 from idraft.storage.raw import ObjectStore, RawStorageError, decompress
 
 _log = structlog.get_logger(__name__)
 _ENRICH_PASS_SECONDS = 120.0
 _ENRICH_PASSES_MAX = 200
 _LINK_ROWS_PER_STATEMENT = 2_000
+# The template pass runs in Python inside the swap transaction; the server's 60 second limit
+# on an idle transaction would end it on a big crawl.
+_IDLE_LIMIT = text("SET LOCAL idle_in_transaction_session_timeout = '15min'")
+_RELINK_JOB = "crawl_relink"
 
 
 class RelinkError(Exception):
@@ -123,6 +127,13 @@ async def relink_crawl(
 
     async with sessions() as db, db.begin():
         await _long_transaction(db)
+        await db.execute(_IDLE_LIMIT)
+        # One relink of a crawl at a time: a key-share row lock does not keep two apart, and
+        # their delete and insert would then leave the links twice.
+        key = func.hashtextextended(literal(f"{_RELINK_JOB}:{run_id}"), 0)
+        got: bool = (await db.execute(select(func.pg_try_advisory_xact_lock(key)))).scalar_one()
+        if not got:
+            raise RelinkError("another relink of this crawl is running")
         if (
             await lock_finished_crawl(
                 db,
@@ -205,7 +216,7 @@ async def relink_crawl(
 
     recounted = await recount_variants(sessions, workspace_id=workspace_id, run_id=run_id)
     if recounted is None:
-        return None
+        raise RelinkError("the links were replaced but the recount did not run; run it again")
     await _enrich_again(sessions, store, workspace_id=workspace_id, run_id=run_id)
     _log.info("crawl relinked", run_id=str(run_id), links_before=before, links_after=after)
     return RelinkOutcome(run_id=run_id, pages=len(reads), links_before=before, links_after=after)
@@ -221,6 +232,12 @@ async def _enrich_again(
     """Run the second job (changes, anchors, mentions) again over the new links, here and now:
     it reads the database and the stored HTML only."""
     async with sessions() as db, db.begin():
+        # The alert was judged on the old reading; the second job raises it again if due.
+        await db.execute(
+            delete(crawl_alerts).where(
+                crawl_alerts.c.workspace_id == workspace_id, crawl_alerts.c.run_id == run_id
+            )
+        )
         await db.execute(
             update(crawl_runs)
             .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
@@ -233,6 +250,8 @@ async def _enrich_again(
         )
         if outcome.phase is None:
             break
+        if outcome.busy:
+            await asyncio.sleep(1.0)
     else:
         raise RelinkError("the second job did not end; run the relink again")
     async with sessions() as db:

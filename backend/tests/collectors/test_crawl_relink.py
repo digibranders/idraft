@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -130,3 +132,52 @@ async def test_the_latest_crawl_of_a_project_is_read_again_by_its_ids(
 
     assert outcome is not None
     assert outcome.links_after == len(fresh_links)
+
+
+async def test_an_alert_raised_on_the_old_reading_is_judged_again(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    store, crawled, _, _ = await _stale_crawl(migrated, worker_db)
+    run_id = crawled.task.run_id  # type: ignore[attr-defined]
+    run = await fetchrow(migrated, "SELECT project_id FROM seo.crawl_runs WHERE id = $1", run_id)
+    await execute(
+        migrated,
+        "INSERT INTO seo.crawl_alerts (run_id, workspace_id, project_id, lost_links, "
+        "max_position, threshold, channel, delivery_state) "
+        "VALUES ($1, $2, $3, 99, 3, 1, 'app', 'shown_in_app')",
+        run_id,
+        crawled.task.workspace_id,  # type: ignore[attr-defined]
+        run["project_id"],
+    )
+
+    await relink_crawl(
+        worker_db,
+        store,
+        workspace_id=crawled.task.workspace_id,  # type: ignore[attr-defined]
+        run_id=run_id,
+    )
+
+    left = await fetch(
+        migrated, "SELECT lost_links FROM seo.crawl_alerts WHERE run_id = $1", run_id
+    )
+    assert all(row["lost_links"] != 99 for row in left)
+
+
+async def test_two_relinks_of_one_crawl_do_not_run_at_once(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    store, crawled, fresh_links, _ = await _stale_crawl(migrated, worker_db)
+    run_id = crawled.task.run_id  # type: ignore[attr-defined]
+    workspace_id = crawled.task.workspace_id  # type: ignore[attr-defined]
+
+    results = await asyncio.gather(
+        *(
+            relink_crawl(worker_db, store, workspace_id=workspace_id, run_id=run_id)
+            for _ in range(2)
+        ),
+        return_exceptions=True,
+    )
+
+    assert any(not isinstance(result, BaseException) and result for result in results)
+    _, links, _ = await _snapshot(migrated, run_id)
+    assert links == fresh_links
