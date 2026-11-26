@@ -31,6 +31,8 @@ export interface DataTableToolbarProps {
   onDensityChange: (density: Density) => void;
   /** The column chooser, opened from its own trigger. */
   columns: (trigger: ReactElement) => ReactNode;
+  /** A node drawn first in the bar, before the search box. */
+  start?: ReactNode;
   /** The view switch, at the end of the bar before density and columns. */
   end?: ReactNode;
   /** A bar with more in its end slot than a view switch: the sort summary is read, not shown, below 1440 px. */
@@ -54,6 +56,7 @@ export function DataTableToolbar({
   density,
   onDensityChange,
   columns,
+  start,
   end,
   compact = false,
   parts,
@@ -71,6 +74,7 @@ export function DataTableToolbar({
   return (
     // 48 px on one line; on a narrow table the bar wraps rather than scrolling the page sideways
     <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle px-3 py-2">
+      {start}
       <InputGroup leadingIcon={Search} size="sm" className="w-64 max-w-full min-w-0">
         <Input
           ref={input}

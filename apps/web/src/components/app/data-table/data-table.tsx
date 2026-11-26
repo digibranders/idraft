@@ -160,6 +160,7 @@ export function DataTable<TRow extends RowData>({
   rowTree,
   onToggleGroup,
   groupRowOpens = false,
+  toolbarStart,
   toolbarEnd,
   compactToolbar = false,
   compactChooser = false,
@@ -908,6 +909,7 @@ export function DataTable<TRow extends RowData>({
       id,
       label: labelOf(id),
       icon: byId.get(id)?.headerIcon,
+      group: columnGroups ? byId.get(id)?.group?.label : undefined,
       visible: chosen.includes(id),
       locked: byId.get(id)?.identity === true,
     }));
@@ -1209,6 +1211,7 @@ export function DataTable<TRow extends RowData>({
           onDensityChange={onDensityChange}
           parts={toolbarParts}
           compact={compactToolbar}
+          start={toolbarStart}
           end={toolbarEnd}
           columns={(trigger) => (
             <ColumnChooser
