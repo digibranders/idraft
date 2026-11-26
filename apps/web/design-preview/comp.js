@@ -21,6 +21,7 @@ const view = ui.$('[data-view="competitors"]');
 const TABS = [['competitors', 'Competitors'], ['mentions', 'Mentions'], ['citations', 'Citations'], ['sov', 'Share of voice'], ['visibility', 'AI visibility'], ['seo', 'SEO ranking']];
 const TAB_IDS = TABS.map(([id]) => id);
 
+const MAX_TRACKED = 5;
 const state = { platform: 'all', group: 'all', compare: true };
 const pct = (value) => (value === null || value === undefined ? 'n/a' : formatPercent(value, { decimals: 1 }));
 const points = (value) => (value === null ? 'n/a' : `${value >= 0 ? '+' : '-'}${Math.abs(value * 100).toFixed(1)} pts`);
@@ -121,7 +122,8 @@ const grid3 = (...cards) => {
 
 function data() {
   const model = buildModel({ ...DEFAULTS, platform: state.platform, group: state.group });
-  const entities = entitiesFor(model);
+  // The page tracks at most five competitors: you and the first five
+  const entities = entitiesFor(model).slice(0, MAX_TRACKED + 1);
   const weeks = sovWeeks(model, entities);
   return { model, entities, weeks };
 }
@@ -176,7 +178,7 @@ function citationOf(entity) {
 }
 
 function platformRates() {
-  return PLATFORMS.map((p) => ({ code: p.code, name: p.name, entities: entitiesFor(buildModel({ ...DEFAULTS, platform: p.code, group: state.group })) }));
+  return PLATFORMS.map((p) => ({ code: p.code, name: p.name, entities: entitiesFor(buildModel({ ...DEFAULTS, platform: p.code, group: state.group })).slice(0, MAX_TRACKED + 1) }));
 }
 
 function metricTab({ entities, weeks }, kind) {
@@ -231,7 +233,7 @@ function metricTab({ entities, weeks }, kind) {
 
 function visibilityTab({ model, entities }) {
   const own = entities[0];
-  const lost = gapFor(model);
+  const lost = gapFor(model).slice(0, MAX_TRACKED);
   const top = [...lost].sort((a, b) => b.lost - a.lost)[0];
   const cells = PLATFORMS.map((p) => ({ name: p.name, value: model.cells.visibility[p.code]?.value ?? null }));
   const best = [...cells].filter((c) => c.value !== null).sort((a, b) => b.value - a.value)[0];
