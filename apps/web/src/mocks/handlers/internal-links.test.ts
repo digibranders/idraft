@@ -470,6 +470,22 @@ describe('the notes routes of the mock API', () => {
     expect(NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data[0]?.body).toBe('Checked the title.');
   });
 
+  it('stores the mentions of a note with the path of a page, and refuses an unknown target with the field named', async () => {
+    const editor = mockBrowser('editor');
+    const page = { type: 'page', label: '@/pricing', target: '108' };
+    const made = await editor.call('POST', NOTES_PATH, { body: 'See @/pricing', mentions: [page] });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ data: { mentions: [{ ...page, path: '/pricing' }] } });
+
+    const refused = await editor.call('POST', NOTES_PATH, {
+      body: 'See @/gone',
+      mentions: [{ type: 'page', label: '@/gone', target: '999999' }],
+    });
+    expect(refused.status).toBe(422);
+    expect(JSON.stringify(refused.body)).toContain('mentions[0].target');
+    expect(JSON.stringify(refused.body)).toContain('mention_target_unknown');
+  });
+
   it('refuses a write by a viewer with 403 and a bad body with 422', async () => {
     expect((await mockBrowser('viewer').call('POST', NOTES_PATH, { body: 'x' })).status).toBe(403);
     const editor = mockBrowser('editor');

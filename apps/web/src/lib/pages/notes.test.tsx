@@ -186,6 +186,64 @@ describe('usePageNoteWrites', () => {
     expect(await count()).toBe(4);
   });
 
+  describe('what a write sends besides the body', () => {
+    const FILE_ID = '0192e4a0-b000-7000-8000-000000000001';
+    const PAGE_MENTION = { type: 'page', label: '@/pricing', target: '108' } as const;
+    const sentBodies = (): unknown[] => {
+      const sent: unknown[] = [];
+      server.use(
+        http.post('*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes', async ({ request }) => {
+          sent.push(await request.clone().json());
+          return undefined;
+        }),
+        http.patch('*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes/:note', async ({ request }) => {
+          sent.push(await request.clone().json());
+          return undefined;
+        }),
+      );
+      return sent;
+    };
+
+    it('sends mentions and attachment_ids on add, and the note read has the mentions with the page path', async () => {
+      const { writes } = pageWith('editor');
+      const sent = sentBodies();
+      const made = await act(() =>
+        writes.current.add('See @/pricing', { mentions: [PAGE_MENTION], attachmentIds: [] }),
+      );
+      expect(sent).toEqual([{ body: 'See @/pricing', mentions: [PAGE_MENTION] }]);
+      expect(made.mentions).toEqual([{ ...PAGE_MENTION, path: '/pricing' }]);
+    });
+
+    it('sends the ids of the files on add and leaves out an empty list and no options', async () => {
+      const { writes } = pageWith('editor');
+      const sent = sentBodies();
+      await act(() => writes.current.add('Plain'));
+      await act(() => writes.current.add('With empty', { mentions: [], attachmentIds: [] }));
+      await act(() => writes.current.add('With a file', { attachmentIds: [FILE_ID] }));
+      expect(sent[0]).toEqual({ body: 'Plain' });
+      expect(sent[1]).toEqual({ body: 'With empty' });
+      expect(sent[2]).toEqual({ body: 'With a file', attachment_ids: [FILE_ID] });
+    });
+
+    it('does the same on a change, where an empty list of files still means none', async () => {
+      const { notes, writes } = pageWith('editor');
+      await waitFor(() => {
+        expect(notes.current.state).toBe('ready');
+      });
+      const mine = readyNotes(notes.current).find((note) => note.can_edit);
+      if (mine === undefined) throw new Error('no note of the editor');
+      const sent = sentBodies();
+      await act(() => writes.current.change(mine.id, 'Edited @/pricing', { mentions: [PAGE_MENTION] }));
+      await act(() => writes.current.change(mine.id, 'Edited again'));
+      await act(() => writes.current.change(mine.id, 'Edited once more', { attachmentIds: [] }));
+      expect(sent).toEqual([
+        { body: 'Edited @/pricing', mentions: [PAGE_MENTION] },
+        { body: 'Edited again' },
+        { body: 'Edited once more', attachment_ids: [] },
+      ]);
+    });
+  });
+
   it('changes a note and restores a deleted one', async () => {
     const { notes, writes } = pageWith('editor');
     await waitFor(() => {

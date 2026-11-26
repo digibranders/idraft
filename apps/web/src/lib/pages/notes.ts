@@ -1,8 +1,10 @@
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 
 import { apiMutation } from '@/lib/api/query';
+import type { Schemas } from '@/lib/api/types';
 import { PAGE_NOTE, PAGE_NOTES, checkUrlId, pageKey, pageNotesQuery } from '@/lib/internal-links/queries';
 import type { LinksScope, PageNote, PageNoteList } from '@/lib/internal-links/types';
+import type { NoteMention } from '@/lib/pages/note-mentions';
 
 /** The longest note the API takes, in characters (`NOTE_MAX` of the backend). */
 export const NOTE_MAX = 2000;
@@ -48,9 +50,22 @@ export function usePageNotes(scope: LinksScope, urlId: string, enabled: boolean)
   };
 }
 
+/** What a write carries besides the body: the mentions the text still holds and the ids of the files uploaded for it. */
+export interface NoteWriteExtras {
+  mentions?: readonly NoteMention[] | undefined;
+  attachmentIds?: readonly string[] | undefined;
+}
+
+/** `mentions` only when there are some (the server keeps the stored ones whose label is still in the text otherwise). */
+const mentionsPart = ({ mentions }: NoteWriteExtras): Pick<Schemas['PageNoteWrite'], 'mentions'> =>
+  mentions === undefined || mentions.length === 0
+    ? {}
+    : { mentions: mentions.map(({ type, label, target }) => ({ type, label, target })) };
+
 export interface PageNoteWrites {
-  add: (body: string) => Promise<PageNote>;
-  change: (noteId: string, body: string) => Promise<PageNote>;
+  add: (body: string, extras?: NoteWriteExtras) => Promise<PageNote>;
+  /** `extras.attachmentIds` given, even empty, is the exact list of files afterwards; left out, the files stay. */
+  change: (noteId: string, body: string, extras?: NoteWriteExtras) => Promise<PageNote>;
   /** The note leaves the list at once; it comes back when the API refuses. */
   remove: (noteId: string) => Promise<void>;
   /** Undo of `remove`: the API allows it only for the one who deleted the note. */
@@ -133,16 +148,31 @@ export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWri
   };
 
   return {
-    add: async (body) => {
+    add: async (body, extras = {}) => {
+      const files = extras.attachmentIds ?? [];
       try {
-        return (await create.mutateAsync({ params: { path }, body: { body } })).data;
+        return (
+          await create.mutateAsync({
+            params: { path },
+            body: { body, ...mentionsPart(extras), ...(files.length === 0 ? {} : { attachment_ids: [...files] }) },
+          })
+        ).data;
       } finally {
         refresh();
       }
     },
-    change: async (noteId, body) => {
+    change: async (noteId, body, extras = {}) => {
       try {
-        return (await change.mutateAsync({ params: { path: { ...path, note_id: noteId } }, body: { body } })).data;
+        return (
+          await change.mutateAsync({
+            params: { path: { ...path, note_id: noteId } },
+            body: {
+              body,
+              ...mentionsPart(extras),
+              ...(extras.attachmentIds === undefined ? {} : { attachment_ids: [...extras.attachmentIds] }),
+            },
+          })
+        ).data;
       } finally {
         refresh();
       }

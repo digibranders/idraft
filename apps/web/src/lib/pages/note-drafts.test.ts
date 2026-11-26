@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { clearAllNoteDrafts, clearNoteDraft, NOTE_DRAFTS_MAX, noteDraft, setNoteDraft } from './note-drafts';
+import {
+  clearAllNoteDrafts,
+  clearNoteDraft,
+  NOTE_DRAFTS_MAX,
+  noteDraft,
+  noteDraftFiles,
+  noteDraftMentions,
+  setNoteDraft,
+  setNoteDraftFiles,
+  setNoteDraftMentions,
+} from './note-drafts';
 import type { LinksScope } from '@/lib/internal-links/types';
 
 const SCOPE: LinksScope = { workspaceId: 'w1', projectId: 'p1' };
@@ -44,6 +54,64 @@ describe('the note drafts', () => {
     expect(noteDraft(SCOPE, 'extra')).toBe('one more');
     expect(noteDraft(SCOPE, '2')).toBe('text 2');
     clearAllNoteDrafts();
+  });
+
+  describe('mentions and files', () => {
+    const mention = { type: 'page', label: '@/pricing', target: '108', path: '/pricing' } as const;
+    const file = {
+      id: '0192e4a0-b000-7000-8000-000000000001',
+      name: 'plan.pdf',
+      size: 10,
+      content_type: 'application/pdf',
+      is_image: false,
+      url: '/api/v1/x',
+    };
+
+    it('are empty at first, and kept per project and page beside the text', () => {
+      clearAllNoteDrafts();
+      expect(noteDraftMentions(SCOPE, '108')).toEqual([]);
+      expect(noteDraftFiles(SCOPE, '108')).toEqual([]);
+      setNoteDraftMentions(SCOPE, '108', [mention]);
+      setNoteDraftFiles(SCOPE, '108', [file]);
+      expect(noteDraftMentions(SCOPE, '108')).toEqual([mention]);
+      expect(noteDraftFiles(SCOPE, '108')).toEqual([file]);
+      expect(noteDraftMentions(SCOPE, '109')).toEqual([]);
+      expect(noteDraftMentions(OTHER_PROJECT, '108')).toEqual([]);
+      expect(noteDraftFiles(OTHER_PROJECT, '108')).toEqual([]);
+      expect(noteDraft(SCOPE, '108')).toBe('');
+      clearAllNoteDrafts();
+    });
+
+    it('are removed by an empty list', () => {
+      setNoteDraftMentions(SCOPE, '108', [mention]);
+      setNoteDraftMentions(SCOPE, '108', []);
+      setNoteDraftFiles(SCOPE, '108', [file]);
+      setNoteDraftFiles(SCOPE, '108', []);
+      expect(noteDraftMentions(SCOPE, '108')).toEqual([]);
+      expect(noteDraftFiles(SCOPE, '108')).toEqual([]);
+    });
+
+    it('go with the text on clearing a page, and with every page when the session ends', () => {
+      setNoteDraft(SCOPE, '108', 'x');
+      setNoteDraftMentions(SCOPE, '108', [mention]);
+      setNoteDraftFiles(SCOPE, '108', [file]);
+      setNoteDraftMentions(SCOPE, '109', [mention]);
+      clearNoteDraft(SCOPE, '108');
+      expect(noteDraft(SCOPE, '108')).toBe('');
+      expect(noteDraftMentions(SCOPE, '108')).toEqual([]);
+      expect(noteDraftFiles(SCOPE, '108')).toEqual([]);
+      expect(noteDraftMentions(SCOPE, '109')).toEqual([mention]);
+      clearAllNoteDrafts();
+      expect(noteDraftMentions(SCOPE, '109')).toEqual([]);
+    });
+
+    it('hold at most NOTE_DRAFTS_MAX pages each', () => {
+      clearAllNoteDrafts();
+      for (let page = 0; page <= NOTE_DRAFTS_MAX; page += 1) setNoteDraftMentions(SCOPE, String(page), [mention]);
+      expect(noteDraftMentions(SCOPE, '0')).toEqual([]);
+      expect(noteDraftMentions(SCOPE, '1')).toEqual([mention]);
+      clearAllNoteDrafts();
+    });
   });
 
   it('are kept in memory only', () => {

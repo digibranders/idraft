@@ -1,4 +1,6 @@
-import { EVENTUS } from './internal-links-world';
+import { keywordsOf } from './internal-links-changes-world';
+import { crawledPage, crawledPages, EVENTUS } from './internal-links-world';
+import { MOCK_USERS } from './fixtures';
 import { onMockReset } from './state';
 import { NOTE_MAX } from '@/lib/pages/notes';
 import type { Role, Schemas } from '@/lib/api/types';
@@ -141,7 +143,10 @@ const viewOf = (note: StoredNote, actor: NoteActor): PageNote => ({
   id: note.id,
   author: { id: note.authorId, name: note.authorName },
   body: note.body,
-  mentions: note.mentions.map((mention) => ({ ...mention })),
+  // A page chip shows the page's current path
+  mentions: note.mentions.map((mention) =>
+    mention.type === 'page' ? { ...mention, path: crawledPage(mention.target)?.path ?? null } : { ...mention },
+  ),
   // Files arrive with the upload task; until then a note holds none.
   attachments: [],
   created_at: note.createdAt,
@@ -172,10 +177,51 @@ function inText(body: string, entries: readonly StoredMention[]): StoredMention[
   });
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** `_url_id` of the backend: digits only, at most 18. */
+const URL_ID = /^[0-9]{1,18}$/;
+
+const isTrackedKeyword = (text: string): boolean =>
+  crawledPages().some((page) => keywordsOf(page).some((row) => row.keyword === text));
+
+interface TargetFailure {
+  part: 'type' | 'target';
+  code: string;
+  detail: string;
+}
+
+const unknownTarget = (what: string): TargetFailure => ({
+  part: 'target',
+  code: 'mention_target_unknown',
+  detail: `This ${what} cannot be mentioned here.`,
+});
+const malformedTarget = (what: string): TargetFailure => ({
+  part: 'target',
+  code: 'invalid_target',
+  detail: `A ${what} target is malformed.`,
+});
+
+/** Whether the target is real for this workspace and project (`check_mentions` of the backend), or why not. */
+function judgeTarget({ type, target }: StoredMention): TargetFailure | null {
+  switch (type) {
+    case 'page':
+      if (!URL_ID.test(target)) return malformedTarget('page');
+      return crawledPage(target) === undefined ? unknownTarget('page') : null;
+    case 'user':
+      if (!UUID.test(target)) return malformedTarget('teammate');
+      return MOCK_USERS.some((user) => user.user_id === target) ? null : unknownTarget('teammate');
+    case 'keyword':
+      return isTrackedKeyword(target) ? null : unknownTarget('keyword');
+    case 'issue':
+      // The catalogue of issues is not live yet
+      return { part: 'type', code: 'mention_type_unavailable', detail: 'Issues cannot be mentioned yet.' };
+  }
+}
+
 /**
  * The mentions a write sends, judged as `check_mentions` does: the shape of each, then only those whose label is in the
- * text are kept, then an issue is refused (`mention_type_unavailable`: the catalogue of issues is not live yet). The
- * targets are not looked up. `null` when none were sent.
+ * text are kept, then each target is looked up by its type (an issue is refused: `mention_type_unavailable`, the
+ * catalogue of issues is not live yet). `null` when none were sent.
  */
 function cleanMentions(
   raw: unknown,
@@ -219,13 +265,13 @@ function cleanMentions(
     entries.push({ type, label, target });
   }
   const kept = inText(body, entries);
-  const issue = kept.find((entry) => entry.type === 'issue');
-  if (issue !== undefined) {
-    return {
-      ok: false,
-      detail: 'Issues cannot be mentioned yet.',
-      field: { path: `mentions[${String(entries.indexOf(issue))}].type`, code: 'mention_type_unavailable' },
-    };
+  // The API names every entry that fails; this answers with the first of them
+  for (const entry of kept) {
+    const failure = judgeTarget(entry);
+    if (failure !== null) {
+      const path = `mentions[${String(entries.indexOf(entry))}].${failure.part}`;
+      return { ok: false, detail: failure.detail, field: { path, code: failure.code } };
+    }
   }
   return { ok: true, mentions: kept };
 }

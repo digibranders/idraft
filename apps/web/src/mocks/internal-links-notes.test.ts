@@ -132,17 +132,19 @@ describe('the notes store of the mocked API', () => {
   describe('mentions', () => {
     const page = { type: 'page', label: '@/pricing', target: '108' };
     const mate = { type: 'user', label: '@Priya Natarajan', target: PRIYA.id };
+    /** A page entry as a note shows it: with the page's current path. */
+    const shownPage = { ...page, path: '/pricing' };
 
     it('keeps the ones whose label is in the text, once per label', () => {
       const made = add(PROJECT, PRICING, MEI, 'See @/pricing and @/pricing', [page, page, mate]);
-      expect(made.ok && made.note.mentions).toEqual([page]);
+      expect(made.ok && made.note.mentions).toEqual([shownPage]);
     });
 
     it('drops a mention whose label an edit removed, and keeps the rest when none are sent', () => {
       const made = add(PROJECT, PRICING, MEI, 'See @/pricing and @Priya Natarajan', [page, mate]);
       if (!made.ok) throw new Error('refused');
       const changed = change(PROJECT, PRICING, made.note.id, MEI, 'Only @/pricing now');
-      expect(changed.ok && changed.note.mentions).toEqual([page]);
+      expect(changed.ok && changed.note.mentions).toEqual([shownPage]);
     });
 
     it('takes the list a change sends instead of the stored one', () => {
@@ -161,6 +163,47 @@ describe('the notes store of the mocked API', () => {
       });
       // Not in the text: dropped before it is judged, as the API does
       expect(add(PROJECT, PRICING, MEI, 'Nothing here', [issue]).ok).toBe(true);
+    });
+
+    it('gives a page mention the page current path', () => {
+      const made = add(PROJECT, PRICING, MEI, 'See @/pricing', [page]);
+      expect(made.ok && made.note.mentions).toEqual([shownPage]);
+      const user = add(PROJECT, PRICING, MEI, 'Ask @Priya Natarajan', [mate]);
+      expect(user.ok && user.note.mentions).toEqual([mate]);
+    });
+
+    it('refuses a page of an unknown address, a user who is no member and a keyword that is not tracked', () => {
+      const keyword = { type: 'keyword', label: '@"managed soc pricing"', target: 'managed soc pricing' };
+      expect(add(PROJECT, PRICING, MEI, 'See @/pricing and @"managed soc pricing"', [page, keyword]).ok).toBe(true);
+      const unknown = [
+        { ...page, target: '999999' },
+        { ...mate, target: '0192d1a8-5b10-7c01-9a11-0000000000ff' },
+        { ...keyword, target: 'never tracked' },
+      ];
+      for (const entry of unknown) {
+        expect(add(PROJECT, PRICING, MEI, `${page.label} ${mate.label} ${keyword.label}`, [entry])).toMatchObject({
+          ok: false,
+          error: 'invalid',
+          field: { path: 'mentions[0].target', code: 'mention_target_unknown' },
+        });
+      }
+    });
+
+    it('refuses a malformed page or teammate target, and judges only the entries whose label is in the text', () => {
+      expect(add(PROJECT, PRICING, MEI, 'See @/pricing', [{ ...page, target: 'abc' }])).toMatchObject({
+        field: { path: 'mentions[0].target', code: 'invalid_target' },
+      });
+      expect(add(PROJECT, PRICING, MEI, 'Ask @Priya Natarajan', [{ ...mate, target: 'nope' }])).toMatchObject({
+        field: { path: 'mentions[0].target', code: 'invalid_target' },
+      });
+      expect(add(PROJECT, PRICING, MEI, 'Nothing here', [{ ...page, target: '999999' }]).ok).toBe(true);
+    });
+
+    it('names the entry that fails by its place in the list that was sent', () => {
+      const bad = { ...mate, target: '0192d1a8-5b10-7c01-9a11-0000000000ff' };
+      expect(add(PROJECT, PRICING, MEI, 'See @/pricing and @Priya Natarajan', [page, bad])).toMatchObject({
+        field: { path: 'mentions[1].target', code: 'mention_target_unknown' },
+      });
     });
 
     it('refuses an unknown type, a label without an at sign and more than 20', () => {
