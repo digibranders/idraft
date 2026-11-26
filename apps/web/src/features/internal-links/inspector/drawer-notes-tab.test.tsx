@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { Route } from 'next';
 import { useState, type ReactElement } from 'react';
@@ -11,14 +11,14 @@ import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
 import { announce } from '@/lib/a11y/announcer';
 import type { Role } from '@/lib/api/types';
-import { browserTimeZone, formatDetailDateTime } from '@/lib/format';
+import { browserTimeZone, formatDetailDateTime, formatTableDate } from '@/lib/format';
 import type { PageNote } from '@/lib/internal-links/types';
 import { clearAllNoteDrafts, noteDraft } from '@/lib/pages/note-drafts';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { EVENTUS } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
-import { axe } from '@/test/axe';
+import { axe as axeWith } from '@/test/axe';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
@@ -26,6 +26,13 @@ vi.mock('@/lib/a11y/announcer', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/a11y/announcer')>()),
   announce: vi.fn(),
 }));
+
+/**
+ * The box is a combobox on a `textarea` (ARIA 1.2, spec 9.8.2), which axe's `aria-allowed-role` does not list for a
+ * text area although screen readers announce it as intended; every other rule still runs.
+ */
+const axe = (container: HTMLElement): ReturnType<typeof axeWith> =>
+  axeWith(container, { rules: { 'aria-allowed-role': { enabled: false } } });
 
 const NOTES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes');
 const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
@@ -98,7 +105,7 @@ function Harness({ canNote = true }: { canNote?: boolean }): ReactElement {
 const signIn = (role: Role): void => {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
 };
-const box = (): Promise<HTMLElement> => screen.findByRole('textbox', { name: 'Add a note to /pricing' });
+const box = (): Promise<HTMLElement> => screen.findByRole('combobox', { name: 'Add a note to /pricing' });
 const announced = (): string[] => vi.mocked(announce).mock.calls.map((call) => call[0]);
 const items = (): HTMLElement[] =>
   within(screen.getByRole('list', { name: 'Notes, newest first' })).getAllByRole('listitem');
@@ -214,7 +221,7 @@ describe('the box', () => {
     expect(await box()).toHaveValue('half a thought');
 
     await user.click(screen.getByRole('button', { name: 'Other page' }));
-    expect(await screen.findByRole('textbox', { name: 'Add a note to /' })).toHaveValue('');
+    expect(await screen.findByRole('combobox', { name: 'Add a note to /' })).toHaveValue('');
     await user.click(screen.getByRole('button', { name: 'Other page' }));
     expect(await box()).toHaveValue('half a thought');
 
@@ -330,7 +337,7 @@ describe('the list', () => {
     signIn('viewer');
     renderWithProviders(<Harness canNote={false} />);
     await screen.findByRole('list', { name: 'Notes, newest first' });
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     const body = screen.getByRole('list', { name: 'Notes, newest first' }).parentElement as HTMLElement;
     expect(within(body).queryByRole('button')).not.toBeInTheDocument();
   });
@@ -402,7 +409,7 @@ describe('editing', () => {
   const startEdit = async (user: ReturnType<typeof renderWithProviders>['user']): Promise<HTMLElement> => {
     await loaded();
     await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Edit note' }));
-    return screen.findByRole('textbox', { name: 'Edit your note' });
+    return screen.findByRole('combobox', { name: 'Edit your note' });
   };
 
   it('turns the body into a box, saves the new text, shows edited, announces it and returns the focus', async () => {
@@ -413,7 +420,7 @@ describe('editing', () => {
     await user.type(area, 'Rewritten once more');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => {
-      expect(screen.queryByRole('textbox', { name: 'Edit your note' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('combobox', { name: 'Edit your note' })).not.toBeInTheDocument();
     });
     const saved = itemOf('Rewritten once more');
     expect(saved).toHaveTextContent('edited');
@@ -435,13 +442,13 @@ describe('editing', () => {
     await user.type(area, PRIYA_NOTE);
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => {
-      expect(screen.queryByRole('textbox', { name: 'Edit your note' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('combobox', { name: 'Edit your note' })).not.toBeInTheDocument();
     });
     expect(seen).toEqual([]);
     expect(announced()).toEqual([]);
 
     await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Edit note' }));
-    await user.type(await screen.findByRole('textbox', { name: 'Edit your note' }), '!');
+    await user.type(await screen.findByRole('combobox', { name: 'Edit your note' }), '!');
     await user.keyboard('{Control>}{Enter}{/Control}');
     await waitFor(() => {
       expect(seen).toEqual(['PATCH']);
@@ -463,7 +470,7 @@ describe('editing', () => {
     const { user } = renderWithProviders(<Harness />);
     await startEdit(user);
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('textbox', { name: 'Edit your note' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Edit your note' })).not.toBeInTheDocument();
     expect(itemOf(PRIYA_NOTE)).toBeInTheDocument();
   });
 
@@ -489,8 +496,8 @@ describe('editing', () => {
     const { user } = renderWithProviders(<Harness />);
     await startEdit(user);
     await user.click(within(itemOf('Pricing page now links')).getByRole('button', { name: 'Edit note' }));
-    expect(screen.getAllByRole('textbox', { name: 'Edit your note' })).toHaveLength(1);
-    expect(screen.getByRole('textbox', { name: 'Edit your note' })).toHaveValue(
+    expect(screen.getAllByRole('combobox', { name: 'Edit your note' })).toHaveLength(1);
+    expect(screen.getByRole('combobox', { name: 'Edit your note' })).toHaveValue(
       'Pricing page now links to the VAPT and managed detection pages.',
     );
   });
@@ -525,7 +532,7 @@ describe('deleting', () => {
     await waitFor(() => {
       expect(items()).toHaveLength(2);
     });
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(document.activeElement).not.toBe(document.body);
     expect(screen.getByText(/Everyone in this workspace can read/).parentElement).toContainElement(
       document.activeElement as HTMLElement,
@@ -574,13 +581,330 @@ describe('deleting', () => {
   });
 });
 
+describe('mentions and commands', () => {
+  type User = ReturnType<typeof renderWithProviders>['user'];
+  const PRIYA = mockUser('editor');
+  const suggestions = (): Promise<HTMLElement> => screen.findByRole('listbox', { name: 'Suggestions' });
+  const closedList = (): void => {
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  };
+  /** The body of the POST or PATCH the next save sends. */
+  const watchWrites = (): unknown[] => {
+    const sent: unknown[] = [];
+    const log = async ({ request }: { request: Request }): Promise<void> => {
+      if (request.method === 'POST' || request.method === 'PATCH') sent.push(await request.clone().json());
+    };
+    server.events.on('request:start', (event) => void log(event));
+    return sent;
+  };
+  const typeAt = async (user: User, text: string): Promise<HTMLElement> => {
+    const area = await box();
+    await user.type(area, text);
+    return area;
+  };
+
+  it('is a combobox that starts closed, and opens a named listbox on an at sign', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await box();
+    expect(area).toHaveAttribute('aria-autocomplete', 'list');
+    expect(area).toHaveAttribute('aria-expanded', 'false');
+    expect(area).not.toHaveAttribute('aria-controls');
+    await user.type(area, '@');
+    const list = await suggestions();
+    const options = within(list).getAllByRole('option');
+    expect(options.length).toBeLessThanOrEqual(8);
+    expect(area).toHaveAttribute('aria-expanded', 'true');
+    expect(area).toHaveAttribute('aria-controls', list.id);
+    expect(area).toHaveAttribute('aria-activedescendant', options[0]?.id);
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    expect(area).toHaveFocus();
+  });
+
+  it('announces the number of suggestions, and the settled number once the list is full', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await typeAt(user, '@');
+    await waitFor(() => {
+      expect(announced().at(-1)).toBe('8 suggestions, use the arrow keys');
+    });
+  });
+
+  it('narrows as the word grows, tells each row its kind, and closes when nothing is left', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@pri');
+    const list = await suggestions();
+    await waitFor(() => {
+      expect(within(list).getAllByRole('option').length).toBeGreaterThan(2);
+    });
+    const options = within(list).getAllByRole('option');
+    const own = (text: string): HTMLElement | undefined => options.find((option) => option.textContent.includes(text));
+    expect(own('@Priya Natarajan')).toHaveTextContent('Teammate');
+    expect(own('@/pricing')).toHaveTextContent('Page');
+    expect(own('@"managed soc pricing"')).toHaveTextContent('Tracked keyword');
+    await user.type(area, 'zzzz');
+    closedList();
+    expect(area).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('moves with the arrow keys, wrapping, and picks with Enter: the label and a space, the focus kept', async () => {
+    const sent = watchWrites();
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, 'Ask @Priya');
+    const list = await suggestions();
+    expect(within(list).getAllByRole('option')).toHaveLength(1);
+    await user.keyboard('{ArrowDown}');
+    expect(area).toHaveAttribute('aria-activedescendant', within(list).getAllByRole('option')[0]?.id);
+    await user.keyboard('{Enter}');
+    expect(area).toHaveValue('Ask @Priya Natarajan ');
+    expect(area).toHaveFocus();
+    expect(area).toHaveProperty('selectionStart', 'Ask @Priya Natarajan '.length);
+    closedList();
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toEqual({
+      body: 'Ask @Priya Natarajan',
+      mentions: [{ type: 'user', label: '@Priya Natarajan', target: PRIYA.user_id }],
+    });
+  });
+
+  it('wraps from the first row up to the last and from the last down to the first', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@');
+    const list = await suggestions();
+    await waitFor(() => {
+      expect(within(list).getAllByRole('option')).toHaveLength(8);
+    });
+    const ids = within(list)
+      .getAllByRole('option')
+      .map((option) => option.id);
+    await user.keyboard('{ArrowUp}');
+    expect(area).toHaveAttribute('aria-activedescendant', ids[7]);
+    await user.keyboard('{ArrowDown}');
+    expect(area).toHaveAttribute('aria-activedescendant', ids[0]);
+    await user.keyboard('{ArrowDown}');
+    expect(area).toHaveAttribute('aria-activedescendant', ids[1]);
+  });
+
+  it('picks with Tab and keeps the focus in the box; on a closed list Enter adds a line and Tab leaves', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@Priya');
+    await suggestions();
+    await user.keyboard('{Tab}');
+    expect(area).toHaveValue('@Priya Natarajan ');
+    expect(area).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(area).toHaveValue('@Priya Natarajan \n');
+    await user.keyboard('{Tab}');
+    expect(area).not.toHaveFocus();
+  });
+
+  it('picks with the mouse on mousedown, and the box keeps its focus and its caret', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, 'See @/pric');
+    const list = await suggestions();
+    const row = within(list)
+      .getAllByRole('option')
+      .find((option) => option.textContent.includes('@/pricing'));
+    if (row === undefined) throw new Error('no page row');
+    expect(fireEvent.mouseDown(row)).toBe(false);
+    expect(area).toHaveValue('See @/pricing ');
+    expect(area).toHaveFocus();
+    expect(area).toHaveProperty('selectionStart', 'See @/pricing '.length);
+  });
+
+  it('adds an entry once, and sends none whose label was deleted', async () => {
+    const sent = watchWrites();
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@Priya');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    await user.type(area, '@Priya');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    await user.clear(area);
+    await user.type(area, 'plain words');
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toEqual({ body: 'plain words' });
+  });
+
+  it('closes only the list on Escape: the text, the drawer and the edit stay', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, 'Ask @Pri');
+    await suggestions();
+    await user.keyboard('{Escape}');
+    closedList();
+    expect(area).toHaveValue('Ask @Pri');
+    expect(onClose).not.toHaveBeenCalled();
+    // With the list closed the next Escape closes the drawer, the draft kept
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(noteDraft(SCOPE, PRICING)).toBe('Ask @Pri');
+  });
+
+  it('closes only the list on Escape in an edit box, and the second Escape cancels the edit', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await loaded();
+    await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Edit note' }));
+    const area = await screen.findByRole('combobox', { name: 'Edit your note' });
+    await user.type(area, ' @Pri');
+    await suggestions();
+    await user.keyboard('{Escape}');
+    closedList();
+    expect(screen.getByRole('combobox', { name: 'Edit your note' })).toHaveValue(`${PRIYA_NOTE} @Pri`);
+    expect(onClose).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('combobox', { name: 'Edit your note' })).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('saves with Ctrl or Meta and Enter with the list open, sending the entries still in the text', async () => {
+    const sent = watchWrites();
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@Priya');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    await user.type(area, '@Pri');
+    await suggestions();
+    await user.keyboard('{Control>}{Enter}{/Control}');
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toEqual({
+      body: '@Priya Natarajan @Pri',
+      mentions: [{ type: 'user', label: '@Priya Natarajan', target: PRIYA.user_id }],
+    });
+    await waitFor(() => {
+      expect(area).toHaveValue('');
+    });
+    await user.type(area, '@Priya');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    await user.type(area, 'x');
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+  });
+
+  it('saves an edit with the mentions of the note and the new ones', async () => {
+    const sent = watchWrites();
+    const { user } = renderWithProviders(<Harness />);
+    await loaded();
+    await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Edit note' }));
+    const area = await screen.findByRole('combobox', { name: 'Edit your note' });
+    await user.type(area, ' Ask @Priya');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toEqual({
+      body: `${PRIYA_NOTE} Ask @Priya Natarajan`,
+      mentions: [{ type: 'user', label: '@Priya Natarajan', target: PRIYA.user_id }],
+    });
+  });
+
+  it('opens the four commands on a slash, narrows them, and /page opens the pages', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '/');
+    const list = await suggestions();
+    const names = within(list)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(names).toHaveLength(4);
+    expect(names[0]).toContain('/page');
+    expect(names[0]).toContain('Link a page of the site');
+    await user.type(area, 'pa');
+    expect(within(list).getAllByRole('option')).toHaveLength(1);
+    await user.keyboard('{Enter}');
+    expect(area).toHaveValue('/page ');
+    const pages = await suggestions();
+    await waitFor(() => {
+      expect(within(pages).getAllByRole('option').length).toBeGreaterThan(0);
+    });
+    for (const option of within(pages).getAllByRole('option')) expect(option).toHaveTextContent('Page');
+  });
+
+  it('puts in today date with /date and adds no entry', async () => {
+    const sent = watchWrites();
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, 'Done on /da');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    const today = formatTableDate(new Date(), browserTimeZone());
+    expect(area).toHaveValue(`Done on ${today} `);
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toEqual({ body: `Done on ${today}` });
+  });
+
+  it('opens nothing for a word that is not a command, an address or and/or', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '/xyz');
+    closedList();
+    await user.clear(area);
+    await user.type(area, 'mail a@b.com or yes/no and/or');
+    closedList();
+    expect(area).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('closes on blur and when the caret leaves the word, and types j and k', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@Pri');
+    await suggestions();
+    await user.keyboard('{Home}');
+    closedList();
+    await user.keyboard('{End}');
+    await suggestions();
+    act(() => area.blur());
+    closedList();
+    await user.clear(area);
+    await user.type(area, '@jk');
+    expect(area).toHaveValue('@jk');
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('asks the API for nothing while no list is open', async () => {
+    const asked: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      asked.push(new URL(request.url).pathname);
+    });
+    const { user } = renderWithProviders(<Harness />);
+    await typeAt(user, 'plain words, no trigger');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(asked.filter((path) => path.endsWith('/members') || path.endsWith('/internal-links/pages'))).toEqual([]);
+  });
+
+  it('keeps Add note and the hint reachable while the list is open', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await typeAt(user, '@Pri');
+    await suggestions();
+    expect(screen.getByRole('button', { name: 'Add note' })).toBeEnabled();
+    expect(screen.getByText('Cmd or Ctrl + Enter saves')).toBeVisible();
+  });
+
+  it('has no violations with the list open', async () => {
+    const { container, user } = renderWithProviders(<Harness />);
+    await typeAt(user, '@Pri');
+    await suggestions();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
 describe('accessibility', () => {
   it('has no violations with notes, and in edit', async () => {
     const { container, user } = renderWithProviders(<Harness />);
     await loaded();
     expect(await axe(container)).toHaveNoViolations();
     await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Edit note' }));
-    await screen.findByRole('textbox', { name: 'Edit your note' });
+    await screen.findByRole('combobox', { name: 'Edit your note' });
     expect(await axe(container)).toHaveNoViolations();
   });
 

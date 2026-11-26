@@ -1,17 +1,24 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import type { PageDrawerContext } from './page-drawer-context';
-import { NoteEditor } from './note-editor';
+import { NoteEditor, type NoteSuggestSource } from './note-editor';
 import { NoteItem } from './note-item';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
-import { clearNoteDraft, noteDraft, setNoteDraft } from '@/lib/pages/note-drafts';
+import {
+  clearNoteDraft,
+  noteDraft,
+  noteDraftMentions,
+  setNoteDraft,
+  setNoteDraftMentions,
+} from '@/lib/pages/note-drafts';
+import { keptMentions, type NoteMention } from '@/lib/pages/note-mentions';
 import { usePageNoteWrites, usePageNotes } from '@/lib/pages/notes';
 
 export interface DrawerNotesTabProps {
@@ -41,6 +48,11 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
   const writes = usePageNoteWrites(scope, urlId);
 
   const [text, setText] = useState(() => noteDraft(scope, urlId));
+  const [mentions, setMentions] = useState<readonly NoteMention[]>(() => noteDraftMentions(scope, urlId));
+  const source = useMemo<NoteSuggestSource>(
+    () => ({ scope, urlId, view: { run: context.crawl.run, linkScope: context.linkScope } }),
+    [scope, urlId, context.crawl.run, context.linkScope],
+  );
   const textNow = useRef(text);
   const [editing, setEditing] = useState<string | null>(null);
   const focusEdit = useRef<string | null>(null);
@@ -57,6 +69,11 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     textNow.current = value;
     setText(value);
     setNoteDraft(scope, urlId, value);
+  };
+
+  const changeMentions = (list: readonly NoteMention[]): void => {
+    setMentions(list);
+    setNoteDraftMentions(scope, urlId, list);
   };
 
   // After an edit ends the list is drawn again with the Edit buttons back, and the focus goes to the one of that note
@@ -80,7 +97,8 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     const body = text.trim();
     if (body === '') return;
     try {
-      await writes.add(body);
+      // Only the entries whose label is still in the text go with the note
+      await writes.add(body, { mentions: keptMentions(body, mentions) });
     } catch {
       toast({ type: 'error', title: t('addFailed') });
       return;
@@ -88,6 +106,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     // Words typed while the note was on its way stay in the box
     if (textNow.current.trim() === body) {
       change('');
+      setMentions([]);
       clearNoteDraft(scope, urlId);
     }
     announce(t('added'));
@@ -99,7 +118,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     setEditing(null);
   };
 
-  const save = async (noteId: string, raw: string): Promise<void> => {
+  const save = async (noteId: string, raw: string, picked: readonly NoteMention[]): Promise<void> => {
     const body = raw.trim();
     if (body === '') return;
     const saved = read.state === 'ready' ? read.notes.find((note) => note.id === noteId) : undefined;
@@ -108,7 +127,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
       return;
     }
     try {
-      await writes.change(noteId, body);
+      await writes.change(noteId, body, { mentions: keptMentions(body, picked) });
     } catch {
       toast({ type: 'error', title: t('saveFailed') });
       return;
@@ -186,7 +205,8 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
               pending={writes.pending}
               onEdit={() => setEditing(note.id)}
               onCancel={() => endEdit(note.id)}
-              onSave={(body) => void save(note.id, body)}
+              onSave={(body, picked) => void save(note.id, body, picked)}
+              source={source}
               onDelete={() => void remove(note.id)}
               editButtonRef={(element) => {
                 if (element === null) editButtons.current.delete(note.id);
@@ -221,6 +241,9 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
           label={t('addLabel', { path })}
           value={text}
           onChange={change}
+          mentions={mentions}
+          onMentionsChange={changeMentions}
+          source={source}
           onSave={() => void add()}
           saveLabel={t('add')}
           pending={writes.pending}

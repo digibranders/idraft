@@ -9238,7 +9238,21 @@
       },
       "notes": {
         "addLabel": "Add a note to {path}",
-        "placeholder": "What changed on this page, what is planned, what to check later",
+        "placeholder": "What changed on this page, what is planned, what to check later. Type @ to mention, / for commands.",
+        "suggestions": {
+          "label": "Suggestions",
+          "count": "{count, plural, one {# suggestion} other {# suggestions}}, use the arrow keys",
+          "teammate": "Teammate",
+          "page": "Page",
+          "issue": "Issue on this page",
+          "keyword": "Tracked keyword"
+        },
+        "commands": {
+          "page": "Link a page of the site",
+          "issue": "Link an issue found on this page",
+          "keyword": "Mention a tracked keyword of this page",
+          "date": "Put in today's date"
+        },
         "add": "Add note",
         "save": "Save",
         "cancel": "Cancel",

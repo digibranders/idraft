@@ -4,12 +4,13 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRef, useState, type ReactElement } from 'react';
 
-import { NoteEditor } from './note-editor';
+import { NoteEditor, type NoteSuggestSource } from './note-editor';
 import { Avatar } from '@/components/ui/avatar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { browserTimeZone, formatDetailDateTime } from '@/lib/format';
 import type { PageNote } from '@/lib/internal-links/types';
+import type { NoteMention } from '@/lib/pages/note-mentions';
 
 export interface NoteItemProps {
   note: PageNote;
@@ -19,10 +20,12 @@ export interface NoteItemProps {
   pending: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (body: string) => void;
+  onSave: (body: string, mentions: readonly NoteMention[]) => void;
   onDelete: () => void;
   /** Hands the Edit button to the list, which moves the focus back to it when an edit ends. */
   editButtonRef: (element: HTMLButtonElement | null) => void;
+  /** What the box of an edit offers to mention. */
+  source: NoteSuggestSource;
 }
 
 /** The text of a note in edit starts from the saved text each time the edit opens, so it lives in a part of its own. */
@@ -31,9 +34,12 @@ function NoteEdit({
   pending,
   onCancel,
   onSave,
-}: Pick<NoteItemProps, 'note' | 'pending' | 'onCancel' | 'onSave'>): ReactElement {
+  source,
+}: Pick<NoteItemProps, 'note' | 'pending' | 'onCancel' | 'onSave' | 'source'>): ReactElement {
   const t = useTranslations('pages.drawer.notes');
   const [text, setText] = useState(note.body);
+  // The note's own mentions: the ones whose label stays in the text are sent again
+  const [mentions, setMentions] = useState<readonly NoteMention[]>(note.mentions);
   const area = useRef<HTMLTextAreaElement | null>(null);
   return (
     <div className="pl-10">
@@ -41,7 +47,10 @@ function NoteEdit({
         label={t('editLabel')}
         value={text}
         onChange={setText}
-        onSave={() => onSave(text)}
+        mentions={mentions}
+        onMentionsChange={setMentions}
+        source={source}
+        onSave={() => onSave(text, mentions)}
         onCancel={onCancel}
         saveLabel={t('save')}
         pending={pending}
@@ -65,6 +74,7 @@ export function NoteItem({
   onSave,
   onDelete,
   editButtonRef,
+  source,
 }: NoteItemProps): ReactElement {
   const t = useTranslations('pages.drawer.notes');
   const timeZone = browserTimeZone();
@@ -99,7 +109,7 @@ export function NoteItem({
         )}
       </div>
       {editing ? (
-        <NoteEdit note={note} pending={pending} onCancel={onCancel} onSave={onSave} />
+        <NoteEdit note={note} pending={pending} onCancel={onCancel} onSave={onSave} source={source} />
       ) : (
         <p className="pl-10 type-body break-words whitespace-pre-wrap text-foreground">{note.body}</p>
       )}
