@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import contextlib
 import random
+import time
+from urllib.parse import unquote
 
 import pytest
 
-from idraft.storage.file_sniff import ACCEPTED_TYPES, FileRefused, display_name, sniff
+from idraft.storage.file_sniff import (
+    ACCEPTED_TYPES,
+    NOTE_FILE_MAX_BYTES,
+    FileRefused,
+    content_disposition,
+    display_name,
+    sniff,
+)
 
 PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
@@ -172,6 +181,93 @@ def test_display_name_drops_path_parts_and_control_characters() -> None:
     assert display_name("a\u2028b.txt") == "ab.txt"
     assert display_name("  spaced name.txt  ") == "spaced name.txt"
     assert display_name("caf\u00e9 \u2014 \u65e5\u672c.txt") == "caf\u00e9 \u2014 \u65e5\u672c.txt"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "a.html\n",
+        "a.html\t",
+        "a.html\u200b",
+        "a.svg\x00",
+        "a.html\ufeff",
+        "a.ht\u200bml",
+        "a.svg\r\n",
+    ],
+)
+def test_a_blocked_extension_is_found_on_the_normalised_name(name: str) -> None:
+    assert refusal(b"just text", name) == "name"
+
+
+def test_display_name_drops_invisible_format_characters() -> None:
+    assert display_name("a\u200bb\ufeffc\u00add.txt") == "abcd.txt"
+    assert display_name("\u200b\ufeff\u202e") == "file"
+
+
+def test_markup_after_a_byte_order_mark_or_leading_whitespace_is_refused() -> None:
+    assert refusal(b"\xef\xbb\xbf" + HTML, "a.txt") == "markup"
+    assert refusal(b"\n\t" + b"<svg onload=x>", "a.txt") == "markup"
+    assert refusal(b"\r\n\n<script>x</script>", "a.csv") == "markup"
+
+
+def test_a_doctype_or_xml_declaration_inside_text_is_refused() -> None:
+    assert refusal(b"intro text\n<!doctype html>", "a.txt") == "markup"
+    assert refusal(b"intro text\n<?xml version='1.0'?>", "a.txt") == "markup"
+
+
+def test_jpeg_and_gif_need_more_than_the_signature() -> None:
+    assert refusal(b"\xff\xd8\xff", "a.jpg") == "type"
+    assert sniff(b"\xff\xd8\xff\xe0", "a.jpg") == "image/jpeg"
+    assert refusal(b"\xff\xd8\xff\x00", "a.jpg") == "type"
+    assert refusal(b"GIF89a" + b"\x00" * 6, "a.gif") == "type"
+    assert sniff(b"GIF89a" + b"\x00" * 7, "a.gif") == "image/gif"
+
+
+def test_a_ten_megabyte_file_is_judged_within_a_second() -> None:
+    started = time.perf_counter()
+    assert sniff(b"a,b\n" * (NOTE_FILE_MAX_BYTES // 4), "big.csv") == "text/csv"
+    assert sniff(PNG + b"\x00" * NOTE_FILE_MAX_BYTES, "big.png") == "image/png"
+    assert refusal(b"x" * NOTE_FILE_MAX_BYTES + b"\x00", "big.txt") == "type"
+    assert time.perf_counter() - started < 1.0
+
+
+def test_display_name_cuts_after_stripping_to_255() -> None:
+    assert len(display_name("\u200b" * 100 + "a" * 300)) == 255
+    assert display_name("a" * 254 + " b") == "a" * 254
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        'a"; filename="b.html',
+        "caf\u00e9\u65e5\u672c.txt",
+        "a\\b%41;c.txt",
+        "x" * 400,
+        "r\r\nSet-Cookie: a=b",
+    ],
+)
+def test_content_disposition_is_one_safe_header_value(name: str) -> None:
+    value = content_disposition(name)
+    head, star = value.split("; filename*=UTF-8''")
+    assert head.startswith('attachment; filename="')
+    assert head.endswith('"')
+    fallback = head[len('attachment; filename="') : -1]
+    assert fallback.isascii()
+    assert not set(fallback) & set('"\\;%\r\n')
+    assert unquote(star) == display_name(name)
+    assert not set(value) & set("\r\n")
+    assert star.isascii()
+    assert not set(star) & set(' ";\\')
+
+
+def test_content_disposition_of_a_hostile_name_keeps_one_filename_parameter() -> None:
+    value = content_disposition('a"; filename="b.html')
+    assert value.count('filename="') == 1
+    assert value.startswith('attachment; filename="a__ filename=_b.html"; ')
+
+
+def test_content_disposition_of_nothing_falls_back_to_file() -> None:
+    assert content_disposition(None) == "attachment; filename=\"file\"; filename*=UTF-8''file"
 
 
 def test_display_name_is_cut_at_255_and_never_empty() -> None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from typing import Final
+from urllib.parse import quote
 
 NOTE_FILE_MAX_BYTES: Final = 10 * 1024 * 1024
 IMAGE_TYPES: Final = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
@@ -76,7 +77,8 @@ def sniff(data: bytes, name: str) -> str:
     """The content type of `data`, from its bytes; the name only picks text/csv over text/plain."""
     if not data:
         raise FileRefused("empty")
-    if name.lower().rstrip(". ").endswith(_BLOCKED_EXTENSIONS):
+    # Judge the normalised name: a trailing newline, tab or zero-width character hides nothing.
+    if display_name(name).lower().rstrip(". ").endswith(_BLOCKED_EXTENSIONS):
         raise FileRefused("name")
     # A PNG with markup after its image data passes as a PNG on purpose: its first bytes decide, and
     # it is harmless where it is served (nosniff, an inert content type and a sandbox policy, 5i).
@@ -91,8 +93,22 @@ def sniff(data: bytes, name: str) -> str:
 def display_name(name: str | None) -> str:
     """The name to show: no path parts or control characters, 255 characters at most."""
     last = (name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    # Cf covers zero-width characters, the byte order mark, the soft hyphen and the bidi controls.
     kept = "".join(
-        c for c in last if c not in _BIDI and unicodedata.category(c) not in {"Cc", "Zl", "Zp"}
+        c
+        for c in last
+        if c not in _BIDI and unicodedata.category(c) not in {"Cc", "Cf", "Zl", "Zp"}
     )
     cleaned = kept.strip()[:DISPLAY_NAME_MAX].strip()
     return cleaned if cleaned.strip(".") else _FALLBACK_NAME
+
+
+def content_disposition(name: str | None) -> str:
+    """A safe `Content-Disposition` value for a download (RFC 6266, RFC 5987).
+
+    The ASCII `filename` is a fallback with every character that could end the quoted string or
+    start a parameter replaced; `filename*` carries the real name, percent-encoded as UTF-8.
+    """
+    shown = display_name(name)
+    fallback = "".join(c if " " <= c <= "~" and c not in '"\\;%' else "_" for c in shown)
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(shown, safe='')}"
