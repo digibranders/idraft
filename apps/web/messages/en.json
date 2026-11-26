@@ -2308,7 +2308,9 @@
     "loadFailedReason": "The server returned an error. Your filters are unchanged.",
     "noAccessTitle": "You do not have access to Costs",
     "noAccessReason": "You do not have permission to view costs. Ask an admin of this workspace.",
-    "backToOverview": "Back to Overview"
+    "backToOverview": "Back to Overview",
+    "chartInfoWhat": "What was spent with providers each day, split by job type.",
+    "chartInfoHow": "One bar for each day in UTC, stacked by job type. A cost is what the provider reported, a cost computed from tokens, or an estimate from the price book."
   },
   "runs": {
     "pageTitle": "Runs",
@@ -3398,7 +3400,9 @@
       },
       "empty": "No checks yet",
       "emptyReason": "The rank history fills in after the first check.",
-      "failed": "The rank history did not load."
+      "failed": "The rank history did not load.",
+      "infoWhat": "How the rank of this keyword changed over the period. 1 is first.",
+      "infoHow": "Each point is one check: the best placed page of your domains among the organic results, counted from the top, so lower is better. Ads and search features are not counted. A check beyond depth is not drawn as a number."
     },
     "inspector": {
       "type": "Keyword",
@@ -3476,7 +3480,9 @@
         "summary": "Monthly searches from {from} to {to}, between {min} and {max}.",
         "empty": "No monthly volumes yet",
         "emptyReason": "DataForSEO Labs sends them with the keyword's first metrics.",
-        "failed": "The monthly volumes did not load"
+        "failed": "The monthly volumes did not load",
+        "infoWhat": "How many times a month people search Google for this keyword.",
+        "infoHow": "The data provider’s estimate for each month, for the keyword’s location and language. A month the provider has no value for is not drawn as zero."
       },
       "links": {
         "title": "Groups and tags",
@@ -8488,6 +8494,72 @@
           "title": "Prompts lost split",
           "summary": "How the prompts lost are divided among the competitors that took them."
         }
+      }
+    },
+    "info": {
+      "mentionsByBrand": {
+        "what": "How often each tracked brand is mentioned in AI answers.",
+        "how": "The share of valid answers whose text mentions the brand. Each prompt counts once. For all platforms it is the average of the platforms; with one platform chosen it is that platform’s rate."
+      },
+      "mentionsByPlatform": {
+        "what": "How often your brand and the leading competitors are mentioned on each platform.",
+        "how": "One group of bars for each platform: the share of that platform’s valid answers that mention the brand. Each prompt counts once."
+      },
+      "mentionsTrend": {
+        "what": "How each brand’s mention rate changes from week to week.",
+        "how": "One point for each weekly run and one line for each brand: the share of that week’s valid answers that mention the brand."
+      },
+      "citationsByBrand": {
+        "what": "How the citations in AI answers divide among the tracked brands.",
+        "how": "Each brand’s part of all citations in scope. A page is counted once for each answer that cites it. It is a share of citations, not of answers."
+      },
+      "citationsByPlatform": {
+        "what": "How the citations on each platform divide between your brand and the leading competitors.",
+        "how": "One group of bars for each platform: each brand’s part of all citations in scope on that platform."
+      },
+      "sovByBrand": {
+        "what": "How much of the brand talk in AI answers is about each tracked brand.",
+        "how": "A brand’s mentions over all tracked-brand mentions. An answer that mentions three tracked brands adds three. It depends on which competitors are tracked: adding one lowers every other share."
+      },
+      "sovByPlatform": {
+        "what": "How the brand mentions on each platform divide between your brand and the leading competitors.",
+        "how": "One group of bars for each platform: a brand’s mentions over all tracked-brand mentions on that platform."
+      },
+      "sovTrend": {
+        "what": "How each brand’s share of voice changes from week to week.",
+        "how": "One point for each weekly run and one line for each brand: a brand’s mentions over all tracked-brand mentions that week."
+      },
+      "sovChange": {
+        "what": "How far each brand’s share of voice moved since the comparison period.",
+        "how": "The difference in points between the current period and the period chosen in Compare with."
+      },
+      "sovSplit": {
+        "what": "How the brand mentions divide among the tracked brands.",
+        "how": "One slice for each brand: its mentions over all tracked-brand mentions. Brands beyond the five largest are added up as Other brands."
+      },
+      "citationsSplit": {
+        "what": "How the citations divide among the tracked brands.",
+        "how": "One slice for each brand: its part of all citations in scope. Brands beyond the five largest are added up as Other brands."
+      },
+      "lostSplit": {
+        "what": "Which competitors took the prompts your brand lost.",
+        "how": "A prompt is lost to a competitor when an answer mentions the competitor and not your brand. One slice for each competitor, counted in prompts."
+      },
+      "visibilityByPlatform": {
+        "what": "How often each tracked brand is mentioned on each platform.",
+        "how": "One group of bars for each platform: the share of that platform’s valid answers that mention the brand. Each prompt counts once."
+      },
+      "seoRankSplit": {
+        "what": "How your tracked keywords divide by rank band.",
+        "how": "Each of your tracked keywords is placed in a band by its rank at the latest check: top 3, 4 to 10, 11 to 20, 21 and below, or not ranked. Ads and search features are not counted."
+      },
+      "seoTop10": {
+        "what": "How many tracked keywords each brand ranks for in the top 10.",
+        "how": "Counted at the latest check of each keyword. Search rankings are not AI answers, so the platform filters do not apply."
+      },
+      "seoBuckets": {
+        "what": "How the tracked keywords of each brand divide by rank band.",
+        "how": "One column for each brand: its keywords at the latest check by band, from top 3 to not ranked. Search rankings are not AI answers, so the platform filters do not apply."
       }
     }
   },

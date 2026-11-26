@@ -15,6 +15,7 @@ import {
   type MetricKey,
 } from '../model/competitor-model';
 import { ChartCard } from './chart-card';
+import { useChartInfo, type ChartInfoId } from './chart-info';
 import { DonutCard } from './donut-card';
 import { toSlices } from './donut-model';
 import { EntityName } from './entity-name';
@@ -31,6 +32,17 @@ import type { CategorySeries } from '@/lib/charts/category-chart';
 /** The tabs that take one metric of the tracked set: Mentions, Citations and Share of Voice. */
 export type MetricTabKind = 'mentions' | 'citations' | 'sov';
 
+const BY_BRAND: Record<MetricTabKind, ChartInfoId> = {
+  mentions: 'mentionsByBrand',
+  citations: 'citationsByBrand',
+  sov: 'sovByBrand',
+};
+const BY_PLATFORM: Record<MetricTabKind, ChartInfoId> = {
+  mentions: 'mentionsByPlatform',
+  citations: 'citationsByPlatform',
+  sov: 'sovByPlatform',
+};
+
 const METRIC_OF: Record<MetricTabKind, MetricKey> = {
   mentions: 'mention_rate',
   citations: 'citation_share',
@@ -43,6 +55,7 @@ const METRIC_OF: Record<MetricTabKind, MetricKey> = {
  */
 export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
   const t = useTranslations('competitors');
+  const info = useChartInfo();
   const metric = METRIC_OF[kind];
   const { reads, labelOf, scope } = useCompetitors();
   const { rows, engines, averaged } = useTabModel();
@@ -172,6 +185,7 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
           <DonutCard
             title={t(`charts.donut.${donutKind}.title`)}
             summary={t(`charts.donut.${donutKind}.summary`)}
+            info={info(donutKind === 'sov' ? 'sovSplit' : 'citationsSplit')}
             slices={slices}
             centerValue={formatPercent(ownCell?.value ?? null)}
             centerLabel={t('charts.donut.you')}
@@ -191,6 +205,7 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
           reads={[reads.competitors]}
           isEmpty={empty}
           fileName={fileOf(kind, 'by-competitor')}
+          info={info(BY_BRAND[kind])}
         />
         <ChartCard
           title={t(`charts.${kind}.byPlatform`)}
@@ -203,6 +218,7 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
           reads={[reads.competitors]}
           isEmpty={empty}
           fileName={fileOf(kind, 'by-platform')}
+          info={info(BY_PLATFORM[kind])}
         />
       </div>
       {trendKind !== null ? (
@@ -218,6 +234,7 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
           reads={[reads.competitors, trend]}
           isEmpty={empty || (weekly?.weeks.length ?? 0) === 0}
           fileName={fileOf(kind, 'trend')}
+          info={info(trendKind === 'sov' ? 'sovTrend' : 'mentionsTrend')}
         />
       ) : null}
       <PlainTable

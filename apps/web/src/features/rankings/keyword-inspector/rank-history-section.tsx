@@ -64,6 +64,7 @@ export function RankHistorySection({ scope }: RankHistorySectionProps): ReactEle
         title={t('title')}
         variant="inspector"
         meta={frame.meta}
+        info={{ what: t('infoWhat'), how: t('infoHow') }}
         kind="line"
         categories={frame.categories}
         categoryHeader={frame.categoryHeader}

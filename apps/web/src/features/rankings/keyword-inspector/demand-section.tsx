@@ -141,13 +141,18 @@ export function VolumeByMonth({ workspaceId, detail }: { workspaceId: string; de
       ? t('meta', { count: months.length })
       : t('metaWithTrend', { count: months.length, trend: formatRelativeChange(trend) });
   const seasonal = data.seasonality.is_seasonal;
+  const seasonalText = seasonal === null ? undefined : seasonal ? t('seasonal') : t('notSeasonal');
   return (
     <div className="rounded-lg border border-border bg-surface px-4 pt-3 pb-4">
       <ChartFrame
         title={t('title')}
         variant="inspector"
         meta={meta}
-        footnote={seasonal === null ? undefined : seasonal ? t('seasonal') : t('notSeasonal')}
+        footnote={seasonalText}
+        info={{
+          what: t('infoWhat'),
+          how: seasonalText === undefined ? t('infoHow') : `${t('infoHow')} ${seasonalText}`,
+        }}
         kind="bar"
         categories={categories}
         categoryHeader={t('category')}

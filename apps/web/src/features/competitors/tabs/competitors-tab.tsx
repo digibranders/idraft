@@ -15,6 +15,7 @@ import {
   type EntityRow,
 } from '../model/competitor-model';
 import { ChartCard } from './chart-card';
+import { useChartInfo } from './chart-info';
 import { DonutCard } from './donut-card';
 import { toSlices } from './donut-model';
 import { EntityName } from './entity-name';
@@ -34,6 +35,7 @@ import { formatInteger, formatPercent, formatPointsDelta } from '@/lib/format';
  */
 export function CompetitorsTab(): ReactElement {
   const t = useTranslations('competitors');
+  const info = useChartInfo();
   const { reads, scope } = useCompetitors();
   const { rows, engines } = useTabModel();
 
@@ -140,6 +142,7 @@ export function CompetitorsTab(): ReactElement {
       reads={[reads.competitors, reads.sovSeries]}
       isEmpty={empty || (weekly?.weeks.length ?? 0) === 0}
       fileName={FILE.sovTrend}
+      info={info('sovTrend')}
     />
   );
 
@@ -175,6 +178,7 @@ export function CompetitorsTab(): ReactElement {
         <DonutCard
           title={t('charts.donut.sov.title')}
           summary={t('charts.donut.sov.summary')}
+          info={info('sovSplit')}
           slices={sovSlices}
           centerValue={formatPercent(ownSov?.value ?? null)}
           centerLabel={t('charts.donut.you')}
@@ -194,6 +198,7 @@ export function CompetitorsTab(): ReactElement {
           reads={[reads.competitors]}
           isEmpty={empty}
           fileName={FILE.mentionsByCompetitor}
+          info={info('mentionsByBrand')}
         />
         {scope.compare ? (
           <ChartCard
@@ -208,6 +213,7 @@ export function CompetitorsTab(): ReactElement {
             reads={[reads.competitors]}
             isEmpty={empty || changeSeries.every((entry) => entry.values.every((value) => value === null))}
             fileName={FILE.sovChange}
+            info={info('sovChange')}
           />
         ) : (
           trendCard
