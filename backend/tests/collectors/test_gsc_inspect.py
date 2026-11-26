@@ -13,6 +13,7 @@ from idraft.collectors.gsc_inspect import (
     InspectContext,
     InspectReport,
     PageToInspect,
+    _project_lock,
     refresh_inspections,
 )
 from idraft.collectors.gsc_limits import Budgets, GscLimiter
@@ -209,7 +210,9 @@ async def test_one_failing_page_does_not_stop_the_others(
     report = await run(worker_db, fake, prop, pages)
 
     assert (report.calls, report.stored, report.skipped) == (3, 2, 1)
-    assert set(await rows(migrated, prop)) == {pages[0][0], pages[2][0]}
+    # The failed page keeps a row with no value, so it is not retried at once.
+    assert (await rows(migrated, prop))[pages[1][0]] == (None, None)
+    assert set(await rows(migrated, prop)) == {p[0] for p in pages}
 
 
 async def test_a_fresh_page_is_skipped_and_a_stale_one_is_read_again(
@@ -263,3 +266,66 @@ async def test_rows_carry_the_workspace_of_the_property_and_other_workspaces_are
         [mine.project_id, other.project_id],
     )
     assert {row["workspace_id"] for row in stored} == {mine.workspace_id}
+
+
+async def test_a_failed_page_backs_off_and_counts_toward_the_cap(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    fake = FakeSearchConsole()
+    prop = await make_property(migrated, fake)
+    pages = await pages_of(migrated, 1)
+    fake.inspect_fail_for[pages[0][1]] = 404
+
+    first = await run(worker_db, fake, prop, pages)
+    second = await run(worker_db, fake, prop, pages)
+
+    assert (first.calls, first.skipped, first.stored) == (1, 1, 0)
+    assert (second.calls, second.stored) == (0, 0)
+    assert await rows(migrated, prop) == {pages[0][0]: (None, None)}
+
+
+async def test_a_failure_keeps_an_older_good_value(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    fake = FakeSearchConsole()
+    prop = await make_property(migrated, fake)
+    pages = await pages_of(migrated, 1)
+    fake.inspections[pages[0][1]] = (CRAWLED, "Crawled")
+    await run(worker_db, fake, prop, pages)
+    await execute(
+        migrated,
+        "UPDATE seo.page_google_crawl SET inspected_at = now() - interval '2 days' "
+        "WHERE project_id = $1",
+        prop.project_id,
+    )
+    fake.inspect_fail_for[pages[0][1]] = 404
+
+    report = await run(worker_db, fake, prop, pages)
+
+    assert (report.calls, report.skipped) == (1, 1)
+    assert await rows(migrated, prop) == {
+        pages[0][0]: (datetime(2026, 11, 20, 8, 15, 30, tzinfo=UTC), "Crawled")
+    }
+    fresh = await fetch(
+        migrated,
+        "SELECT inspected_at FROM seo.page_google_crawl WHERE project_id = $1",
+        prop.project_id,
+    )
+    assert fresh[0]["inspected_at"] > datetime.now(UTC) - timedelta(minutes=5)
+
+
+async def test_a_second_pass_on_a_busy_property_does_nothing(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    fake = FakeSearchConsole()
+    prop = await make_property(migrated, fake)
+    pages = await pages_of(migrated, 2)
+
+    async with _project_lock(worker_db, prop.project_id) as held:
+        assert held
+        busy = await run(worker_db, fake, prop, pages)
+    after = await run(worker_db, fake, prop, pages)
+
+    assert busy == InspectReport(busy=True)
+    assert len(fake.called(URL_INSPECTION_URL)) == 2
+    assert (after.calls, after.stored, after.busy) == (2, 2, False)
