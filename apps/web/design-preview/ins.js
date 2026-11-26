@@ -1,4 +1,4 @@
-/* global window, document, location, Node, URLSearchParams */
+/* global window, location, URLSearchParams */
 /**
  * The Insights page of the static preview (route #/insights): the four findings the Overview's Insights box used to
  * show in one line each, now as cards with the headline number, a sentence and the rows behind the number.

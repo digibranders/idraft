@@ -1,4 +1,4 @@
-/* global window, document, location, history, URLSearchParams */
+/* global window, location, queueMicrotask */
 /**
  * The Competitors page of the static preview (route #/competitors, tabs #/competitors/mentions and so on), laid out as the
  * app's screen (WP-39): a toolbar with the Platform and Group selects, the comparison, saved views and Add competitor; six
