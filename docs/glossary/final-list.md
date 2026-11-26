@@ -17,6 +17,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Overview (titles: "SEO overview", "AI visibility overview") | Dashboard, Home, Summary |
 | Keywords, Pages, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs, Settings | Rankings, Topics, Engines, Sources (as a page name) |
 | Citation opportunities (working name for the planned WP-61 page; confirm when it ships) | Sources |
+| Link map (a tab of Internal links: every live page and its body links as one graph) | Site map, Network, Graph (as the tab name) |
 
 ## Where we ask and where we check
 

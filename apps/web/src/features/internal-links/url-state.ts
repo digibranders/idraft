@@ -12,6 +12,8 @@ import {
   type LayoutMode,
 } from '@/lib/internal-links/journey-codec';
 import type { Direction } from '@/lib/internal-links/journey-layout';
+import { parseLens, type MapLens } from '@/lib/internal-links/map-focus';
+import type { MapColourMode } from '@/lib/internal-links/map-graph';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import type { ChangeScope, EdgeWorklist, OpportunityStatus, PageSort, PageWorklist } from '@/lib/internal-links/types';
@@ -22,7 +24,7 @@ import type { ChangeScope, EdgeWorklist, OpportunityStatus, PageSort, PageWorkli
  * `parseLinksSearch` is pure; `useLinksState` only reads and writes the address.
  */
 
-export type LinksTabId = 'pages' | 'links' | 'journey' | 'flow' | 'changes' | 'opportunities';
+export type LinksTabId = 'pages' | 'links' | 'journey' | 'map' | 'flow' | 'changes' | 'opportunities';
 
 export type LinksKey =
   | 'tab'
@@ -49,6 +51,12 @@ export type LinksKey =
   | 'grp'
   | 'more'
   | 'topen'
+  // The Link map: search, auto-generated links drawn, colour, highlight and the selected page
+  | 'mq'
+  | 'mauto'
+  | 'mcol'
+  | 'mhl'
+  | 'mpage'
   // The inspector's own keys: a write that leaves the page's list (Open in journey) closes the inspector with it
   | 'inspect'
   | 'itab';
@@ -56,7 +64,7 @@ export type LinkStatus = 'active' | 'lost' | 'all';
 const LINK_STATUSES: readonly LinkStatus[] = ['active', 'lost', 'all'];
 export type LinksSearch = Readonly<Partial<Record<LinksKey, string | null | undefined>>>;
 
-const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'];
+const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'map', 'flow', 'changes', 'opportunities'];
 const OPPORTUNITY_STATUSES: readonly OpportunityStatus[] = ['open', 'accepted', 'dismissed'];
 const OPPORTUNITY_TIERS: readonly string[] = ['1', '2', '3', '4', '5', '6', '7', '8', 'none'];
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -147,6 +155,8 @@ export interface LinksState {
   groups: Set<string>;
   more: Map<string, number>;
   treeOpen: Set<string>;
+  /** The Link map (plan 11, W12): the search, auto-generated links drawn, colour, highlight and the selected page. */
+  map: { query: string; includeAuto: boolean; colour: MapColourMode; lens: MapLens; selected: string | null };
 }
 
 /** A search as the address and the API hold it: trimmed, 1 to 200 characters, or `null` for none. */
@@ -220,6 +230,13 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     groups: parseKeySet(search.grp),
     more: parseMore(search.more),
     treeOpen: parseKeySet(search.topen),
+    map: {
+      query: text(search.mq) ?? '',
+      includeAuto: search.mauto === '1',
+      colour: search.mcol === 'section' ? 'section' : 'tier',
+      lens: parseLens(search.mhl),
+      selected: readUrlId(search.mpage).id,
+    },
   };
 }
 
@@ -248,6 +265,11 @@ const PARSERS = {
   grp: parseAsString,
   more: parseAsString,
   topen: parseAsString,
+  mq: parseAsString,
+  mauto: parseAsString,
+  mcol: parseAsString,
+  mhl: parseAsString,
+  mpage: parseAsString,
   inspect: parseAsString,
   itab: parseAsString,
 } satisfies Record<LinksKey, typeof parseAsString>;
