@@ -229,6 +229,8 @@ describe('the Citations screen', () => {
     within(drawer).getByRole('heading', { level: 2 }).focus();
     await user.keyboard('j');
     await waitFor(() => expect(lastQuery(onUrlUpdate)).not.toBe(opened));
+    // One step in all: a step the row's key had started would have made this the third page
+    expect(await within(screen.getByRole('complementary')).findByText(/^2 of \d+$/)).toBeVisible();
   });
 
   it('keeps one width when a cited page gives way to a prompt and to a gap prompt', async () => {
