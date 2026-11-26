@@ -29,6 +29,8 @@ export const state = {
   // opportunityStatus: `${from}>${to}` to 'accepted' or 'dismissed' (absent = open); dismissedTierSuggestions: page ids
   opportunityStatus: {},
   dismissedTierSuggestions: new Set(),
+  // hidden: the legend groups (tier ids, '' for untiered, or section names) switched off on the Link map
+  map: { links: 'editorial', colour: 'tier', lens: '', hidden: new Set(), minimap: true },
   journey: { focus: pages.some((page) => page.id === 'soc') ? 'soc' : 'home', view: 'canvas', layout: 'step', laneHide: new Set(), cards: 'editorial', opened: new Set(), more: new Map(), groups: new Set(), pinned: new Set(), treeDir: 'out', treeOpen: new Set() },
 };
 

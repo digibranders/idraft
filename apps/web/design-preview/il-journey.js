@@ -1537,7 +1537,7 @@ function viewSwitch() {
 }
 
 /** A button with a popover of every page (search, tier badge); `onPick(id)` runs after it closes. */
-function pagePicker({ prefix, current, onPick, ariaLabel, popoverLabel }) {
+export function pagePicker({ prefix, current, onPick, ariaLabel, popoverLabel }) {
   const page = pageById(current);
   const trigger = el('button', `${BUTTON_SM} max-w-80 ${FOCUS_RING}`);
   trigger.type = 'button';

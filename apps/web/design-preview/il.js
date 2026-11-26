@@ -1,7 +1,7 @@
 /* global document, window, location, setTimeout, clearTimeout, URL */
 /**
  * Internal links (route #/internal-links): the page shell of the mock. A row with the tabs (Pages, Links, Journey,
- * Tier flow) and the page actions (crawl in scope, Crawl now, Export, More), the summary strip, the crawl state
+ * Link map, Tier flow) and the page actions (crawl in scope, Crawl now, Export, More), the summary strip, the crawl state
  * banner, then the tab's own panel. Each tab is a module with `render(host)` and `exportRows()`.
  * "Preview state" switches the screen through the crawl states of spec section 9. A reload starts from the fixtures.
  */
@@ -13,6 +13,7 @@ import {
 import * as pagesTab from './il-pages.js';
 import * as linksTab from './il-links.js';
 import * as journeyTab from './il-journey.js';
+import * as mapTab from './il-map.js';
 import * as flowTab from './il-flow.js';
 import * as changesTab from './il-changes.js';
 import * as oppsTab from './il-opps.js';
@@ -25,6 +26,7 @@ const TABS = [
   ['pages', 'Pages', 'file-text', pagesTab],
   ['links', 'Links', 'link', linksTab],
   ['journey', 'Journey', 'workflow', journeyTab],
+  ['map', 'Link map', 'waypoints', mapTab],
   ['flow', 'Tier flow', 'grid-3x3', flowTab],
   ['changes', 'Changes', 'history', changesTab],
   ['opportunities', 'Opportunities', 'sparkles', oppsTab],

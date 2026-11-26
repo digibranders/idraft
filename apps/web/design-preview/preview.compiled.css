@@ -514,6 +514,9 @@
   .mb-1 {
     margin-bottom: var(--spacing);
   }
+  .mb-1\.5 {
+    margin-bottom: calc(var(--spacing) * 1.5);
+  }
   .mb-2 {
     margin-bottom: calc(var(--spacing) * 2);
   }
@@ -720,6 +723,9 @@
   }
   .h-45 {
     height: calc(var(--spacing) * 45);
+  }
+  .h-\[max\(30rem\,calc\(100dvh-21rem\)\)\] {
+    height: max(30rem, calc(100dvh - 21rem));
   }
   .h-auto {
     height: auto;
@@ -1267,6 +1273,9 @@
   }
   .grid-cols-\[1\.5rem_minmax\(0\,1fr\)_auto\] {
     grid-template-columns: 1.5rem minmax(0,1fr) auto;
+  }
+  .grid-cols-\[auto_1fr\] {
+    grid-template-columns: auto 1fr;
   }
   .grid-cols-\[minmax\(0\,1fr\)_auto\] {
     grid-template-columns: minmax(0,1fr) auto;
