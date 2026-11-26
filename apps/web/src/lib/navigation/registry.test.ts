@@ -18,16 +18,52 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
   sections.flatMap((section) => section.groups.flatMap((group) => group.items.map((item) => item.key)));
 
 describe('the navigation registry', () => {
-  it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8) and Internal links, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(17);
+  it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8), Internal links and Issues, in 3 sections', () => {
+    expect(NAVIGATION).toHaveLength(18);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
-    expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
-      'rankings',
-      'keywords',
+    expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual(['rankings', 'keywords']);
+    // The owner's order of the group (2026-11-26): Pages lands first when its screen ships
+    expect(NAVIGATION.filter((item) => item.group === 'audit').map((item) => item.key)).toEqual([
       'pages',
+      'issues',
       'internalLinks',
     ]);
     expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(4);
+  });
+
+  it('puts Issues in the Website audit group at /seo/issues for data:read, live, with its own icon', () => {
+    const issues = NAVIGATION.find((item) => item.key === 'issues');
+    expect(issues).toMatchObject({
+      path: '/seo/issues',
+      section: 1,
+      group: 'audit',
+      permission: 'data:read',
+      status: 'live',
+    });
+    const icons = NAVIGATION.filter((item) => item.icon === issues?.icon);
+    expect(icons.map((item) => item.key)).toEqual(['issues']);
+    expect(NAVIGATION.find((item) => item.key === 'pages')).toMatchObject({ group: 'audit', status: 'planned' });
+    expect(NAVIGATION.find((item) => item.key === 'internalLinks')).toMatchObject({
+      path: '/seo/internal-links',
+      group: 'audit',
+      status: 'live',
+    });
+  });
+
+  it('shows a member with data:read the groups SEO (Keywords), Website audit (Issues, Internal links) and AI, and no Pages', () => {
+    const [first] = visibleNavigation(NAVIGATION, permissionsFor('viewer'));
+    expect(first?.groups.map((group) => [group.group, group.items.map((item) => item.key)])).toEqual([
+      ['seo', ['keywords']],
+      ['audit', ['issues', 'internalLinks']],
+      ['ai', ['aiOverview', 'prompts', 'citations', 'insights']],
+    ]);
+    expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('viewer')))).not.toContain('pages');
+  });
+
+  it('shows a member without data:read no Website audit group', () => {
+    const shown = visibleNavigation(NAVIGATION, permissionsFor('billing'));
+    expect(shown.flatMap((section) => section.groups.map((group) => group.group))).not.toContain('audit');
+    expect(keysOf(shown)).not.toContain('issues');
   });
 
   it('asks only for permissions the API has', () => {
@@ -36,9 +72,10 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Insights, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Issues, Internal links, AI Overview, Prompts, Citations, Insights, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'issues',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -67,6 +104,7 @@ describe('the navigation registry', () => {
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
     expect(shownTo('viewer')).toEqual([
       'keywords',
+      'issues',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -80,6 +118,7 @@ describe('the navigation registry', () => {
     ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
+      'issues',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -114,7 +153,7 @@ describe('the navigation registry', () => {
 
   it('keeps the groups of the first section in order for a reader', () => {
     const [first] = visibleNavigation(ALL_LIVE, permissionsFor('viewer'));
-    expect(first?.groups.map((group) => group.group)).toEqual([null, 'seo', 'ai']);
+    expect(first?.groups.map((group) => group.group)).toEqual([null, 'seo', 'audit', 'ai']);
   });
 
   it('builds hrefs from the slugs', () => {
@@ -173,6 +212,9 @@ describe('the navigation registry', () => {
     const at = (path: string): string | undefined => destinationOf(NAVIGATION, path, 'digibranders', 'fynix')?.key;
     expect(at('/digibranders/fynix')).toBe('overview');
     expect(at('/digibranders/fynix/settings/profile')).toBe('settings');
+    expect(at('/digibranders/fynix/seo/issues')).toBe('issues');
+    expect(at('/digibranders/fynix/seo/issues/')).toBe('issues');
+    expect(at('/digibranders/fynix/seo/internal-links')).toBe('internalLinks');
     expect(at('/digibranders/fynix/ai')).toBe('aiOverview');
     expect(at('/digibranders/fynix/ai/prompts/p_1')).toBe('prompts');
     // Runs lives below `/ops`, which is no destination of its own

@@ -481,6 +481,7 @@
       "rankings": "Keywords",
       "keywords": "Keywords",
       "pages": "Pages",
+      "issues": "Issues",
       "internalLinks": "Internal links",
       "aiOverview": "AI visibility",
       "prompts": "Prompts",
@@ -496,6 +497,7 @@
     },
     "groups": {
       "seo": "SEO",
+      "audit": "Website audit",
       "ai": "AI visibility"
     },
     "inGroup": "{group}: {item}"

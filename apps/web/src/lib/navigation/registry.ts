@@ -5,6 +5,7 @@ import {
   FileText,
   Grid2x2,
   LayoutDashboard,
+  ListChecks,
   ListOrdered,
   MessageSquare,
   MessageSquareText,
@@ -24,7 +25,7 @@ import type { Permission } from '@/lib/permissions/permissions';
 import { projectPath, withQuery } from '@/lib/routes/paths';
 
 /**
- * The destinations of a project (11-navigation.md section 1.1, 17 items in 3 sections), the one list the
+ * The destinations of a project (11-navigation.md section 1.1, 18 items in 3 sections), the one list the
  * sidebar, the breadcrumb and later the command palette read. Runs and Costs are in it too: Runs is the
  * project's own, and Costs shows the whole workspace's spend but is opened from the project, so the sidebar
  * stays on screen. A destination whose screen is not built yet is `planned`: it is absent from navigation
@@ -37,6 +38,7 @@ export type NavKey =
   | 'rankings'
   | 'keywords'
   | 'pages'
+  | 'issues'
   | 'internalLinks'
   | 'aiOverview'
   | 'prompts'
@@ -51,7 +53,7 @@ export type NavKey =
   | 'settings';
 
 /** The labelled groups inside the first section. A group label is text, never a link. */
-export type NavGroup = 'seo' | 'ai';
+export type NavGroup = 'seo' | 'audit' | 'ai';
 export type NavSectionId = 1 | 2 | 3;
 
 export interface NavDestination {
@@ -110,21 +112,31 @@ export const NAVIGATION: readonly NavDestination[] = [
     permission: 'data:read',
     status: 'live',
   },
+  // The Website audit group, in the owner's order (2026-11-26): Pages lands first when its screen ships
   {
     key: 'pages',
     path: '/seo/pages',
     icon: FileText,
     section: 1,
-    group: 'seo',
+    group: 'audit',
     permission: 'data:read',
     status: 'planned',
+  },
+  {
+    key: 'issues',
+    path: '/seo/issues',
+    icon: ListChecks,
+    section: 1,
+    group: 'audit',
+    permission: 'data:read',
+    status: 'live',
   },
   {
     key: 'internalLinks',
     path: '/seo/internal-links',
     icon: Network,
     section: 1,
-    group: 'seo',
+    group: 'audit',
     permission: 'data:read',
     status: 'live',
   },
