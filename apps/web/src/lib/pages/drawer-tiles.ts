@@ -6,7 +6,7 @@ export type DrawerTileId =
   'clicks' | 'impressions' | 'keywords' | 'citations' | 'linksIn' | 'linksOut' | 'depth' | 'issues';
 
 /** `ok` has a number; the others have none and say why: never a 0 for what is not known. */
-export type DrawerTileState = 'ok' | 'not_connected' | 'pending' | 'unreachable';
+export type DrawerTileState = 'ok' | 'not_connected' | 'pending' | 'unreachable' | 'error';
 
 /** What a tile's second line says, as data: the words are the component's. */
 export type DrawerTileNote =
@@ -50,7 +50,11 @@ function searchTile(id: 'clicks' | 'impressions', gsc: PageDetail['extras']['gsc
 
 function issuesTile(issues: Seam<readonly PageIssue[]>): DrawerTile | null {
   if (issues.state === 'unavailable') return null;
-  if (issues.state !== 'ready') {
+  // A failed read is not "not collected yet": it says so, and the Issues tab it opens has the retry
+  if (issues.state === 'error') {
+    return { id: 'issues', value: null, state: 'error', note: { kind: 'none' }, tab: 'issues' };
+  }
+  if (issues.state === 'loading') {
     return { id: 'issues', value: null, state: 'pending', note: { kind: 'none' }, tab: 'issues' };
   }
   const [worst] = sortIssues(issues.data);

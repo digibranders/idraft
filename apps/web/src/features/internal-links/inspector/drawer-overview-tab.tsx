@@ -20,7 +20,7 @@ import type { LinkScope } from '@/lib/internal-links/scopes';
 import type { PageDetail, PageRow } from '@/lib/internal-links/types';
 import type { PageDrawerTab } from '@/lib/pages/drawer-tabs';
 import { drawerTiles, sortIssues, type DrawerTile, type DrawerTileNote } from '@/lib/pages/drawer-tiles';
-import type { IssueSeverity, PageIssue, Seam } from '@/lib/pages/issue-source';
+import { checkLabel, type IssueSeverity, type PageIssue, type Seam } from '@/lib/pages/issue-source';
 import { cn } from '@/lib/utils';
 
 /** Most issues the card lists before it sends the reader to the Issues tab. */
@@ -54,6 +54,31 @@ export function FlagsList({ page, linkScope }: { page: PageRow; linkScope: LinkS
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The words of one issue: its label (or, until the Issues session has labels, its detail) first, then the other of
+ * the two; the raw check id appears only as the small fallback line while there is no label.
+ */
+export function IssueText({ issue }: { issue: PageIssue }): ReactElement {
+  const label = checkLabel(issue.checkId);
+  const title = label ?? issue.detail;
+  const note = label === null ? issue.checkId : issue.detail;
+  return (
+    <>
+      {title === null ? null : <span className="type-body wrap-anywhere">{title}</span>}
+      {note === null ? null : (
+        <span
+          className={cn(
+            'type-meta wrap-anywhere',
+            label === null ? 'text-foreground-tertiary' : 'text-foreground-secondary',
+          )}
+        >
+          {note}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -182,6 +207,8 @@ function Tiles({
         return t('notReachable');
       case 'pending':
         return t('notCollected');
+      case 'error':
+        return t('couldNotLoad');
     }
   };
   const noteText = (note: DrawerTileNote): string | null => {
@@ -273,10 +300,7 @@ function Attention({
           {found.slice(0, MOST_ISSUES).map((issue) => (
             <li key={issue.checkId} className="flex flex-col items-start gap-1">
               <Badge tone={SEVERITY_TONE[issue.severity]}>{t(`severity.${issue.severity}`)}</Badge>
-              <span className="type-body wrap-anywhere">{issue.checkId}</span>
-              {issue.detail === null ? null : (
-                <span className="type-meta wrap-anywhere text-foreground-secondary">{issue.detail}</span>
-              )}
+              <IssueText issue={issue} />
             </li>
           ))}
         </ul>
@@ -304,7 +328,7 @@ function About({
       value: (
         <span className="flex items-start gap-1">
           <span className="min-w-0 flex-1 wrap-anywhere">{page.url}</span>
-          <IconButton icon={Copy} label={t('about.copyAddress')} size="icon-xs" onClick={onCopyAddress} />
+          <IconButton icon={Copy} label={t('about.copyUrl')} size="icon-xs" onClick={onCopyAddress} />
         </span>
       ),
     },
@@ -315,7 +339,7 @@ function About({
     {
       id: 'crawled',
       label: t('about.lastCrawled'),
-      value: finished === null ? t('tiles.notCollected') : formatDetailDateTime(finished, context.timeZone),
+      value: finished === null ? t('about.notCrawled') : formatDetailDateTime(finished, context.timeZone),
     },
   ];
   return (

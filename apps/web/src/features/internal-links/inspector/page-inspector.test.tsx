@@ -805,7 +805,7 @@ describe('the page inspector (spec 7.4)', () => {
       expect(within(about).getByText('Redirects to')).toBeInTheDocument();
       expect(within(about).getByText('https://example.com/new')).toBeInTheDocument();
       expect(within(about).getByText('Last crawled')).toBeInTheDocument();
-      await user.click(within(about).getByRole('button', { name: 'Copy address' }));
+      await user.click(within(about).getByRole('button', { name: 'Copy URL' }));
       expect((await screen.findAllByText('URL copied')).length).toBeGreaterThan(0);
     });
 
@@ -845,6 +845,29 @@ describe('the page inspector (spec 7.4)', () => {
         expect(items[4]).toHaveTextContent('Notice');
         await user.click(within(card).getByRole('button', { name: 'See all issues' }));
         expect(selectedTab(panel)).toBe('Issues');
+      });
+
+      it('names an issue by its detail first, with the raw check id only as the small line after it', async () => {
+        seam.current = { state: 'ready', data: [issue('error', 'missing_h1')] };
+        renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+        const panel = await panelOf('/pricing');
+        const card = (await within(panel).findByRole('heading', { name: 'Needs attention' })).closest(
+          'section',
+        ) as HTMLElement;
+        const [item] = within(card).getAllByRole('listitem');
+        const lines = [...(item?.querySelectorAll('span.type-body, span.type-meta') ?? [])].map(
+          (line) => line.textContent,
+        );
+        expect(lines).toEqual(['Found by missing_h1', 'missing_h1']);
+      });
+
+      it('reads a failed Issues read on its tile as Could not load, not as not collected', async () => {
+        seam.current = { state: 'error', retry: vi.fn() };
+        renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+        const group = await within(await panelOf('/pricing')).findByRole('group', { name: 'Page numbers' });
+        expect(
+          within(group).getByRole('button', { name: 'Issues: Could not load. Opens the Issues tab.' }),
+        ).toBeInTheDocument();
       });
 
       it('says nothing needs attention when the page has no issue', async () => {

@@ -9175,6 +9175,7 @@
           "notReachable": "Not reachable by links",
           "notConnected": "Not connected",
           "notCollected": "Not collected yet",
+          "couldNotLoad": "Could not load",
           "issuesNone": "None found",
           "issuesNote": "{count, plural, one {# error} other {# errors}}",
           "issuesWarnings": "{count, plural, one {# warning} other {# warnings}}",
@@ -9201,7 +9202,8 @@
           "lastCrawled": "Last crawled",
           "noTitle": "No title",
           "noCanonical": "None set",
-          "copyAddress": "Copy address"
+          "notCrawled": "Not crawled yet",
+          "copyUrl": "Copy URL"
         }
       },
       "notes": {

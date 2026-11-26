@@ -79,10 +79,16 @@ describe('drawerTiles (spec 9.4)', () => {
     expect(byId(tiles, 'issues')).toMatchObject({ state: 'ok', note: { kind: 'issuesNone' } });
   });
 
-  it('keeps the Issues tile pending while the seam loads or has failed, with no value', () => {
-    for (const seam of [{ state: 'loading' }, { state: 'error', retry: () => undefined }] as const) {
-      expect(byId(drawerTiles(detail(), seam), 'issues')).toMatchObject({ value: null, state: 'pending' });
-    }
+  it('keeps the Issues tile pending, with no value, while the seam loads', () => {
+    expect(byId(drawerTiles(detail(), { state: 'loading' }), 'issues')).toMatchObject({
+      value: null,
+      state: 'pending',
+    });
+  });
+
+  it('gives the Issues tile its own error state, with no value, when the seam has failed', () => {
+    const tiles = drawerTiles(detail(), { state: 'error', retry: () => undefined });
+    expect(byId(tiles, 'issues')).toMatchObject({ value: null, state: 'error' });
   });
 
   it('reads clicks and impressions from the Search Console state and never as 0 when it is not known', () => {

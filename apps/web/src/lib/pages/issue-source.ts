@@ -14,6 +14,9 @@ export interface PageIssue {
 export type Seam<T> =
   { state: 'unavailable' } | { state: 'loading' } | { state: 'error'; retry: () => void } | { state: 'ready'; data: T };
 
+/** The words for a check id, or null while the Issues session has none (the drawer then shows the id as a fallback). */
+export const checkLabel: (checkId: string) => string | null = () => null;
+
 /** The strip and card 7 of the Overview: the `summary` of `GET …/issues`. */
 export const useIssueTotals: (
   scope: LinksScope,
