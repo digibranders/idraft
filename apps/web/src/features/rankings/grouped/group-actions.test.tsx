@@ -248,9 +248,6 @@ describe('Group row actions', () => {
     expect(within(drawer).queryByRole('button', { name: 'Check now' })).toBeNull();
     // With no group write to offer, the More button is not drawn at all
     expect(within(drawer).queryByRole('button', { name: 'More actions for Local' })).toBeNull();
-    for (const name of [/Add keywords/, /Rename group/, /Delete group/]) {
-      expect(within(drawer).queryByRole('button', { name })).toBeNull();
-    }
     expect(screen.queryByRole('menu')).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();

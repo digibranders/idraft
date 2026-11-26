@@ -404,6 +404,7 @@ describe('Keywords By group with a group drawer open', () => {
 
     await user.click(within(drawer).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    expect(tree).toBeInTheDocument();
     expect(tree.querySelector('[aria-current]')).toBeNull();
   });
 

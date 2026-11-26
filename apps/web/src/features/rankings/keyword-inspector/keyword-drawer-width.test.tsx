@@ -55,14 +55,17 @@ const USER = 'drawer-width-user';
 /**
  * The `w-`, `min-w-` and `max-w-` classes of a box that set a size. `w-full`, `min-w-0` and the like leave the box to
  * its parent; a plain `w-1` to `w-16` (4 to 64 px) is the slot of an icon or a figure inside a cell, never the width of
- * a column or of the card. The tab underline takes the width of the tab it sits under, which the tab list measures.
+ * a column or of the card. The tab underline takes the width of the tab it sits under, which the tab list measures. A
+ * variant (`md:`, `@lg:`, `[&>td]:`) or an important mark (`!w-80`, `w-80!`) does not hide a width: the class is judged
+ * by its bare name.
  */
 function sizingWidthClasses(node: Element): string[] {
   const free = /^(?:(?:min-|max-)?w-(?:0|full|none|auto|fit)|w-\(--active-tab-width\))$/;
   const slot = /^w-(?:[1-9]|1[0-6])$/;
-  return (node.getAttribute('class') ?? '')
-    .split(/\s+/)
-    .filter((name) => /^(?:min-|max-)?w-/.test(name) && !free.test(name) && !slot.test(name));
+  return (node.getAttribute('class') ?? '').split(/\s+/).filter((name) => {
+    const bare = name.replace(/^(?:(?:\[[^\]]*\]|[^\s:[]+):)*/, '').replace(/^!|!$/g, '');
+    return /^(?:min-|max-)?w-/.test(bare) && !free.test(bare) && !slot.test(bare);
+  });
 }
 
 beforeEach(() => {
