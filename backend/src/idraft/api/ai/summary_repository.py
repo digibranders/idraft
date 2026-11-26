@@ -886,12 +886,15 @@ async def weekly_position_sums(
     until: datetime,
     engine_codes: Sequence[str] | None,
     timezone: str,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str, date], PositionSums]:
     """`position_sums` by week as well, in one statement: the places of the own brand by prompt,
     engine and week (a Monday at midnight in the project's timezone, as in `weekly_counts`)."""
     if not prompt_ids:
         return {}
-    c = _weekly_facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone).c
+    c = _weekly_facts(
+        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone, aio_keywords
+    ).c
     placed = and_(c.is_valid, c.own_mentioned, c.own_mention_order.is_not(None))
     rows = await db.execute(
         select(
