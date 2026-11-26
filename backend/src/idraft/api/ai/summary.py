@@ -1048,7 +1048,12 @@ class SummaryService:
             # The Google AI Overview answers the prompts through their linked keywords: one
             # statement over the links, shared by the answer reads and the `ai_overview` cell.
             checks = await aio_summary.check_rows(db, ws, project_id, ids)
-            window["aio_keywords"] = aio_summary.answer_keywords(checks)
+            # Google AI Overview answers count only when the request names the engine: a read
+            # without the filter keeps the platforms that are asked per prompt.
+            asked_by_name = (
+                query.engine_codes is not None and "google_ai_overview" in query.engine_codes
+            )
+            window["aio_keywords"] = aio_summary.answer_keywords(checks) if asked_by_name else None
             by_prompt = await repository.counts_by_prompt(
                 db,
                 ws,

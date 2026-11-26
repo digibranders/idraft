@@ -129,7 +129,12 @@ async def test_a_prompt_gets_the_overview_answer_of_its_keyword_with_its_outcome
     tracked = await _tracked_world(migrated, recent_world, "present_not_cited")
     await _overview(migrated, recent_world, tracked, 2)
 
-    data = await _data(api, recent_world, include="ai_overview,total")
+    data = await _data(
+        api,
+        recent_world,
+        include="ai_overview,total",
+        **{"filter[engine_code_in]": f"{CHATGPT},{AIO}"},
+    )
 
     engines = _engines(data["prompts"][0])
     assert set(engines) == {CHATGPT, AIO}
@@ -151,7 +156,7 @@ async def test_two_prompts_that_share_a_keyword_each_get_the_answer(
     await _speaks_for(migrated, recent_world, second.id, "managed soc")
     await _overview(migrated, recent_world, tracked, 2, mentioned=True, cited=True)
 
-    data = await _data(api, recent_world, include="total")
+    data = await _data(api, recent_world, include="total", **{"filter[engine_code_in]": AIO})
 
     assert len(data["prompts"]) == 2
     for row in data["prompts"]:
@@ -182,17 +187,25 @@ async def test_the_answer_is_the_newest_valid_one_inside_the_window(
     await _overview(migrated, recent_world, tracked, 10, mentioned=True, cited=False)
     await _overview(migrated, recent_world, tracked, 3, mentioned=True, cited=True)
 
-    newest = _engines((await _data(api, recent_world))["prompts"][0])[AIO]
+    newest = _engines(
+        (await _data(api, recent_world, **{"filter[engine_code_in]": AIO}))["prompts"][0]
+    )[AIO]
     assert (newest["mentioned"]["denominator"], _outcomes(newest)) == (1, [1, 0, 0, 0])
 
     # A window that closes before the newer answer reads the older one.
     older = _engines(
-        (await _data(api, recent_world, **{"from": day(20), "to": day(5)}))["prompts"][0]
+        (
+            await _data(
+                api, recent_world, **{"from": day(20), "to": day(5), "filter[engine_code_in]": AIO}
+            )
+        )["prompts"][0]
     )[AIO]
     assert (older["mentioned"]["denominator"], _outcomes(older)) == (1, [0, 1, 0, 0])
 
     # A window with neither answer in it has none.
-    empty = await _data(api, recent_world, **{"from": day(2), "to": day(0)})
+    empty = await _data(
+        api, recent_world, **{"from": day(2), "to": day(0), "filter[engine_code_in]": AIO}
+    )
     assert AIO not in _engines(empty["prompts"][0])
 
 
@@ -207,7 +220,7 @@ async def test_the_period_compared_with_reads_its_own_answer(
         api,
         recent_world,
         compare="previous_period",
-        **{"from": day(6), "to": day(0)},
+        **{"from": day(6), "to": day(0), "filter[engine_code_in]": AIO},
     )
 
     overview = _engines(data["prompts"][0])[AIO]
@@ -226,5 +239,12 @@ async def test_the_engine_filter_and_the_other_engines_are_untouched(
     assert set(_engines(only_chatgpt["prompts"][0])) == {CHATGPT}
     only_overview = await _data(api, recent_world, **{"filter[engine_code_in]": AIO})
     assert set(_engines(only_overview["prompts"][0])) == {AIO}
-    both = _engines((await _data(api, recent_world))["prompts"][0])
+    unfiltered = _engines((await _data(api, recent_world))["prompts"][0])
+    # Without the filter only the platforms asked per prompt answer; the Overview must be named
+    assert AIO not in unfiltered
+    both = _engines(
+        (await _data(api, recent_world, **{"filter[engine_code_in]": f"{CHATGPT},{AIO}"}))[
+            "prompts"
+        ][0]
+    )
     assert both[CHATGPT]["mentioned"]["denominator"] == 1
