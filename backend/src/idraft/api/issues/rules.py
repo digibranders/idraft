@@ -10,7 +10,8 @@ statuses that only refuse the crawler (`crawl/status.py`)."""
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Final, Protocol
+from datetime import timedelta
+from typing import TYPE_CHECKING, Any, Final, Protocol
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, FromClause, Select, and_, exists, false, func, or_, select
@@ -18,7 +19,20 @@ from sqlalchemy.orm import aliased
 
 from idraft.api.issues.catalogue import BY_ID, DEPTH_MAX, PATH_MAX, TITLE_MAX, TITLE_MIN
 from idraft.crawl.status import BLOCKED_STATUSES
-from idraft.db.tables import crawl_links, crawl_pages, crawl_runs, urls
+from idraft.db.tables import (
+    ai_citations,
+    ai_observations,
+    crawl_links,
+    crawl_pages,
+    crawl_runs,
+    gsc_page_daily,
+    tracked_keyword_state,
+    tracked_keywords,
+    urls,
+)
+
+if TYPE_CHECKING:
+    from idraft.api.issues.sources import Sources
 
 
 class CrawlRef(Protocol):
@@ -212,9 +226,137 @@ def _sitemap_was_read(crawl: CrawlRef) -> ColumnElement[bool]:
     )
 
 
-def condition(check_id: str, crawl: CrawlRef) -> ColumnElement[bool]:
-    """The condition of a check. A check that reads another source matches nothing until task 4
-    gives this function the sources."""
+# The tracked keywords of the project that are in use, with the state of their last check.
+KEYWORD_ROWS: Final = tracked_keywords.join(
+    tracked_keyword_state,
+    and_(
+        tracked_keyword_state.c.tracked_keyword_id == tracked_keywords.c.id,
+        tracked_keyword_state.c.workspace_id == tracked_keywords.c.workspace_id,
+    ),
+)
+# An answer and the pages it cites, as the answer counts for the Pages list (decision D9).
+CITATION_ROWS: Final = ai_citations.join(
+    ai_observations,
+    and_(
+        ai_observations.c.id == ai_citations.c.observation_id,
+        ai_observations.c.observed_at == ai_citations.c.observed_at,
+        ai_observations.c.workspace_id == ai_citations.c.workspace_id,
+    ),
+)
+
+
+def active_keywords(crawl: CrawlRef) -> list[ColumnElement[bool]]:
+    """Over `KEYWORD_ROWS`: the keywords of this project that are active and not deleted."""
+    return [
+        tracked_keywords.c.workspace_id == crawl.workspace_id,
+        tracked_keywords.c.project_id == crawl.project_id,
+        tracked_keywords.c.is_active,
+        tracked_keywords.c.deleted_at.is_(None),
+    ]
+
+
+def ranked_keywords(crawl: CrawlRef) -> list[ColumnElement[bool]]:
+    """Over `KEYWORD_ROWS`: active keywords that have a rank."""
+    return [*active_keywords(crawl), tracked_keyword_state.c.current_rank.is_not(None)]
+
+
+def own_citations(crawl: CrawlRef) -> list[ColumnElement[bool]]:
+    """Over `CITATION_ROWS`: citations of the project's own domain in the last 28 days, in
+    answers that were not superseded."""
+    return [
+        ai_citations.c.workspace_id == crawl.workspace_id,
+        ai_citations.c.project_id == crawl.project_id,
+        ai_citations.c.domain_role == "own",
+        ai_citations.c.observed_at >= func.now() - timedelta(days=28),
+        ai_observations.c.superseded_by.is_(None),
+    ]
+
+
+def _has_clicks(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    """The page has clicks above 0 in the stored window of the property."""
+    gsc = sources.gsc
+    if gsc.state != "ok" or gsc.integration_id is None or gsc.window is None:
+        return false()
+    return exists().where(
+        gsc_page_daily.c.workspace_id == crawl.workspace_id,
+        gsc_page_daily.c.project_id == crawl.project_id,
+        gsc_page_daily.c.integration_id == gsc.integration_id,
+        gsc_page_daily.c.metric_date.between(*gsc.window),
+        gsc_page_daily.c.url_id == crawl_pages.c.url_id,
+        gsc_page_daily.c.clicks > 0,
+    )
+
+
+def _ranks_with_page(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    if not sources.ranks:
+        return false()
+    return and_(
+        _unreachable(crawl_pages),
+        exists(
+            select(1)
+            .select_from(KEYWORD_ROWS)
+            .where(
+                *ranked_keywords(crawl),
+                tracked_keyword_state.c.current_url_id == crawl_pages.c.url_id,
+            )
+        ),
+    )
+
+
+def _off_target(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    if not sources.ranks:
+        return false()
+    return and_(
+        _counted(crawl_pages),
+        exists(
+            select(1)
+            .select_from(KEYWORD_ROWS)
+            .where(
+                *ranked_keywords(crawl),
+                tracked_keywords.c.target_url_id == crawl_pages.c.url_id,
+                tracked_keyword_state.c.current_url_id.is_not(None),
+                tracked_keyword_state.c.current_url_id != tracked_keywords.c.target_url_id,
+            )
+        ),
+    )
+
+
+def _cited(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    if not sources.ai:
+        return false()
+    return and_(
+        _unreachable(crawl_pages),
+        exists(
+            select(1)
+            .select_from(CITATION_ROWS)
+            .where(*own_citations(crawl), ai_citations.c.url_id == crawl_pages.c.url_id)
+        ),
+    )
+
+
+SourceRule = Callable[[CrawlRef, "Sources"], ColumnElement[bool]]
+# The checks that join another source. Each one is false when its source is not there.
+_SOURCE_RULES: Final[dict[str, SourceRule]] = {
+    "clicks-page-broken": lambda crawl, sources: and_(
+        _unreachable(crawl_pages), _has_clicks(crawl, sources)
+    ),
+    "clicks-page-orphan": lambda crawl, sources: and_(
+        _live(crawl_pages), crawl_pages.c.is_orphan, _has_clicks(crawl, sources)
+    ),
+    "rank-page-broken": _ranks_with_page,
+    "off-target": _off_target,
+    "cited-page-broken": _cited,
+}
+
+
+def condition(
+    check_id: str, crawl: CrawlRef, sources: Sources | None = None
+) -> ColumnElement[bool]:
+    """The condition of a check. A check that reads another source matches nothing without
+    `sources`, or when that source is not there."""
+    source_rule = _SOURCE_RULES.get(check_id)
+    if source_rule is not None:
+        return false() if sources is None else source_rule(crawl, sources)
     rule = _RULES.get(check_id)
     if rule is None:
         return false()

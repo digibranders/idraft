@@ -10,9 +10,12 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.api.internal_links.page_filter import PageScope
+from idraft.api.internal_links.page_sort import extra_sort
 from idraft.api.internal_links.reads import read_scope
 from idraft.api.issues.catalogue import BY_ID, CHECKS, Check
-from idraft.api.issues.rules import CrawlRef, condition
+from idraft.api.issues.rules import condition
+from idraft.api.issues.sources import Sources, read_sources
 from idraft.api.schemas.issues import (
     IssueCheck,
     IssueGsc,
@@ -26,14 +29,19 @@ from idraft.db.engine import workspace_transaction
 from idraft.db.tables import crawl_pages, crawl_runs, urls
 
 
-def _not_run_reason(check: Check, *, has_sitemap: bool, links_dropped: bool) -> NotRunReason | None:
+def _not_run_reason(
+    check: Check, *, has_sitemap: bool, links_dropped: bool, sources: Sources
+) -> NotRunReason | None:
     """Why a check cannot be evaluated on this crawl; None when it can."""
     if check.need == "sitemap" and not has_sitemap:
         return "no_sitemap"
     if check.need == "links" and links_dropped:
         return "links_dropped"
-    # The other sources are read by a later task; until then they hold nothing.
-    if check.need in ("gsc", "ranks", "ai"):
+    if check.need == "gsc" and sources.gsc.state == "not_connected":
+        return "source_not_connected"
+    if check.need == "gsc" and sources.gsc.state == "pending":
+        return "not_collected"
+    if (check.need == "ranks" and not sources.ranks) or (check.need == "ai" and not sources.ai):
         return "not_collected"
     return None
 
@@ -44,18 +52,32 @@ def _pages_with(severity: str, columns: dict[str, ColumnElement[bool]]) -> Colum
     return func.count().filter(or_(*found))
 
 
-def checks_statement(crawl: CrawlRef, running: Sequence[Check]) -> Select[*tuple[Any, ...]]:
+def checks_statement(
+    crawl: PageScope, running: Sequence[Check], sources: Sources
+) -> Select[*tuple[Any, ...]]:
     """One row of totals for the crawl: `crawled`, `issue`, `error`, `warning`, `notice`, then
-    `n<i>` (pages found) and `e<i>` (first path in byte order) for the i-th running check.
-    Each severity has a running check that needs nothing, so no list of columns is empty."""
+    `n<i>` (pages found), `e<i>` (first path in byte order) and, when Search Console is `ok`,
+    `k<i>` (clicks of those pages) for the i-th running check. Each severity has a running
+    check that needs nothing, so no list of columns is empty."""
+    window = sources.gsc.window if sources.gsc.state == "ok" else None
+    clicks = (
+        None
+        if sources.gsc.integration_id is None or window is None
+        else extra_sort(crawl, "clicks", gsc=(sources.gsc.integration_id, window))
+    )
+    rows = crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id)
     # MATERIALIZED makes PostgreSQL evaluate every condition once per page. A plain subquery is
     # pulled up into the aggregate and each condition is then evaluated once per use.
     flags = (
         select(
             urls.c.path.label("path"),
-            *(condition(check.id, crawl).label(f"c{index}") for index, check in enumerate(running)),
+            *(
+                condition(check.id, crawl, sources).label(f"c{index}")
+                for index, check in enumerate(running)
+            ),
+            *(() if clicks is None else (clicks.column.label("clicks"),)),
         )
-        .select_from(crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id))
+        .select_from(rows if clicks is None else clicks.join(rows))
         .where(
             crawl_pages.c.workspace_id == crawl.workspace_id,
             crawl_pages.c.run_id == crawl.run_id,
@@ -81,6 +103,11 @@ def checks_statement(crawl: CrawlRef, running: Sequence[Check]) -> Select[*tuple
         *(
             func.min(flags.c.path.collate("C")).filter(column).label(f"e{index}")
             for index, column in enumerate(columns.values())
+        ),
+        *(
+            func.coalesce(func.sum(flags.c.clicks).filter(column), 0).label(f"k{index}")
+            for index, column in enumerate(columns.values())
+            if clicks is not None
         ),
     )
 
@@ -108,19 +135,29 @@ class IssueService:
                     )
                 )
             ).one()
+            sources = await read_sources(db, scope)
             reasons = {
                 check.id: _not_run_reason(
                     check,
                     has_sitemap=(crawl.sitemap_pages or 0) > 0,
                     links_dropped=scope.links_dropped,
+                    sources=sources,
                 )
                 for check in CHECKS
             }
             running = [check for check in CHECKS if reasons[check.id] is None]
-            counts = (await db.execute(checks_statement(scope, running))).one()
+            counts = (await db.execute(checks_statement(scope, running, sources))).one()
         found_by_index = counts._mapping
         pages = {check.id: found_by_index[f"n{index}"] for index, check in enumerate(running)}
         examples = {check.id: found_by_index[f"e{index}"] for index, check in enumerate(running)}
+        # Clicks are known only when Search Console has stored days; a check that did not run
+        # has none.
+        clicks = (
+            {check.id: int(found_by_index[f"k{index}"]) for index, check in enumerate(running)}
+            if sources.gsc.state == "ok"
+            else {}
+        )
+        window = sources.gsc.window if sources.gsc.state == "ok" else None
         data = [
             IssueCheck(
                 id=check.id,
@@ -131,7 +168,7 @@ class IssueService:
                 state="not_run" if reasons[check.id] else "ran",
                 reason=reasons[check.id],
                 pages=pages.get(check.id),
-                clicks=None,
+                clicks=clicks.get(check.id),
                 example_path=examples.get(check.id),
             )
             for check in CHECKS
@@ -151,6 +188,10 @@ class IssueService:
                 run_id=scope.run_id,
                 crawled_at=crawl.finished_at,
                 links_available=not scope.links_dropped,
-                gsc=IssueGsc(state="not_connected", window_start=None, window_end=None),
+                gsc=IssueGsc(
+                    state=sources.gsc.state,
+                    window_start=None if window is None else window[0],
+                    window_end=None if window is None else window[1],
+                ),
             ),
         )

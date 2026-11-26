@@ -5,15 +5,18 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 import httpx
 import pytest
 from sqlalchemy.dialects import postgresql
 
+from idraft.api.internal_links.page_filter import PageScope
 from idraft.api.issues.catalogue import BY_ID, CHECKS
 from idraft.api.issues.service import checks_statement
+from idraft.api.issues.sources import Sources
+from idraft.api.keywords.gsc_repository import GscScope
 from idraft.api.resources import Resources
 from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.entities.support import member, problem
@@ -102,14 +105,15 @@ async def test_the_summary_counts_an_address_once(
     assert summary["checks_passed"] == 0
 
 
-async def test_the_other_sources_do_not_run_yet(
+async def test_the_other_sources_do_not_run_when_nothing_is_stored(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     rows = _rows(await _read(api, resources, migrated))
 
     for check_id in CROSS_SOURCE:
+        expected = "source_not_connected" if BY_ID[check_id].need == "gsc" else "not_collected"
         assert rows[check_id]["state"] == "not_run", check_id
-        assert rows[check_id]["reason"] == "not_collected", check_id
+        assert rows[check_id]["reason"] == expected, check_id
         assert rows[check_id]["pages"] is None, check_id
         assert rows[check_id]["clicks"] is None, check_id
 
@@ -228,19 +232,14 @@ async def test_csv(api: httpx.AsyncClient, resources: Resources, migrated: Postg
     assert by_check["rank-page-broken"][5:] == ["not_run", "", ""]
 
 
-@dataclass(frozen=True)
-class _Crawl:
-    workspace_id: uuid.UUID
-    project_id: uuid.UUID
-    run_id: uuid.UUID
-
-
 async def test_every_rule_is_evaluated_once_per_page(migrated: PostgresServer) -> None:
     workspace = await make_workspace(migrated)
     project = await keyword_project(migrated, workspace)
     run_id, _ = await audit_site(migrated, workspace, project)
-    running = [check for check in CHECKS if check.found_by == "crawl"]
-    statement = checks_statement(_Crawl(workspace.id, project, run_id), running)
+    # Every check runs, with every source there, so the clicks join is in the statement too.
+    today = date.today()
+    sources = Sources(GscScope("ok", uuid.uuid4(), (today - timedelta(days=28), today)), True, True)
+    statement = checks_statement(PageScope(workspace.id, project, run_id, None), CHECKS, sources)
     # The dialect class has no type hints for its constructor.
     dialect = postgresql.asyncpg.dialect()  # type: ignore[no-untyped-call]
     sql = str(statement.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))

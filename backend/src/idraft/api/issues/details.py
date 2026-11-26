@@ -14,17 +14,28 @@ from sqlalchemy.orm import aliased
 from idraft.api.internal_links.extras import gsc_of
 from idraft.api.internal_links.page_filter import PageScope
 from idraft.api.issues.rules import (
+    CITATION_ROWS,
     HAS_CAPITALS,
     HAS_UNDERSCORES,
+    KEYWORD_ROWS,
     NOFOLLOW_LINKS,
     PATH_LENGTH,
     CrawlRef,
+    own_citations,
+    ranked_keywords,
     title_key,
     title_length,
     titled,
 )
 from idraft.api.schemas.issues import IssueDetail
-from idraft.db.tables import crawl_links, crawl_pages, urls
+from idraft.db.tables import (
+    ai_citations,
+    crawl_links,
+    crawl_pages,
+    tracked_keyword_state,
+    tracked_keywords,
+    urls,
+)
 
 Rows = Select[*tuple[Any, ...]]
 # Checks whose value is the page another column of the row names, and which column.
@@ -139,6 +150,31 @@ def _duplicate_rows(crawl: CrawlRef, ids: Sequence[int]) -> Rows:
     )
 
 
+def _source_counts(crawl: CrawlRef, ids: Sequence[int], check_id: str) -> Rows:
+    """Per page: the distinct keywords that rank with it (or that target it and rank with
+    another page), or the distinct answers that cite it."""
+    if check_id == "cited-page-broken":
+        page = ai_citations.c.url_id
+        return (
+            select(page, func.count(ai_citations.c.observation_id.distinct()))
+            .select_from(CITATION_ROWS)
+            .where(*own_citations(crawl), page.in_(ids))
+            .group_by(page)
+        )
+    state = tracked_keyword_state.c
+    if check_id == "rank-page-broken":
+        page, found = state.current_url_id, []
+    else:
+        page = tracked_keywords.c.target_url_id
+        found = [state.current_url_id.is_not(None), state.current_url_id != page]
+    return (
+        select(page, func.count(tracked_keywords.c.keyword_id.distinct()))
+        .select_from(KEYWORD_ROWS)
+        .where(*ranked_keywords(crawl), page.in_(ids), *found)
+        .group_by(page)
+    )
+
+
 async def issue_details(
     db: AsyncSession, crawl: CrawlRef, check_id: str, ids: Sequence[int]
 ) -> dict[int, IssueDetail]:
@@ -154,6 +190,9 @@ async def issue_details(
     if check_id == "title-duplicate":
         rows = await db.execute(_duplicate_rows(crawl, ids))
         return {url: IssueDetail(target_path=path, count=count) for url, path, count in rows}
+    if check_id in ("rank-page-broken", "off-target", "cited-page-broken"):
+        rows = await db.execute(_source_counts(crawl, ids, check_id))
+        return {url: IssueDetail(count=count) for url, count in rows}
     if check_id in _COUNT:
         rows = await db.execute(_rows_of(crawl, ids, _COUNT[check_id]))
         return {url: IssueDetail(count=count) for url, count in rows}

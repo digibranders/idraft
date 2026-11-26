@@ -67,6 +67,7 @@ from idraft.api.internal_links.status_filter import status_classes
 from idraft.api.issues.catalogue import BY_ID
 from idraft.api.issues.details import NO_DETAIL, detail_cells, issue_details
 from idraft.api.issues.rules import condition
+from idraft.api.issues.sources import read_sources
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
 from idraft.api.schemas.common import UserRef
@@ -964,17 +965,20 @@ async def attach_extras(
         )
 
 
-def _page_filter_conditions(
-    found: PageFilter, scope: PageScope, issue: str | None
+async def _page_filter_conditions(
+    db: AsyncSession, found: PageFilter, scope: PageScope, issue: str | None
 ) -> list[ColumnElement[bool]]:
     """The Pages filter, with the rule of one check of the Issues page when `issue` is set."""
     if issue is None:
         return page_conditions(found, scope)
-    if BY_ID[issue].need == "links":
+    need = BY_ID[issue].need
+    if need == "links":
         scope.require_links()
+    # The sources are read only for a check that joins one of them.
+    sources = await read_sources(db, scope) if need in ("gsc", "ranks", "ai") else None
     # The check says which variants count, so the list's own variant filter is off.
     conditions = page_conditions(found.model_copy(update={"include_variants": True}), scope)
-    conditions.append(condition(issue, scope))
+    conditions.append(condition(issue, scope, sources))
     return conditions
 
 
@@ -1008,7 +1012,7 @@ class LinkReadService:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
-            conditions = _page_filter_conditions(found, scope, issue)
+            conditions = await _page_filter_conditions(db, found, scope, issue)
             total = (
                 await db.execute(
                     select(func.count()).select_from(page_rows(scope)).where(*conditions)
@@ -1067,10 +1071,11 @@ class LinkReadService:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
             sorter = await _sorter(db, scope, view, sort)
+            conditions = await _page_filter_conditions(db, found, scope, issue)
             rows = (
                 await db.execute(
                     _page_select(view, sorter)
-                    .where(*_page_filter_conditions(found, scope, issue))
+                    .where(*conditions)
                     .order_by(*_page_order(sorter))
                     .limit(EXPORT_ROWS_MAX)
                 )
