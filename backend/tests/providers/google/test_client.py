@@ -634,6 +634,28 @@ async def _search_bodies(**changes: object) -> list[dict[str, object]]:
     return bodies
 
 
+async def test_search_analytics_gives_one_call_its_own_timeout_and_no_other_call() -> None:
+    reads: list[object] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        reads.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json={})
+
+    client = _client(httpx.MockTransport(answer))
+    for changes in ({}, {"timeout_seconds": 45.0}):
+        await client.search_analytics(
+            "ya29.x",
+            "sc-domain:a.example",
+            start_date=date(2026, 11, 1),
+            end_date=date(2026, 11, 7),
+            dimensions=("date",),
+            **changes,  # type: ignore[arg-type]
+        )
+
+    # The first call keeps the client's own timeout (httpx's default, 5 s, for this client).
+    assert reads == [5.0, 45.0]
+
+
 async def test_search_analytics_sends_a_filter_group_only_when_filters_are_given() -> None:
     (filtered,) = await _search_bodies(
         filters=(
