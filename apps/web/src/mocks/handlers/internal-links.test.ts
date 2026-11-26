@@ -10,11 +10,23 @@ const P = `${W}/projects/${EVENTUS.project_id}`;
 const ROWS = z.object({
   data: z.array(z.object({ path: z.string(), url_id: z.string(), tier: z.object({ code: z.string() }).nullable() })),
 });
+const GRAPH = z.object({ data: z.object({ nodes: z.array(z.unknown()), edges: z.array(z.unknown()) }) });
 const TIERS = z.object({
   data: z.array(z.object({ tier_id: z.string(), code: z.string(), page_count: z.number() })),
 });
 
 describe('the internal links mock API', () => {
+  it('answers the link graph of the latest crawl, with the auto-generated links only when asked', async () => {
+    const browser = mockBrowser('viewer');
+    const editorial = await browser.call('GET', `${P}/internal-links/graph?max_pages=3000`);
+    const all = await browser.call('GET', `${P}/internal-links/graph?include_auto=true&max_pages=3000`);
+
+    expect(editorial.status).toBe(200);
+    expect(GRAPH.parse(editorial.body).data.nodes).toHaveLength(15);
+    expect(GRAPH.parse(editorial.body).data.edges).toHaveLength(13);
+    expect(GRAPH.parse(all.body).data.edges).toHaveLength(15);
+  });
+
   it('lists the latest crawl pages, with rule and manual tiers', async () => {
     const answer = await mockBrowser('editor').call(
       'GET',

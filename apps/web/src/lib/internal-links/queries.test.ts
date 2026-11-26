@@ -29,6 +29,7 @@ import {
   edgesQuery,
   internalLinksKeys,
   isEdgeRowPage,
+  linkGraphQuery,
   isPageRowPage,
   linkSettingsQuery,
   neighborsQuery,
@@ -430,5 +431,16 @@ describe('the share link reads', () => {
     const read = publicSummaryQuery('abc');
     expect(read.queryKey).toContain('abc');
     expect(read.retry).toBe(false);
+  });
+});
+
+describe('the link graph query', () => {
+  it('reads the graph of the crawl in view, with auto-generated links when asked', () => {
+    const latest = linkGraphQuery(SCOPE, false, null);
+    const older = linkGraphQuery(SCOPE, true, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    expect(latest.queryKey).not.toEqual(older.queryKey);
+    expect(JSON.stringify(latest.queryKey)).toContain('max_pages');
+    expect(JSON.stringify(older.queryKey)).toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   });
 });
