@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Final
 from uuid import UUID
@@ -83,8 +83,8 @@ def _counts(sums: Sums) -> AiReferralCounts:
 
 
 def _value(group: ReferralGroup, *, previous_collected: bool) -> AiReferralValue:
-    # The first collected day is not known, so a key with no row in a collected compared window
-    # may be a day never pulled: its `previous` is unknown, not 0.
+    # A key with no row in a collected compared window had no AI session there, but the route
+    # states only what it read: its `previous` is null and the web does not read it as 0.
     previous = group.previous
     return AiReferralValue(
         **_counts(group.current).model_dump(),
@@ -109,7 +109,10 @@ def _rows(groups: list[ReferralGroup], *, previous_collected: bool) -> list[AiRe
                 ga4_ai_assistant_channel=channel,
                 own_rules=own,
                 difference=None
-                if channel is None or own is None
+                if channel is None
+                or own is None
+                or channel.sessions is None
+                or own.sessions is None
                 else own.sessions - channel.sessions,
             )
         )
@@ -117,13 +120,27 @@ def _rows(groups: list[ReferralGroup], *, previous_collected: bool) -> list[AiRe
         rows,
         key=lambda row: (
             -max(
-                value.sessions
+                value.sessions or 0
                 for value in (row.ga4_ai_assistant_channel, row.own_rules)
                 if value is not None
             ),
             row.key,
         ),
     )
+
+
+def _last_needed(last: date, today: date) -> date:
+    """The last day that must be stored for a window ending `last`. A pull ends yesterday, so a
+    window that ends today or later needs yesterday and not its own last day. Any other window
+    needs its last day: GA4's date is Pacific and a project's day can be a day ahead of it, so a
+    day short of the end is never taken as the end."""
+    return last - timedelta(days=1) if last >= today else last
+
+
+def _collected(first: date, last: date, since: date | None, through: date, today: date) -> bool:
+    """The days `first` to `last` are all stored: pulled from `since` (not recorded: unknown, so
+    no) up to `through`."""
+    return since is not None and since <= first and through >= _last_needed(last, today)
 
 
 class FpService:
@@ -150,14 +167,16 @@ class FpService:
                 first, last, query.compare, query.compare_from, query.compare_to, today
             )
             integration = await repository.live_ga4_integration(db, ws, project_id)
-            through = (
-                None
+            pulled = (
+                Ga4PullState()
                 if integration is None
-                else Ga4PullState.read(integration.backfill_state).through
+                else Ga4PullState.read(integration.backfill_state)
             )
+            through, since = pulled.through, pulled.since
             notes = list(NOTES)
             groups: list[ReferralGroup] = []
             previous_collected = False
+            window_collected = False
             if integration is not None:
                 if through is None:
                     notes.append("Google Analytics has not been collected yet for this project.")
@@ -167,11 +186,24 @@ class FpService:
                         "window, so nothing is shown for it."
                     )
                 else:
-                    previous_collected = compared is not None and through >= compared[1]
-                    if through < last:
+                    window_collected = _collected(first, last, since, through, today)
+                    previous_collected = compared is not None and _collected(
+                        *compared, since, through, today
+                    )
+                    if through < _last_needed(last, today):
                         notes.append(
                             f"Collected up to {through.isoformat()}: the days after it are not "
                             "in these figures."
+                        )
+                    if since is None:
+                        notes.append(
+                            "The first collected day is not recorded for this project, so the "
+                            "window cannot be called fully collected."
+                        )
+                    elif since > first:
+                        notes.append(
+                            f"The figures start on {since.isoformat()}: the days of this "
+                            "window before it were not collected."
                         )
                     if compared is not None and not previous_collected:
                         notes.append(
@@ -195,6 +227,8 @@ class FpService:
             meta=AiReferralsMeta(
                 connected=integration is not None,
                 collected_through=through,
+                collected_since=since,
+                window_collected=window_collected,
                 last_success_at=None if integration is None else integration.last_success_at,
                 window=MetricWindow(
                     from_=first.isoformat(), to=last.isoformat(), timezone=zone_row.timezone

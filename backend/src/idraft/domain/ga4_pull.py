@@ -50,6 +50,9 @@ def _count(value: object) -> int:
 class Ga4PullState:
     # The last day of the window of the last run that stored its numbers.
     through: date | None = None
+    # The first day the first successful pull stored; never moved later. Null for a state of
+    # before it was kept: such a state does not say where its numbers begin.
+    since: date | None = None
     # A run has stored its window, so later runs need only the trailing days.
     complete: bool = False
     # Runs that ended in an error since the last one that did not.
@@ -65,6 +68,7 @@ class Ga4PullState:
             return cls()
         return cls(
             through=_date(found.get("through")),
+            since=_date(found.get("since")),
             complete=found.get("complete") is True,
             failures=_count(found.get("failures")),
             retry_at=_time(found.get("retry_at")),
@@ -77,6 +81,7 @@ class Ga4PullState:
             "ga4": {
                 "version": VERSION,
                 "through": None if self.through is None else self.through.isoformat(),
+                "since": None if self.since is None else self.since.isoformat(),
                 "complete": self.complete,
                 "failures": self.failures,
                 "retry_at": None if self.retry_at is None else self.retry_at.isoformat(),
@@ -94,8 +99,11 @@ class Ga4PullState:
         start = min(end - timedelta(days=TRAILING_DAYS - 1), self.through - timedelta(days=1))
         return max(start, first), end
 
-    def succeeded(self, through: date) -> Ga4PullState:
-        return replace(self, through=through, complete=True, failures=0, retry_at=None)
+    def succeeded(self, through: date, *, first_day: date | None = None) -> Ga4PullState:
+        """A run stored its window up to `through`; `first_day` is where the window began. Only
+        the first successful pull records it, so the day a later run began is never taken."""
+        since = first_day if not self.complete else self.since
+        return replace(self, through=through, since=since, complete=True, failures=0, retry_at=None)
 
     def failed(self, now: datetime) -> Ga4PullState:
         failures = self.failures + 1

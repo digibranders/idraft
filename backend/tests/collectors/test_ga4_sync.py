@@ -97,7 +97,8 @@ async def test_a_first_run_stores_ninety_days_for_both_classifiers_and_says_it_i
     assert [m["name"] for m in body["metrics"]] == list(METRICS)
     assert (body["offset"], body["limit"], body["returnPropertyQuota"]) == ("0", "100000", True)
     row = await integration_row(migrated, prop.integration_id)
-    assert _state(row) == Ga4PullState(through=yesterday(), complete=True)
+    # the first pulled day is kept, for the route to tell what part of a window was collected
+    assert _state(row) == Ga4PullState(through=yesterday(), since=window[0], complete=True)
     assert row["last_success_at"] is not None
     assert (row["status"], row["last_error"]) == ("active", None)
 
@@ -164,6 +165,8 @@ async def test_a_later_run_reads_the_trailing_three_days_and_leaves_one_copy_of_
     ]
     # one copy per key, not 90 days plus three
     assert len(rows) == 90 * 4 - 1
+    # the first pulled day is recorded once: the run of three days did not move it
+    assert _state(await integration_row(migrated, prop.integration_id)).since == days[0]
     assert (report.rows_written, report.calls) == (3 * 4 - 1, 1)
 
 

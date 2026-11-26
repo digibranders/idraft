@@ -95,11 +95,39 @@ def test_the_state_is_written_under_its_own_key_and_other_keys_stay() -> None:
     assert written["ga4"] == {
         "version": VERSION,
         "through": "2026-11-25",
+        "since": None,
         "complete": True,
         "failures": 1,
         "retry_at": (NOW + timedelta(minutes=15)).isoformat(),
     }
     assert Ga4PullState.read(written) == state
+
+
+def test_the_first_pull_records_its_first_day_and_later_runs_never_move_it() -> None:
+    first_day = date(2026, 8, 28)
+
+    first = Ga4PullState().succeeded(YESTERDAY, first_day=first_day)
+    later = first.succeeded(TODAY, first_day=TODAY - timedelta(days=3))
+    after_failure = later.failed(NOW).succeeded(TODAY, first_day=TODAY - timedelta(days=3))
+
+    assert first.since == later.since == after_failure.since == first_day
+    assert Ga4PullState.read(first.write(None)).since == first_day
+
+
+def test_a_failed_first_pull_records_nothing_and_the_next_one_does() -> None:
+    state = Ga4PullState().failed(NOW)
+
+    assert state.since is None
+    assert state.succeeded(YESTERDAY, first_day=date(2026, 8, 28)).since == date(2026, 8, 28)
+
+
+def test_a_complete_state_without_a_first_day_stays_without_one() -> None:
+    legacy = Ga4PullState.read(
+        {"ga4": {"version": VERSION, "through": "2026-11-24", "complete": True}}
+    )
+
+    assert legacy.since is None
+    assert legacy.succeeded(YESTERDAY, first_day=YESTERDAY - timedelta(days=2)).since is None
 
 
 def test_a_state_that_is_missing_of_another_version_or_unreadable_is_a_pull_not_begun() -> None:
@@ -123,6 +151,7 @@ def test_a_state_that_is_missing_of_another_version_or_unreadable_is_a_pull_not_
         ({"through": 20261125, "complete": "yes"}, Ga4PullState()),
         ({"failures": -3, "retry_at": "tomorrow"}, Ga4PullState()),
         ({"failures": True}, Ga4PullState()),
+        ({"since": "last spring"}, Ga4PullState()),
     ],
 )
 def test_a_field_that_is_not_what_was_written_reads_as_not_set(

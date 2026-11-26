@@ -27,12 +27,12 @@ class Ga4Integration:
 
 @dataclass(frozen=True, slots=True)
 class Sums:
-    """One classifier and key over one window: the rows read, and their sums. Sessions are
-    summed over rows of unit `sessions`, so a row without a count adds nothing."""
+    """One classifier and key over one window: the rows read, and their sums over rows of unit
+    `sessions`. A sum is None when the rows hold no count at all (a sum of nothing is not 0)."""
 
     rows: int
-    sessions: int
-    engaged_sessions: int
+    sessions: int | None
+    engaged_sessions: int | None
     key_events: Decimal | None
 
 
@@ -66,7 +66,7 @@ async def live_ga4_integration(
     return None if row is None else Ga4Integration(row.id, row.last_success_at, row.backfill_state)
 
 
-def _sums(rows: int, sessions: int, engaged: int, key_events: Decimal | None) -> Sums:
+def _sums(rows: int, sessions: int | None, engaged: int | None, key_events: Decimal | None) -> Sums:
     return Sums(rows=rows, sessions=sessions, engaged_sessions=engaged, key_events=key_events)
 
 
@@ -92,8 +92,8 @@ async def referral_groups(
     def columns(within: ColumnElement[bool], name: str) -> list[ColumnElement[Any]]:
         return [
             func.count().filter(within).label(f"{name}_rows"),
-            func.coalesce(func.sum(_D.sessions).filter(within), 0).label(f"{name}_sessions"),
-            func.coalesce(func.sum(_D.engaged_sessions).filter(within), 0).label(f"{name}_engaged"),
+            func.sum(_D.sessions).filter(within).label(f"{name}_sessions"),
+            func.sum(_D.engaged_sessions).filter(within).label(f"{name}_engaged"),
             func.sum(_D.key_events).filter(within).label(f"{name}_key_events"),
         ]
 
@@ -104,7 +104,8 @@ async def referral_groups(
         select(
             _D.classifier,
             key.label("key"),
-            func.max(_D.rules_version).label("rules_version"),
+            # Of the window alone: the compared one may hold rows of another rule set.
+            func.max(_D.rules_version).filter(in_window).label("rules_version"),
             *(column for group in wanted for column in group),
         )
         .where(

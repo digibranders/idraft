@@ -17,8 +17,12 @@ ReferralGroupBy = Literal["assistant", "origin", "landing_page"]
 class AiReferralCounts(BaseModel):
     """The three numbers of one classifier and key over one window."""
 
-    sessions: int
-    engaged_sessions: int
+    sessions: int | None = Field(
+        description="Sum over the window; null when the rows of the key hold no count."
+    )
+    engaged_sessions: int | None = Field(
+        description="Sum over the window; null when the rows of the key hold no count."
+    )
     key_events: str | None = Field(
         description="The sum of GA4 key events as a decimal string with two decimals; null when "
         "GA4 gave none."
@@ -56,6 +60,15 @@ class AiReferralsMeta(BaseModel):
         description="The last day a finished sync run stored; null when the sync never finished "
         "or nothing is connected."
     )
+    collected_since: date | None = Field(
+        description="The first day the first finished sync run stored; null when the sync never "
+        "finished, or when the state predates this field."
+    )
+    window_collected: bool = Field(
+        description="True when `collected_since` is at or before the first day of the window and "
+        "`collected_through` covers its last day (a window that ends today needs yesterday). "
+        "Empty `data` with true is zero AI sessions; with false it is not (fully) collected."
+    )
     last_success_at: datetime | None
     window: MetricWindow
     compare_window: MetricWindow | None
@@ -74,6 +87,6 @@ class AiReferralsMeta(BaseModel):
 class AiReferralsResponse(BaseModel):
     data: list[AiReferralRow] = Field(
         description="One row per assistant (or origin) with a row in the window. An absent key "
-        "is no row, and is read as zero only when `meta.collected_through` is at or after `to`."
+        "is no row, and is read as zero only when `meta.window_collected` is true."
     )
     meta: AiReferralsMeta

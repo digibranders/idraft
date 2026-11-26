@@ -254,7 +254,11 @@ class _Pull:
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             replaced = await ga4_store.replace_window(db, self._facts, start, end, referrals)
             await gsc_store.save_state(
-                db, self._facts, self.state.succeeded(end), last_error=None, succeeded_at=now
+                db,
+                self._facts,
+                self.state.succeeded(end, first_day=start),
+                last_error=None,
+                succeeded_at=now,
             )
         return replaced.written
 

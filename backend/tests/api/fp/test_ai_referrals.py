@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -25,6 +25,8 @@ OWN = "own_rules"
 FROM, TO = "2026-11-01", "2026-11-10"
 # The ten days just before FROM and TO.
 PREVIOUS_FROM, PREVIOUS_TO = "2026-10-22", "2026-10-31"
+# The first day a pull stored, long before every window of these tests.
+SINCE = "2026-08-01"
 NOTES = [
     "Google AI Mode and Google AI Overview are not counted: Google Analytics files their "
     "sessions under organic search.",
@@ -45,10 +47,12 @@ async def _integration(
     project_id: uuid.UUID,
     *,
     through: str | None = TO,
+    since: str | None = SINCE,
     status: str = "active",
     last_success_at: datetime | None = None,
     kind: str = "ga4",
 ) -> uuid.UUID:
+    """`since` is the first pulled day; None leaves it out, as a state of before it was kept."""
     state: dict[str, Any] = {}
     if through is not None:
         state = {
@@ -58,6 +62,7 @@ async def _integration(
                 "complete": True,
                 "failures": 0,
                 "retry_at": None,
+                **({} if since is None else {"since": since}),
             }
         }
     # The route never reads the connection, so a revoked one (it needs no secret) will do.
@@ -174,6 +179,8 @@ async def test_no_integration_is_connected_false_and_empty(
     assert body["meta"] == {
         "connected": False,
         "collected_through": None,
+        "collected_since": None,
+        "window_collected": False,
         "last_success_at": None,
         "window": {"from": FROM, "to": TO, "timezone": "UTC"},
         "compare_window": None,
@@ -208,6 +215,8 @@ async def test_connected_but_never_collected_is_empty_with_no_collected_through(
     assert body["data"] == []
     assert body["meta"]["connected"] is True
     assert body["meta"]["collected_through"] is None
+    assert body["meta"]["collected_since"] is None
+    assert body["meta"]["window_collected"] is False
     assert body["meta"]["notes"] == [
         *NOTES,
         "Google Analytics has not been collected yet for this project.",
@@ -265,6 +274,8 @@ async def test_both_classifiers_with_sessions_engaged_key_events_and_difference(
     assert rows["claude"]["difference"] is None
     assert body["meta"]["connected"] is True
     assert body["meta"]["collected_through"] == TO
+    assert body["meta"]["collected_since"] == SINCE
+    assert body["meta"]["window_collected"] is True
     assert datetime.fromisoformat(body["meta"]["last_success_at"]) == success
     assert body["meta"]["rules_version"] == 1
     assert body["meta"]["notes"] == NOTES
@@ -381,6 +392,7 @@ async def test_a_window_collected_only_in_part_says_up_to_which_day(
     body = await _ok(api, workspace, project, owner, **{"from": FROM, "to": TO})
 
     assert body["data"][0][OWN]["sessions"] == 10
+    assert body["meta"]["window_collected"] is False
     assert body["meta"]["notes"] == [
         *NOTES,
         "Collected up to 2026-11-05: the days after it are not in these figures.",
@@ -399,6 +411,7 @@ async def test_a_window_that_starts_after_what_was_collected_is_empty_and_says_s
 
     assert body["data"] == []
     assert body["meta"]["collected_through"] == "2026-10-30"
+    assert body["meta"]["window_collected"] is False
     assert body["meta"]["notes"] == [
         *NOTES,
         "Collected up to 2026-10-30, before the start of this window, so nothing is shown for it.",
@@ -617,3 +630,190 @@ async def test_the_number_of_statements_does_not_depend_on_the_rows(
     for statement in reads:
         assert "workspace_id" in statement, statement
         assert "project_id" in statement, statement
+
+
+def _ago(days: int) -> str:
+    """The UTC day `days` days before today: the project's day, its time zone being UTC."""
+    return (datetime.now(UTC).date() - timedelta(days=days)).isoformat()
+
+
+async def test_a_window_ending_today_is_collected_when_yesterday_is(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    # A pull ends yesterday, so no window that ends today could have its last day otherwise.
+    workspace, project, owner = await _world(resources, migrated)
+    integration = await _integration(migrated, workspace, project, through=_ago(1))
+    await _row(migrated, workspace, project, integration, _ago(3), OWN, "chatgpt", 4)
+    window = {"from": _ago(9), "to": _ago(0)}
+
+    body = await _ok(api, workspace, project, owner, **window)
+
+    assert body["meta"]["window_collected"] is True
+    assert body["meta"]["collected_through"] == _ago(1)
+    assert body["meta"]["notes"] == NOTES
+    assert body["data"][0][OWN]["sessions"] == 4
+
+    # The default window ends today too, and a window with no AI session at all is a zero.
+    empty_workspace, empty_project, empty_owner = await _world(resources, migrated)
+    await _integration(migrated, empty_workspace, empty_project, through=_ago(1))
+    default = await _ok(api, empty_workspace, empty_project, empty_owner)
+    assert default["data"] == []
+    assert default["meta"]["window_collected"] is True
+
+
+async def test_a_window_ending_today_is_not_collected_when_yesterday_is_not(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await _integration(migrated, workspace, project, through=_ago(2))
+
+    body = await _ok(api, workspace, project, owner, **{"from": _ago(9), "to": _ago(0)})
+
+    assert body["meta"]["window_collected"] is False
+    assert body["meta"]["notes"] == [
+        *NOTES,
+        f"Collected up to {_ago(2)}: the days after it are not in these figures.",
+    ]
+
+
+async def test_a_window_that_ended_before_today_needs_its_own_last_day(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    window = {"from": _ago(12), "to": _ago(3)}
+    # Through the window's last day (the Pacific date of GA4 can lag the project's by a day, so
+    # a day short of it is not enough).
+    for through, collected in ((_ago(3), True), (_ago(2), True), (_ago(4), False)):
+        workspace, project, owner = await _world(resources, migrated)
+        await _integration(migrated, workspace, project, through=through)
+
+        body = await _ok(api, workspace, project, owner, **window)
+
+        assert body["meta"]["window_collected"] is collected, through
+
+
+async def test_a_window_that_starts_before_the_first_pulled_day_is_not_collected(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    integration = await _integration(migrated, workspace, project, since="2026-11-05")
+    await _row(migrated, workspace, project, integration, TO, OWN, "chatgpt", 10)
+
+    body = await _ok(api, workspace, project, owner, **{"from": FROM, "to": TO})
+
+    assert body["data"][0][OWN]["sessions"] == 10
+    assert body["meta"]["collected_since"] == "2026-11-05"
+    assert body["meta"]["window_collected"] is False
+    assert body["meta"]["notes"] == [
+        *NOTES,
+        "The figures start on 2026-11-05: the days of this window before it were not collected.",
+    ]
+
+
+async def test_a_window_that_starts_on_the_first_pulled_day_is_collected(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await _integration(migrated, workspace, project, since=FROM)
+
+    body = await _ok(api, workspace, project, owner, **{"from": FROM, "to": TO})
+
+    assert body["meta"]["window_collected"] is True
+    assert body["meta"]["notes"] == NOTES
+
+
+async def test_previous_needs_the_compared_window_to_start_after_the_first_pulled_day(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    window = {"from": FROM, "to": TO, "compare": "previous_period"}
+    # Pulled from the day after the compared window starts: its sums would be too low.
+    partial_workspace, partial, partial_owner = await _world(resources, migrated)
+    partial_integration = await _integration(
+        migrated, partial_workspace, partial, since="2026-10-25"
+    )
+    await _row(migrated, partial_workspace, partial, partial_integration, FROM, OWN, "chatgpt", 10)
+    await _row(
+        migrated, partial_workspace, partial, partial_integration, PREVIOUS_TO, OWN, "chatgpt", 4
+    )
+    # Pulled from the first day of the compared window.
+    whole_workspace, whole, whole_owner = await _world(resources, migrated)
+    whole_integration = await _integration(migrated, whole_workspace, whole, since=PREVIOUS_FROM)
+    await _row(migrated, whole_workspace, whole, whole_integration, FROM, OWN, "chatgpt", 10)
+    await _row(migrated, whole_workspace, whole, whole_integration, PREVIOUS_TO, OWN, "chatgpt", 4)
+
+    cut = await _ok(api, partial_workspace, partial, partial_owner, **window)
+    full = await _ok(api, whole_workspace, whole, whole_owner, **window)
+
+    assert cut["data"][0][OWN]["sessions"] == 10
+    assert cut["data"][0][OWN]["previous"] is None
+    assert cut["meta"]["window_collected"] is True
+    assert cut["meta"]["notes"] == [
+        *NOTES,
+        "The compared window is not fully collected, so no comparison is shown.",
+    ]
+    assert full["data"][0][OWN]["previous"]["sessions"] == 4
+    assert full["meta"]["notes"] == NOTES
+
+
+async def test_a_state_without_a_first_day_cannot_call_a_window_collected(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    integration = await _integration(migrated, workspace, project, since=None)
+    await _row(migrated, workspace, project, integration, FROM, OWN, "chatgpt", 10)
+    await _row(migrated, workspace, project, integration, PREVIOUS_TO, OWN, "chatgpt", 4)
+
+    body = await _ok(
+        api, workspace, project, owner, **{"from": FROM, "to": TO, "compare": "previous_period"}
+    )
+
+    assert body["data"][0][OWN]["sessions"] == 10
+    assert body["data"][0][OWN]["previous"] is None
+    assert body["meta"]["collected_through"] == TO
+    assert body["meta"]["collected_since"] is None
+    assert body["meta"]["window_collected"] is False
+    assert body["meta"]["notes"] == [
+        *NOTES,
+        "The first collected day is not recorded for this project, so the window cannot be "
+        "called fully collected.",
+        "The compared window is not fully collected, so no comparison is shown.",
+    ]
+
+
+async def test_the_rules_version_is_the_one_of_the_window_and_not_of_the_compared_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    integration = await _integration(migrated, workspace, project)
+    await _row(migrated, workspace, project, integration, FROM, OWN, "chatgpt", 10)
+    await _row(
+        migrated, workspace, project, integration, PREVIOUS_TO, OWN, "chatgpt", 4, rules_version=2
+    )
+
+    body = await _ok(
+        api, workspace, project, owner, **{"from": FROM, "to": TO, "compare": "previous_period"}
+    )
+
+    assert body["meta"]["rules_version"] == 1
+    assert body["data"][0][OWN]["previous"]["sessions"] == 4
+
+
+async def test_sessions_that_are_all_null_are_null_and_not_zero(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    integration = await _integration(migrated, workspace, project)
+    # Claude: rows with no count at all. ChatGPT: one row without a count and one with.
+    await _row(migrated, workspace, project, integration, FROM, OWN, "claude", None)
+    await _row(migrated, workspace, project, integration, FROM, GA4, "claude", 3, engaged=2)
+    await _row(migrated, workspace, project, integration, FROM, OWN, "chatgpt", None)
+    await _row(migrated, workspace, project, integration, TO, OWN, "chatgpt", 5, engaged=4)
+
+    body = await _ok(api, workspace, project, owner, **{"from": FROM, "to": TO})
+
+    rows = _by_key(body)
+    assert rows["claude"][OWN]["sessions"] is None
+    assert rows["claude"][OWN]["engaged_sessions"] is None
+    assert rows["claude"][GA4]["sessions"] == 3
+    assert rows["claude"]["difference"] is None
+    assert rows["chatgpt"][OWN]["sessions"] == 5
+    assert rows["chatgpt"][OWN]["engaged_sessions"] == 4

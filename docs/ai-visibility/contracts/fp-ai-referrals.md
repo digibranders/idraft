@@ -48,6 +48,8 @@ The window is read the way the prompts summary reads it, so the same bounds and 
   "meta": {
     "connected": true,
     "collected_through": "2026-11-25",
+    "collected_since": "2026-08-28",
+    "window_collected": true,
     "last_success_at": "2026-11-26T14:00:12Z",
     "window": { "from": "2026-10-29", "to": "2026-11-25", "timezone": "UTC" },
     "compare_window": { "from": "2026-10-01", "to": "2026-10-28", "timezone": "UTC" },
@@ -64,7 +66,7 @@ The window is read the way the prompts summary reads it, so the same bounds and 
 |---|---|---|
 | `key` | string | The assistant code (`chatgpt`, `perplexity`; for GA4 channel rows the lowercased `sessionSource`) or, with `group_by=origin`, the origin. |
 | `ga4_ai_assistant_channel`, `own_rules` | `AiReferralValue` or null | The sessions of the key under that classifier in the window. Null when the classifier was not asked for, or has no row for the key in the window. |
-| `<classifier>.sessions`, `.engaged_sessions` | integer | Sums over the window. |
+| `<classifier>.sessions`, `.engaged_sessions` | integer or null | Sums over the window. Null when the rows of the key hold no count at all (a sum of nothing is not 0); `difference` is then null too. |
 | `<classifier>.key_events` | decimal string or null | Sum of `key_events` (two decimals); null when GA4 gave none. |
 | `<classifier>.previous` | `AiReferralCounts` or null | The same three numbers over the compared window. Null when nothing is compared, when the compared window is not fully collected, or when the key has no row in it (see the rules below). |
 | `difference` | integer or null | `own_rules.sessions` minus `ga4_ai_assistant_channel.sessions`; null when either is null. |
@@ -73,9 +75,11 @@ The window is read the way the prompts summary reads it, so the same bounds and 
 |---|---|---|
 | `connected` | boolean | The project has a ga4 integration whose status is not `disabled`. |
 | `collected_through` | date or null | The last day a finished sync run stored (`backfill_state.ga4.through`). Null when the sync never finished. |
+| `collected_since` | date or null | The first day the first finished sync run stored (`backfill_state.ga4.since`), recorded once and never moved. The first pull covers 90 days and a window can be 92, so a window can start before it. Null when the sync never finished, or when the state was written before this field existed (nothing in production yet; a later run does not fill it, only a new first pull does). |
+| `window_collected` | boolean | True when every day of `window` is stored: see the rule below. |
 | `last_success_at` | timestamp or null | `fp.integrations.last_success_at` of that integration. |
 | `window`, `compare_window` | `{ from, to, timezone }` or null | The days used; `compare_window` is null when nothing is compared. |
-| `rules_version` | integer or null | The rule set version of the own rules rows in the window; null when there are none. |
+| `rules_version` | integer or null | The rule set version of the own rules rows in `window` only (not of the compared window); null when there are none. |
 | `lower_bound` | boolean | Always `true`. |
 | `notes` | string[] | Fixed English sentences the web shows. See below. |
 
@@ -83,14 +87,23 @@ The window is read the way the prompts summary reads it, so the same bounds and 
 
 - No live ga4 integration: `200`, `connected: false`, `data: []`, `collected_through: null`.
 - Connected, never collected (`collected_through` null): `200`, `data: []`. A note says nothing is collected yet.
-- Collected: an assistant with no row in the window is absent from `data`. The web reads an empty `data` with a
-  `collected_through` at or after `to` as zero AI sessions. The route never writes a `0` for an assistant it has no row for.
+- Collected: an assistant with no row in the window is absent from `data`. The route never writes a `0` for an assistant it
+  has no row for. The web reads an empty `data` with `meta.window_collected: true` as zero AI sessions, and with
+  `window_collected: false` as not (fully) collected, never as zero.
+- `window_collected` is true when `collected_since` is not null and at or before the first day of `window`, and
+  `collected_through` is at or after the last day that has to be stored. That day is the window's `to`, except for a window
+  that ends today (project local) or later, which needs yesterday: a pull ends yesterday, so no window that ends today could
+  otherwise be complete (the default window ends today). A window that ended earlier gets no such relief. `collected_through`
+  is the GA4 property's date (Pacific in this slice) and a window is in project local days, so the rule never takes a day
+  short of the end as the end, and a project east of Pacific whose window ends today can read false until Pacific has caught
+  up. It is false when nothing is connected, never collected, or `collected_since` is null.
 - `collected_through` before `from`: `data: []` and a note says the window starts after what was collected. The window is not
   read, so no number is made up for it.
-- `collected_through` inside the window: the rows of the days collected are summed and a note says up to which day.
-- `previous` is null unless `collected_through` is at or after the end of the compared window. It is also null for a key with no
-  row in the compared window: the first collected day is not known (a 90 day first pull, then days without AI sessions hold no
-  rows), so a missing row cannot be told from a day never pulled.
+- `collected_through` inside the window, or `collected_since` after its first day: the rows of the days collected are summed,
+  `window_collected` is false and a note says up to which day, or from which day, the figures go.
+- `previous` is null unless the compared window is collected by the same rule (`collected_since` at or before its first day and
+  `collected_through` covering its last). It is also null for a key with no row in the compared window: the route states only
+  what it read, and the web does not read it as 0.
 - Only rows with `is_current` and `landing_url_id = 0` (all pages) count. When a project has several ga4 integrations, the route
   reads the first live one (an `active` one first, then the one that last succeeded).
 
@@ -106,7 +119,9 @@ Then, when it applies:
 
 - `Google Analytics has not been collected yet for this project.` (connected, `collected_through` null)
 - `Collected up to <date>, before the start of this window, so nothing is shown for it.` (`collected_through` before `from`)
-- `Collected up to <date>: the days after it are not in these figures.` (`collected_through` inside the window)
+- `Collected up to <date>: the days after it are not in these figures.` (`collected_through` before the last day that has to be stored)
+- `The figures start on <date>: the days of this window before it were not collected.` (`collected_since` after the first day of the window)
+- `The first collected day is not recorded for this project, so the window cannot be called fully collected.` (`collected_since` null while `collected_through` is set)
 - `The compared window is not fully collected, so no comparison is shown.` (a comparison was asked for and is not covered)
 
 ## Error codes
@@ -135,3 +150,4 @@ It sends two when nothing is connected or collected, because there is nothing to
 | Date | Change |
 |---|---|
 | 2026-11-26 | Built by WP-69 as published above. Deviations from doc 19: `window` is `from` and `to` as the prompts summary has them; each value is a small `AiReferralValue`, not a `MetricValue`. |
+| 2026-11-26 | Review fixes: `meta.collected_since` and `meta.window_collected` added (the sync records the first pulled day); `previous` also needs the compared window to start after it; `rules_version` is of the window alone; `sessions` and `engaged_sessions` are null, not 0, when the rows hold no count. |
