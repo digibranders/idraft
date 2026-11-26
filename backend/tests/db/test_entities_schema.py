@@ -529,3 +529,15 @@ async def test_the_project_domain_roles_view_shows_a_workspace_only_its_own(
 
     async with scoped(migrated, "app_api") as db:
         assert await db.fetch("SELECT 1 FROM core.project_domain_roles") == []
+
+
+async def test_locations_have_an_index_for_the_country_lookup(migrated: PostgresServer) -> None:
+    """A prompt's place is the smallest location id of its country and type (WP-44): the lookup
+    runs once per joined row, so without this index every row costs a full read of the table."""
+    async with connection(migrated) as db:
+        definition = await db.fetchval(
+            "SELECT indexdef FROM pg_indexes "
+            "WHERE schemaname = 'core' AND indexname = 'locations_country_type'"
+        )
+    assert definition is not None
+    assert definition.endswith("(country_iso, location_type, id)")

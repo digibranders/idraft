@@ -10,7 +10,9 @@ WorkingDirectory=/srv/idraft/backend
 EnvironmentFile=/etc/idraft/api.env
 Environment=PYTHONUNBUFFERED=1
 # 8010, not 8000: another project on this host holds 127.0.0.1:8000.
-ExecStart=/srv/idraft/backend/.venv/bin/uvicorn idraft.api.main:create_app --factory --host=127.0.0.1 --port=8010 --proxy-headers --no-access-log --no-server-header --timeout-graceful-shutdown=25
+# Two workers: one process is CPU-bound when a page sends 20 to 30 requests at once. Each holds
+# its own pool of DB_POOL_SIZE connections (api.env), so keep workers x pool + 10 under 80.
+ExecStart=/srv/idraft/backend/.venv/bin/uvicorn idraft.api.main:create_app --factory --host=127.0.0.1 --port=8010 --workers=2 --proxy-headers --no-access-log --no-server-header --timeout-graceful-shutdown=25
 Restart=always
 RestartSec=3
 LimitNOFILE=65535
