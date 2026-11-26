@@ -1013,6 +1013,9 @@
   .w-180 {
     width: calc(var(--spacing) * 180);
   }
+  .w-\[26rem\] {
+    width: 26rem;
+  }
   .w-\[28rem\] {
     width: 28rem;
   }

@@ -15,7 +15,7 @@
  *
  * The Pages tab is the accessible version of the same pages. Graph and layout: il-map-layout.js.
  */
-import { BUTTON_SM, FIELD, icon, popover, popoverOpen } from './perf-ui.js';
+import { BUTTON_SM, FIELD, icon, popoverOpen } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 import { HOST } from './il-data-source.js';
 import { activePages, isActiveLink, links, number, pageById, plural, refresh, setFocus, state, tierIdOf, tierLabel, tierPosition, tiers } from './il-model.js';
@@ -384,21 +384,26 @@ function legend(data) {
   return row;
 }
 
-function help(trigger) {
-  popover(trigger, (panel) => {
-    panel.classList.add('w-80', 'p-3', 'flex', 'flex-col', 'gap-2');
-    const list = el('dl', 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 type-meta');
-    [
-      ['Dot', 'A live page. Redirects and duplicate addresses count as the page they point to. A bigger dot has more links.'],
-      ['Arrow', 'A link in the body of one page to another, pointing at the page it opens.'],
-      ['Not drawn', 'Menu and footer links. Nearly every page has the same ones, so they are a property of the page: its card says so, and Highlight shows them.'],
-      ['Find a page', 'Type part of an address or title. Matching pages stay lit; Enter zooms to them.'],
-      ['Click a page', 'Keeps the page and the pages it links with lit, and opens its card. Click the background or press Escape to let go.'],
-      ['Scroll', 'Zooms in and out; more names appear as you zoom in. Drag the background to move the map.'],
-      ['Drag a dot', 'Moves that page.'],
-    ].forEach(([term, text]) => list.append(el('dt', 'text-foreground whitespace-nowrap', term), el('dd', 'text-foreground-secondary', text)));
-    panel.append(el('p', 'type-body-strong text-foreground', 'Reading the map'), list);
-  }, { label: 'Reading the map' });
+/**
+ * The help sits in the canvas, above the bar its button is in (as on the Journey canvas). A popover would open
+ * downwards from a button at the foot of the page and fall off the screen.
+ */
+function helpPanel() {
+  const panel = el('div', 'absolute bottom-14 left-3 max-h-[calc(100%-5rem)] w-[26rem] max-w-[calc(100%-1.5rem)] overflow-auto rounded-lg border border-border bg-surface-elevated p-3 shadow-popover');
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', 'Reading the map');
+  const list = el('dl', 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 type-meta');
+  [
+    ['Dot', 'A live page. Redirects and duplicate addresses count as the page they point to. A bigger dot has more links.'],
+    ['Arrow', 'A link in the body of one page to another, pointing at the page it opens.'],
+    ['Not drawn', 'Menu and footer links. Nearly every page has the same ones, so they are a property of the page: its card says so, and Highlight shows them.'],
+    ['Find a page', 'Type part of an address or title. Matching pages stay lit; Enter zooms to them.'],
+    ['Click a page', 'Keeps the page and the pages it links with lit, and opens its card. Click the background or press Escape to let go.'],
+    ['Scroll', 'Zooms in and out; more names appear as you zoom in. Drag the background to move the map.'],
+    ['Drag a dot', 'Moves that page.'],
+  ].forEach(([term, text]) => list.append(el('dt', 'text-foreground whitespace-nowrap', term), el('dd', 'text-foreground-secondary', text)));
+  panel.append(el('p', 'mb-2 type-body-strong text-foreground', 'Reading the map'), list);
+  return panel;
 }
 
 /** The card of the selected page: what it is, its links by direction, and the ways on from here. */
@@ -542,8 +547,14 @@ export function render(host) {
     paint();
     sync();
   });
-  const helpButton = control('circle-help', 'Reading the map', () => {});
-  help(helpButton);
+  const helpBox = helpPanel();
+  const showHelp = (open) => {
+    helpBox.style.display = open ? '' : 'none';
+    helpButton.setAttribute('aria-expanded', String(open));
+    helpButton.setAttribute('aria-pressed', String(open));
+  };
+  const helpButton = control('circle-help', 'Reading the map', () => showHelp(helpBox.style.display === 'none'));
+  showHelp(false);
   function sync() {
     percent.textContent = `${Math.round(view.zoom * 100)}%`;
     zoomOut.disabled = view.zoom <= ZOOM.min + 0.001;
@@ -552,7 +563,7 @@ export function render(host) {
   }
   const controls = el('div', 'absolute bottom-3 left-3 flex items-center gap-0.5 rounded-md border border-border bg-surface-elevated p-0.5 shadow-popover');
   controls.append(zoomOut, percent, zoomIn, el('span', 'mx-0.5 h-4 w-px bg-border'), control('scan', 'Fit everything', fit), mapButton, helpButton);
-  stage.append(controls);
+  stage.append(helpBox, controls);
 
   chart.on('graphroam', () => {
     const series = chart.getOption().series[0];
@@ -616,7 +627,8 @@ export function render(host) {
   // an open inspector or menu takes it before either
   const onEscape = (event) => {
     if (event.key !== 'Escape' || state.open || popoverOpen()) return;
-    if (m().selected) actions.letGo();
+    if (helpBox.style.display !== 'none') showHelp(false);
+    else if (m().selected) actions.letGo();
     else if (maximised && !document.fullscreenElement) {
       maximised = false;
       refresh();

@@ -126,7 +126,9 @@ const STRETCH = 1.45;
 const CELL = 18;
 const COLUMNS = 14;
 const GROUP_GAP = 44;
-const BLOCK_GAP = 90;
+// Beside the map the block stands clear of the names, which run to the right of their dots; below it needs less
+const BLOCK_GAP_SIDE = 250;
+const BLOCK_GAP_BELOW = 90;
 
 /**
  * Linked pages are placed by their links (a force layout: linked pages pull together, all pages push apart, more
@@ -211,8 +213,8 @@ export function layoutGraph(graph, groupOf, { below = false } = {}) {
 
   const positions = new Map(linked.map((node, i) => [node.id, [x[i], y[i]]]));
   const edge = (pick, list, fallback) => (linked.length > 0 ? pick(...list) : fallback);
-  const left = below ? edge(Math.min, x, 0) : edge(Math.max, x, 0) + BLOCK_GAP;
-  const top = below ? edge(Math.max, y, 0) + BLOCK_GAP : edge(Math.min, y, 0);
+  const left = below ? edge(Math.min, x, 0) : edge(Math.max, x, 0) + BLOCK_GAP_SIDE;
+  const top = below ? edge(Math.max, y, 0) + BLOCK_GAP_BELOW : edge(Math.min, y, 0);
   const columns = below ? Math.max(COLUMNS, Math.floor((edge(Math.max, x, 0) - edge(Math.min, x, 0)) / CELL)) : COLUMNS;
   const byGroup = new Map();
   graph.nodes
