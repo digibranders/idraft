@@ -14,7 +14,19 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Final, Protocol
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, FromClause, Select, and_, exists, false, func, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    FromClause,
+    Select,
+    Subquery,
+    and_,
+    exists,
+    false,
+    func,
+    or_,
+    select,
+)
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import aliased
 
 from idraft.api.issues.catalogue import BY_ID, DEPTH_MAX, PATH_MAX, TITLE_MAX, TITLE_MIN
@@ -235,6 +247,8 @@ KEYWORD_ROWS: Final = tracked_keywords.join(
     ),
 )
 # An answer and the pages it cites, as the answer counts for the Pages list (decision D9).
+# `own_citations` below, `extras._CITATIONS` and `page_sort._citations` state the same rule
+# (own domain, last 28 days, answer not superseded) and must change together.
 CITATION_ROWS: Final = ai_citations.join(
     ai_observations,
     and_(
@@ -287,51 +301,75 @@ def _has_clicks(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
     )
 
 
+def ranked_pages(crawl: CrawlRef) -> Select[Any]:
+    """The URL ids that a tracked keyword with a rank ranks with. It does not depend on the
+    page, so PostgreSQL builds it once and not once per page."""
+    return (
+        select(tracked_keyword_state.c.current_url_id)
+        .select_from(KEYWORD_ROWS)
+        .where(*ranked_keywords(crawl), tracked_keyword_state.c.current_url_id.is_not(None))
+    )
+
+
+def off_target_keywords(crawl: CrawlRef) -> Subquery:
+    """The keywords that rank away from their target page, as `keyword_id` and `target_url_id`.
+    Decision D8: the rows of one keyword (devices, locations) count once, by the row with the
+    best rank (the lowest id on a tie). That row is off target when it ranks with another page;
+    a null on either side makes the comparison null, so it never matches."""
+    best = (
+        select(
+            tracked_keywords.c.keyword_id,
+            tracked_keywords.c.target_url_id,
+            tracked_keyword_state.c.current_url_id,
+        )
+        .select_from(KEYWORD_ROWS)
+        .where(*ranked_keywords(crawl))
+        .ext(distinct_on(tracked_keywords.c.keyword_id))
+        .order_by(
+            tracked_keywords.c.keyword_id,
+            tracked_keyword_state.c.current_rank,
+            tracked_keywords.c.id,
+        )
+        .subquery("best_rows")
+    )
+    return (
+        select(best.c.keyword_id, best.c.target_url_id)
+        .where(best.c.current_url_id != best.c.target_url_id)
+        .subquery("off_target_keywords")
+    )
+
+
+def cited_pages(crawl: CrawlRef) -> Select[Any]:
+    """The URL ids that an answer of the last 28 days cites as the project's own page."""
+    return (
+        select(ai_citations.c.url_id)
+        .select_from(CITATION_ROWS)
+        .where(*own_citations(crawl), ai_citations.c.url_id.is_not(None))
+    )
+
+
+# Each of the three rules below tests a page against a set that does not depend on the page, so
+# the database hashes the set once. A correlated EXISTS would run once per page.
 def _ranks_with_page(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    """Unreachable, and a keyword that has a rank ranks with this page."""
     if not sources.ranks:
         return false()
-    return and_(
-        _unreachable(crawl_pages),
-        exists(
-            select(1)
-            .select_from(KEYWORD_ROWS)
-            .where(
-                *ranked_keywords(crawl),
-                tracked_keyword_state.c.current_url_id == crawl_pages.c.url_id,
-            )
-        ),
-    )
+    return and_(_unreachable(crawl_pages), crawl_pages.c.url_id.in_(ranked_pages(crawl)))
 
 
 def _off_target(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    """Counted, and a keyword that targets this page ranks best with another page."""
     if not sources.ranks:
         return false()
-    return and_(
-        _counted(crawl_pages),
-        exists(
-            select(1)
-            .select_from(KEYWORD_ROWS)
-            .where(
-                *ranked_keywords(crawl),
-                tracked_keywords.c.target_url_id == crawl_pages.c.url_id,
-                tracked_keyword_state.c.current_url_id.is_not(None),
-                tracked_keyword_state.c.current_url_id != tracked_keywords.c.target_url_id,
-            )
-        ),
-    )
+    off = off_target_keywords(crawl)
+    return and_(_counted(crawl_pages), crawl_pages.c.url_id.in_(select(off.c.target_url_id)))
 
 
 def _cited(crawl: CrawlRef, sources: Sources) -> ColumnElement[bool]:
+    """Unreachable, and an answer of the last 28 days cites this page as the project's own."""
     if not sources.ai:
         return false()
-    return and_(
-        _unreachable(crawl_pages),
-        exists(
-            select(1)
-            .select_from(CITATION_ROWS)
-            .where(*own_citations(crawl), ai_citations.c.url_id == crawl_pages.c.url_id)
-        ),
-    )
+    return and_(_unreachable(crawl_pages), crawl_pages.c.url_id.in_(cited_pages(crawl)))
 
 
 SourceRule = Callable[[CrawlRef, "Sources"], ColumnElement[bool]]

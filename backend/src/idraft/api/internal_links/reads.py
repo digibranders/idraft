@@ -974,8 +974,8 @@ async def _page_filter_conditions(
     need = BY_ID[issue].need
     if need == "links":
         scope.require_links()
-    # The sources are read only for a check that joins one of them.
-    sources = await read_sources(db, scope) if need in ("gsc", "ranks", "ai") else None
+    # Only the one source the check joins is read.
+    sources = await read_sources(db, scope, need) if need in ("gsc", "ranks", "ai") else None
     # The check says which variants count, so the list's own variant filter is off.
     conditions = page_conditions(found.model_copy(update={"include_variants": True}), scope)
     conditions.append(condition(issue, scope, sources))

@@ -4,23 +4,28 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import uuid
 from datetime import date, timedelta
 from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from idraft.api.internal_links.page_filter import PageScope
 from idraft.api.issues.catalogue import BY_ID, CHECKS
+from idraft.api.issues.rules import condition
 from idraft.api.issues.service import checks_statement
 from idraft.api.issues.sources import Sources
 from idraft.api.keywords.gsc_repository import GscScope
 from idraft.api.resources import Resources
+from idraft.db.tables import crawl_pages
 from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.entities.support import member, problem
 from tests.api.internal_links.support import seed_crawl
+from tests.api.internal_links.support_changes import gsc_property, insert_citation, track_keyword
 from tests.api.issues.support import EXPECTED, PAGES, audit_site
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
@@ -248,6 +253,64 @@ async def test_every_rule_is_evaluated_once_per_page(migrated: PostgresServer) -
 
     assert "flags AS MATERIALIZED" in sql
     assert "CTE Scan on flags" in plan, plan
+
+
+@pytest.mark.parametrize("check_id", ["rank-page-broken", "off-target", "cited-page-broken"])
+async def test_a_source_rule_tests_a_set_built_once_and_not_a_probe_per_page(
+    check_id: str, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    run_id, ids = await audit_site(migrated, workspace, project)
+    integration = await gsc_property(migrated, workspace, project)
+    await execute(
+        migrated,
+        "INSERT INTO fp.gsc_page_daily (integration_id, metric_date, url_id, workspace_id, "
+        "project_id, clicks, impressions) VALUES ($1, CURRENT_DATE - 3, $2, $3, $4, 5, 10)",
+        integration,
+        ids["/gone"],
+        workspace.id,
+        project,
+    )
+    await track_keyword(
+        migrated,
+        workspace,
+        project,
+        "gone keyword",
+        ids["/pricing"],
+        rank=3,
+        change=None,
+        volume=None,
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.tracked_keyword_state SET current_url_id = $2, last_observed_at = now() "
+        "WHERE project_id = $1",
+        project,
+        ids["/gone"],
+    )
+    await insert_citation(migrated, workspace, project, ids["/old"], "chatgpt_web", 1)
+    today = date.today()
+    sources = Sources(GscScope("ok", integration, (today - timedelta(days=28), today)), True, True)
+    # Only this rule is planned, so every subplan in the plan belongs to it.
+    statement = select(condition(check_id, PageScope(workspace.id, project, run_id, None), sources))
+    dialect = postgresql.asyncpg.dialect()  # type: ignore[no-untyped-call]
+    sql = str(
+        statement.select_from(crawl_pages).compile(
+            dialect=dialect, compile_kwargs={"literal_binds": True}
+        )
+    )
+
+    plan = "\n".join(row[0] for row in await fetch(migrated, f"EXPLAIN (VERBOSE) {sql}"))
+
+    # The rule is `url_id IN (SELECT ...)` and the subquery names no column of crawl_pages.
+    # PostgreSQL prints a subplan it builds once as "hashed SubPlan n" and one it runs for each
+    # row as "SubPlan n". The plan of a table this small could take another shape, so the
+    # compiled text is checked as well.
+    assert "crawl_pages.url_id IN (SELECT" in sql, sql
+    subplans = set(re.findall(r"SubPlan (\d+)", plan))
+    assert subplans, plan
+    assert subplans == set(re.findall(r"hashed SubPlan (\d+)", plan)), plan
 
 
 async def test_the_example_path_is_the_first_in_byte_order(

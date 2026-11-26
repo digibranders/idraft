@@ -25,30 +25,41 @@ class Sources:
     """The project has an answer that was not superseded."""
 
 
-async def read_sources(db: AsyncSession, scope: PageScope) -> Sources:
-    ranks = (
-        await db.execute(
-            select(
-                exists(
-                    select(1)
-                    .select_from(KEYWORD_ROWS)
-                    .where(
-                        *active_keywords(scope),
-                        tracked_keyword_state.c.last_observed_at.is_not(None),
-                    )
+async def _has_rank_checks(db: AsyncSession, scope: PageScope) -> bool:
+    found = await db.execute(
+        select(
+            exists(
+                select(1)
+                .select_from(KEYWORD_ROWS)
+                .where(
+                    *active_keywords(scope),
+                    tracked_keyword_state.c.last_observed_at.is_not(None),
                 )
             )
         )
-    ).scalar_one()
-    answered = (
-        await db.execute(
-            select(
-                exists().where(
-                    ai_observations.c.workspace_id == scope.workspace_id,
-                    ai_observations.c.project_id == scope.project_id,
-                    ai_observations.c.superseded_by.is_(None),
-                )
+    )
+    return bool(found.scalar_one())
+
+
+async def _has_answers(db: AsyncSession, scope: PageScope) -> bool:
+    found = await db.execute(
+        select(
+            exists().where(
+                ai_observations.c.workspace_id == scope.workspace_id,
+                ai_observations.c.project_id == scope.project_id,
+                ai_observations.c.superseded_by.is_(None),
             )
         )
-    ).scalar_one()
-    return Sources(gsc=await gsc_window(db, scope), ranks=ranks, ai=answered)
+    )
+    return bool(found.scalar_one())
+
+
+async def read_sources(db: AsyncSession, scope: PageScope, need: str | None = None) -> Sources:
+    """All three sources, or with `need` (`gsc`, `ranks` or `ai`, as a check names it) only that
+    one: a source that was not read is reported as not there, so use the result for that check
+    only."""
+    return Sources(
+        gsc=await gsc_window(db, scope) if need in (None, "gsc") else GscScope("not_connected"),
+        ranks=need in (None, "ranks") and await _has_rank_checks(db, scope),
+        ai=need in (None, "ai") and await _has_answers(db, scope),
+    )

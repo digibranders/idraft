@@ -391,10 +391,14 @@ async def gsc_window(db: AsyncSession, scope: PageScope) -> GscScope:
     return state if stored else GscScope("pending")
 
 
-async def gsc_of(db: AsyncSession, scope: PageScope, ids: Sequence[int]) -> dict[int, GscPage]:
+async def gsc_of(
+    db: AsyncSession, scope: PageScope, ids: Sequence[int], state: GscScope | None = None
+) -> dict[int, GscPage]:
     """Google's page numbers. `ok` shows 0 for a page with no row in the window (a count);
-    `pending` and `not_connected` show none."""
-    state = await gsc_window(db, scope)
+    `pending` and `not_connected` show none. `state` is the `gsc_window` of the caller, which
+    reads it once for several calls."""
+    if state is None:
+        state = await gsc_window(db, scope)
     if state.integration_id is None or state.window is None:
         empty = GscPage(
             state=state.state, clicks=None, impressions=None, window_start=None, window_end=None

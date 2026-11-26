@@ -11,7 +11,7 @@ from sqlalchemy import ColumnElement, Select, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from idraft.api.internal_links.extras import gsc_of
+from idraft.api.internal_links.extras import gsc_of, gsc_window
 from idraft.api.internal_links.page_filter import PageScope
 from idraft.api.issues.rules import (
     CITATION_ROWS,
@@ -21,6 +21,7 @@ from idraft.api.issues.rules import (
     NOFOLLOW_LINKS,
     PATH_LENGTH,
     CrawlRef,
+    off_target_keywords,
     own_citations,
     ranked_keywords,
     title_key,
@@ -151,27 +152,29 @@ def _duplicate_rows(crawl: CrawlRef, ids: Sequence[int]) -> Rows:
 
 
 def _source_counts(crawl: CrawlRef, ids: Sequence[int], check_id: str) -> Rows:
-    """Per page: the distinct keywords that rank with it (or that target it and rank with
-    another page), or the distinct answers that cite it."""
+    """Per page: the distinct keywords that rank with it, the keywords that target it and
+    rank best with another page (`off_target_keywords`), or the distinct answers that cite it."""
     if check_id == "cited-page-broken":
-        page = ai_citations.c.url_id
+        cited = ai_citations.c.url_id
         return (
-            select(page, func.count(ai_citations.c.observation_id.distinct()))
+            select(cited, func.count(ai_citations.c.observation_id.distinct()))
             .select_from(CITATION_ROWS)
-            .where(*own_citations(crawl), page.in_(ids))
-            .group_by(page)
+            .where(*own_citations(crawl), cited.in_(ids))
+            .group_by(cited)
         )
-    state = tracked_keyword_state.c
-    if check_id == "rank-page-broken":
-        page, found = state.current_url_id, []
-    else:
-        page = tracked_keywords.c.target_url_id
-        found = [state.current_url_id.is_not(None), state.current_url_id != page]
+    if check_id == "off-target":
+        off = off_target_keywords(crawl)
+        return (
+            select(off.c.target_url_id, func.count())
+            .where(off.c.target_url_id.in_(ids))
+            .group_by(off.c.target_url_id)
+        )
+    ranked = tracked_keyword_state.c.current_url_id
     return (
-        select(page, func.count(tracked_keywords.c.keyword_id.distinct()))
+        select(ranked, func.count(tracked_keywords.c.keyword_id.distinct()))
         .select_from(KEYWORD_ROWS)
-        .where(*ranked_keywords(crawl), page.in_(ids), *found)
-        .group_by(page)
+        .where(*ranked_keywords(crawl), ranked.in_(ids))
+        .group_by(ranked)
     )
 
 
@@ -208,10 +211,11 @@ async def detail_cells(
     """The extra CSV cells of each id: the four details and the clicks (empty without Search
     Console), read in chunks."""
     cells: dict[int, tuple[str | int | None, ...]] = {}
+    google = await gsc_window(db, scope) if ids else None
     for start in range(0, len(ids), _CHUNK):
         chunk = ids[start : start + _CHUNK]
         details = await issue_details(db, scope, check_id, chunk)
-        clicks = await gsc_of(db, scope, chunk)
+        clicks = await gsc_of(db, scope, chunk, google)
         for url in chunk:
             found = details.get(url, NO_DETAIL)
             cells[url] = (
