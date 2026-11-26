@@ -357,7 +357,11 @@ Top to bottom:
 3. One panel: the two tabs with the number of checks that found pages, search, the severity pills, "Show passed
    checks", then the table. Rows are grouped by category with a group header row. The header row is easy to see: its text is bold and in
 the main text colour (`type-body-strong text-foreground`), on the subtle surface, and the row is as tall as a
-table row of the compact density. A category header is never smaller or paler than the check names under it.
+table row of the compact density. A category header is never smaller or paler than the check names under it. The check names are the main
+thing on the page, so they are bold and in the main text colour as well (`type-body-strong text-foreground`),
+for every row, passed or not. A passed check shows its state in the Pages cell ("Passed" and a check mark), not
+by a pale name. The header stands apart from the names by its band (subtle surface, a border above), not by
+being larger.
 
 Columns: Issue, Severity, Found by, Pages, Clicks, Example, and an open arrow. A row opens its check. A row of a
 check that did not run shows its state in the Pages cell (section 5) and does not open. Pages has a tooltip with
