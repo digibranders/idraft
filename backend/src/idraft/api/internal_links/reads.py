@@ -256,7 +256,7 @@ class _Sorter:
 
 async def _sorter(db: AsyncSession, scope: PageScope, view: LinkScope, sort: str) -> _Sorter:
     gsc: GscWindow | None = None
-    if sort.lstrip("-") == "clicks":
+    if sort.lstrip("-") in ("clicks", "impressions"):
         state = await gsc_window(db, scope)
         if state.integration_id is not None and state.window is not None:
             gsc = (state.integration_id, state.window)

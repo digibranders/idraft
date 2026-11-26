@@ -343,6 +343,8 @@ PageSort = Literal[
     "-tier",
     "clicks",
     "-clicks",
+    "impressions",
+    "-impressions",
     "title",
     "-title",
     "indexable",
