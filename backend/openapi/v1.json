@@ -8925,6 +8925,96 @@
         "title": "GeneratedFrom",
         "type": "object"
       },
+      "GraphEdge": {
+        "properties": {
+          "links": {
+            "description": "How many links the source has to the target.",
+            "minimum": 1.0,
+            "title": "Links",
+            "type": "integer"
+          },
+          "source": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "links"
+        ],
+        "title": "GraphEdge",
+        "type": "object"
+      },
+      "GraphNode": {
+        "properties": {
+          "links_in": {
+            "description": "Pages that link to it, redirects folded.",
+            "title": "Links In",
+            "type": "integer"
+          },
+          "links_out": {
+            "description": "Pages it links to, redirects folded.",
+            "title": "Links Out",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sitewide_from": {
+            "description": "Pages that link to it from a menu, header, footer, sidebar or breadcrumb; 0 unless that is at least half the pages. Those links are never edges.",
+            "title": "Sitewide From",
+            "type": "integer"
+          },
+          "tier_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page's tier; null is Untiered.",
+            "title": "Tier Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "path",
+          "title",
+          "tier_id",
+          "links_in",
+          "links_out",
+          "sitewide_from"
+        ],
+        "title": "GraphNode",
+        "type": "object"
+      },
       "GroupMembers": {
         "additionalProperties": false,
         "properties": {
@@ -11844,6 +11934,79 @@
           "name"
         ],
         "title": "LayoutEditor",
+        "type": "object"
+      },
+      "LinkGraph": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "home_url_id": {
+            "anyOf": [
+              {
+                "description": "A `core.urls` id: a 64-bit integer as a string.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page the crawl started from.",
+            "title": "Home Url Id"
+          },
+          "include_auto": {
+            "title": "Include Auto",
+            "type": "boolean"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "pages_total": {
+            "description": "Live pages that count in the crawl, before `max_pages`.",
+            "title": "Pages Total",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "True when `pages_total` is more than the nodes returned.",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "include_auto",
+          "pages_total",
+          "truncated",
+          "home_url_id",
+          "nodes",
+          "edges"
+        ],
+        "title": "LinkGraph",
+        "type": "object"
+      },
+      "LinkGraphResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LinkGraph"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "LinkGraphResponse",
         "type": "object"
       },
       "LinkedKeyword": {
@@ -40837,6 +41000,103 @@
           }
         },
         "summary": "Link edges of a crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/graph": {
+      "get": {
+        "description": "Every live page that counts as a node and one edge per page pair that links in the body (and by auto-generated blocks with `include_auto`). A link to a redirect is a link to the page it leads to. Menu and footer links are not edges: `sitewide_from` on a node says how many pages have one, when that is at least half. Over `max_pages` the pages with the most edges are kept and `truncated` is true.",
+        "operationId": "graph_api_v1_workspaces__workspace_id__projects__project_id__internal_links_graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_auto",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Auto",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_pages",
+            "required": false,
+            "schema": {
+              "default": 3000,
+              "maximum": 5000,
+              "minimum": 100,
+              "title": "Max Pages",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkGraphResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The whole crawl as a graph, for the Link map",
         "tags": [
           "internal-links"
         ]
