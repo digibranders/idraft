@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { findDrawerTitle } from '@/components/app/inspector/drawer-title';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
@@ -386,5 +387,23 @@ describe('the Journey tab (spec 7.5)', () => {
     });
     await within(await screen.findByRole('table', { name: 'Link journey as a tree' })).findByText('/pricing');
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('the drawer opened from the Journey', () => {
+  it('returns focus to the Details button of the card that opened it on Escape', async () => {
+    // Another page is open already: the test URL cannot go "back", so Close replaces the URL, as for a shared link
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103&inspect=page%3A109',
+    });
+    const area = await canvas();
+    const card = await within(area).findByRole('button', { name: /^\/pricing, / });
+    const details = within(card.closest('.group') as HTMLElement).getByRole('button', { name: 'Details of /pricing' });
+    await user.click(details);
+    await waitFor(() => expect(findDrawerTitle()).toHaveTextContent('/pricing'));
+    await waitFor(() => expect(findDrawerTitle()).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(findDrawerTitle()).toBeNull());
+    await waitFor(() => expect(details).toHaveFocus());
   });
 });

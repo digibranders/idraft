@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { useImperativeHandle, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { findDrawerTitle } from '@/components/app/inspector/drawer-title';
 import type { LinkMapChartHandle, LinkMapChartProps } from '@/components/app/link-map/link-map-chart';
 import { readChartTokens } from '@/lib/design/read-tokens';
 import { setLinksScenario } from '@/mocks/internal-links-world';
@@ -282,5 +283,30 @@ describe('the Link map tab', () => {
     await screen.findByRole('complementary', { name: 'Selected page' });
 
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+describe('the drawer opened from the map', () => {
+  it('stays above the maximised map', async () => {
+    const { user } = open('?tab=map&inspect=page:8');
+    await screen.findByRole('img', { name: FOUND });
+    await waitFor(() => expect(findDrawerTitle()).not.toBeNull());
+    const drawer = findDrawerTitle()?.closest('aside') as HTMLElement;
+    await user.click(screen.getByRole('button', { name: 'Full screen' }));
+    const region = await map();
+    expect(region.className).toContain('z-(--z-inspector)');
+    expect(drawer.className).toContain('z-(--z-drawer)');
+  });
+
+  it('returns focus to the Page details button of the card when Escape closes the drawer', async () => {
+    // Another page is open already: the test URL cannot go "back", so Close replaces the URL, as for a shared link
+    const { user } = open('?tab=map&mpage=8&inspect=page:3');
+    const card = await screen.findByRole('complementary', { name: 'Selected page' });
+    const details = within(card).getByRole('button', { name: 'Page details' });
+    await user.click(details);
+    await waitFor(() => expect(findDrawerTitle()).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(findDrawerTitle()).toBeNull());
+    await waitFor(() => expect(details).toHaveFocus());
   });
 });

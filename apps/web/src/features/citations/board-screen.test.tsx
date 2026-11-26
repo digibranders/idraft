@@ -186,7 +186,7 @@ describe('the Citations screen', () => {
     await user.unhover(first);
     await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]:not([data-ending-style])')).toBeNull());
     // A drawer a row opened closes by going back, which the test address cannot do: the close is the call
-    // (`use-focus-return.test.tsx` covers the focus going back to the row once the drawer is gone)
+    // (`lib/inspector/use-focus-return.test.tsx` covers the focus going back to the row once the drawer is gone)
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     await user.keyboard('{Escape}');
     expect(back).toHaveBeenCalledOnce();

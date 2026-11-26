@@ -1,9 +1,10 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { FileText } from 'lucide-react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CRAWL_POLL_MS, seenCrawlKey } from './crawl-reads';
+import { findDrawerTitle } from '@/components/app/inspector/drawer-title';
 import { announce, LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import { CRAWL_SCREEN_LIMIT } from '@/lib/internal-links/queries';
 import type { CrawlRun } from '@/lib/internal-links/types';
@@ -797,5 +798,44 @@ describe('accessibility of the shell', () => {
     const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await screen.findByRole('heading', { name: 'Mapping eventussecurity.com' });
     expect(await axe(first.container)).toHaveNoViolations();
+  });
+});
+
+describe('the page drawer opened from the Pages table', () => {
+  const rowHeader = async (path: string): Promise<HTMLElement> =>
+    within(await screen.findByRole('grid', { name: 'Pages' })).findByRole('rowheader', { name: path });
+  const title = (): HTMLElement | null => findDrawerTitle();
+
+  it('steps with ArrowDown and keeps focus in the drawer after the step', async () => {
+    registry.real = true;
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    await user.click(await rowHeader('/pricing'));
+    await screen.findByRole('complementary', { name: '/pricing' });
+    await waitFor(() => expect(title()).toHaveFocus());
+    await user.keyboard('{ArrowDown}');
+    // The drawer is keyed by the page id, so a step remounts it: the new title takes focus
+    await waitFor(() => expect(title()).toHaveFocus());
+    const second = title()?.textContent ?? '';
+    expect(second).not.toBe('/pricing');
+    expect(second).not.toBe('');
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(title()?.textContent).not.toBe(second));
+    expect(title()?.textContent).not.toBe('');
+    expect(title()).toHaveFocus();
+  });
+
+  it('returns focus to the row when the drawer closes', async () => {
+    registry.real = true;
+    // Opened by the link: the test URL cannot go "back", so Close replaces the URL, as it does for a shared link
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: '?inspect=page:108',
+    });
+    await screen.findByRole('complementary', { name: '/pricing' });
+    await rowHeader('/pricing');
+    await waitFor(() => expect(title()).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
+    const pricing = within(screen.getByRole('grid', { name: 'Pages' })).getByRole('row', { name: /\/pricing/ });
+    await waitFor(() => expect(pricing.contains(document.activeElement)).toBe(true));
   });
 });
