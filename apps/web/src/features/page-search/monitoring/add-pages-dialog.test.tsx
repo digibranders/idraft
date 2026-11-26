@@ -70,20 +70,23 @@ function serve({ tracked = ['1', '2'], suggestions = [], checked = [], failAdd =
   return { bodies };
 }
 
-function Host({ onAdded }: { onAdded: (count: number) => void }): ReactElement {
+function Host({ onAdded, host }: { onAdded: (count: number) => void; host: string | null }): ReactElement {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}>
         Add pages
       </button>
-      <AddPagesDialog scope={SCOPE} host="eventussecurity.com" open={open} onOpenChange={setOpen} onAdded={onAdded} />
+      <AddPagesDialog scope={SCOPE} host={host} open={open} onOpenChange={setOpen} onAdded={onAdded} />
     </>
   );
 }
 
-async function openDialog(onAdded: (count: number) => void = vi.fn()): Promise<ReturnType<typeof renderWithProviders>> {
-  const view = renderWithProviders(<Host onAdded={onAdded} />);
+async function openDialog(
+  onAdded: (count: number) => void = vi.fn(),
+  host: string | null = 'eventussecurity.com',
+): Promise<ReturnType<typeof renderWithProviders>> {
+  const view = renderWithProviders(<Host onAdded={onAdded} host={host} />);
   await view.user.click(screen.getByRole('button', { name: 'Add pages' }));
   await screen.findByRole('dialog', { name: 'Add pages' });
   return view;
@@ -196,6 +199,49 @@ describe('AddPagesDialog', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(onAdded).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Add 1 page' })).toBeEnabled();
+  });
+
+  it('says how many more pages fit when more are ticked than the room left', async () => {
+    serve({
+      tracked: Array.from({ length: 199 }, (_, index) => String(index)),
+      suggestions: [suggestion('/a', '900', 9), suggestion('/b', '901', 8)],
+    });
+    const { user } = await openDialog();
+    await user.click(screen.getByRole('tab', { name: 'Suggested from Search Console' }));
+    await user.click(await screen.findByRole('checkbox', { name: /\/a/ }));
+    await user.click(screen.getByRole('checkbox', { name: /\/b/ }));
+    expect(screen.getByText('Only 1 more page fits in the limit of 200.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add 2 pages' })).toBeDisabled();
+  });
+
+  it('shows an error with a retry when the tracked pages do not load', async () => {
+    serve({ suggestions: [suggestion('/a', '900', 9)] });
+    server.use(
+      http.get(IDS, () => HttpResponse.json({ title: 'Failed', status: 500 }, { status: 500, headers: PROBLEM })),
+    );
+    const { user } = await openDialog();
+    await user.click(screen.getByRole('tab', { name: 'Suggested from Search Console' }));
+    expect(await screen.findByText('The suggested pages did not load.')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('warns when more than 500 lines are pasted', async () => {
+    serve();
+    const { user } = await openDialog();
+    await user.click(screen.getByRole('textbox', { name: 'Addresses' }));
+    await user.paste(Array.from({ length: 520 }, (_, index) => `/p${String(index)}`).join('\n'));
+    expect(screen.getByText('Only the first 500 of 520 lines are checked.')).toBeInTheDocument();
+  });
+
+  it('names no host in the wrong-host outcome when the project has none', async () => {
+    serve({ checked: [outcome('https://other.com/x', 'wrong_host')] });
+    const { user } = await openDialog(vi.fn(), null);
+    await user.click(screen.getByRole('textbox', { name: 'Addresses' }));
+    await user.paste('https://other.com/x');
+    await user.click(screen.getByRole('button', { name: 'Check pages' }));
+    expect(await screen.findByText('Not on this website')).toBeInTheDocument();
+    expect(screen.getByText('One per line, up to 500. Paths or full addresses on this website.')).toBeInTheDocument();
   });
 
   it('returns focus to the button that opened it, and has no accessibility violations', async () => {

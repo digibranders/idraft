@@ -49,17 +49,17 @@ const OUTCOME_TONE: Readonly<Record<Outcome['outcome'], BadgeTone>> = {
 };
 
 /** One address per line, blank lines dropped, at most 500. */
-const linesOf = (text: string): string[] =>
+const allLinesOf = (text: string): string[] =>
   text
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line !== '')
-    .slice(0, MAX_LINES);
+    .filter((line) => line !== '');
+const linesOf = (text: string): string[] => allLinesOf(text).slice(0, MAX_LINES);
 
 export interface AddPagesDialogProps {
   scope: SearchScope;
-  /** The project's website, named in the hint and in the wrong-host outcome. */
-  host: string;
+  /** The project's website, named in the hint and in the wrong-host outcome; null when the project has none. */
+  host: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The number of pages that began to be tracked. */
@@ -92,7 +92,13 @@ export function AddPagesDialog({ scope, host, open, onOpenChange, onAdded }: Add
 
   const ready = useMemo(() => (checked ?? []).filter((one) => one.outcome === 'ok'), [checked]);
   const count = source === 'paste' ? ready.length : picked.size;
-  const room = limit - trackedIds.size;
+  const room = Math.max(limit - trackedIds.size, 0);
+  const pastedLines = allLinesOf(text).length;
+  const loadFailed = suggestions.isError || tracked.isError;
+  const retryLoad = (): void => {
+    if (tracked.isError) void tracked.refetch();
+    if (suggestions.isError) void suggestions.refetch();
+  };
 
   const reset = (): void => {
     setSource('paste');
@@ -153,6 +159,7 @@ export function AddPagesDialog({ scope, host, open, onOpenChange, onAdded }: Add
       <DialogHeader title={t('title')} closeLabel={common('close')} />
       <DialogBody>
         {failure === null ? null : <FormAlert message={failure} />}
+        {count > room ? <FormAlert tone="warning" message={t('overRoom', { room, limit })} /> : null}
         <Tabs
           variant="underline"
           label={t('title')}
@@ -176,8 +183,11 @@ export function AddPagesDialog({ scope, host, open, onOpenChange, onAdded }: Add
                 autoComplete="off"
                 onChange={(event) => edit(event.target.value)}
               />
-              <FieldDescription>{t('urlsHint', { host })}</FieldDescription>
+              <FieldDescription>{host === null ? t('urlsHintNoHost') : t('urlsHint', { host })}</FieldDescription>
             </Field>
+            {pastedLines > MAX_LINES ? (
+              <FormAlert tone="warning" message={t('tooManyLines', { max: MAX_LINES, count: pastedLines })} />
+            ) : null}
             <div>
               <Button
                 variant="secondary"
@@ -201,8 +211,10 @@ export function AddPagesDialog({ scope, host, open, onOpenChange, onAdded }: Add
                       {t(
                         one.outcome === 'ok' && one.clicks_28d === null
                           ? 'outcome.okNoClicks'
-                          : `outcome.${OUTCOME_KEY[one.outcome]}`,
-                        { clicks: formatInteger(one.clicks_28d ?? 0), host, limit },
+                          : one.outcome === 'wrong_host' && host === null
+                            ? 'outcome.wrongHostNoHost'
+                            : `outcome.${OUTCOME_KEY[one.outcome]}`,
+                        { clicks: formatInteger(one.clicks_28d ?? 0), host: host ?? '', limit },
                       )}
                     </Badge>
                   </li>
@@ -212,8 +224,15 @@ export function AddPagesDialog({ scope, host, open, onOpenChange, onAdded }: Add
           </TabsPanel>
           <TabsPanel value="suggested" className="flex flex-col gap-3 pt-4">
             <p className="type-body text-foreground-secondary">{t('suggestedIntro')}</p>
-            {suggestions.isError ? (
-              <FormAlert message={t('suggestionsFailed')} />
+            {loadFailed ? (
+              <>
+                <FormAlert message={t('suggestionsFailed')} />
+                <div>
+                  <Button variant="secondary" size="sm" onClick={retryLoad}>
+                    {common('retry')}
+                  </Button>
+                </div>
+              </>
             ) : suggestions.data === undefined || tracked.data === undefined ? (
               <Skeleton shape="text-12" widthPct={64} />
             ) : offered.length === 0 ? (

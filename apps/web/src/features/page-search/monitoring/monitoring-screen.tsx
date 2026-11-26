@@ -423,7 +423,7 @@ function MonitoringContent({
       {canAdd ? (
         <AddPagesDialog
           scope={scope}
-          host={project.host ?? project.name}
+          host={project.host}
           open={adding}
           onOpenChange={setAdding}
           onAdded={() => undefined}
