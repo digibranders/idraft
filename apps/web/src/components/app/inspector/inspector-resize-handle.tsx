@@ -60,7 +60,9 @@ export function InspectorResizeHandle({
     }
     if (next === null) return;
     event.preventDefault();
-    onResize(fitInspectorWidth(next, max));
+    // A key the limits turn into no change saves nothing: it must not overwrite a wider saved width
+    const target = fitInspectorWidth(next, max);
+    if (target !== width) onResize(target);
   };
   const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;

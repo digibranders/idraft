@@ -1,6 +1,7 @@
 import { act, fireEvent, screen } from '@testing-library/react';
 import { FileText } from 'lucide-react';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { createElement, useState, type ReactElement, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Inspector } from './inspector';
@@ -137,6 +138,33 @@ function SteppingHarness(): ReactElement {
   );
 }
 
+/** One element that uses the arrow keys itself, as the card's `ARROW_OWNERS` list names them. */
+const ARROW_OWNER_CASES: readonly (readonly [string, string, Record<string, string>])[] = [
+  ['an input', 'input', {}],
+  ['a textarea', 'textarea', {}],
+  ['a select', 'select', {}],
+  ['a contenteditable element', 'div', { contenteditable: 'true' }],
+  ['a textbox', 'div', { role: 'textbox' }],
+  ['a combobox', 'div', { role: 'combobox' }],
+  ['a listbox', 'div', { role: 'listbox' }],
+  ['a menu', 'div', { role: 'menu' }],
+  ['a menubar', 'div', { role: 'menubar' }],
+  ['a tablist', 'div', { role: 'tablist' }],
+  ['a radiogroup', 'div', { role: 'radiogroup' }],
+  ['a slider', 'div', { role: 'slider' }],
+  ['a spinbutton', 'div', { role: 'spinbutton' }],
+  ['a separator', 'div', { role: 'separator' }],
+  ['a grid', 'div', { role: 'grid' }],
+  ['a treegrid', 'div', { role: 'treegrid' }],
+  ['a tree', 'div', { role: 'tree' }],
+  ['a button that opens a popup', 'button', { 'aria-haspopup': 'menu' }],
+];
+
+/** Built with `createElement` so the roles need not carry the props a real widget would. */
+function ArrowOwner({ tag, attributes }: { tag: string; attributes: Record<string, string> }): ReactElement {
+  return createElement(tag, { tabIndex: 0, 'data-testid': 'arrow-owner', ...attributes });
+}
+
 const inspector = (): HTMLElement => screen.getByRole('complementary', { name: 'best crm for startups' });
 const separator = (): HTMLElement => screen.getByRole('separator', { name: 'Resize inspector' });
 const title = (): HTMLElement => screen.getByRole('heading', { level: 2, name: 'best crm for startups' });
@@ -177,12 +205,31 @@ describe('Inspector', () => {
     expect(screen.getByRole('complementary', { name: 'Keyword' })).toBeInTheDocument();
   });
 
-  it('takes no room in the layout: the list keeps its width', () => {
+  it('takes no room in the layout: the list is laid out the same with the drawer open or closed', () => {
+    const closed = renderWithProviders(
+      <InspectorLayout inspector={null}>
+        <button type="button">A row of the list</button>
+      </InspectorLayout>,
+    );
+    const listOf = (): HTMLElement => {
+      const column = screen.getByRole('button', { name: 'A row of the list' }).parentElement;
+      if (column === null) throw new Error('The list has no column');
+      return column;
+    };
+    const closedColumn = { className: listOf().className, style: listOf().getAttribute('style') };
+    const closedArea = listOf().parentElement?.className;
+    closed.unmount();
+
     renderWithProviders(<Harness />);
+    expect(listOf().className).toBe(closedColumn.className);
+    expect(listOf().getAttribute('style')).toBe(closedColumn.style);
+    expect(listOf().parentElement?.className).toBe(closedArea);
+    expect(listOf().parentElement?.getAttribute('style')).toBeNull();
+    // jsdom computes no Tailwind positions, so the classes are what keeps the card out of the flow
+    for (const taken of ['sticky', 'static', 'relative']) expect(inspector().classList).not.toContain(taken);
+    expect(inspector().classList).toContain('fixed');
     expect(inspector().style.marginLeft).toBe('');
-    const main = screen.getByRole('button', { name: 'A row of the list' }).parentElement;
-    expect(main).toHaveClass('flex-1');
-    expect(main).not.toHaveAttribute('style');
+    expect(inspector().style.marginRight).toBe('');
   });
 
   it('is a modal sheet with a back button below 900 px', async () => {
@@ -324,6 +371,23 @@ describe('Inspector', () => {
     expect(window.localStorage.getItem(WIDTH_KEY)).toBe('960');
   });
 
+  it('does not rewrite a saved width with a key press the window clamps to no change', async () => {
+    vi.stubGlobal('innerWidth', 1280);
+    window.localStorage.setItem(WIDTH_KEY, '960');
+    const { user } = renderWithProviders(<Harness user="u1" />);
+    // Drawn at 768, the most this window holds
+    expect(inspector()).toHaveStyle({ width: '768px' });
+    act(() => separator().focus());
+    for (const keys of ['{End}', '{ArrowLeft}', '{Shift>}{ArrowLeft}{/Shift}']) {
+      await user.keyboard(keys);
+      expect(window.localStorage.getItem(WIDTH_KEY)).toBe('960');
+    }
+    // A key that does change the width still saves it
+    await user.keyboard('{ArrowRight}');
+    expect(separator()).toHaveAttribute('aria-valuenow', '752');
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBe('752');
+  });
+
   it('leaves the More menu out when asked, and keeps Close', () => {
     renderWithProviders(<Harness hideMoreActions />);
     expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
@@ -357,38 +421,91 @@ describe('Inspector', () => {
     expect(onStep).toHaveBeenLastCalledWith('previous');
   });
 
-  it('leaves the arrows to a tab list, a text field, a scroll region and the resize handle', async () => {
-    const { user } = renderWithProviders(
+  it.each(ARROW_OWNER_CASES)('leaves the arrows to %s', (_name, tag, attributes) => {
+    renderWithProviders(<Harness extraBody={<ArrowOwner tag={tag} attributes={attributes} />} />);
+    const owner = screen.getByTestId('arrow-owner');
+    // fireEvent returns false when a handler prevented the default
+    expect(fireEvent.keyDown(owner, { key: 'ArrowDown' })).toBe(true);
+    expect(fireEvent.keyDown(owner, { key: 'ArrowUp' })).toBe(true);
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('leaves the arrows to a tab list, a scroll region and the resize handle', () => {
+    renderWithProviders(
       <Harness
         extraBody={
-          <>
-            <input aria-label="Notes" />
-            <InspectorBody label="Details">
-              <p>Long text</p>
-            </InspectorBody>
-          </>
+          <InspectorBody label="Details">
+            <p>Long text</p>
+          </InspectorBody>
         }
       />,
     );
     for (const element of [
       screen.getByRole('tab', { name: 'Overview' }),
-      screen.getByRole('textbox', { name: 'Notes' }),
       screen.getByRole('region', { name: 'Details' }),
       separator(),
     ]) {
-      act(() => element.focus());
-      await user.keyboard('{ArrowDown}{ArrowUp}');
+      fireEvent.keyDown(element, { key: 'ArrowDown' });
     }
     expect(onStep).not.toHaveBeenCalled();
   });
 
-  it('does not step with a modifier, on a held key, or from the list', async () => {
-    const { user } = renderWithProviders(<Harness />);
-    await user.keyboard('{Shift>}{ArrowDown}{/Shift}');
-    fireEvent.keyDown(title(), { key: 'ArrowDown', repeat: true });
-    act(() => screen.getByRole('button', { name: 'A row of the list' }).focus());
-    await user.keyboard('{ArrowDown}');
+  it.each(['altKey', 'ctrlKey', 'metaKey', 'shiftKey'])('does not step with %s held', (modifier) => {
+    renderWithProviders(<Harness />);
+    fireEvent.keyDown(title(), { key: 'ArrowDown', [modifier]: true });
     expect(onStep).not.toHaveBeenCalled();
+    // The same key without the modifier steps, so the modifier is what stopped it
+    fireEvent.keyDown(title(), { key: 'ArrowDown' });
+    expect(onStep).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not step on a held key or while an input method composes', () => {
+    renderWithProviders(<Harness />);
+    fireEvent.keyDown(title(), { key: 'ArrowDown', repeat: true });
+    fireEvent.keyDown(title(), { key: 'ArrowDown', isComposing: true });
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('does not step when a control inside the card already took the key', () => {
+    renderWithProviders(
+      <Harness
+        extraBody={
+          <button type="button" onKeyDown={(event) => event.preventDefault()}>
+            Takes its own key
+          </button>
+        }
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Takes its own key' }), { key: 'ArrowDown' });
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('does not step from a portal child of the card, which is outside it in the page', () => {
+    renderWithProviders(
+      <Harness extraBody={createPortal(<button type="button">In a portal</button>, document.body)} />,
+    );
+    const portaled = screen.getByRole('button', { name: 'In a portal' });
+    expect(inspector()).not.toContainElement(portaled);
+    // React bubbles the event through the card, so only the DOM containment rule stops it
+    fireEvent.keyDown(portaled, { key: 'ArrowDown' });
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('does not step while a popup is open elsewhere on the page, and steps again once it closes', () => {
+    renderWithProviders(<Harness />);
+    const popup = document.createElement('div');
+    popup.setAttribute('role', 'listbox');
+    popup.setAttribute('data-open', '');
+    document.body.append(popup);
+    try {
+      act(() => screen.getByRole('button', { name: 'Close' }).focus());
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Close' }), { key: 'ArrowDown' });
+      expect(onStep).not.toHaveBeenCalled();
+    } finally {
+      popup.remove();
+    }
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close' }), { key: 'ArrowDown' });
+    expect(onStep).toHaveBeenCalledTimes(1);
   });
 
   it('does not step while a menu opened from the card is open', async () => {
