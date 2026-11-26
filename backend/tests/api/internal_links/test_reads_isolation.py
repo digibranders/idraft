@@ -34,6 +34,7 @@ def read_requests(
         (at("neighbors"), {"url_id": url_id, "direction": "out", **query}),
         (at("neighbors"), {"url_id": url_id, "direction": "in", **query}),
         (at("tier-flow"), dict(query)),
+        (at("graph"), dict(query)),
         (at("worklists"), dict(query)),
     ]
 
@@ -69,7 +70,7 @@ async def test_a_url_in_the_shared_dictionary_but_not_in_this_crawl_is_not_found
 
     for url_id in (in_second, in_other):
         for url, params in read_requests(workspace, project, url_id, run=str(first), scope="all"):
-            if url.endswith(("/pages", "/edges", "/tier-flow", "/worklists")):
+            if url.endswith(("/pages", "/edges", "/tier-flow", "/graph", "/worklists")):
                 continue
             response = await api.get(url, params=params, headers=viewer.headers)
             assert problem(response) == (404, "not_found"), (url, url_id)

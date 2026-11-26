@@ -1803,6 +1803,8 @@ INTERNAL_LINK_READS = [
         False,
     ),
     ("/internal-links/tier-flow", {"scope": "all"}, False),
+    # The Link map's graph (plan 10): the seeded pages are its nodes.
+    ("/internal-links/graph", {"include_auto": "true"}, True),
     ("/internal-links/worklists", {}, False),
     ("/internal-links/changes/summary", {}, False),
     # The seeded crawl holds one lost link, from the seeded home page to the seeded pricing page.
