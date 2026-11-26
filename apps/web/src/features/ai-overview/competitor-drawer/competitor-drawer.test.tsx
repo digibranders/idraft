@@ -87,10 +87,18 @@ describe('opening the competitor drawer', () => {
   });
 
   it('gives the focus back to the name that opened it when it closes', async () => {
-    const { user } = render();
-    const opener = await openFromBars(user, 'Brightwave Digital');
+    // Another competitor is open already: the test URL cannot go back, so Close replaces the URL
+    const { user } = render(`cmp=off&inspect=competitor:${MOCK_ENTITY_IDS.brightwave}`);
     await drawer('Brightwave Digital');
+    const opener = await openFromBars(user, 'Rankforge');
+    await drawer('Rankforge');
+    // Focus must move off the opener, so the focus check below proves the return and not the click
+    within(screen.getByRole('complementary', { name: 'Rankforge' }))
+      .getByRole('heading', { name: 'Rankforge' })
+      .focus();
+    expect(opener).not.toHaveFocus();
     await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
     await waitFor(() => expect(opener).toHaveFocus());
   });
 
@@ -155,10 +163,12 @@ describe('opening the competitor drawer', () => {
     const aside = await drawer('Brightwave Digital');
     await user.click(within(aside).getByRole('tab', { name: 'Prompts' }));
     const lead = within(aside).getByRole('radiogroup', { name: 'Who leads' });
-    const [first] = within(lead).getAllByRole('radio');
+    const [first, second] = within(lead).getAllByRole('radio');
     first?.focus();
     const before = within(aside).getByRole('heading', { level: 2 }).textContent;
-    await user.keyboard('{ArrowDown}{ArrowUp}');
+    await user.keyboard('{ArrowDown}');
+    // The radiogroup took the arrow, so the drawer did not step
+    expect(second).toHaveFocus();
     expect(within(aside).getByRole('heading', { level: 2 }).textContent).toBe(before);
     expect(within(aside).getByText(/^1 of \d+$/)).toBeInTheDocument();
   });
