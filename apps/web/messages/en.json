@@ -10269,6 +10269,12 @@
     "coverage": "The queries shown cover {percent} of this page's clicks. Google does not report the rest.",
     "note": "Search Console, web search. Days are Pacific Time. Final data to {date}.",
     "notLive": "Only a page that answers 200 has search data.",
+    "summaryLabel": "Search numbers for the period",
+    "beforeValue": "Before {value}",
+    "openIntegrations": "Open Integrations",
+    "categoryHeader": "Day",
+    "chartSummary": "{metric} per day for {period}. For the whole period: {total}.",
+    "overTimeEmpty": "There is nothing to draw for this period.",
     "positionImproved": "improved {places}",
     "positionSlipped": "slipped {places}",
     "health": {
@@ -10308,6 +10314,7 @@
       "busy": "Google is busy. Trying again in {seconds} s.",
       "retry": "Retry",
       "unavailable": "Google did not answer. Try again.",
+      "errorTitle": "Could not load the search numbers",
       "notCollected": "Not collected yet"
     }
   },
