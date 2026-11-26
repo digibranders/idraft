@@ -91,7 +91,6 @@ TENANT_TABLES: dict[str, str] = {
     "ops.alert_events": "workspace_id",
     "ops.alert_cursors": "workspace_id",
     "fp.gsc_page_daily": "workspace_id",
-    "fp.ai_referral_daily": "workspace_id",
 }
 
 
@@ -470,8 +469,7 @@ async def seed_search_console(
     owner_id: uuid.UUID,
 ) -> uuid.UUID:
     """One row in every Search Console table: a secret, the connection that holds it, a property
-    linked to the project, a query and one day of numbers, and one AI referral row filed under
-    that integration (WP-69). Returns the integration's id."""
+    linked to the project, a query and one day of numbers. Returns the integration's id."""
     secret_id: uuid.UUID = await db.fetchval(
         "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
         "fingerprint) VALUES ($1, 'oauth_refresh_token', $2, $3, 1, 'abcd') RETURNING id",
@@ -520,14 +518,6 @@ async def seed_search_console(
         integration_id,
         workspace_id,
         project_id,
-    )
-    await db.execute(
-        "INSERT INTO fp.ai_referral_daily (project_id, integration_id, metric_date, origin, "
-        "classifier, rules_version, assistant_code, workspace_id, unit, sessions) "
-        "VALUES ($1, $2, current_date, 'ga4', 'own_rules', 1, 'chatgpt', $3, 'sessions', 5)",
-        project_id,
-        integration_id,
-        workspace_id,
     )
     return integration_id
 

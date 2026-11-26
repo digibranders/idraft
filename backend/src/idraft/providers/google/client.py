@@ -20,6 +20,7 @@ import base64
 import hashlib
 import json
 import random
+import re
 import secrets
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -65,6 +66,8 @@ ATTEMPTS = 3
 BACKOFF_SECONDS = 0.5
 _VERIFIER_BYTES = 48
 _QUOTA_REASONS = frozenset({"quotaExceeded", "rateLimitExceeded", "userRateLimitExceeded"})
+# The only shape put in the path of a `runReport` call, which carries the access token.
+_GA4_PROPERTY = re.compile(r"properties/[0-9]{1,20}")
 # `error.status` of a Google API error (the GA4 Data API sets it; the older APIs set `reasons`).
 _QUOTA_STATUS = "RESOURCE_EXHAUSTED"
 _CLIENT_ERRORS = frozenset(
@@ -434,6 +437,8 @@ class GoogleClient:
         """One page of GA4 `properties.runReport` (docs/18 section 7.2). Dates are in the
         property's time zone. An empty page is the end of the report; the caller pages with
         `offset` until it has `row_count` rows. Asks for the property quota (section 7.5)."""
+        if _GA4_PROPERTY.fullmatch(property) is None:
+            raise ValueError("a GA4 property is written `properties/` and its number")
         response = await self._send(
             "POST",
             f"{ANALYTICS_DATA_URL}/{property}:runReport",

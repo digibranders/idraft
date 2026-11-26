@@ -1089,15 +1089,6 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-68 llm-advanced
 
     # WP-69 first-party-signals
-    await execute(
-        pg,
-        "INSERT INTO fp.ai_referral_daily (project_id, integration_id, metric_date, origin, "
-        "classifier, rules_version, assistant_code, workspace_id, unit, sessions) "
-        "VALUES ($1, $2, current_date, 'ga4', 'own_rules', 1, 'chatgpt', $3, 'sessions', 5)",
-        project_id,
-        integration["id"],
-        workspace.id,
-    )
 
     # WP-70 geo-readiness
 
@@ -1599,7 +1590,6 @@ _TENANT_ROWS = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
-    "fp.ai_referral_daily": "workspace_id",
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
 }

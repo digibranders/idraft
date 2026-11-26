@@ -591,3 +591,24 @@ async def test_a_ga4_server_error_is_retried_and_then_unavailable() -> None:
         )
     assert seen == 3
     assert pause.waits == [0.5, 1.0]
+
+
+@pytest.mark.parametrize("name", ["properties/1/../x", "properties/1?x=1", "properties/abc", "x"])
+async def test_a_malformed_ga4_property_is_refused_before_any_request(name: str) -> None:
+    seen = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen += 1
+        return httpx.Response(200, json={})
+
+    with pytest.raises(ValueError, match="properties/"):
+        await _client(httpx.MockTransport(answer)).run_report(
+            "ya29.x",
+            name,
+            start_date=date(2026, 11, 20),
+            end_date=date(2026, 11, 22),
+            dimensions=GA4_DIMENSIONS,
+            metrics=GA4_METRICS,
+        )
+    assert seen == 0
