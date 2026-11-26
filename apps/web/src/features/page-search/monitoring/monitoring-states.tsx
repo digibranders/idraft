@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 
 import { Banner } from '@/components/app/status/banner';
 import { EmptyState } from '@/components/app/status/empty-state';
+import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { useCan } from '@/lib/permissions';
 import { integrationsPath } from '@/lib/routes/paths';
@@ -49,8 +50,22 @@ export function PendingBanner(): ReactElement {
   return <Banner tone="info" placement="region" message={t('pendingBanner')} />;
 }
 
-/** Nothing tracked yet; the Add pages button arrives with its dialog. */
-export function NothingTracked({ limit }: { limit: number }): ReactElement {
+/** Nothing tracked yet; a member who can edit the project gets the button that opens the Add pages dialog. */
+export function NothingTracked({ limit, onAdd }: { limit: number; onAdd?: (() => void) | undefined }): ReactElement {
   const t = useTranslations('monitoring');
-  return <EmptyState variant="table" title={t('empty.title')} reason={t('empty.reason', { limit })} headingLevel={3} />;
+  return (
+    <EmptyState
+      variant="table"
+      title={t('empty.title')}
+      reason={t('empty.reason', { limit })}
+      headingLevel={3}
+      primaryAction={
+        onAdd === undefined ? undefined : (
+          <Button size="sm" onClick={onAdd}>
+            {t('addPages')}
+          </Button>
+        )
+      }
+    />
+  );
 }

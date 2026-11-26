@@ -530,6 +530,41 @@ describe('MonitoringScreen', () => {
       expect(screen.getByText(/up to 200 pages/)).toBeInTheDocument();
     });
 
+    describe('Add pages', () => {
+      const serveAdd = (): void =>
+        server.use(
+          http.get('*/api/v1/workspaces/:w/projects/:p/fp/tracked-pages/ids', () =>
+            HttpResponse.json({ data: [], meta: { limit: 200 } }),
+          ),
+        );
+
+      it('opens from the toolbar', async () => {
+        serve();
+        serveAdd();
+        const { user } = renderScreen();
+        await grid();
+        await user.click(screen.getByRole('button', { name: 'Add pages' }));
+        expect(await screen.findByRole('dialog', { name: 'Add pages' })).toBeInTheDocument();
+      });
+
+      it('opens from the empty state, the second button of the same name', async () => {
+        serve({ rows: [], meta: { tracked: 0 } });
+        serveAdd();
+        const { user } = renderScreen();
+        await screen.findByText('Add the pages that matter');
+        expect(screen.getAllByRole('button', { name: 'Add pages' })).toHaveLength(2);
+        await user.click(screen.getAllByRole('button', { name: 'Add pages' })[1] as HTMLElement);
+        expect(await screen.findByRole('dialog', { name: 'Add pages' })).toBeInTheDocument();
+      });
+
+      it('is not offered to a member who cannot edit the project', async () => {
+        serve();
+        renderScreen({ role: 'viewer' });
+        await grid();
+        expect(screen.queryByRole('button', { name: 'Add pages' })).not.toBeInTheDocument();
+      });
+    });
+
     it('shows a banner and skeleton numbers while Search Console loads the first days', async () => {
       serve({
         rows: ROWS.map((one) => ({ ...one, current: null, previous: null, health: null, history: 'loading' as const })),

@@ -5,6 +5,7 @@ import { CircleMinus, Download } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import { AddPagesDialog } from './add-pages-dialog';
 import { MonitoringFilters, useCountedFields, useMonitoringFields } from './monitoring-filters';
 import { MonitoringInspector } from './monitoring-inspector';
 import { useMonitoringColumns } from './monitoring-columns';
@@ -95,6 +96,8 @@ function MonitoringContent({
   const common = useTranslations('common');
   const scope = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   const canWrite = useCan('projects:write');
+  const canAdd = canWrite;
+  const [adding, setAdding] = useState(false);
   const period = usePanelState();
 
   // With a period in the address the read with no dates only tells the last final day, so the comparison does not matter
@@ -326,14 +329,21 @@ function MonitoringContent({
           tabs={tabs}
           status={context}
           actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={shownInOrder.length === 0}
-              onClick={() => exportRows(shownInOrder)}
-            >
-              {t('export')}
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={shownInOrder.length === 0}
+                onClick={() => exportRows(shownInOrder)}
+              >
+                {t('export')}
+              </Button>
+              {canAdd ? (
+                <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+                  {t('addPages')}
+                </Button>
+              ) : null}
+            </>
           }
         />
         {banner}
@@ -390,7 +400,9 @@ function MonitoringContent({
                   retryLabel={common('retry')}
                 />
               }
-              emptyState={<NothingTracked limit={meta?.limit ?? 0} />}
+              emptyState={
+                <NothingTracked limit={meta?.limit ?? 0} onAdd={canAdd ? () => setAdding(true) : undefined} />
+              }
               filteredEmptyState={
                 <EmptyState
                   variant="table"
@@ -408,6 +420,15 @@ function MonitoringContent({
           </>
         )}
       </div>
+      {canAdd ? (
+        <AddPagesDialog
+          scope={scope}
+          host={project.host ?? project.name}
+          open={adding}
+          onOpenChange={setAdding}
+          onAdded={() => undefined}
+        />
+      ) : null}
     </InspectorLayout>
   );
 }
