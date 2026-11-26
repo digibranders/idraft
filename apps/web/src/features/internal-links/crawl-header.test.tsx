@@ -25,9 +25,8 @@ vi.mock('./tabs', async (importOriginal) => {
     render: () => `Panel of ${label}`,
   });
   const four = actual.defineLinksTabs([
-    entry('pages', 'Pages'),
-    entry('links', 'Links'),
     entry('journey', 'Journey'),
+    entry('links', 'Links'),
     entry('flow', 'Tier flow'),
   ]);
   const six = actual.defineLinksTabs([...four, entry('changes', 'Changes'), entry('opportunities', 'Opportunities')]);
@@ -97,11 +96,11 @@ describe('the crawl picker', () => {
   });
 
   it('disables a crawl whose links were dropped only for the tabs that read links', async () => {
-    const pages = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await pages.user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
-    const onPages = await screen.findAllByRole('menuitemradio');
-    expect(onPages[4]).not.toHaveAttribute('aria-disabled', 'true');
-    pages.unmount();
+    const flow = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=flow' });
+    await flow.user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
+    const onFlow = await screen.findAllByRole('menuitemradio');
+    expect(onFlow[4]).not.toHaveAttribute('aria-disabled', 'true');
+    flow.unmount();
     const links = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=links' });
     await links.user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
     const onLinks = await screen.findAllByRole('menuitemradio');
@@ -153,12 +152,12 @@ describe('a crawl the address names that cannot be shown', () => {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     expect(await screen.findByRole('heading', { name: 'That crawl was not found' })).toBeInTheDocument();
-    expect(screen.queryByText('Panel of Pages')).toBeNull();
+    expect(screen.queryByText('Panel of Journey')).toBeNull();
     // The picker shows the latest crawl, not the crawl that was asked for
     expect(screen.getByRole('button', { name: CRAWL_SHOWN })).toHaveTextContent(/18 pages$/);
     await user.click(screen.getByRole('button', { name: 'Back to latest' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('run='));
-    expect(await screen.findByText('Panel of Pages')).toBeInTheDocument();
+    expect(await screen.findByText('Panel of Journey')).toBeInTheDocument();
   });
 });
 

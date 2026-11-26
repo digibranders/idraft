@@ -31,7 +31,7 @@ import type { MenuItemDef } from '@/components/ui/menu';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { useCan } from '@/lib/permissions';
-import { projectPath, withQuery } from '@/lib/routes/paths';
+import { pagesTabPath, projectPath, withQuery } from '@/lib/routes/paths';
 
 const CHANGES_QUERY = 'tab=changes';
 const HEADING_ID = 'internal-links-heading';
@@ -167,7 +167,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     </>
   );
 
-  const needsLinks = LINK_LEVEL_TABS.has(tab?.id ?? 'pages');
+  const needsLinks = LINK_LEVEL_TABS.has(tab?.id ?? 'journey');
   // The page actions belong to a crawl that is read or under way; the other states carry their own action
   const toolbar = (tabList: ReactElement | undefined): ReactElement => (
     <PageToolbar title={t('title')} headingId={HEADING_ID}>
@@ -191,7 +191,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
                   scope={scope}
                   run={inView.run}
                   timeZone={project.timeZone}
-                  untieredHref={withQuery(base, UNTIERED_QUERY)}
+                  untieredHref={withQuery(pagesTabPath(workspaceSlug, project.slug, 'all'), UNTIERED_QUERY)}
                   changesHref={registered('changes') ? withQuery(base, CHANGES_QUERY) : null}
                 />
               </>
@@ -241,13 +241,13 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           <Tabs
             variant="segmented"
             label={t('tabs.label')}
-            value={tab?.id ?? 'pages'}
+            value={tab?.id ?? 'journey'}
             // The tab is the one change of the page that makes a history entry
             onValueChange={(next) =>
               // The inspector opened from the journey belongs to it: it closes with the tab
               setSearch(
                 {
-                  tab: next === 'pages' ? null : next,
+                  tab: next === 'journey' ? null : next,
                   ...(state.tab === 'journey' ? { inspect: null, itab: null } : {}),
                 },
                 { history: 'push' },

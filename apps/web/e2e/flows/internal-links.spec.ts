@@ -7,7 +7,7 @@ import {
   ADMIN,
   CRAWL_WAIT,
   EDITOR,
-  EVENTUS_LINKS,
+  EVENTUS_PAGES_ALL,
   LINKS_SETTINGS,
   THEME_STORAGE_KEY,
   TIERS_SETTINGS,
@@ -19,6 +19,7 @@ import {
   inspectorOf,
   linksGrid,
   openLinks,
+  openPages,
   pagesGrid,
   tierPageCount,
   treeOf,
@@ -65,7 +66,7 @@ test.describe('Internal links (spec 11)', () => {
 
   test('Crawl now runs from queued through crawling to ready', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     await expectPagesLoaded(page);
     await expect(page.getByText(/^Crawled .*pages?$/)).toBeVisible();
     await page.getByRole('button', { name: 'Crawl now' }).click();
@@ -83,7 +84,7 @@ test.describe('Internal links (spec 11)', () => {
 
   test('the Pages tab filters, sorts, opens a page, and exports the table', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     const grid = pagesGrid(page);
     await expectPagesLoaded(page);
     await expectNoEquity(page);
@@ -137,7 +138,9 @@ test.describe('Internal links (spec 11)', () => {
     const before = await tierPageCount(page, 'T4');
 
     // Bulk: every blog page to T4 through the bulk bar
-    await page.getByRole('tab', { name: 'Pages' }).click();
+    // Client navigations, not reloads: the mock API's changes live in the page's memory
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Pages', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Pages views' }).getByRole('link', { name: 'All pages' }).click();
     await page.getByRole('searchbox', { name: 'Search in table' }).fill('/blog');
     await expect(page).toHaveURL(/[?&]q=/);
     const grid = pagesGrid(page);
@@ -163,7 +166,7 @@ test.describe('Internal links (spec 11)', () => {
     await expect(page.getByText('3 rules saved.')).toBeVisible();
     await expect(rules).toBeHidden();
 
-    // The tab, not a reload: the mock API's changes live in the page's memory
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Internal links' }).click();
     await page.getByRole('tab', { name: 'Tier flow' }).click();
     await expect(flowTable(page)).toBeVisible();
     await expect.poll(async () => tierPageCount(page, 'T4')).toBeGreaterThan(before);
@@ -172,7 +175,7 @@ test.describe('Internal links (spec 11)', () => {
 
   test('checks a CSV of tiers before it applies, and names the line that needs fixing', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     await expectPagesLoaded(page);
     await pickFromMore(page, 'Import tiers from CSV');
     const dialog = page.getByRole('dialog', { name: 'Import tiers from CSV' });
@@ -273,8 +276,8 @@ test.describe('Internal links (spec 11)', () => {
     await expect(page.getByText('Recent crawls')).toBeVisible();
     await expectNoEquity(page);
 
-    // The page's own tab, from the project's Internal links
-    await page.goto(EVENTUS_LINKS);
+    // The Pages screen's own menu, on All pages
+    await page.goto(EVENTUS_PAGES_ALL);
     await expectPagesLoaded(page);
     await pickFromMore(page, 'Crawl settings');
     await expect(page).toHaveURL(/\/eventus-security\/settings\/links$/);
@@ -307,14 +310,14 @@ test.describe('Internal links (spec 11)', () => {
         { query: 'tab=flow', kind: 'flow' },
       ] as const;
       for (const { query, kind } of states) {
-        await openLinks(page, query);
+        await (kind === 'pages' ? openPages(page, query) : openLinks(page, query));
         await waitForState(page, kind);
         await expectAccessible(page);
         await expectNoEquity(page);
       }
 
-      // The two dialogs of the Pages tab
-      await openLinks(page);
+      // The two dialogs of All pages
+      await openPages(page);
       await expectPagesLoaded(page);
       await pickFromMore(page, 'Tier rules');
       await expect(

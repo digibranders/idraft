@@ -14,22 +14,21 @@ import {
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { parseLens, type MapLens } from '@/lib/internal-links/map-focus';
 import type { MapColourMode } from '@/lib/internal-links/map-graph';
-import { PAGE_SORTS } from '@/lib/internal-links/page-sorts';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
 import { searchText } from '@/lib/internal-links/search-text';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
-import type { ChangeScope, EdgeWorklist, OpportunityStatus, PageSort, PageWorklist } from '@/lib/internal-links/types';
+import type { ChangeScope, EdgeWorklist, OpportunityStatus } from '@/lib/internal-links/types';
 
 export { PAGE_SORTS } from '@/lib/internal-links/page-sorts';
 export { searchText } from '@/lib/internal-links/search-text';
 
 /**
  * What Internal links keeps in its address (the URL state table of plan 03): the tab, the link scope, the
- * worklists, the sort and searches, and the journey. The filter bars keep their own keys (`useUrlFilters`).
+ * link worklists, the searches, and the journey. The filter bars keep their own keys (`useUrlFilters`).
  * `parseLinksSearch` is pure; `useLinksState` only reads and writes the address.
  */
 
-export type LinksTabId = 'pages' | 'links' | 'journey' | 'map' | 'flow' | 'changes' | 'opportunities';
+export type LinksTabId = 'journey' | 'map' | 'links' | 'flow' | 'changes' | 'opportunities';
 
 export type LinksKey =
   | 'tab'
@@ -40,10 +39,7 @@ export type LinksKey =
   | 'ot'
   | 'oq'
   | 'scope'
-  | 'view'
   | 'lview'
-  | 'sort'
-  | 'q'
   | 'lq'
   | 'src'
   | 'tgt'
@@ -69,28 +65,16 @@ export type LinkStatus = 'active' | 'lost' | 'all';
 const LINK_STATUSES: readonly LinkStatus[] = ['active', 'lost', 'all'];
 export type LinksSearch = Readonly<Partial<Record<LinksKey, string | null | undefined>>>;
 
-const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'map', 'flow', 'changes', 'opportunities'];
+const TABS: readonly LinksTabId[] = ['journey', 'map', 'links', 'flow', 'changes', 'opportunities'];
 const OPPORTUNITY_STATUSES: readonly OpportunityStatus[] = ['open', 'accepted', 'dismissed'];
 const OPPORTUNITY_TIERS: readonly string[] = ['1', '2', '3', '4', '5', '6', '7', '8', 'none'];
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const WORKLISTS: readonly PageWorklist[] = [
-  'under_linked_t1',
-  'orphans',
-  'editorial_orphans',
-  'deep_only_through_auto',
-  'lost_links_top',
-  'weak_outlinks',
-];
 const EDGE_WORKLISTS: readonly EdgeWorklist[] = ['broken_and_redirected', 'links_to_non_indexable'];
-export const DEFAULT_SORT: PageSort = '-linking_pages';
 
 export interface LinksState {
   tab: LinksTabId;
   scope: LinkScope;
-  worklist: PageWorklist | null;
   edgeWorklist: EdgeWorklist | null;
-  sort: PageSort;
-  q: string | null;
   lq: string | null;
   /**
    * The Links tab narrowed to the links from or to one page (the inspector's "View all in Links"), and the
@@ -169,7 +153,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
   const tgt = readUrlId(search.tgt);
   const focus = readUrlId(search.focus);
   const run = readRunId(search.run);
-  const tab = TABS.find((candidate) => candidate === search.tab) ?? 'pages';
+  const tab = TABS.find((candidate) => candidate === search.tab) ?? 'journey';
   const edgeWorklist = EDGE_WORKLISTS.find((list) => list === search.lview) ?? null;
   // The link worklists count links of every scope, so a hand typed address that names none reads All links. Editorial
   // is then written out (`scope=editorial`) by the scope menu, so choosing it is still possible.
@@ -177,10 +161,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
   return {
     tab,
     scope: tab === 'links' && edgeWorklist !== null && scopeUnset ? 'all' : parseLinkScope(search.scope),
-    worklist: WORKLISTS.find((list) => list === search.view) ?? null,
     edgeWorklist,
-    sort: PAGE_SORTS.find((sort) => sort === search.sort) ?? DEFAULT_SORT,
-    q: text(search.q),
     lq: text(search.lq),
     source: src.id,
     target: tgt.id,
@@ -219,10 +200,7 @@ const PARSERS = {
   ot: parseAsString,
   oq: parseAsString,
   scope: parseAsString,
-  view: parseAsString,
   lview: parseAsString,
-  sort: parseAsString,
-  q: parseAsString,
   lq: parseAsString,
   src: parseAsString,
   tgt: parseAsString,

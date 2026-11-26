@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { PREVIEW_SECTION_SLUGS } from '../../src/components/design-system/section-slugs';
 import { signIn, waitForContent } from '../support';
-import { EVENTUS_LINKS as INTERNAL_LINKS, waitForState } from '../support/internal-links';
+import { EVENTUS_LINKS as INTERNAL_LINKS, EVENTUS_PAGES_ALL, waitForState } from '../support/internal-links';
 
 /**
  * Visual regression (26-implementation-guidelines.md section 11): each page as a whole, light and dark, at
@@ -82,7 +82,7 @@ const SIGNED_IN: readonly SignedInPage[] = [
   { name: 'costs', path: '/digibranders/fynix/costs', as: ADMIN },
   { name: 'runs', path: '/digibranders/fynix/ops/runs', as: ADMIN },
   // Internal links on the Eventus Security crawl: each tab once its rows or canvas are drawn
-  { name: 'internal-links-pages', path: INTERNAL_LINKS, prepare: (page) => waitForState(page, 'pages') },
+  { name: 'internal-links-pages', path: EVENTUS_PAGES_ALL, prepare: (page) => waitForState(page, 'pages') },
   {
     name: 'internal-links-links',
     path: `${INTERNAL_LINKS}?tab=links`,
