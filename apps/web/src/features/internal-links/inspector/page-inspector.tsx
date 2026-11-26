@@ -1,12 +1,13 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Copy, ExternalLink, Flag, Layers, Sparkles, Workflow } from 'lucide-react';
+import { Copy, ExternalLink, Flag, Globe, Layers, Sparkles, Workflow, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
 import { DrawerLinksTab } from './drawer-links-tab';
+import { DrawerOverviewTab, FlagsList } from './drawer-overview-tab';
 import { ExtrasSections, type ExtrasPart } from './extras-sections';
 import { BulkTagDialog } from '../pages/bulk-tag-dialog';
 import { usePageBulk, type BulkTarget } from '../pages/use-page-bulk';
@@ -19,7 +20,6 @@ import { InspectorBody, InspectorPanel, InspectorTabs } from '@/components/app/i
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { LinkButton } from '@/components/ui/link-button';
@@ -30,11 +30,11 @@ import { isApiProblem } from '@/lib/api/problem';
 import { copyText } from '@/lib/dom/clipboard';
 import { EMPTY_VALUE, formatTableDate } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
-import { pageFlags, type FlagKey } from '@/lib/internal-links/page-flags';
 import { comparisonOf } from '@/lib/internal-links/page-extras';
 import { changesSummaryQuery, DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuery } from '@/lib/internal-links/queries';
 import type { PageTier } from '@/lib/internal-links/types';
 import { PAGE_DRAWER_TABS, pageDrawerTab, type PageDrawerTab } from '@/lib/pages/drawer-tabs';
+import { usePageIssues } from '@/lib/pages/issue-source';
 
 const NONE = 'none';
 const NO_TIER_BULK = (): void => undefined;
@@ -50,6 +50,10 @@ const TAB_KEY = {
   links: 'tabs.links',
   notes: 'tabs.notes',
 } as const satisfies Record<PageDrawerTab, string>;
+
+const loadingSection = (title: string, icon: LucideIcon): ReactElement => (
+  <InspectorSection title={title} icon={icon} status="loading" />
+);
 
 export interface PageInspectorProps {
   context: PageDrawerContext;
@@ -105,6 +109,7 @@ export function PageInspector({
   // The tab is the address's `itab`; an unknown one reads as Overview
   const inspector = useInspector();
   const tab = pageDrawerTab(inspector.tab);
+  const issues = usePageIssues(scope, context.crawl.run, urlId);
 
   const ruleText = (ruleId: string | null): string | null => {
     const rule = rules.data?.data.find((candidate) => candidate.rule_id === ruleId);
@@ -123,7 +128,6 @@ export function PageInspector({
     if (page.tier_source === 'rule') return t('sourceRule', { rule: ruleText(page.tier_rule_id) ?? EMPTY_VALUE });
     return t('sourceNone');
   };
-  const flagLabel = (key: FlagKey): string => words(`flags.${key}`);
   const copyUrl = (): void => {
     if (page === null) return;
     void copyText(page.url).then((copied) =>
@@ -152,7 +156,6 @@ export function PageInspector({
       </InspectorBody>
     );
   } else {
-    const flags = page === null ? [] : pageFlags(page, linkScope);
     const tierSection = (
       <InspectorSection title={t('tier')} icon={Layers} status={page === null ? 'loading' : 'ready'}>
         {page === null ? null : (
@@ -219,26 +222,20 @@ export function PageInspector({
         )}
       </InspectorSection>
     );
-    // The flags have two homes until the Issues seam lands (spec 9.4): Needs attention in Overview, and Issues
+    // Until the Issues tab lands (Task 25) it holds the flags, which Overview shows as Needs attention
     const flagsSection =
-      detail === null ? null : (
+      detail === null ? (
+        loadingSection(t('flags'), Flag)
+      ) : (
         <InspectorSection title={t('flags')} icon={Flag} status="ready">
-          {flags.length === 0 ? (
-            <p className="type-body text-foreground-tertiary">{t('noFlags')}</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {flags.map((flag) => (
-                <li key={flag.key} className="flex flex-col items-start gap-1">
-                  <Badge tone={flag.tone}>{flagLabel(flag.key)}</Badge>
-                  <span className="type-meta text-foreground-secondary">{t(`flagText.${flag.key}`)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <FlagsList page={detail.page} linkScope={linkScope} />
         </InspectorSection>
       );
-    const extras = (parts: readonly ExtrasPart[]): ReactElement | null =>
-      detail === null ? null : (
+    // A panel is never empty while the page loads: it draws the skeleton of its first card
+    const extras = (parts: readonly ExtrasPart[], pendingTitle: string, pendingIcon: LucideIcon): ReactElement =>
+      detail === null ? (
+        loadingSection(pendingTitle, pendingIcon)
+      ) : (
         <ExtrasSections
           extras={detail.extras}
           comparison={comparison}
@@ -247,23 +244,29 @@ export function PageInspector({
           parts={parts}
         />
       );
-    const panels: Record<PageDrawerTab, ReactElement | null> = {
+    const panels: Record<PageDrawerTab, ReactElement> = {
       overview: (
-        <>
-          {tierSection}
-          {flagsSection}
-        </>
+        <DrawerOverviewTab
+          context={context}
+          detail={detail}
+          issues={issues}
+          onTab={inspector.setTab}
+          onCopyAddress={copyUrl}
+          tierSection={tierSection}
+        />
       ),
-      search: extras(['keywords', 'google']),
+      search: extras(['keywords', 'google'], extrasWords('google'), Globe),
       outline: <p className="type-body text-foreground-tertiary">{drawer('outline.pending')}</p>,
       issues: flagsSection,
       ai:
-        detail !== null && detail.extras.citations.total === 0 ? (
+        detail === null ? (
+          loadingSection(extrasWords('citations'), Sparkles)
+        ) : detail.extras.citations.total === 0 ? (
           <InspectorSection title={extrasWords('citations')} icon={Sparkles} status="ready">
             <p className="type-body text-foreground-tertiary">{drawer('ai.none')}</p>
           </InspectorSection>
         ) : (
-          extras(['citations'])
+          extras(['citations'], extrasWords('citations'), Sparkles)
         ),
       links: (
         <DrawerLinksTab

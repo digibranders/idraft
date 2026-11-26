@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { READ_LIMIT } from '@/lib/internal-links/journey-layout';
+import type { PageIssue, Seam } from '@/lib/pages/issue-source';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import {
   crawledPage,
@@ -28,6 +29,13 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+/** The Issues session's seam, which answers `unavailable` on this branch: a test sets it to see the other states. */
+const seam = vi.hoisted(() => ({ current: { state: 'unavailable' } as Seam<readonly PageIssue[]> }));
+vi.mock('@/lib/pages/issue-source', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/pages/issue-source')>()),
+  usePageIssues: (): Seam<readonly PageIssue[]> => seam.current,
+}));
+
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const DETAIL = mswPath(`${P}/internal-links/pages/{url_id}`);
 const NEIGHBORS = mswPath(`${P}/internal-links/neighbors`);
@@ -36,7 +44,10 @@ const RESET = mswPath(`${P}/pages/tiers/reset`);
 const TAGS = mswPath(`${P}/pages/tags`);
 const SERVER_ERROR = { type: 'about:blank', title: 'Server error', status: 500 };
 
-beforeEach(() => stubWideScreen());
+beforeEach(() => {
+  stubWideScreen();
+  seam.current = { state: 'unavailable' };
+});
 afterEach(() => {
   restoreWideScreen();
   server.events.removeAllListeners();
@@ -581,14 +592,30 @@ describe('the page inspector (spec 7.4)', () => {
       }
     });
 
-    it('holds the tier and tags and the flags in Overview, and no Track control anywhere', async () => {
+    it('holds the tier and tags and what needs attention in Overview, and no Track control anywhere', async () => {
       const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const panel = await panelOf('/pricing');
       expect(await within(panel).findByRole('combobox', { name: 'Tier of this page' })).toBeInTheDocument();
-      expect(within(panel).getByRole('heading', { name: 'Flags' })).toBeInTheDocument();
+      expect(within(panel).getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
       for (const name of TAB_NAMES) {
         await user.click(within(panel).getByRole('tab', { name }));
-        expect(within(panel).queryByRole('button', { name: /^Track/ })).toBeNull();
+        expect(within(panel).queryByRole('button', { name: /^Track(?!ed keywords:)/ })).toBeNull();
+      }
+    });
+
+    it('draws a skeleton, never an empty panel, on the tabs that need the page while it loads', async () => {
+      server.use(http.get(DETAIL, () => new Promise<never>(() => undefined)));
+      for (const [tab, title] of [
+        ['overview', 'Needs attention'],
+        ['search', 'Google Search Console'],
+        ['issues', 'Flags'],
+        ['ai', 'AI citations'],
+      ] as const) {
+        const view = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab(tab));
+        const panel = await panelOf('Page');
+        const heading = await within(panel).findByRole('heading', { name: title });
+        expect(heading.closest('section')).toHaveAttribute('aria-busy', 'true');
+        view.unmount();
       }
     });
 
@@ -668,6 +695,163 @@ describe('the page inspector (spec 7.4)', () => {
       await user.keyboard('j');
       const next = await screen.findByRole('complementary', { name: (name) => name !== '/pricing' });
       expect(selectedTab(next)).toBe('Links');
+    });
+  });
+
+  describe('the Overview tab (spec 9.4)', () => {
+    /** The page 108 read with some of its parts changed: the tiles then do not depend on the fixture's numbers. */
+    const withOverview = (page: Record<string, unknown>, gsc: Record<string, unknown>): void =>
+      server.use(
+        http.get(DETAIL, () =>
+          HttpResponse.json({
+            data: {
+              page: {
+                ...pageRow(crawledPage('108') as NonNullable<ReturnType<typeof crawledPage>>, 'editorial'),
+                ...page,
+              },
+              linking_by_tier: [],
+              linking_by_placement: [],
+              top_anchors: [],
+              links_available: true,
+              linking_pages: [],
+              outlinks: [],
+              linking_pages_total: 0,
+              outlinks_total: 0,
+              notes_count: 0,
+              extras: {
+                anchors: { total: 0, distinct: 0, generic: 0, generic_share: 0, matches_keyword: null, top: [] },
+                change: null,
+                citations: { chatgpt: 1, gemini: 0, ai_mode: 0, total: 1 },
+                gsc: { state: 'ok', clicks: 1240, impressions: 30500, window_start: null, window_end: null, ...gsc },
+                keywords: [],
+              },
+            },
+          }),
+        ),
+      );
+
+    it('draws the chips from the page row, with Parameter variant only for a variant', async () => {
+      withOverview(
+        { status_code: 200, is_indexable: true, in_sitemap: false, flags: ['variant'] },
+        { state: 'ok', clicks: 1240, impressions: 30500 },
+      );
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const chips = within(await panelOf('/pricing')).getByRole('list', { name: 'Page facts' });
+      for (const text of ['200', 'Indexable', 'Not in sitemap', 'Parameter variant']) {
+        expect(await within(chips).findByText(text)).toBeInTheDocument();
+      }
+    });
+
+    it('draws seven tiles as buttons with full names, and a tile opens its tab and writes itab', async () => {
+      withOverview({}, { state: 'ok', clicks: 1240, impressions: 30500 });
+      const onUrlUpdate = vi.fn();
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
+      const panel = await panelOf('/pricing');
+      const group = await within(panel).findByRole('group', { name: 'Page numbers' });
+      expect(within(group).getAllByRole('button')).toHaveLength(7);
+      await user.click(
+        within(group).getByRole('button', { name: 'Clicks: 1,240, last 28 days. Opens the Search tab.' }),
+      );
+      await waitFor(() => expect(lastQuery(onUrlUpdate)).toContain('itab=search'));
+      expect(selectedTab(panel)).toBe('Search');
+      await user.click(within(panel).getByRole('tab', { name: 'Overview' }));
+      await user.click(within(panel).getByRole('button', { name: /^AI citations: .*Opens the AI tab\.$/ }));
+      expect(selectedTab(panel)).toBe('AI');
+      await user.click(within(panel).getByRole('tab', { name: 'Overview' }));
+      await user.click(within(panel).getByRole('button', { name: /^Links in: .*Opens the Links tab\.$/ }));
+      expect(selectedTab(panel)).toBe('Links');
+    });
+
+    it.each([
+      ['not_connected', 'Clicks: Not connected. Opens the Search tab.'],
+      ['pending', 'Clicks: Not collected yet. Opens the Search tab.'],
+    ])('reads a Search Console tile as words, never 0, when the state is %s', async (state, name) => {
+      withOverview({}, { state, clicks: null, impressions: null });
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const group = await within(await panelOf('/pricing')).findByRole('group', { name: 'Page numbers' });
+      expect(within(group).getByRole('button', { name })).toBeInTheDocument();
+    });
+
+    it('says a page no link reaches is not reachable, not depth 0', async () => {
+      withOverview({ click_depth: null }, {});
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const group = await within(await panelOf('/pricing')).findByRole('group', { name: 'Page numbers' });
+      expect(
+        within(group).getByRole('button', { name: 'Depth: Not reachable by links. Opens the Links tab.' }),
+      ).toBeInTheDocument();
+    });
+
+    it('lists the flags under Needs attention, and says so when the page has none', async () => {
+      withOverview({ flags: ['orphan'] }, {});
+      const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const card = (await within(await panelOf('/pricing')).findByRole('heading', { name: 'Needs attention' })).closest(
+        'section',
+      ) as HTMLElement;
+      await waitFor(() => expect(within(card).getAllByRole('listitem').length).toBeGreaterThan(0));
+      first.unmount();
+      withOverview({ flags: [], broken_outlinks: 0, redirect_outlinks: 0, linking_pages: 50 }, {});
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      expect(await screen.findByText('No flags. This page has no linking problems.')).toBeInTheDocument();
+    });
+
+    it('shows About: the title, the address with a copy button, the canonical, the redirect target and the crawl date', async () => {
+      withOverview({ canonical_url: 'https://example.com/canon', redirect_url: 'https://example.com/new' }, {});
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const about = (await within(await panelOf('/pricing')).findByRole('heading', { name: 'About' })).closest(
+        'section',
+      ) as HTMLElement;
+      expect(within(about).getByText('Plans and pricing')).toBeInTheDocument();
+      expect(within(about).getByText('https://example.com/canon')).toBeInTheDocument();
+      expect(within(about).getByText('Redirects to')).toBeInTheDocument();
+      expect(within(about).getByText('https://example.com/new')).toBeInTheDocument();
+      expect(within(about).getByText('Last crawled')).toBeInTheDocument();
+      await user.click(within(about).getByRole('button', { name: 'Copy address' }));
+      expect((await screen.findAllByText('URL copied')).length).toBeGreaterThan(0);
+    });
+
+    describe('with the Issues seam ready', () => {
+      const issue = (severity: string, checkId: string): PageIssue => ({
+        checkId,
+        severity: severity as PageIssue['severity'],
+        detail: `Found by ${checkId}`,
+      });
+
+      it('draws eight tiles, the five most severe issues first, and See all issues opens the Issues tab', async () => {
+        seam.current = {
+          state: 'ready',
+          data: [
+            issue('notice', 'n1'),
+            issue('warning', 'w1'),
+            issue('error', 'e1'),
+            issue('notice', 'n2'),
+            issue('warning', 'w2'),
+            issue('notice', 'n3'),
+            issue('error', 'e2'),
+          ],
+        };
+        const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+        const panel = await panelOf('/pricing');
+        const group = await within(panel).findByRole('group', { name: 'Page numbers' });
+        expect(within(group).getAllByRole('button')).toHaveLength(8);
+        expect(
+          within(group).getByRole('button', { name: 'Issues: 2, 2 errors. Opens the Issues tab.' }),
+        ).toBeInTheDocument();
+        const card = within(panel).getByRole('heading', { name: 'Needs attention' }).closest('section') as HTMLElement;
+        const items = within(card).getAllByRole('listitem');
+        expect(items).toHaveLength(5);
+        expect(items[0]).toHaveTextContent('Error');
+        expect(items[0]).toHaveTextContent('e1');
+        expect(items[2]).toHaveTextContent('Warning');
+        expect(items[4]).toHaveTextContent('Notice');
+        await user.click(within(card).getByRole('button', { name: 'See all issues' }));
+        expect(selectedTab(panel)).toBe('Issues');
+      });
+
+      it('says nothing needs attention when the page has no issue', async () => {
+        seam.current = { state: 'ready', data: [] };
+        renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+        expect(await screen.findByText('Nothing needs attention on this page')).toBeInTheDocument();
+      });
     });
   });
 

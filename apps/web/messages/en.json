@@ -9149,6 +9149,61 @@
         "links": "Links",
         "notes": "Notes"
       },
+      "overview": {
+        "chips": {
+          "label": "Page facts",
+          "indexable": "Indexable",
+          "inSitemap": "In sitemap",
+          "notInSitemap": "Not in sitemap",
+          "variant": "Parameter variant"
+        },
+        "tiles": {
+          "label": "Page numbers",
+          "clicks": "Clicks",
+          "impressions": "Impressions",
+          "keywords": "Tracked keywords",
+          "citations": "AI citations",
+          "linksIn": "Links in",
+          "linksOut": "Links out",
+          "depth": "Depth",
+          "issues": "Issues",
+          "last28": "last 28 days",
+          "bestRank": "best rank {rank, number}",
+          "noRank": "none rank yet",
+          "linksNote": "{scope}, {count, number} in all",
+          "depthNote": "clicks from the home page",
+          "notReachable": "Not reachable by links",
+          "notConnected": "Not connected",
+          "notCollected": "Not collected yet",
+          "issuesNone": "None found",
+          "issuesNote": "{count, plural, one {# error} other {# errors}}",
+          "issuesWarnings": "{count, plural, one {# warning} other {# warnings}}",
+          "issuesNotices": "{count, plural, one {# notice} other {# notices}}",
+          "opens": "{label}: {value}, {note}. Opens the {tab} tab.",
+          "opensNoNote": "{label}: {value}. Opens the {tab} tab."
+        },
+        "attention": {
+          "title": "Needs attention",
+          "none": "Nothing needs attention on this page",
+          "seeAll": "See all issues"
+        },
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "notice": "Notice"
+        },
+        "about": {
+          "title": "About",
+          "pageTitle": "Title",
+          "address": "Address",
+          "canonical": "Canonical",
+          "redirectsTo": "Redirects to",
+          "lastCrawled": "Last crawled",
+          "noTitle": "No title",
+          "noCanonical": "None set",
+          "copyAddress": "Copy address"
+        }
+      },
       "notes": {
         "pending": "The notes of this page appear here"
       },
