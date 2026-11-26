@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { MOCK_WORKSPACE } from '../fixtures';
 import { PAGE_VIEWS } from '../internal-links-inventory';
+import { setNoteFileLimit } from '../internal-links-notes';
 import { EVENTUS, HISTORY_RUN_IDS, setLinksScenario } from '../internal-links-world';
 import { mockBrowser } from '@/test/mock-api';
 import type { PageView } from '@/lib/internal-links/types';
@@ -531,5 +532,130 @@ describe('the notes routes of the mock API', () => {
     expect(back.body).toMatchObject({ data: { id: theirs.id } });
     expect(await countOf(admin)).toBe(3);
     expect((await admin.call('POST', `${NOTES_PATH}/${theirs.id}/restore`)).status).toBe(404);
+  });
+});
+
+const FILES_PATH = `${L}/pages/108/note-attachments`;
+const STORED_FILE = z.object({
+  data: z.object({
+    id: z.string(),
+    name: z.string(),
+    size: z.number(),
+    content_type: z.string(),
+    is_image: z.boolean(),
+    url: z.string(),
+  }),
+});
+
+const formOf = (content: BlobPart, name: string, type: string): FormData => {
+  const form = new FormData();
+  form.append('file', new File([content], name, { type }));
+  return form;
+};
+
+describe('the note file routes of the mock API', () => {
+  const upload = async (
+    browser: ReturnType<typeof mockBrowser>,
+    content: BlobPart = 'hello',
+    name = 'notes.txt',
+    type = 'text/plain',
+  ): Promise<z.infer<typeof STORED_FILE>['data']> => {
+    const answer = await browser.call('POST', FILES_PATH, formOf(content, name, type));
+    expect(answer.status).toBe(201);
+    return STORED_FILE.parse(answer.body).data;
+  };
+
+  it('stores one file with 201 and answers its name, size, type and serving path', async () => {
+    const stored = await upload(mockBrowser('editor'), 'a,b\n1,2', 'rows.csv');
+    expect(stored).toMatchObject({ name: 'rows.csv', size: 7, content_type: 'text/csv', is_image: false });
+    expect(stored.url).toBe(`${FILES_PATH}/${stored.id}`);
+  });
+
+  it('refuses what the API refuses: too big, a wrong type, empty, no file part, a viewer, an unknown page', async () => {
+    const editor = mockBrowser('editor');
+    const big = await editor.call(
+      'POST',
+      FILES_PATH,
+      formOf(new Uint8Array(10 * 1024 * 1024 + 1), 'big.txt', 'text/plain'),
+    );
+    expect(big).toMatchObject({ status: 413, code: 'payload_too_large' });
+    expect(big.body).toMatchObject({ limit_bytes: 10 * 1024 * 1024 });
+    expect(await editor.call('POST', FILES_PATH, formOf('<html></html>', 'page.txt', 'text/plain'))).toMatchObject({
+      status: 415,
+      code: 'unsupported_media_type',
+    });
+    expect(await editor.call('POST', FILES_PATH, formOf('x', 'a.svg', 'image/svg+xml'))).toMatchObject({ status: 415 });
+    const empty = await editor.call('POST', FILES_PATH, formOf('', 'empty.txt', 'text/plain'));
+    expect(empty.status).toBe(422);
+    expect(JSON.stringify(empty.body)).toContain('file_empty');
+    const none = await editor.call('POST', FILES_PATH, new FormData());
+    expect(none.status).toBe(422);
+    expect(JSON.stringify(none.body)).toContain('"path":"file"');
+    expect(await editor.call('POST', FILES_PATH, { file: 'x' })).toMatchObject({ status: 415 });
+    expect((await mockBrowser('viewer').call('POST', FILES_PATH, formOf('x', 'a.txt', 'text/plain'))).status).toBe(403);
+    expect(
+      (await editor.call('POST', `${L}/pages/9999/note-attachments`, formOf('x', 'a.txt', 'text/plain'))).status,
+    ).toBe(404);
+  });
+
+  it('refuses a file past the workspace cap with the figures, orphans counted', async () => {
+    setNoteFileLimit(10);
+    const editor = mockBrowser('editor');
+    await upload(editor, 'ninebytes');
+    const over = await editor.call('POST', FILES_PATH, formOf('xx', 'two.txt', 'text/plain'));
+    expect(over).toMatchObject({ status: 422, code: 'quota_exceeded' });
+    expect(over.body).toMatchObject({ limit: 10, used: 9, requested: 2 });
+  });
+
+  it('attaches files by id to a note, serves them to a reader, and answers 404 for a file that is not live', async () => {
+    const editor = mockBrowser('editor');
+    const stored = await upload(editor);
+    // Pending: nobody can read it yet
+    expect((await editor.call('GET', stored.url)).status).toBe(404);
+
+    const made = await editor.call('POST', NOTES_PATH, { body: '', attachment_ids: [stored.id] });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ data: { body: '', attachments: [stored] } });
+    const served = await mockBrowser('viewer').call('GET', stored.url);
+    expect(served.status).toBe(200);
+    expect(served.body).toEqual({ text: 'hello' });
+    expect(served.headers.get('content-type')).toContain('text/plain');
+    expect(served.headers.get('x-content-type-options')).toBe('nosniff');
+    expect((await editor.call('GET', `${L}/pages/101/note-attachments/${stored.id}`)).status).toBe(404);
+
+    const noteId = z.object({ data: z.object({ id: z.string() }) }).parse(made.body).data.id;
+    const admin = editor.as('admin');
+    expect((await editor.call('DELETE', `${NOTES_PATH}/${noteId}`)).status).toBe(204);
+    expect((await admin.call('GET', stored.url)).status).toBe(404);
+    expect((await editor.call('POST', `${NOTES_PATH}/${noteId}/restore`)).status).toBe(200);
+    expect((await admin.call('GET', stored.url)).status).toBe(200);
+
+    // A change that sends no list keeps the file; one that sends [] detaches it for good
+    expect((await editor.call('PATCH', `${NOTES_PATH}/${noteId}`, { body: 'Now with text' })).body).toMatchObject({
+      data: { attachments: [stored] },
+    });
+    const detached = await editor.call('PATCH', `${NOTES_PATH}/${noteId}`, {
+      body: 'Now with text',
+      attachment_ids: [],
+    });
+    expect(detached.body).toMatchObject({ data: { attachments: [] } });
+    expect((await admin.call('GET', stored.url)).status).toBe(404);
+  });
+
+  it('refuses a note with neither text nor a file, a file of someone else, and a file that is attached already', async () => {
+    const editor = mockBrowser('editor');
+    const none = await editor.call('POST', NOTES_PATH, { body: ' ', attachment_ids: [] });
+    expect(none.status).toBe(422);
+    expect(JSON.stringify(none.body)).toContain('body_required');
+
+    const stored = await upload(editor);
+    const foreign = await editor.as('admin').call('POST', NOTES_PATH, { body: 'x', attachment_ids: [stored.id] });
+    expect(foreign.status).toBe(422);
+    expect(JSON.stringify(foreign.body)).toContain('attachment_unavailable');
+    expect((await editor.call('POST', NOTES_PATH, { body: 'x', attachment_ids: [stored.id] })).status).toBe(201);
+    const twice = await editor.call('POST', NOTES_PATH, { body: 'y', attachment_ids: [stored.id] });
+    expect(JSON.stringify(twice.body)).toContain('attachment_unavailable');
+    const many = await editor.call('POST', NOTES_PATH, { body: 'z', attachment_ids: Array(6).fill(stored.id) });
+    expect(JSON.stringify(many.body)).toContain('too_long');
   });
 });

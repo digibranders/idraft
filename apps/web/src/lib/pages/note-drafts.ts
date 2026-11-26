@@ -55,7 +55,11 @@ export const setNoteDraftMentions = (scope: LinksScope, urlId: string, list: rea
   mentions.set(keyOf(scope, urlId), list);
 };
 
-/** The files already uploaded for the draft (they are attached by id when the note is saved). */
+/**
+ * The files already uploaded for the draft (they are attached by id when the note is saved). Memory only, like the text.
+ * A draft that is discarded, or lost with the tab, leaves its files stored on the server without a note: orphans, which
+ * count against the workspace quota and are never served (no purge is built, decision D27).
+ */
 export const noteDraftFiles = (scope: LinksScope, urlId: string): readonly PageNoteFile[] =>
   files.get(keyOf(scope, urlId));
 

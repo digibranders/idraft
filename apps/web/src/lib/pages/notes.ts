@@ -3,7 +3,7 @@ import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from
 import { apiMutation } from '@/lib/api/query';
 import type { Schemas } from '@/lib/api/types';
 import { PAGE_NOTE, PAGE_NOTES, checkUrlId, pageKey, pageNotesQuery } from '@/lib/internal-links/queries';
-import type { LinksScope, PageNote, PageNoteList } from '@/lib/internal-links/types';
+import type { LinksScope, PageNote, PageNoteFile, PageNoteList } from '@/lib/internal-links/types';
 import type { NoteMention } from '@/lib/pages/note-mentions';
 
 /** The longest note the API takes, in characters (`NOTE_MAX` of the backend). */
@@ -50,26 +50,57 @@ export function usePageNotes(scope: LinksScope, urlId: string, enabled: boolean)
   };
 }
 
-/** What a write carries besides the body: the mentions the text still holds and the ids of the files uploaded for it. */
+/** A file by its id: the stored file the box holds, or anything with an id. */
+export type FileRef = Pick<PageNoteFile, 'id'>;
+
+/**
+ * What a change does to the files of a note: the files the note had when the edit began (`held`) and the files the box
+ * holds now (`next`: the kept ones and the new ones). Never an id list built by hand.
+ */
+export interface NoteFileEdit {
+  held: readonly FileRef[];
+  next: readonly FileRef[];
+}
+
+/**
+ * The `attachment_ids` of a change, or `undefined` for none. On a change the server takes the key as the EXACT list of
+ * the files afterwards: `[]` detaches ALL of them, irreversibly, and a list of only the new ones detaches the kept
+ * ones. So the key is left out unless the set of files changed, and then it is the whole of `next`. `[]` comes out
+ * only when the note had files and the box has none.
+ */
+export function attachmentIdsOf({ held, next }: NoteFileEdit): string[] | undefined {
+  const kept = new Set(held.map((file) => file.id));
+  const same = next.length === kept.size && next.every((file) => kept.has(file.id));
+  return same ? undefined : next.map((file) => file.id);
+}
+
+/** What a write carries besides the body: the mentions the text still holds. */
 export interface NoteWriteExtras {
   mentions?: readonly NoteMention[] | undefined;
-  /**
-   * WARNING: on a change, sending `[]` detaches ALL the files of the note, and that cannot be undone. Leave the key
-   * out when the files were not touched; otherwise send the full list of the files that stay.
-   */
-  attachmentIds?: readonly string[] | undefined;
+  /** The files a new note holds (uploaded before, attached by their ids). */
+  files?: readonly FileRef[] | undefined;
+}
+
+/** What a change carries besides the body. Its files are an edit, so the wrong call (`[]`) cannot be written. */
+export interface NoteChangeExtras {
+  mentions?: readonly NoteMention[] | undefined;
+  files?: NoteFileEdit | undefined;
 }
 
 /** `mentions` only when there are some (the server keeps the stored ones whose label is still in the text otherwise). */
-const mentionsPart = ({ mentions }: NoteWriteExtras): Pick<Schemas['PageNoteWrite'], 'mentions'> =>
+const mentionsPart = ({
+  mentions,
+}: {
+  mentions?: readonly NoteMention[] | undefined;
+}): Pick<Schemas['PageNoteWrite'], 'mentions'> =>
   mentions === undefined || mentions.length === 0
     ? {}
     : { mentions: mentions.map(({ type, label, target }) => ({ type, label, target })) };
 
 export interface PageNoteWrites {
   add: (body: string, extras?: NoteWriteExtras) => Promise<PageNote>;
-  /** `extras.attachmentIds` given, even empty, is the exact list of files afterwards; left out, the files stay. */
-  change: (noteId: string, body: string, extras?: NoteWriteExtras) => Promise<PageNote>;
+  /** `extras.files` left out, or an edit that leaves the files as they were, keeps the files of the note. */
+  change: (noteId: string, body: string, extras?: NoteChangeExtras) => Promise<PageNote>;
   /** The note leaves the list at once; it comes back when the API refuses. */
   remove: (noteId: string) => Promise<void>;
   /** Undo of `remove`: the API allows it only for the one who deleted the note. */
@@ -153,12 +184,16 @@ export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWri
 
   return {
     add: async (body, extras = {}) => {
-      const files = extras.attachmentIds ?? [];
+      const files = extras.files ?? [];
       try {
         return (
           await create.mutateAsync({
             params: { path },
-            body: { body, ...mentionsPart(extras), ...(files.length === 0 ? {} : { attachment_ids: [...files] }) },
+            body: {
+              body,
+              ...mentionsPart(extras),
+              ...(files.length === 0 ? {} : { attachment_ids: files.map((file) => file.id) }),
+            },
           })
         ).data;
       } finally {
@@ -166,6 +201,7 @@ export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWri
       }
     },
     change: async (noteId, body, extras = {}) => {
+      const attachmentIds = extras.files === undefined ? undefined : attachmentIdsOf(extras.files);
       try {
         return (
           await change.mutateAsync({
@@ -173,7 +209,7 @@ export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWri
             body: {
               body,
               ...mentionsPart(extras),
-              ...(extras.attachmentIds === undefined ? {} : { attachment_ids: [...extras.attachmentIds] }),
+              ...(attachmentIds === undefined ? {} : { attachment_ids: attachmentIds }),
             },
           })
         ).data;

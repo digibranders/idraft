@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 import { type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { NOTE_COUNT_FROM, NOTE_MAX, usePageNotes, usePageNoteWrites, type NotesRead } from './notes';
+import { NOTE_COUNT_FROM, NOTE_MAX, attachmentIdsOf, usePageNotes, usePageNoteWrites, type NotesRead } from './notes';
 import { ApiProblem } from '@/lib/api/problem';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { pageDetailQuery } from '@/lib/internal-links/queries';
@@ -188,44 +188,57 @@ describe('usePageNoteWrites', () => {
 
   describe('what a write sends besides the body', () => {
     const FILE_ID = '0192e4a0-b000-7000-8000-000000000001';
+    const OTHER_FILE_ID = '0192e4a0-b000-7000-8000-000000000002';
     const PAGE_MENTION = { type: 'page', label: '@/pricing', target: '108' } as const;
-    const sentBodies = (): unknown[] => {
+    const STUB: PageNote = {
+      id: '0192e4a0-a000-7000-8000-000000000999',
+      author: { id: 'a', name: 'A' },
+      body: 'stub',
+      mentions: [],
+      attachments: [],
+      created_at: '2026-11-20T10:00:00Z',
+      edited_at: null,
+      can_edit: true,
+      can_delete: true,
+    };
+    /** Records the body of each write. A `stubbed` write is answered here: the mock would refuse ids it never stored. */
+    const sentBodies = (stubbed = false): unknown[] => {
       const sent: unknown[] = [];
+      const answer = (status: number): Response | undefined =>
+        stubbed ? HttpResponse.json({ data: STUB }, { status }) : undefined;
       server.use(
         http.post('*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes', async ({ request }) => {
           sent.push(await request.clone().json());
-          return undefined;
+          return answer(201);
         }),
         http.patch('*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes/:note', async ({ request }) => {
           sent.push(await request.clone().json());
-          return undefined;
+          return answer(200);
         }),
       );
       return sent;
     };
 
-    it('sends mentions and attachment_ids on add, and the note read has the mentions with the page path', async () => {
+    it('sends mentions on add, and the note read has the mentions with the page path', async () => {
       const { writes } = pageWith('editor');
       const sent = sentBodies();
-      const made = await act(() =>
-        writes.current.add('See @/pricing', { mentions: [PAGE_MENTION], attachmentIds: [] }),
-      );
+      const made = await act(() => writes.current.add('See @/pricing', { mentions: [PAGE_MENTION], files: [] }));
       expect(sent).toEqual([{ body: 'See @/pricing', mentions: [PAGE_MENTION] }]);
       expect(made.mentions).toEqual([{ ...PAGE_MENTION, path: '/pricing' }]);
     });
 
     it('sends the ids of the files on add and leaves out an empty list and no options', async () => {
       const { writes } = pageWith('editor');
-      const sent = sentBodies();
+      const sent = sentBodies(true);
       await act(() => writes.current.add('Plain'));
-      await act(() => writes.current.add('With empty', { mentions: [], attachmentIds: [] }));
-      await act(() => writes.current.add('With a file', { attachmentIds: [FILE_ID] }));
+      await act(() => writes.current.add('With empty', { mentions: [], files: [] }));
+      await act(() => writes.current.add('With files', { files: [{ id: FILE_ID }, { id: OTHER_FILE_ID }] }));
       expect(sent[0]).toEqual({ body: 'Plain' });
       expect(sent[1]).toEqual({ body: 'With empty' });
-      expect(sent[2]).toEqual({ body: 'With a file', attachment_ids: [FILE_ID] });
+      expect(sent[2]).toEqual({ body: 'With files', attachment_ids: [FILE_ID, OTHER_FILE_ID] });
     });
 
-    it('does the same on a change, where an empty list of files still means none', async () => {
+    it('sends mentions on a change, and no file key while the files are untouched', async () => {
       const { notes, writes } = pageWith('editor');
       await waitFor(() => {
         expect(notes.current.state).toBe('ready');
@@ -235,12 +248,63 @@ describe('usePageNoteWrites', () => {
       const sent = sentBodies();
       await act(() => writes.current.change(mine.id, 'Edited @/pricing', { mentions: [PAGE_MENTION] }));
       await act(() => writes.current.change(mine.id, 'Edited again'));
-      await act(() => writes.current.change(mine.id, 'Edited once more', { attachmentIds: [] }));
+      await act(() => writes.current.change(mine.id, 'Edited once more', { files: { held: [], next: [] } }));
       expect(sent).toEqual([
         { body: 'Edited @/pricing', mentions: [PAGE_MENTION] },
         { body: 'Edited again' },
-        { body: 'Edited once more', attachment_ids: [] },
+        { body: 'Edited once more' },
       ]);
+    });
+
+    it('sends the full list of files on a change that touches them: the kept ones with the new ones', async () => {
+      const { notes, writes } = pageWith('editor');
+      await waitFor(() => {
+        expect(notes.current.state).toBe('ready');
+      });
+      const mine = readyNotes(notes.current).find((note) => note.can_edit);
+      if (mine === undefined) throw new Error('no note of the editor');
+      const sent = sentBodies(true);
+      const held = [{ id: FILE_ID }];
+      await act(() =>
+        writes.current.change(mine.id, 'Added', { files: { held, next: [...held, { id: OTHER_FILE_ID }] } }),
+      );
+      await act(() => writes.current.change(mine.id, 'Swapped', { files: { held, next: [{ id: OTHER_FILE_ID }] } }));
+      expect(sent).toEqual([
+        { body: 'Added', attachment_ids: [FILE_ID, OTHER_FILE_ID] },
+        { body: 'Swapped', attachment_ids: [OTHER_FILE_ID] },
+      ]);
+    });
+
+    it('sends an empty list only when the box dropped the last of the files the note had', async () => {
+      const { notes, writes } = pageWith('editor');
+      await waitFor(() => {
+        expect(notes.current.state).toBe('ready');
+      });
+      const mine = readyNotes(notes.current).find((note) => note.can_edit);
+      if (mine === undefined) throw new Error('no note of the editor');
+      const sent = sentBodies(true);
+      await act(() => writes.current.change(mine.id, 'Dropped', { files: { held: [{ id: FILE_ID }], next: [] } }));
+      expect(sent).toEqual([{ body: 'Dropped', attachment_ids: [] }]);
+    });
+  });
+
+  describe('attachmentIdsOf', () => {
+    const [A, B, C] = ['a', 'b', 'c'].map((id) => ({ id }));
+    if (A === undefined || B === undefined || C === undefined) throw new Error('no refs');
+
+    it('is undefined, which leaves the key out, when the files are the same in any order', () => {
+      expect(attachmentIdsOf({ held: [], next: [] })).toBeUndefined();
+      expect(attachmentIdsOf({ held: [A, B], next: [B, A] })).toBeUndefined();
+    });
+
+    it('is the whole list afterwards when it differs, never only what was added', () => {
+      expect(attachmentIdsOf({ held: [A, B], next: [A, B, C] })).toEqual(['a', 'b', 'c']);
+      expect(attachmentIdsOf({ held: [A, B], next: [C] })).toEqual(['c']);
+      expect(attachmentIdsOf({ held: [A, B], next: [A] })).toEqual(['a']);
+    });
+
+    it('is empty only when the note had files and the box has none', () => {
+      expect(attachmentIdsOf({ held: [A], next: [] })).toEqual([]);
     });
   });
 

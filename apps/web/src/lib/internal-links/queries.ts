@@ -43,6 +43,9 @@ const PAGE_SEARCH = `${P}/internal-links/pages/{url_id}/search` as const;
 const PAGE_OUTLINE = `${P}/internal-links/pages/{url_id}/outline` as const;
 export const PAGE_NOTES = `${P}/internal-links/pages/{url_id}/notes` as const;
 export const PAGE_NOTE = `${P}/internal-links/pages/{url_id}/notes/{note_id}` as const;
+/** Upload of one note file (multipart, so `uploadForm` sends it, not the typed client) and the bytes of a stored one. */
+export const PAGE_NOTE_FILES = `${P}/internal-links/pages/{url_id}/note-attachments` as const;
+export const PAGE_NOTE_FILE = `${P}/internal-links/pages/{url_id}/note-attachments/{attachment_id}` as const;
 const OVERVIEW = `${P}/internal-links/overview` as const;
 const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
@@ -134,6 +137,10 @@ export function checkUrlId(urlId: string): string {
   if (!/^[1-9][0-9]*$/.test(urlId) || BigInt(urlId) > INT64_MAX) throw new UrlIdError(`Not a url id: ${urlId}`);
   return urlId;
 }
+
+/** Where the browser posts a note file of one page. */
+export const noteFilesPath = (scope: LinksScope, urlId: string): `/api/v1/${string}` =>
+  `/api/v1/workspaces/${scope.workspaceId}/projects/${scope.projectId}/internal-links/pages/${checkUrlId(urlId)}/note-attachments`;
 
 export interface PageQuery {
   scope: LinkScope;

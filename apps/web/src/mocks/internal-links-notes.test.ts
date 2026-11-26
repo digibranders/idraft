@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
+import { MOCK_WORKSPACE } from './fixtures';
 import { EVENTUS } from './internal-links-world';
-import { add, change, countOf, notesAfter, remove, restore, type NoteActor } from './internal-links-notes';
+import {
+  add,
+  change,
+  countOf,
+  fileOf,
+  notesAfter,
+  remove,
+  resetNotes,
+  restore,
+  setNoteFileLimit,
+  uploadFile,
+  type NoteActor,
+  type NoteUpload,
+} from './internal-links-notes';
+import type { PageNote, PageNoteFile } from '@/lib/internal-links/types';
 
+const WORKSPACE = MOCK_WORKSPACE.workspace_id;
 const PROJECT = EVENTUS.project_id;
 const PRICING = '108';
 const HOME = '101';
@@ -215,6 +231,224 @@ describe('the notes store of the mocked API', () => {
       });
       const many = Array.from({ length: 21 }, (_, index) => ({ ...page, label: `@p${String(index)}` }));
       expect(add(PROJECT, PRICING, MEI, 'x', many)).toMatchObject({ field: { path: 'mentions', code: 'too_long' } });
+    });
+  });
+
+  describe('files', () => {
+    const MB = 1024 * 1024;
+    const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
+    const textFile = (name = 'notes.txt', body = 'hello'): NoteUpload => ({
+      name,
+      type: 'text/plain',
+      bytes: bytes(body),
+    });
+    const png = (name = 'shot.png'): NoteUpload => ({
+      name,
+      type: 'image/png',
+      bytes: Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a),
+    });
+    const upload = (file: NoteUpload = textFile(), actor: NoteActor = MEI, page: string = PRICING): PageNoteFile => {
+      const sent = uploadFile(WORKSPACE, PROJECT, page, actor, file);
+      if (!sent.ok) throw new Error(`refused: ${sent.error}`);
+      return sent.file;
+    };
+    /** A note of MEI on the pricing page with the files given. */
+    const noteWith = (...files: PageNoteFile[]): PageNote => {
+      const made = add(
+        PROJECT,
+        PRICING,
+        MEI,
+        'With files',
+        undefined,
+        files.map((file) => file.id),
+      );
+      if (!made.ok) throw new Error('refused');
+      return made.note;
+    };
+    const refusal = (result: ReturnType<typeof uploadFile>): string => (result.ok ? 'ok' : result.error);
+
+    it('stores a file for a page and answers its name, size, type and serving path', () => {
+      const file = upload(png('Shot.PNG'));
+      expect(file).toMatchObject({ name: 'Shot.PNG', size: 8, content_type: 'image/png', is_image: true });
+      expect(file.url).toBe(
+        `/api/v1/workspaces/${WORKSPACE}/projects/${PROJECT}/internal-links/pages/${PRICING}/note-attachments/${file.id}`,
+      );
+      expect(upload({ name: 'rows.csv', type: 'text/plain', bytes: bytes('a,b') })).toMatchObject({
+        content_type: 'text/csv',
+        is_image: false,
+      });
+      expect(upload({ name: 'rows.csv', type: 'application/vnd.ms-excel', bytes: bytes('a,b') }).content_type).toBe(
+        'text/csv',
+      );
+      expect(upload({ name: 'a/b\\report.pdf', type: '', bytes: bytes('%PDF-1.7') })).toMatchObject({
+        name: 'report.pdf',
+        content_type: 'application/pdf',
+      });
+    });
+
+    it('refuses a file over 10 MB, an empty one, and a type that is not one of the seven', () => {
+      expect(
+        refusal(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, { ...textFile(), bytes: new Uint8Array(10 * MB + 1) })),
+      ).toBe('too_large');
+      expect(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, { ...textFile(), bytes: new Uint8Array(10 * MB) }).ok).toBe(
+        true,
+      );
+      expect(refusal(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, { ...textFile(), bytes: new Uint8Array(0) }))).toBe(
+        'empty',
+      );
+      for (const odd of [
+        { name: 'run.exe', type: 'application/x-msdownload' },
+        { name: 'photo.bmp', type: 'image/bmp' },
+        { name: 'unknown', type: 'application/octet-stream' },
+        { name: 'noext', type: '' },
+      ]) {
+        expect([
+          odd.name,
+          refusal(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, { ...odd, bytes: bytes('x') })),
+        ]).toEqual([odd.name, 'type']);
+      }
+    });
+
+    it('refuses markup by name and by its first bytes, whatever the declared type', () => {
+      for (const name of ['a.html', 'A.HTM', 'a.svg', 'a.xml', 'a.js', 'a.mjs']) {
+        expect([
+          name,
+          refusal(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, { ...textFile(name), type: 'text/plain' })),
+        ]).toEqual([name, 'type']);
+      }
+      for (const start of ['<html>', '  \n\t<svg/>', '<?xml version="1.0"?>']) {
+        expect(refusal(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, textFile('notes.txt', start)))).toBe('type');
+      }
+      expect(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, textFile('notes.txt', 'a < b')).ok).toBe(true);
+    });
+
+    it('counts every stored file against the workspace cap, attached or not, and says where it stands', () => {
+      setNoteFileLimit(6 * MB);
+      const megabyte = { ...textFile(), bytes: new Uint8Array(MB).fill(65) };
+      for (let count = 0; count < 6; count += 1)
+        expect(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, megabyte).ok).toBe(true);
+      expect(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, megabyte)).toMatchObject({
+        ok: false,
+        error: 'quota',
+        quota: { limit: 6 * MB, used: 6 * MB, requested: MB },
+      });
+    });
+
+    it('forgets the cap a test set when the mock is reset', () => {
+      setNoteFileLimit(1);
+      resetNotes();
+      expect(uploadFile(WORKSPACE, PROJECT, PRICING, MEI, textFile()).ok).toBe(true);
+    });
+
+    it('attaches the caller own pending files of this page to a new note, and a file attaches once', () => {
+      const first = upload();
+      const note = noteWith(first);
+      expect(note.attachments).toEqual([first]);
+      expect(listed(PRICING)[0]).toBe('With files');
+      const again = add(PROJECT, PRICING, MEI, 'Again', undefined, [first.id]);
+      expect(again).toMatchObject({ ok: false, field: { path: 'attachment_ids[0]', code: 'attachment_unavailable' } });
+    });
+
+    it('refuses a file of another uploader, of another page, an unknown id, a repeated id and a malformed one', () => {
+      const theirs = upload(textFile(), PRIYA);
+      const elsewhere = upload(textFile(), MEI, HOME);
+      const mine = upload();
+      const failing = (ids: unknown): unknown => {
+        const result = add(PROJECT, PRICING, MEI, 'x', undefined, ids);
+        return result.ok ? 'ok' : result.field;
+      };
+      expect(failing([theirs.id])).toEqual({ path: 'attachment_ids[0]', code: 'attachment_unavailable' });
+      expect(failing([elsewhere.id])).toEqual({ path: 'attachment_ids[0]', code: 'attachment_unavailable' });
+      expect(failing(['0192e4a0-b000-7000-8000-0000000000ff'])).toEqual({
+        path: 'attachment_ids[0]',
+        code: 'attachment_unavailable',
+      });
+      expect(failing([mine.id, mine.id])).toEqual({ path: 'attachment_ids[1]', code: 'attachment_unavailable' });
+      expect(failing(['nope'])).toEqual({ path: 'attachment_ids[0]', code: 'uuid_parsing' });
+      expect(failing('x')).toEqual({ path: 'attachment_ids', code: 'list_type' });
+      expect(failing(null)).toBe('ok');
+    });
+
+    it('holds at most 5 live files on a note', () => {
+      const files = Array.from({ length: 6 }, () => upload());
+      const six = add(
+        PROJECT,
+        PRICING,
+        MEI,
+        'x',
+        undefined,
+        files.map((file) => file.id),
+      );
+      expect(six).toMatchObject({ ok: false, field: { path: 'attachment_ids', code: 'too_long' } });
+      const five = add(
+        PROJECT,
+        PRICING,
+        MEI,
+        'x',
+        undefined,
+        files.slice(0, 5).map((file) => file.id),
+      );
+      expect(five.ok && five.note.attachments).toHaveLength(5);
+    });
+
+    it('accepts a note of files only and refuses one with neither text nor file', () => {
+      const file = upload();
+      const only = add(PROJECT, PRICING, MEI, '  ', undefined, [file.id]);
+      expect(only.ok && only.note).toMatchObject({ body: '', attachments: [file] });
+      expect(add(PROJECT, PRICING, MEI, '  ', undefined, [])).toMatchObject({
+        ok: false,
+        error: 'invalid',
+        field: { path: 'body', code: 'body_required' },
+      });
+      expect(add(PROJECT, PRICING, MEI, '')).toMatchObject({ ok: false, field: { code: 'body_required' } });
+    });
+
+    it('keeps the files of a change that sends no list, and makes a sent list the exact files afterwards', () => {
+      const one = upload(textFile('one.txt'));
+      const two = upload(textFile('two.txt'));
+      const three = upload(textFile('three.txt'));
+      const note = noteWith(one, two);
+      const kept = change(PROJECT, PRICING, note.id, MEI, 'With files', undefined, undefined);
+      expect(kept.ok && kept.note.attachments.map((file) => file.name)).toEqual(['one.txt', 'two.txt']);
+      expect(kept.ok && kept.note.edited_at).toBeNull();
+      const swapped = change(PROJECT, PRICING, note.id, MEI, 'With files', undefined, [two.id, three.id]);
+      expect(swapped.ok && swapped.note.attachments.map((file) => file.name)).toEqual(['two.txt', 'three.txt']);
+      expect(swapped.ok && swapped.note.edited_at).not.toBeNull();
+      // A dropped file is gone for good: it cannot be attached again
+      expect(change(PROJECT, PRICING, note.id, MEI, 'With files', undefined, [one.id, two.id])).toMatchObject({
+        ok: false,
+        field: { path: 'attachment_ids[0]', code: 'attachment_unavailable' },
+      });
+    });
+
+    it('detaches every file of a change that sends an empty list, and refuses that when the note has no text', () => {
+      const file = upload();
+      const note = noteWith(file);
+      const none = change(PROJECT, PRICING, note.id, MEI, 'With files', undefined, []);
+      expect(none.ok && none.note.attachments).toEqual([]);
+      const filesOnly = add(PROJECT, PRICING, MEI, '', undefined, [upload().id]);
+      if (!filesOnly.ok) throw new Error('refused');
+      expect(change(PROJECT, PRICING, filesOnly.note.id, MEI, '', undefined, [])).toMatchObject({
+        ok: false,
+        field: { path: 'body', code: 'body_required' },
+      });
+      // Text taken away while the files stay is fine
+      expect(change(PROJECT, PRICING, filesOnly.note.id, MEI, '').ok).toBe(true);
+    });
+
+    it('serves a file only while it is attached, not dropped and its note is not deleted, and again after a restore', () => {
+      const file = upload(png());
+      expect(fileOf(PROJECT, PRICING, file.id)).toBeUndefined();
+      const note = noteWith(file);
+      expect(fileOf(PROJECT, PRICING, file.id)).toMatchObject({ type: 'image/png', name: 'shot.png' });
+      expect(fileOf(PROJECT, PRICING, file.id)?.bytes).toEqual(png().bytes);
+      expect(fileOf(PROJECT, HOME, file.id)).toBeUndefined();
+      expect(remove(PROJECT, PRICING, note.id, MEI).ok).toBe(true);
+      expect(fileOf(PROJECT, PRICING, file.id)).toBeUndefined();
+      expect(restore(PROJECT, PRICING, note.id, MEI).ok).toBe(true);
+      expect(fileOf(PROJECT, PRICING, file.id)).toBeDefined();
+      change(PROJECT, PRICING, note.id, MEI, 'With files', undefined, []);
+      expect(fileOf(PROJECT, PRICING, file.id)).toBeUndefined();
     });
   });
 });

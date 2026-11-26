@@ -40,9 +40,11 @@ import {
   add as addNote,
   change as changeNote,
   countOf as noteCount,
+  fileOf as noteFile,
   notesAfter,
   remove as removeNote,
   restore as restoreNote,
+  uploadFile,
   type NoteActor,
   type NoteFailure,
   type NoteField,
@@ -51,6 +53,8 @@ import { checkBody, invalid, invalidField, mock, noContent, problem, unknownMemb
 import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
+import { PAGE_NOTE_FILE, PAGE_NOTE_FILES } from '@/lib/internal-links/queries';
+import { NOTE_FILE_MAX_BYTES } from '@/lib/pages/note-files';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import { checkRuleValue, MAX_RULES } from '@/lib/internal-links/rule-value';
 import { MAX_BODY_BYTES, MAX_CSV_CHARS, parseTierCsv, requestBytes } from '@/lib/internal-links/tier-csv';
@@ -399,7 +403,7 @@ function noteFailure(
   return error === 'not_found' ? problem(request, 'not_found') : problem(request, 'forbidden', { detail: forbidden });
 }
 
-/** The members of a note write besides `body` (`attachment_ids` is accepted and left to the upload task). */
+/** The members of a note write besides `body`. */
 const NOTE_STRUCTURED = ['mentions', 'attachment_ids'] as const;
 
 /** `limit` of the notes list: 1 to 100, 50 when left out. `null` when it is not a whole number in range. */
@@ -1205,7 +1209,14 @@ export const internalLinkHandlers: HttpHandler[] = [
     const body = await request.json();
     const refused = checkBody(request, body, { required: ['body'], structured: NOTE_STRUCTURED });
     if (refused !== null) return refused;
-    const made = addNote(found.caller.project.project_id, found.urlId, found.actor, body.body, body.mentions);
+    const made = addNote(
+      found.caller.project.project_id,
+      found.urlId,
+      found.actor,
+      body.body,
+      body.mentions,
+      body.attachment_ids,
+    );
     return made.ok
       ? HttpResponse.json({ data: made.note }, { status: 201 })
       : noteFailure(request, made.error, '', made.detail, made.field);
@@ -1226,6 +1237,7 @@ export const internalLinkHandlers: HttpHandler[] = [
       found.actor,
       body.body,
       body.mentions,
+      body.attachment_ids,
     );
     return changed.ok
       ? HttpResponse.json({ data: changed.note })
@@ -1258,6 +1270,60 @@ export const internalLinkHandlers: HttpHandler[] = [
     return back.ok
       ? HttpResponse.json({ data: back.note })
       : noteFailure(request, back.error, 'Only the one who deleted a note can bring it back.');
+  }),
+
+  mock(
+    'post',
+    PAGE_NOTE_FILES,
+    async ({ request, cookies, params }) => {
+      const found = noteCaller(request, cookies, params, { permission: 'notes:write' });
+      if (found instanceof Response) return found;
+      if (!(request.headers.get('content-type') ?? '').includes('multipart/form-data')) {
+        return problem(request, 'unsupported_media_type', { detail: 'Upload the file as multipart/form-data.' });
+      }
+      const file = (await request.formData()).get('file');
+      if (!(file instanceof File)) return invalidField(request, 'file', 'missing', 'Field required');
+      const stored = uploadFile(
+        found.caller.access.workspace.workspace_id,
+        found.caller.project.project_id,
+        found.urlId,
+        found.actor,
+        {
+          name: file.name,
+          type: file.type,
+          bytes: new Uint8Array(await file.arrayBuffer()),
+        },
+      );
+      if (stored.ok) return HttpResponse.json({ data: stored.file }, { status: 201 });
+      switch (stored.error) {
+        case 'too_large':
+          return problem(request, 'payload_too_large', { detail: stored.detail, limit_bytes: NOTE_FILE_MAX_BYTES });
+        case 'type':
+          return problem(request, 'unsupported_media_type', { detail: stored.detail });
+        case 'empty':
+          return invalidField(request, 'file', 'file_empty', stored.detail);
+        case 'quota':
+          return problem(request, 'quota_exceeded', { detail: stored.detail, ...stored.quota });
+      }
+    },
+    // Above the 1 MB of every other route: the file is checked against its own 10 MB above, the form may carry its parts
+    { maxBodyBytes: NOTE_FILE_MAX_BYTES + 1024 * 1024 },
+  ),
+
+  mock('get', PAGE_NOTE_FILE, ({ request, cookies, params }) => {
+    const found = noteCaller(request, cookies, params, { permission: 'data:read' });
+    if (found instanceof Response) return found;
+    const stored = noteFile(found.caller.project.project_id, found.urlId, String(params.attachment_id));
+    if (stored === undefined) return problem(request, 'not_found');
+    // As the API serves it: the stored type, never sniffed, a sandbox, and images shown in place
+    return new HttpResponse(stored.bytes, {
+      headers: {
+        'content-type': stored.type,
+        'content-disposition': stored.type.startsWith('image/') ? 'inline' : `attachment; filename="${stored.name}"`,
+        'x-content-type-options': 'nosniff',
+        'content-security-policy': "default-src 'none'; sandbox",
+      },
+    });
   }),
 
   mock('get', `${P}/internal-links/worklists`, ({ request, cookies, params }) => {
