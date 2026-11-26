@@ -2200,12 +2200,87 @@ gsc_page_daily = Table(
     Column("clicks", Integer, nullable=False),
     Column("impressions", Integer, nullable=False),
     Column("ingested_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    # Position x impressions of the day; null on rows stored before migration 0042.
+    Column("position_sum", Numeric(14, 2)),
     ForeignKeyConstraint(
         ["integration_id", "workspace_id"],
         [integrations.c.id, integrations.c.workspace_id],
         ondelete="CASCADE",
     ),
     schema="fp",
+)
+
+gsc_page_forms = Table(
+    "gsc_page_forms",
+    metadata,
+    Column("integration_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("page", Text, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("last_seen", Date, nullable=False),
+    ForeignKeyConstraint(
+        ["integration_id", "workspace_id"],
+        [integrations.c.id, integrations.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="fp",
+)
+
+gsc_page_fetches = Table(
+    "gsc_page_fetches",
+    metadata,
+    Column("integration_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("kind", Text, primary_key=True),
+    Column("date_from", Date, primary_key=True),
+    Column("date_to", Date, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("row_count", Integer, nullable=False),
+    Column("truncated", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("fetched_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["integration_id", "workspace_id"],
+        [integrations.c.id, integrations.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="fp",
+)
+
+gsc_page_breakdown = Table(
+    "gsc_page_breakdown",
+    metadata,
+    Column("integration_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("date_from", Date, primary_key=True),
+    Column("date_to", Date, primary_key=True),
+    Column("dimension", Text, primary_key=True),
+    Column("key", Text, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("clicks", Integer, nullable=False),
+    Column("impressions", Integer, nullable=False),
+    Column("position_sum", Numeric(14, 2), nullable=False),
+    ForeignKeyConstraint(
+        ["integration_id", "workspace_id"],
+        [integrations.c.id, integrations.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="fp",
+)
+
+tracked_pages = Table(
+    "tracked_pages",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("added_by", Uuid, ForeignKey(users.c.id)),
+    Column("added_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
 )
 
 ai_referrer_rules = Table(
