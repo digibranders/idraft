@@ -180,4 +180,18 @@ describe('the page drawer of the Pages screen', () => {
     renderWithProviders(pagesAs('editor', tab), { searchParams: '?inspect=page:108' });
     expect(await screen.findByRole('complementary', { name: '/pricing' })).toBeInTheDocument();
   });
+
+  it('keeps a non-default scope on the View all in Links addresses', async () => {
+    renderWithProviders(pagesAs('editor', 'all'), { searchParams: '?inspect=page:108&scope=all' });
+    const panel = await screen.findByRole('complementary', { name: '/pricing' });
+    const hrefOf = async (title: RegExp): Promise<string | null> => {
+      const heading = await within(panel).findByRole('heading', { name: title });
+      return within(heading.closest('section') as HTMLElement)
+        .getByRole('link', { name: 'View all in Links' })
+        .getAttribute('href');
+    };
+    const links = `/${MOCK_WORKSPACE.slug}/${EVENTUS_LINKS.slug}/seo/internal-links`;
+    expect(await hrefOf(/^Linking pages \(\d+\)$/)).toBe(`${links}?tab=links&tgt=108&scope=all`);
+    expect(await hrefOf(/^Outlinks \(\d+\)$/)).toBe(`${links}?tab=links&src=108&scope=all`);
+  });
 });
