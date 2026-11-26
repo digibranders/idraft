@@ -1,12 +1,12 @@
 # Pages: Overview, All pages and the page drawer: design
 
 Status: written 2026-11-26 for the real-app build. The owner's settled decisions are in section 1. Technical
-decisions taken here are numbered D1 to D14 in section 3, each with its reason. What blocks or narrows the build
+decisions taken here are numbered D1 to D16 in section 3, each with its reason. What blocks or narrows the build
 is in section 15.
 
 Reference mock (not committed, read only, main checkout): `apps/web/design-preview/pages-overview.js`,
 `pages-overview-data.js`, `pages-overview-data.check.mjs`, `il.js` (`showPagesIn`), `il-pages.js`, `il-drawer.js`,
-`il-model.js`, `il-outline.js`, `outline-data.js`, `issues-audit.js`, `perf.js`, `interactions.js`, `index.html`.
+`il-model.js`, `il-outline.js`, `outline-data.js`, `il-notes.js`, `issues-audit.js`, `perf.js`, `interactions.js`, `index.html`.
 
 Sibling work, neither merged: Issues (`claude/issues-page-8b4da8`, spec
 `docs/superpowers/specs/2026-11-26-issues-page-design.md` on that branch) and Search Console per page plus
@@ -26,8 +26,8 @@ no unmerged code: every dependency is a seam of section 10.
    header, and at 1280 by 720 the first row sits about 30% down the screen.
 6. All pages has column groups (Page, Indexing, Issues, Search, AI, Links), saved views, folder and status
    filters, search and "Track in Monitoring". Default columns: Tier, Status, Indexable, Issues, Clicks, Tracked.
-7. The page drawer opens for any page, with the tabs Overview, Search, Outline, Issues, AI, Links, in that
-   order, and no Track box. Its Overview is the page at a glance: chips, 8 tiles that open the tabs, needs attention, about,
+7. The page drawer opens for any page, with the tabs Overview, Search, Outline, Issues, AI, Links, Notes, in
+   that order, and no Track box. Its Overview is the page at a glance: chips, 8 tiles that open the tabs, needs attention, about,
    tier and tags.
 8. The drawer's Search tab shows what exists today and leaves a named slot for the detail the Search Console
    session adds (queries, countries, devices).
@@ -36,6 +36,10 @@ no unmerged code: every dependency is a seam of section 10.
    (Search listing, Headings, Languages, Social sharing, Structured data, Content), each with a one-line
    summary and a Fine or To fix chip. It is read on demand from the stored HTML of the latest crawl: no new
    storage and no provider spend.
+10. Added 2026-11-26: the drawer has a Notes tab on every page, last in the strip. The team writes what changed
+    on a page and when; a note shows its author and the date and time. The author can edit or delete their
+    own note (delete has Undo). Notes belong to the page's address, so they stay across crawls and exist for
+    redirect and error pages too. Everyone in the workspace sees them. Built in full, with its own table.
 
 ## 2. What is true in the code today
 
@@ -81,6 +85,12 @@ extras cards (changes, keywords, citations, anchors, Google), linking pages, out
 (`useInspector`: `?inspect=page:<id>&itab=<tab>`), stepping, resizing and the docking rule
 (`apps/web/src/lib/inspector/placement.ts`).
 
+**Notes.** `Permission.NOTES_WRITE` (`notes:write`: owner, admin, editor; owner decision D-18) exists, and
+`backend/src/idraft/api/notes/routes.py` holds three routes for notes on a project's charts (`{P}/notes`) that
+answer `501`. They are another thing (a note on a day of a chart) and are not touched. No table holds a note
+on a page. `api/audit.py` records project writes (`audit.record`, the `AuditAction` literal;
+`page_tags.changed` is the pattern for a page write).
+
 **What does not exist in the real app.**
 
 | Thing | State |
@@ -108,6 +118,8 @@ extras cards (changes, keywords, citations, anchors, Google), linking pages, out
 | D12 | The Overview has no "page types" card. Sections (first folder of the path) and tiers are the two groupings. | Page types are not collected. Sections and tiers are real and already filterable. |
 | D13 | The Outline is read on demand: one route parses the page's stored HTML (`html_key`, latest crawl only) with the standard library and returns the whole outline. Nothing is stored. | The crawl keeps only the title and the canonical per page, but the raw HTML of the latest crawl is in object storage. A read on demand needs no migration, no re-read of a crawl and no provider call. |
 | D14 | The parser is one pure module, `backend/src/idraft/crawl/outline.py`, with the limits (title 30 to 60, description 70 to 160, thin under 200 words) as its constants. The Issues session's slice 2 fills its new `crawl_pages` columns by calling the same functions. | Then the Outline and the Issues checks cannot disagree on a count. The Issues branch has no HTML reader yet (its plan names "an extractor beside `crawl/head.py`"), so this build writes it and that session reuses it. |
+| D15 | Notes are rows of a new table `core.page_notes`, keyed by project and `core.urls.id`, never by a crawl page row. A delete sets `deleted_at`. | A note must outlive the crawl it was written under and must exist for an address that redirects or errors. A soft delete makes Undo one request and keeps the audit trail readable. |
+| D16 | Reading notes needs `data:read`; writing needs the existing `notes:write`. Only the author changes a note; the author, an owner or an admin deletes one. The page detail carries `notes_count`. | The permission exists for exactly this kind of write and editors hold it. An admin can clear a note nobody else can, without a new permission. The count on the detail gives the tab its badge with no extra request. |
 
 ## 4. Words
 
@@ -527,7 +539,7 @@ The Overview uses the same toolbar row. Below it the strip and the cards sit in 
 
 ### 9.1 Address and hosts
 
-`?inspect=page:<url_id>` opens it; `itab` is `search`, `outline`, `issues`, `ai` or `links`, and absent for Overview
+`?inspect=page:<url_id>` opens it; `itab` is `search`, `outline`, `issues`, `ai`, `links` or `notes`, and absent for Overview
 (`DEFAULT_INSPECTOR_TAB`). `useInspector` already drops `itab` when another page opens from closed, keeps it
 when stepping, and closes by going back when the page pushed the entry.
 
@@ -550,6 +562,8 @@ export interface PageDrawerContext {
   tiers: readonly PageTier[];
   timeZone: string;
   canWrite: boolean;
+  /** `notes:write`: may add a note, and change or delete their own (9.7). */
+  canNote: boolean;
   /** Opens another page in the drawer, keeping the tab. */
   openPage: (urlId: string) => void;
   /** Exits, as links: each host builds them with `projectPath`. */
@@ -584,7 +598,10 @@ width for the whole app), the resize limits and the full-width sheet on a narrow
 
 ### 9.4 Tabs
 
-`InspectorTabs` with six items, in the owner's order: Overview, Search, Outline, Issues, AI, Links. The header keeps the path, the title line, the position
+`InspectorTabs` with seven items, in the owner's order: Overview, Search, Outline, Issues, AI, Links, Notes.
+The Notes item carries the count of the page's notes (`TabItem.count`) when there is at least one. Seven tabs
+do not fit the drawer at its least width (480 px), so the row is given `overflowLabel` ("More sections"): the
+tabs that do not fit move into the More menu the shared tabs already have, last tabs first. The header keeps the path, the title line, the position
 ("12 of 986") and Previous and Next. The footer keeps Copy address, Visit and Open in journey.
 
 **Overview.** The page at a glance.
@@ -637,6 +654,8 @@ answer cited this page in the last 28 days".
 
 **Links.** The strip (depth, links in, links out), linking pages by tier and by placement, the anchors card,
 the changes card, linking pages and outlinks (`NeighborSection`, unchanged), with "View all in Links" as links.
+
+**Notes.** What the team wrote about this page, newest first, with a box to add one. Section 9.7.
 
 Nothing of today's inspector is dropped; every section has a tab.
 
@@ -908,6 +927,140 @@ address in text, not drawn.
 The tab is listed for every page, so the tab strip does not change while you step through rows; a page that
 is not live shows its one sentence.
 
+### 9.7 The Notes tab
+
+Owner addition of 2026-11-26 (D15, D16). Mock: `il-notes.js` (the tab), `il-drawer.js` (the tab strip and its
+count badge).
+
+#### 9.7.1 The table
+
+Migration `0042_page_notes.py` (the next free revision; renumber on a conflict, section 14), written as
+`0038_keyword_prompt_links.py` is: raw SQL through `statements`, `tenant_isolation`, `grants`.
+
+```sql
+CREATE TABLE core.page_notes (
+    id           uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id uuid NOT NULL,
+    project_id   uuid NOT NULL,
+    url_id       bigint NOT NULL REFERENCES core.urls(id),
+    author_id    uuid NOT NULL REFERENCES auth.users(id),
+    body         text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000 AND body = btrim(body)),
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    edited_at    timestamptz,
+    deleted_at   timestamptz,
+    deleted_by   uuid REFERENCES auth.users(id),
+    CHECK ((deleted_at IS NULL) = (deleted_by IS NULL)),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
+);
+CREATE INDEX page_notes_page ON core.page_notes (project_id, url_id, created_at DESC, id DESC)
+    WHERE deleted_at IS NULL;
+```
+
+Row-level security by `workspace_id` (`tenant_isolation`). Grants: the API role `SELECT, INSERT` and `UPDATE`
+on `body`, `edited_at`, `deleted_at`, `deleted_by` only; no `DELETE` for anyone (a row leaves only with its
+project); the worker role nothing. `db/tables.py` gains `page_notes`. The schema tests that list every table
+(`tests/db/test_tables.py`, the tenant column map and the seed of `tests/db/support.py`, `test_grants.py`)
+and `docs/04-data-model.md` (a new section 5.4 "Page notes") get the table.
+
+The key is the address (`core.urls.id`), so a note shows on the page in every crawl, old and new, and on an
+address that now redirects or errors. A note is not copied to a redirect's target.
+
+#### 9.7.2 The API
+
+All under `/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes`, in a
+new module `api/internal_links/page_notes.py` (service) and `page_note_routes.py`, wired as the other
+internal links routers are.
+
+| Method and path | Needs | Does |
+|---|---|---|
+| `GET …/notes` | `data:read` | The page's notes that are not deleted, newest first (`created_at DESC, id DESC`), cursor paged: `limit` 1 to 100 (default 50), `cursor`. `meta.total` is the count |
+| `POST …/notes` | `notes:write` | Adds a note by the caller. `201` with the note |
+| `PATCH …/notes/{note_id}` | `notes:write`, and the caller is the author | Changes the body. `edited_at` is set only when the body really changed |
+| `DELETE …/notes/{note_id}` | `notes:write`, and the caller is the author, or an owner or admin of the workspace | Sets `deleted_at` and `deleted_by`. `204`. Deleting a deleted note is `404` |
+| `POST …/notes/{note_id}/restore` | `notes:write`, and the caller is the one who deleted it | Clears `deleted_at` and `deleted_by`. `200` with the note. This is Undo |
+
+```json
+{
+  "data": {
+    "id": "0192f0a1-3c44-7e10-8a51-2b7d9c0e4f11",
+    "author": { "id": "0192…", "name": "Priya Nair" },
+    "body": "Rewrote the title and H1.\nCheck clicks again after 8 Dec.",
+    "created_at": "2026-11-24T10:12:00Z",
+    "edited_at": null,
+    "can_edit": true,
+    "can_delete": true
+  }
+}
+```
+
+- `can_edit` and `can_delete` are computed for the caller on the server (author; author, owner or admin), so
+  the web compares no user ids. A caller without `notes:write` gets both false.
+- The body: `\r\n` becomes `\n`, then it is trimmed; 1 to 2,000 characters after that; a null character is
+  refused. Anything else is `422`. Line breaks inside are kept. The body is plain text: it is stored as
+  written and never read as HTML or Markdown.
+- The page: `url_id` must be an address a crawl of this project holds (any crawl, not only the one in view);
+  otherwise `404 not_found`. A note id of another page, another project or another workspace is `404`.
+  Someone who may write notes but is not the author gets `403` on `PATCH`, and on `DELETE` unless owner or
+  admin.
+- An author who left the workspace: the note stays with their name; nobody can edit it, an owner or admin
+  can delete it.
+- Every write records one audit entry inside its transaction (`audit.record`, `target_type` `page_note`,
+  `target_id` the note id): `page_note.created` (after: `url_id`, `body`), `page_note.updated` (before and
+  after: `body`), `page_note.deleted` (before: `url_id`, `body`, `author_id`), `page_note.restored`. The four
+  actions are added to `AuditAction`.
+- `PageDetail` (the page detail read) gains `notes_count: int`: the notes of the page that are not deleted.
+  It is the tab's badge.
+- No limit on the notes of a page, no mentions, no notification, no attachment (section 13).
+
+`docs/19-api-specification.md` (the paragraph that lists `{P}/notes`) and the `notes:write` row of
+`docs/24-security.md` say that the permission now also covers notes on a page.
+
+#### 9.7.3 The tab
+
+Data: `usePageNotes(scope, urlId)` (the list, asked only while the tab is open, with "Show older notes" for the
+next cursor page) and `usePageNoteWrites(scope, urlId)` (add, change, delete, restore). After a write the list
+and the page detail (for `notes_count`) are read again.
+
+Top to bottom:
+
+1. **The box** (only with `canNote`): a `textarea` named "Add a note to /path", with the placeholder "What
+   changed on this page, what is planned, what to check later", at most 2,000 characters (`maxLength`), and
+   under it the button "Add note", the hint "Cmd or Ctrl + Enter saves", and, from 1,800 characters on, the
+   count "1,812 of 2,000". The button is disabled while the trimmed text is empty or a save runs; an empty
+   note is never sent. Cmd or Ctrl + Enter saves. After a save the box is empty and keeps the focus. A draft
+   that was typed and not saved survives a tab switch, a step to another page and back, and the closing of
+   the drawer, for as long as the browser tab lives: it is kept per project and page in memory
+   (`lib/pages/note-drafts.ts`), not in the address and not in storage.
+2. **The list**: an ordered list named "Notes, newest first". Each note: the author's initials (the app's
+   `Avatar`, hidden from assistive technology), the author's name, the date and time in a `time` element
+   (`dateTime` the instant; the text through `formatDetailDateTime` in the viewer's time zone,
+   `browserTimeZone()`), the word "edited" when `edited_at` is set, with a tooltip "Edited" and that time
+   (the tooltip's text is also the element's accessible description), and the body with its line breaks
+   kept (`whitespace-pre-wrap`, long words broken).
+   - With `can_edit`: an icon button "Edit note". The note's body becomes a box with "Save" and "Cancel";
+     Cmd or Ctrl + Enter saves; Escape cancels the edit and does not close the drawer; after either, the
+     focus returns to the note's Edit button. One note is edited at a time.
+   - With `can_delete`: an icon button "Delete note". The note leaves the list at once and a toast "Note
+     deleted" offers "Undo", which restores it. After a delete the focus goes to the box (or to the list's
+     next note for someone who cannot write).
+3. **Empty**: "No notes on this page yet. Write down what you changed and when, so the next drop or rise in
+   its numbers has a reason beside it." Someone who cannot write sees the first sentence only.
+4. **The footer line**: "Everyone in this workspace can read these notes. They stay with this address when the
+   site is crawled again."
+
+States: a skeleton while loading; the inline error with Retry when the list fails; a failed write keeps the
+text in its box and shows an error toast with what failed. Each successful write is announced through
+`announce` ("Note added", "Note saved", "Note deleted", "Note restored").
+
+The body is rendered as a text node. A note that holds markup shows the characters; a note that holds an
+address shows it as text (no automatic link in this build).
+
+Keys: the shared drawer closes on Escape pressed inside its card and steps on J and K. The edit box handles
+its own Escape (cancel the edit) and stops it there, as the mock does, so the drawer stays open; typing J or K
+in either box types the letter. Escape in the add box closes the drawer as anywhere else, and the draft is
+kept. This build tests all three against the real `Inspector` and changes no shared file; if the shared drawer
+cannot be stopped from inside a field, that is a request to the shared drawer session, not a workaround here.
+
 ## 10. Seams
 
 Each seam is one small typed module in `apps/web/src/lib/pages/`. On this branch each answers `unavailable`.
@@ -983,7 +1136,7 @@ branches add the same line. `final-list.md` follows `terms.md`.
 
 Messages: a new namespace `pages` in `apps/web/messages/en.json` for the screen, the Overview cards, the View
 menu, the new filters and the drawer's tabs and tiles, and `pages.drawer.outline` for the Outline tab (the
-strip, the six blocks, the findings, the states, the footer). The moved table and the drawer sections keep their keys
+strip, the six blocks, the findings, the states, the footer), and `pages.drawer.notes` for the Notes tab. The moved table and the drawer sections keep their keys
 under `internalLinks` (`internalLinks.pages.*`, `internalLinks.columns.*`, `internalLinks.inspector.*`), so
 their tests and translations do not move. `navigation.items.pages` exists ("Pages").
 
@@ -999,6 +1152,8 @@ Rules that bite here (`src/lib/glossary/glossary-words.test.ts` fails on a banne
 - "Outline" is the tab's name (glossary row added first, in its own commit). "Fine" and "To fix" are the two
   chips. "Alt text", "Open Graph", "X card", "Structured data", "Canonical" are written this way everywhere.
   A sentence says "the latest crawl", never "the last crawl" for this tab.
+- "Notes" is the tab and "Add note" its button (glossary rows first). A note is "added", "saved", "deleted"
+  and "restored"; never "posted", "comment" or "annotation".
 
 Accessibility, by the rules the repository already has (`AI_DEVELOPMENT_UI_RULES.md`, `DESIGN_SYSTEM.md`):
 
@@ -1013,6 +1168,9 @@ Accessibility, by the rules the repository already has (`AI_DEVELOPMENT_UI_RULES
 - The Outline's folding blocks are buttons with `aria-expanded` and `aria-controls` over a named region; the
   headings are an ordered list whose items say their level in text ("H2"); a chip and a meter always carry
   words.
+- The note box is a labelled `textarea`; its hint and its count are tied to it with `aria-describedby`; the
+  icon buttons have names ("Edit note", "Delete note"); every write is announced; the time is a `time`
+  element; "edited" has its time as text for assistive technology, not only in a tooltip.
 
 ## 12. Tests
 
@@ -1045,6 +1203,22 @@ Targeted and serial only (the machine rule): `pytest -n 0 --no-cov <path>`, `vit
   the HTML says otherwise; a page of an older crawl only is `404`; before any crawl `404 no_crawl`.
 - Workspace isolation and `data:read` for the three new routes, `tests/api/test_route_access.py`,
   `tests/api/test_openapi.py`.
+- `tests/db`: the migration up and down; the table in `test_tables.py`, its tenant column and seed row in
+  `support.py` (so `test_rls.py` covers it), its grants in `test_grants.py` (the API role cannot `DELETE`
+  and cannot update `author_id`, `url_id` or `created_at`); the body check refuses an empty, an untrimmed
+  and a 2,001 character body.
+- `test_page_notes.py`: add, list newest first, cursor paging over two notes written in the same instant,
+  `meta.total`; the body rules (trim, `
+`, 2,000 and 2,001, only spaces, a null character); a body with
+  markup comes back unchanged; change by the author sets `edited_at`, the same body does not; change by
+  another editor is `403`; delete by the author, by an admin and by an owner works, by another editor is
+  `403`; a deleted note is gone from the list and from `notes_count`; restore by the one who deleted it
+  brings it back with its `created_at` and `edited_at`, by anyone else is `403` or `404`; a viewer reads and
+  gets `403` on every write, with `can_edit` and `can_delete` false; an address no crawl of the project
+  holds is `404`; a note of another page, project or workspace is `404`; a note written under one crawl is
+  listed after a second crawl and on a page that now redirects; one audit row per write with its action;
+  `notes_count` on the page detail.
+- The five note routes in `tests/api/test_route_access.py`.
 
 **Web:**
 
@@ -1062,7 +1236,7 @@ Targeted and serial only (the machine rule): `pytest -n 0 --no-cov <path>`, `vit
 - `pages-page/all-pages-tab.test.tsx`: the View menu with counts, a view in the address, the new filters, the
   default columns with and without the seams, the bulk action hidden without tracking. The existing
   `pages/*.test.tsx` keep passing after the context change.
-- `inspector/page-inspector.test.tsx`: six tabs in order, each tile opens
+- `inspector/page-inspector.test.tsx`: seven tabs in order (the Notes tab with its count), each tile opens
   its tab, `itab` in the address, the seam states of the Issues tab and tile, the Search tab's three Search
   Console states, the exits as links.
 - `lib/pages/outline-model.test.ts` (pure): the strip's four cells and their notes, each block's summary and
@@ -1072,7 +1246,14 @@ Targeted and serial only (the machine rule): `pytest -n 0 --no-cov <path>`, `vit
   focus kept; "See in Issues" is a link when `hrefs.issueCheck` gives a route and absent when it gives `null`;
   the six states of the tab; a title holding `<img src=x onerror=alert(1)>` is shown as those characters and
   adds no element; `axe` finds nothing.
+- `inspector/drawer-notes-tab.test.tsx`: add with the button and with Cmd or Ctrl + Enter; an empty or
+  all-space text is not sent; the count from 1,800; the draft survives a tab switch and a step to another
+  page and back; the list newest first with name, `time` and "edited"; edit and delete only where
+  `can_edit` and `can_delete` say so, and no box for someone without `notes:write`; Escape in the edit box
+  cancels the edit and the drawer stays open; delete, the toast, Undo; a failed write keeps the text; the
+  announcements; a body `<img src=x onerror=alert(1)>` is shown as characters; line breaks are kept; `axe`.
 - `lib/navigation/registry.test.ts`, `src/i18n/messages.test.ts`, `src/lib/glossary/glossary-words.test.ts`.
+- Mock handlers for the five note routes and `notes_count` on the mocked page detail.
 - Mock handlers for the three new routes in `apps/web/src/mocks/handlers/` beside the internal links handlers,
   so the page can be checked on the mocked app.
 
@@ -1087,6 +1268,10 @@ mark opens a list whose total is the mark's number.
 - "Indexed by Google" anywhere.
 - Per-page issue counts, the Issues column's data, the list of a page's issues.
 - Page types.
+- For Notes: a Notes count column in All pages (it needs the count on every row of the pages list and its
+  sort; the drawer's badge does not), notes in the CSV export, mentions, notifications, attachments, links
+  made from addresses in a note, a history of a note's edits in the app (the audit log has it), a purge of
+  deleted notes, and any use of the chart notes routes (`{P}/notes`).
 - For the Outline: storing any of its fields, an outline of an older crawl, a rendered page (the stored HTML is
   what the server sent, before scripts run), a validator of what is inside a JSON-LD block, the size of the
   sharing image, "other pages use this description" without the Issues data, and the Issues session's slice 2
@@ -1104,15 +1289,18 @@ mark opens a list whose total is the mark's number.
 |---|---|---|---|---|
 | `apps/web/src/lib/navigation/registry.ts` | `pages` becomes `live` | adds the group `audit`, `issues`, reorders | none expected | Keep the Issues structure; apply `status: 'live'` to its `pages` entry |
 | `apps/web/messages/en.json` | namespace `pages` | namespace `issues`, `navigation.groups.audit`, `navigation.items.issues` | its own namespace | Keep all; the namespaces do not overlap |
-| `backend/openapi/v1.json`, `apps/web/src/lib/api/schema.ts` | three routes, `filter[view]`, `filter[folder]`, `filter[depth]`, the sort `impressions` | the issues routes, `filter[issue]`, `include=issue` | its routes | Never merge by hand: regenerate both after the merge (`backend` first, then `pnpm gen:api` in its own commit) |
+| `backend/openapi/v1.json`, `apps/web/src/lib/api/schema.ts` | three reads, the five note routes, `notes_count`, `filter[view]`, `filter[folder]`, `filter[depth]`, the sort `impressions` | the issues routes, `filter[issue]`, `include=issue` | its routes | Never merge by hand: regenerate both after the merge (`backend` first, then `pnpm gen:api` in its own commit) |
 | `backend/src/idraft/api/internal_links/read_routes.py`, `schemas/internal_links.py` | parameters and `PageFilter.view`, `folder`, `depth` | `filter[issue]`, `PageExtras.issue` | maybe a tracked sort | Keep both sets of parameters |
-| `backend/tests/api/test_route_access.py` | three rows | one row | its rows | Keep all rows |
+| `backend/tests/api/test_route_access.py` | eight rows (three reads, five note routes) | one row | its rows | Keep all rows |
 | `backend/src/idraft/crawl/outline.py`, `lang_codes.py` | new: the pure HTML reader of the Outline (D14) | its slice 2 extractor calls `parse_outline` and the constants for `description`, `h1_count`, `word_count`, `images_without_alt`, `has_open_graph`, `jsonld_errors`, `hreflang`; its rules import `TITLE_MIN`, `TITLE_MAX` | none | One parser. If the Issues session wrote its own first, keep theirs, move the Outline to it and delete the duplicate |
 | `backend/src/idraft/api/main.py`, `reads.py` (`LinkReadService.__init__`) | the service takes the object store | none expected | none expected | Keep the new argument |
+| `backend/src/idraft/db/migrations/versions/0042_page_notes.py`, `db/tables.py`, `tests/db/*` | the table `core.page_notes` | maybe its slice 2 columns in a migration of its own | maybe `core.watched_pages` | Two branches may both take revision `0042`: the one that merges second renumbers its file and its `down_revision`, changes nothing else |
+| `backend/src/idraft/api/audit.py` | four `page_note.*` actions | none expected | maybe its own actions | Keep all |
+| `docs/04-data-model.md`, `docs/19-api-specification.md`, `docs/24-security.md` | section 5.4; the notes paragraph; the `notes:write` row | none expected | its tables | Keep all |
 | `docs/design-system/16-drawers-dialogs-popovers.md` | one sentence in 2.4: the Outline's blocks fold | none expected | none expected | Keep the sentence |
 | `docs/glossary/terms.md`, `final-list.md` | A5 changed, All pages added, Website audit (same text as Issues) | A12 to A14, U9b, U13 to U15 | Monitoring, Tracked wording | Keep both; drop the duplicate Website audit row |
 | `docs/design-system/11-navigation.md` | the Pages row | the group and the Issues row | the Monitoring tab | Keep all |
-| `features/internal-links/inspector/` | tabbed, same file and export name, new context type | opens it from Issues | fills the Search slot | The other sessions pass a `PageDrawerContext` instead of `LinksTabContext` |
+| `features/internal-links/inspector/` | tabbed, same file and export name, new context type | opens it from Issues | fills the Search slot | The other sessions pass a `PageDrawerContext` instead of `LinksTabContext` (with `canNote` from `useCan('notes:write')`) |
 | `components/app/inspector/`, `lib/inspector/` | no change | none expected | none expected | The shared drawer session (`claude/shared-drawer-121ede`) owns them: take its version |
 
 ## 15. What blocks or narrows the build
@@ -1175,8 +1363,8 @@ All pages
 
 Drawer
 
-- [ ] A row opens the drawer on Overview; the tabs are Overview, Search, Outline, Issues, AI, Links; the tab is
-      in the address; J and K step through the rows and keep the tab.
+- [ ] A row opens the drawer on Overview; the tabs are Overview, Search, Outline, Issues, AI, Links, Notes; the
+      tab is in the address; in a narrow drawer the tabs that do not fit are in the More menu; J and K step through the rows and keep the tab.
 - [ ] The eight tiles open their tabs. There is no Track control in the drawer.
 - [ ] The Search tab shows 28 days of clicks and impressions for any page, or says why it cannot, and the slot
       for the Search Console detail renders nothing.
@@ -1188,6 +1376,15 @@ Drawer
       on the Outline tab. No "See in Issues" link is rendered while the Issues page is not on the branch.
 - [ ] Text from the page is shown as text: a title or heading that holds markup adds no element.
 - [ ] The Issues tab shows the page's flags with the note of 9.4 until the Issues data exists.
+- [ ] The Notes tab is on every page, redirects and error pages included, and shows a count when the page has
+      notes. An editor adds a note with the button or Cmd or Ctrl + Enter; an empty note is not saved; 2,000
+      characters at most; a draft survives a tab switch.
+- [ ] Notes are listed newest first with the author, the date and time in the viewer's time zone, and "edited"
+      when changed. Only the author edits; the author, an owner or an admin deletes; delete has Undo. Escape
+      in an edit box cancels the edit and leaves the drawer open.
+- [ ] A note written before a new crawl is still on the page after it. A viewer reads notes and sees no box
+      and no edit or delete button. A note that holds markup is shown as its characters.
+- [ ] Every note write has its audit entry; no route removes a note's row.
 - [ ] The drawer opens from every tab of Internal links exactly as before, and its exits (journey, links) are
       links that work from All pages.
 - [ ] At every width the drawer lies over the table and the table keeps its width; no shared drawer file is
