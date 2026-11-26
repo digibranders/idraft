@@ -21,6 +21,7 @@ import { BULK_MAX, countriesForEngines, PROMPT_TEXT_MAX } from '../prompt-model'
 import { BULK_CREATE_PROMPTS, bulkArchive, refreshPrompts, type PromptScope } from '../prompt-queries';
 import type { TopicSelection } from '../topic-picker/topic-picker-model';
 import { EnsureTopicsFailure, useEnsureTopics, useTopicLeftover } from '../topic-picker/use-ensure-topics';
+import { findDrawerTitle } from '@/components/app/inspector/drawer-title';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { useSubmitOnce } from '@/components/app/forms/use-form-helpers';
 import { announce } from '@/lib/a11y/announcer';
@@ -42,13 +43,6 @@ const REJECT_KEYS = {
   duplicate: 'duplicate',
 } as const;
 const isRejectCode = (code: string): code is keyof typeof REJECT_KEYS => Object.hasOwn(REJECT_KEYS, code);
-
-/** The inspector the add opened, the title of which takes the focus when the dialog is out of the way (PD-POST-07). */
-const inspectorTitle = (): HTMLElement | null => {
-  const frame = document.querySelector('aside[aria-labelledby], [data-slot="sheet"][aria-labelledby]');
-  const titleId = frame?.getAttribute('aria-labelledby');
-  return titleId === null || titleId === undefined ? null : document.getElementById(titleId);
-};
 
 /** The topics the save made, held as the terms they now are: each typed path that was made becomes its term. */
 const madeTopicsAsTerms = (
@@ -75,7 +69,7 @@ function cancelInspectorFocus(): void {
 /** shortcut: polls for 2 seconds; the inspector could tell a page when it is shown, which this has no way to hear. */
 function focusInspectorTitleWhenShown(polls = 0): void {
   cancelInspectorFocus();
-  const title = inspectorTitle();
+  const title = findDrawerTitle();
   if (title !== null) title.focus({ preventScroll: true });
   else if (polls < INSPECTOR_POLLS) {
     inspectorPoll = window.setTimeout(() => focusInspectorTitleWhenShown(polls + 1), INSPECTOR_POLL_MS);
@@ -239,7 +233,7 @@ export function useAddForm({ scope, open, onOpenChange, engines, existing, defau
   const finalFocus = (): boolean | HTMLElement => {
     if (!showing.current) return true;
     showing.current = false;
-    const title = inspectorTitle();
+    const title = findDrawerTitle();
     if (title !== null) return title;
     // The inspector follows the URL a moment later: it takes the focus when it is there, and the trigger does not
     focusInspectorTitleWhenShown();
