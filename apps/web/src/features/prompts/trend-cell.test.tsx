@@ -27,6 +27,7 @@ const week = (weekStart: string, value: number): WeekCells => ({
   mentioned: cell(value),
   cited: cell(0),
   share_of_voice: cell(0),
+  visibility: cell(0),
 });
 const ROW = {
   cells: [

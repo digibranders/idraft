@@ -113,6 +113,8 @@ DECLARED = {
     "core.ai_report_schedules",
     "core.keyword_prompt_links",
     "fp.gsc_page_daily",
+    "fp.ai_referrer_rules",
+    "fp.ai_referral_daily",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
 _PARTITION = re.compile(r"_p\d{6}$")

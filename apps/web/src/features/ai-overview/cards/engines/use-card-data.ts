@@ -31,6 +31,12 @@ export interface CardDataOptions {
   /** The card shows share of voice: also read the brand mention counts it is made from (`SummaryReadOptions.counts`). */
   counts?: SummaryReadOptions['counts'];
   /**
+   * The card draws the platforms of the prompts summary, Google AI Overview among them when it is on: its reads and its
+   * `asked` list take `answeredEngines`. Left out, the card keeps to the platforms asked per prompt, as every card that
+   * reads the sources, fan-out or competitors does, since those reads hold no answers of Google AI Overview.
+   */
+  withKeywordLevel?: boolean;
+  /**
    * The card passes the `live` of its `CardProps`. While `false` (customize mode) no read of the card asks anything:
    * it shows what it already has for the scope, and a card with nothing yet stays `loading`, as it is not "no engine".
    */
@@ -85,10 +91,12 @@ export function useCardData({
   rows,
   sources = false,
   counts = false,
+  withKeywordLevel = false,
   subscribed = true,
 }: CardDataOptions): CardData {
-  const { workspaceId, workspaceSlug, project, scope, enabledEngines, engines, canManageEngines, canViewRuns } =
+  const { workspaceId, workspaceSlug, project, scope, engines, canManageEngines, canViewRuns, ...overview } =
     useOverview();
+  const enabledEngines = withKeywordLevel ? overview.answeredEngines : overview.enabledEngines;
   const ref = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
   // The comparison is not part of a summary's key, so a card that needs no previous window shares the page's read
   const periodScope = useMemo(() => (need === 'none' ? { ...scope, compare: false } : scope), [need, scope]);
@@ -102,7 +110,11 @@ export function useCardData({
     },
   );
   // With no engine named the sources read does not run: a card that did not ask for it costs no request
-  const sourcesInput: OverviewReadInput = { project: ref, scope, enabledEngines: sources ? enabledEngines : [] };
+  const sourcesInput: OverviewReadInput = {
+    project: ref,
+    scope,
+    enabledEngines: sources ? overview.enabledEngines : [],
+  };
   const sourcesRead = readSources(sourcesInput, { subscribed });
 
   const asked = useMemo(() => inCatalogOrder(askedEngines({ scope, enabledEngines })), [scope, enabledEngines]);

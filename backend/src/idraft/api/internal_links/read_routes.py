@@ -16,6 +16,7 @@ from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.internal_links import (
     EdgeRowPage,
     EdgeWorklist,
+    LinkGraphResponse,
     LinkScopeName,
     ListMeta,
     NeighborList,
@@ -285,6 +286,30 @@ async def tier_flow(
 ) -> TierFlowResponse:
     flow = await reads.tier_flow(access, project_id, run=_run(run), view=LinkScope(scope))
     return TierFlowResponse(data=flow)
+
+
+@router.get(
+    "/graph",
+    summary="The whole crawl as a graph, for the Link map",
+    description="Every live page that counts as a node and one edge per page pair that links in "
+    "the body (and by auto-generated blocks with `include_auto`). A link to a redirect is a link "
+    "to the page it leads to. Menu and footer links are not edges: `sitewide_from` on a node says "
+    "how many pages have one, when that is at least half. Over `max_pages` the pages with the "
+    "most edges are kept and `truncated` is true.",
+)
+async def graph(
+    project_id: UUID,
+    access: ReadData,
+    reads: Reads,
+    run: Run = "latest",
+    include_auto: Annotated[bool, Query()] = False,
+    max_pages: Annotated[int, Query(ge=100, le=5_000)] = 3_000,
+) -> LinkGraphResponse:
+    return LinkGraphResponse(
+        data=await reads.graph(
+            access, project_id, run=_run(run), include_auto=include_auto, max_pages=max_pages
+        )
+    )
 
 
 @router.get("/worklists", summary="Counts of the saved worklists")

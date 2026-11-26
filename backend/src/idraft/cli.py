@@ -28,6 +28,10 @@ the worker plans the run). It connects as `migrator`, and a second run links not
 the current extractor (recommendation, sentiment and the mentions, from the answer text kept in the
 database; no provider is called). `--dry-run` writes nothing and prints what a real run would
 change. It connects as `migrator`, and a second run finds nothing to do.
+
+`backfill-ai-overview` writes an AI observation for each stored rank check that showed a Google AI
+Overview and has none, from the stored payloads (no provider is called). It connects with the
+worker's database and raw storage settings, and a second run writes nothing new.
 """
 
 from __future__ import annotations
@@ -58,9 +62,12 @@ from idraft.api.auth.passwords import (
     hash_password,
 )
 from idraft.api.schemas.common import Email, Name
+from idraft.collectors.ai_overview_ingest import BackfillReport, backfill
 from idraft.collectors.ai_rederive import ProjectNotFoundError, RederiveReport, rederive_project
-from idraft.config.settings import load_migrator_settings, load_settings
+from idraft.config.settings import Settings, load_migrator_settings, load_settings
+from idraft.db.engine import create_engine, create_session_factory
 from idraft.devseed.guard import NotDevelopmentError, check_development
+from idraft.storage.raw import open_raw_store
 
 CONNECT_TIMEOUT_SECONDS = 5.0
 OWNER_ROLE = "migrator"
@@ -350,6 +357,41 @@ def _rederive_facts(arguments: argparse.Namespace) -> int:
         f"valid answers by tone of the own brand: {sentiment or 'none'}",
     ]
     sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+async def backfill_ai_overview(settings: Settings) -> BackfillReport:
+    """Observations for the stored rank checks that show an AI Overview and have none."""
+    if (
+        settings.r2_raw_endpoint is None
+        or settings.r2_raw_access_key_id is None
+        or settings.r2_raw_secret_access_key is None
+    ):
+        raise ValueError("raw storage is not configured")
+    engine = create_engine(settings)
+    try:
+        async with open_raw_store(
+            endpoint=settings.r2_raw_endpoint,
+            bucket=settings.r2_raw_bucket,
+            access_key_id=settings.r2_raw_access_key_id.get_secret_value(),
+            secret_access_key=settings.r2_raw_secret_access_key.get_secret_value(),
+        ) as store:
+            return await backfill(create_session_factory(engine), store)
+    finally:
+        await engine.dispose()
+
+
+def _backfill_ai_overview(arguments: argparse.Namespace) -> int:
+    try:
+        report = asyncio.run(backfill_ai_overview(load_settings()))
+    except ValueError as error:
+        return _fail(str(error))
+    except (OSError, TimeoutError, SQLAlchemyError) as error:
+        return _fail(_database_problem(error))
+    sys.stdout.write(
+        f"snapshots to read: {report.candidates}\nobservations written: {report.written}\n"
+        f"left as they were: {report.skipped}\n"
+    )
     return 0
 
 
@@ -662,6 +704,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--dry-run", action="store_true", help="write nothing, print what a run would change"
     )
     rederive.set_defaults(run=_rederive_facts)
+    overview = commands.add_parser(
+        "backfill-ai-overview",
+        help="write AI observations for stored rank checks that showed an AI Overview",
+    )
+    overview.set_defaults(run=_backfill_ai_overview)
     link = commands.add_parser(
         "link-prompt-keywords",
         help="link every live prompt without a keyword to a keyword that has a search volume",

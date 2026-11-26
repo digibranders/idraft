@@ -8,7 +8,6 @@ import type {
   Schemas,
   WeekCells,
 } from '@/lib/api/types';
-import type { WeekWithVisibility } from '@/lib/api/week-visibility';
 import { visibilityCell } from '@/lib/rates/visibility-model';
 
 type EngineCoMentions = Schemas['EngineCoMentions'];
@@ -195,7 +194,7 @@ export const weekCells = (
   own: EngineSummary,
   pooled?: PooledCells,
   entities?: EntityCells[],
-): WeekWithVisibility => {
+): WeekCells => {
   const shown = pooled?.cells ?? own;
   return {
     week_start: weekStart,

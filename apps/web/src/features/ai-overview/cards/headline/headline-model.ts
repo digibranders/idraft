@@ -284,25 +284,70 @@ export const FLOOR_OF: Readonly<Record<CountNoun, number>> = {
 
 const SPARK_WEEKS = 8;
 /** The tiles and the hero (`visibility`) that draw a weekly line. */
-export type SparkTile = CellTile | 'visibility';
+export type SparkTile = CellTile | 'visibility' | FactTile;
+/** The weekly metric of each tile read from the weekly cells; the fact tiles are read from the weekly facts. */
 const TREND_OF = {
   visibility: 'visibility',
   mention: 'mention',
   sov: 'share_of_voice',
   citation: 'citation',
-} as const satisfies Record<SparkTile, WeekMetric>;
+} as const satisfies Record<Exclude<SparkTile, FactTile>, WeekMetric>;
+
+const isFactSpark = (tile: SparkTile): tile is FactTile =>
+  tile === 'position' || tile === 'recommendation' || tile === 'sentiment';
+
+/** The last `SPARK_WEEKS` weeks, a gap as `null`; fewer than two points is no line. */
+const lineOf = (weeks: readonly string[], valueOf: (weekStart: string) => number | null): (number | null)[] | null => {
+  const values = weeks.slice(-SPARK_WEEKS).map(valueOf);
+  return values.filter((value) => value !== null).length >= 2 ? values : null;
+};
+
+/**
+ * One week of the total as the row the tiles read their facts from (R12): each platform's weekly point carries the
+ * same cells the window figure does (`mentioned`, `position`, `recommended`, `sentiment`), so the tile's own arithmetic
+ * and floors apply to the week unchanged. A cell the API did not send stays absent, so it reads as not collected.
+ */
+function weekRow(summary: PromptsSummary, weekStart: string): FactsRow {
+  return {
+    engines: (summary.total?.engines ?? []).flatMap((engine) => {
+      const point = engine.series?.find((week) => week.week_start === weekStart);
+      if (point === undefined) return [];
+      return [
+        {
+          engine_code: engine.engine_code,
+          mentioned: point.mentioned,
+          cited: point.cited,
+          outcomes: engine.outcomes,
+          share_of_voice: point.share_of_voice,
+          ...(point.position === undefined ? {} : { position: point.position }),
+          ...(point.recommended === undefined ? {} : { recommended: point.recommended }),
+          ...(point.sentiment === undefined ? {} : { sentiment: point.sentiment }),
+        },
+      ];
+    }),
+  };
+}
 
 /**
  * The last eight weekly points of a tile or the hero, a gap as `null`: a week of one platform that has a rate (a
  * point under the floor has none), or for All platforms the equal-weight average of the platforms that have one that
- * week. Fewer than two points is no line, so `null`: with no weekly visibility from the API (backend request 1) the
- * hero has none, and nothing is made up.
+ * week. Fewer than two points is no line, so `null`: nothing is made up. The position, recommendation and sentiment
+ * tiles read the weekly facts of the total with their own floors (two ordered answers, `MIN_OBSERVATIONS` answers,
+ * `SENTIMENT_MIN` judged mentions).
  */
-export function sparkOf(
-  summary: PromptsSummary,
-  { asked, single }: Platforms,
-  tile: SparkTile,
-): (number | null)[] | null {
+export function sparkOf(summary: PromptsSummary, platforms: Platforms, tile: SparkTile): (number | null)[] | null {
+  if (isFactSpark(tile)) {
+    const weeks = [
+      ...new Set(
+        (summary.total?.engines ?? []).flatMap((engine) => (engine.series ?? []).map((week) => week.week_start)),
+      ),
+    ].sort();
+    return lineOf(weeks, (weekStart) => {
+      const reading = readFactTile([weekRow(summary, weekStart)], platforms, tile);
+      return reading.state === 'ok' ? reading.value : null;
+    });
+  }
+  const { asked, single } = platforms;
   const metric = TREND_OF[tile];
   const range = summary.window;
   const byPlatform = asked.map(
@@ -311,12 +356,11 @@ export function sparkOf(
         projectWeeks(summary, code, metric, range).map((point) => [point.weekStart, point.thin ? null : point.value]),
       ),
   );
-  const weeks = [...new Set(byPlatform.flatMap((points) => [...points.keys()]))].sort().slice(-SPARK_WEEKS);
-  const values = weeks.map((weekStart) => {
+  const weeks = [...new Set(byPlatform.flatMap((points) => [...points.keys()]))].sort();
+  return lineOf(weeks, (weekStart) => {
     const week = byPlatform.map((points) => points.get(weekStart) ?? null);
     return single === null ? equalWeightAverage(week).value : (week[0] ?? null);
   });
-  return values.filter((value) => value !== null).length >= 2 ? values : null;
 }
 
 /** The runs that collected answers: a planned, cancelled, blocked or failed run holds none behind the numbers. */

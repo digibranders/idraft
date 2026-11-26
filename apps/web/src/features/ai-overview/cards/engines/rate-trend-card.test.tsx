@@ -7,7 +7,7 @@ import RateTrendCard from './rate-trend-card';
 import { cell, engine, promptRow, share, summaryOf, week } from '../competitors/model/summary.test-fixtures';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { CardProps } from '@/features/layouts';
-import type { EngineSummary, MetricCell, PromptsSummary, WeekCells } from '@/lib/api/types';
+import type { EngineSummary, PromptsSummary, WeekCells } from '@/lib/api/types';
 import { cardInOverview } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
 import { server } from '@/test/msw';
@@ -32,7 +32,11 @@ afterEach(() => {
 /** A week: `k` of `n` valid answers mention the brand; with `v` it also carries the weekly visibility cell. */
 function point(weekStart: string, k: number, n: number, v?: number): WeekCells {
   const base = week(weekStart, { mentioned: cell(k, n), share: share(k, n) });
-  return v === undefined ? base : ({ ...base, visibility: cell(v, n) } as WeekCells & { visibility: MetricCell });
+  if (v !== undefined) return { ...base, visibility: cell(v, n) };
+  // A body without the weekly visibility (an older read): the card says it is not collected
+  const without: Partial<WeekCells> = { ...base };
+  delete without.visibility;
+  return without as WeekCells;
 }
 
 /** One platform over three weeks, with its outcomes (5 of 10 answers name or cite you) on the prompt row. */

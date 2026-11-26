@@ -1002,3 +1002,63 @@ def test_the_schema_hash_ignores_values_and_lengths_but_not_shape() -> None:
     assert len({schema_hash(one), schema_hash(retyped), schema_hash(extra)}) == 3
     assert "tasks[].result[].items[].rank_group:number" in schema_paths(one)
     assert schema_paths([1, "a"]) == frozenset({"$:array", "$[]:number", "$[]:string"})
+
+
+# The answer text of an AI Overview (stage 2 of the AI Overview engine).
+
+
+def _overview(**more: Any) -> serp_parse.AiOverview:
+    return parse_serp(serp([{"type": "ai_overview", **more}])).ai_overview
+
+
+def test_the_overview_text_is_the_blocks_markdown_when_it_has_one() -> None:
+    overview = _overview(
+        markdown="The whole answer.",
+        items=[{"type": "ai_overview_element", "text": "One piece.", "markdown": "One *piece*."}],
+    )
+
+    assert (overview.state, overview.text) == ("present", "The whole answer.")
+
+
+def test_the_overview_text_falls_back_to_the_elements_and_skips_those_without_text() -> None:
+    overview = _overview(
+        items=[
+            {"type": "ai_overview_element", "text": "Plain only."},
+            {"type": "ai_overview_table_element", "links": None},
+            {"type": "ai_overview_element", "text": "ignored", "markdown": "**Marked**"},
+        ]
+    )
+
+    assert overview.text == "Plain only.\n\n**Marked**"
+
+
+def test_an_overview_with_no_text_and_an_absent_one_have_none() -> None:
+    assert _overview(items=[{"type": "ai_overview_table_element"}]).text is None
+    assert _overview(markdown="  \n ").text is None
+    assert parse_serp(serp([organic(1, "https://a.example/")])).ai_overview.text is None
+
+
+def test_the_overview_text_is_cleaned_and_cut() -> None:
+    cleaned = _overview(markdown="a\x00b\ud800c").text
+    cut = _overview(markdown="x" * (serp_parse.AI_TEXT_MAX + 50)).text
+
+    assert cleaned == "ab?c"
+    assert cut is not None
+    assert len(cut) == serp_parse.AI_TEXT_MAX
+
+
+def test_the_overview_text_stays_out_of_the_feature_payload() -> None:
+    parsed = parse_serp(serp([{"type": "ai_overview", "markdown": "Q" * 9000}]))
+    (feature,) = [f for f in parsed.features if f.feature_type == "ai_overview"]
+
+    assert "Q" not in json.dumps(feature.payload)
+    assert parsed.ai_overview.text is not None
+
+
+def test_the_rich_fixture_overview_has_its_text_and_titles() -> None:
+    overview = rich().ai_overview
+
+    assert overview.text is not None
+    assert overview.text.startswith("Small teams do well")
+    assert overview.citations[0].title == "The best CRM for startups"
+    assert overview.citations[0].source_name == "Example CRM"

@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  citingCompetitorRows,
   citingCompetitorsCount,
   insightWindows,
   isUnknown,
   normalizeText,
   openLines,
   untrackedCount,
+  untrackedKeywords,
 } from './insights-model';
 
 describe('insightWindows', () => {
@@ -67,5 +69,33 @@ describe('isUnknown', () => {
     expect(isUnknown({ count: 0, atLeast: false })).toBe(false);
     expect(isUnknown({ count: 3, atLeast: true })).toBe(false);
     expect(isUnknown(undefined)).toBe(false);
+  });
+});
+
+describe('untrackedKeywords', () => {
+  const row = (text: string, volume: number | null = null) => ({ text, volume, cited: false });
+
+  it('keeps the first of each normalized text, with its volume, and drops the keywords a prompt has', () => {
+    const rows = untrackedKeywords([row('Best CRM', 90), row('best  crm', 5), row('crm pricing')], ['crm pricing?'], {
+      morePrompts: false,
+    });
+    expect(rows).toEqual([row('Best CRM', 90)]);
+  });
+
+  it('lists nothing when the prompts were cut, as they could hide a match', () => {
+    expect(untrackedKeywords([row('a')], [], { morePrompts: true })).toEqual([]);
+  });
+});
+
+describe('citingCompetitorRows', () => {
+  it('keeps the domains named with a tracked competitor, in order', () => {
+    const rows = [
+      { id: 1, cited_with: { entity_id: 'c1' } },
+      { id: 2, cited_with: null },
+      { id: 3 },
+      { id: 4, cited_with: { entity_id: 'x' } },
+      { id: 5, cited_with: { entity_id: 'c1' } },
+    ];
+    expect(citingCompetitorRows(rows, new Set(['c1'])).map((r) => r.id)).toEqual([1, 5]);
   });
 });

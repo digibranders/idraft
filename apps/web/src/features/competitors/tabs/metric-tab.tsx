@@ -165,7 +165,7 @@ export function MetricTab({ kind }: { kind: MetricTabKind }): ReactElement {
       />
       <div
         className={
-          donutKind === null ? 'grid grid-cols-1 gap-3 xl:grid-cols-2' : 'grid grid-cols-1 gap-3 xl:grid-cols-3'
+          donutKind === null ? 'grid grid-cols-1 gap-3 @4xl:grid-cols-2' : 'grid grid-cols-1 gap-3 @4xl:grid-cols-3'
         }
       >
         {donutKind === null ? null : (

@@ -367,6 +367,7 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | AlertFields (link alert rules) | SEO | `app/link-alert-rules/alert-settings.tsx` | V1 | link tracker spec 7.10 |
 | LinkCard | SEO | `app/link-canvas/link-card.tsx` | V1 | 20 §7.1 |
 | LinkCanvas | SEO | `app/link-canvas/link-canvas.tsx` | V1 | 15 §13, 20 §7.1 |
+| LinkMapChart | SEO | `app/link-map/link-map-chart.tsx` | V1 | 15 §13.1, link tracker spec 7.11 |
 | LayoutSwitch, LaneChips (canvas layout and tiers shown) | SEO | `app/link-canvas/layout-controls.tsx` | V1 | link tracker spec 7.9 |
 | InfoPanel (card facts) | SEO | `app/link-canvas/info-panel.tsx` | V1 | link tracker spec 7.9, 20 §7.1 |
 | SelectionBar (selected cards) | SEO | `app/link-canvas/selection-bar.tsx` | V1 | link tracker spec 7.9 |
@@ -4208,7 +4209,7 @@ interface LinkCanvasProps<N extends JourneyNeighbor> {
 - **States:** loading list (a skeleton row and `role="status"`), failed list (words and Try again), full canvas (refused through `onFull`), back links shown on hover, focus or pin.
 - **A11y:** the viewport is a named, focusable `group` whose name points to the tree list; keyboard model in 20 §7.1; the SVG is `aria-hidden` and nothing it shows is only there.
 - **Use:** the Journey tab of Internal links.
-- **Not for:** a whole-site graph (spec 3: "when asked"), any other diagram.
+- **Not for:** a whole-site graph (the Link map, 14.19), any other diagram.
 
 ### 14.18 AlertFields (link alert rules)
 `components/app/link-alert-rules/alert-settings.tsx` · V1 · internal link tracker spec 7.10 "Alert rules"
@@ -4234,6 +4235,31 @@ interface AlertFieldsProps {
 - **A11y:** every control has a visible label; the error is a `FieldError`; nothing creates a live region.
 - **Use:** project settings > Internal links (Alerts section), the Alert rules dialog of the Changes tab.
 - **Not for:** the account-level notification settings.
+
+### 14.19 LinkMapChart
+`components/app/link-map/link-map-chart.tsx` · V1 · internal link tracker spec 7.11, [15 §13.1](15-data-visualization.md)
+
+Purpose: the canvas of the Link map: an ECharts graph series that follows its size and the theme, keeps the view the reader chose across repaints, and tells a click from a drag. It knows nothing of pages or tiers: the option comes from the host.
+
+```ts
+interface LinkMapChartProps {
+  build: (frame: { tokens: ChartTokens; width: number; height: number; view: MapView }) => Record<string, unknown>;
+  label: string;                                     // what the map shows, for a reader who cannot see it
+  onSelect: (id: string | null) => void;             // a page was clicked, or the background (null)
+  onMoved: (id: string, position: readonly [number, number]) => void;   // a page was dragged, in layout units
+  onView: (view: MapView) => void;                   // the view after a zoom or a pan; MapView = { zoom, center | null }
+  repaintAt: readonly number[];                      // zooms at which the picture changes by itself
+  ref?: Ref<{ zoomBy: (factor: number) => void; fit: () => void; show: (view: MapView) => void }>;
+}
+```
+
+- **Pointer rules:** a press and a release more than 4 px apart never selects; a dragged page is saved on release anywhere on the canvas (a fast drag is released beside the dot), and only when it moved; a repaint replaces the series and keeps the tooltip (`replaceMerge`, never `notMerge`).
+- **The option** (`lib/internal-links/map-option.ts`) is a pure function of the graph model, the layout, the focus (selection, search, highlight), the colour groups, the tokens and the canvas size; the zoom limits are 40 to 1,200 percent and the minimap shows above 105 percent.
+- **Variants:** none.
+- **States:** arranging (the host shows a status until the layout is ready), drawn. Loading, error, empty and links dropped belong to the host tab.
+- **A11y:** `role="img"` with the host's label; the keyboard and the other controls are the host's buttons (search, choices, legend, zoom, fit, minimap, help, full screen) and the Pages tab is the accessible version.
+- **Use:** the Link map tab of Internal links.
+- **Not for:** the journey of one page (LinkCanvas), a category chart (EChart).
 
 ## 15. AI components
 

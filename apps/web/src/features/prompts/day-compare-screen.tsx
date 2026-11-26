@@ -160,14 +160,16 @@ function DayCompareContent({
     );
   } else if (engines.isPending || (engineCode !== null && answers.isPending) || columns === null) {
     body = (
-      <div
-        className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
-        role="status"
-        aria-label={common('loading')}
-      >
-        {Array.from({ length: DAY_COLUMNS }, (_, index) => (
-          <Skeleton key={index} shape="block" height="chart-280" />
-        ))}
+      <div className="@container">
+        <div
+          className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @4xl:grid-cols-4"
+          role="status"
+          aria-label={common('loading')}
+        >
+          {Array.from({ length: DAY_COLUMNS }, (_, index) => (
+            <Skeleton key={index} shape="block" height="chart-280" />
+          ))}
+        </div>
       </div>
     );
   } else if (columns.length === 0) {

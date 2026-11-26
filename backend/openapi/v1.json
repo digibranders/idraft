@@ -1507,6 +1507,290 @@
         "title": "AiOverviewTotals",
         "type": "object"
       },
+      "AiReferralCounts": {
+        "description": "The three numbers of one classifier and key over one window.",
+        "properties": {
+          "engaged_sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sum over the window; null when the rows of the key hold no count.",
+            "title": "Engaged Sessions"
+          },
+          "key_events": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.",
+            "title": "Key Events"
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sum over the window; null when the rows of the key hold no count.",
+            "title": "Sessions"
+          }
+        },
+        "required": [
+          "sessions",
+          "engaged_sessions",
+          "key_events"
+        ],
+        "title": "AiReferralCounts",
+        "type": "object"
+      },
+      "AiReferralRow": {
+        "properties": {
+          "difference": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`own_rules` sessions minus `ga4_ai_assistant_channel` sessions; null when either is null.",
+            "title": "Difference"
+          },
+          "ga4_ai_assistant_channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiReferralValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sessions GA4's own `AI Assistant` channel group counts. Null when the classifier was not asked for or has no row for the key in the window."
+          },
+          "key": {
+            "description": "The assistant code, or the origin with `group_by=origin`.",
+            "title": "Key",
+            "type": "string"
+          },
+          "own_rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiReferralValue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sessions our referrer rules count. Null when the classifier was not asked for or has no row for the key in the window."
+          }
+        },
+        "required": [
+          "key",
+          "ga4_ai_assistant_channel",
+          "own_rules",
+          "difference"
+        ],
+        "title": "AiReferralRow",
+        "type": "object"
+      },
+      "AiReferralValue": {
+        "properties": {
+          "engaged_sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sum over the window; null when the rows of the key hold no count.",
+            "title": "Engaged Sessions"
+          },
+          "key_events": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.",
+            "title": "Key Events"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiReferralCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same numbers over the compared window. Null when nothing is compared, when the compared window is not fully collected, or when the key has no row in it."
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sum over the window; null when the rows of the key hold no count.",
+            "title": "Sessions"
+          }
+        },
+        "required": [
+          "sessions",
+          "engaged_sessions",
+          "key_events",
+          "previous"
+        ],
+        "title": "AiReferralValue",
+        "type": "object"
+      },
+      "AiReferralsMeta": {
+        "properties": {
+          "collected_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first day the first finished sync run stored; null when the sync never finished, or when the state predates this field.",
+            "title": "Collected Since"
+          },
+          "collected_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day a finished sync run stored; null when the sync never finished or nothing is connected.",
+            "title": "Collected Through"
+          },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connected": {
+            "description": "The project has a ga4 integration whose status is not `disabled`.",
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "lower_bound": {
+            "description": "Always true: the figures are a lower bound.",
+            "title": "Lower Bound",
+            "type": "boolean"
+          },
+          "notes": {
+            "description": "Fixed English sentences the web shows (lower bound, Google AI Mode and AI Overview not counted, the two classifiers, and what is not collected).",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Notes",
+            "type": "array"
+          },
+          "rules_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rule set version of the `own_rules` rows in the window; null when there are none.",
+            "title": "Rules Version"
+          },
+          "window": {
+            "$ref": "#/components/schemas/MetricWindow"
+          },
+          "window_collected": {
+            "description": "True when `collected_since` is at or before the first day of the window and `collected_through` covers its last day (a window that ends today needs yesterday). Empty `data` with true is zero AI sessions; with false it is not (fully) collected.",
+            "title": "Window Collected",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connected",
+          "collected_through",
+          "collected_since",
+          "window_collected",
+          "last_success_at",
+          "window",
+          "compare_window",
+          "rules_version",
+          "lower_bound",
+          "notes"
+        ],
+        "title": "AiReferralsMeta",
+        "type": "object"
+      },
+      "AiReferralsResponse": {
+        "properties": {
+          "data": {
+            "description": "One row per assistant (or origin) with a row in the window. An absent key is no row, and is read as zero only when `meta.window_collected` is true.",
+            "items": {
+              "$ref": "#/components/schemas/AiReferralRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/AiReferralsMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "AiReferralsResponse",
+        "type": "object"
+      },
       "AiSeriesResponse": {
         "properties": {
           "data": {
@@ -8925,6 +9209,96 @@
         "title": "GeneratedFrom",
         "type": "object"
       },
+      "GraphEdge": {
+        "properties": {
+          "links": {
+            "description": "How many links the source has to the target.",
+            "minimum": 1.0,
+            "title": "Links",
+            "type": "integer"
+          },
+          "source": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "links"
+        ],
+        "title": "GraphEdge",
+        "type": "object"
+      },
+      "GraphNode": {
+        "properties": {
+          "links_in": {
+            "description": "Pages that link to it, redirects folded.",
+            "title": "Links In",
+            "type": "integer"
+          },
+          "links_out": {
+            "description": "Pages it links to, redirects folded.",
+            "title": "Links Out",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sitewide_from": {
+            "description": "Pages that link to it from a menu, header, footer, sidebar or breadcrumb; 0 unless that is at least half the pages. Those links are never edges.",
+            "title": "Sitewide From",
+            "type": "integer"
+          },
+          "tier_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page's tier; null is Untiered.",
+            "title": "Tier Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "path",
+          "title",
+          "tier_id",
+          "links_in",
+          "links_out",
+          "sitewide_from"
+        ],
+        "title": "GraphNode",
+        "type": "object"
+      },
       "GroupMembers": {
         "additionalProperties": false,
         "properties": {
@@ -11844,6 +12218,79 @@
           "name"
         ],
         "title": "LayoutEditor",
+        "type": "object"
+      },
+      "LinkGraph": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "home_url_id": {
+            "anyOf": [
+              {
+                "description": "A `core.urls` id: a 64-bit integer as a string.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page the crawl started from.",
+            "title": "Home Url Id"
+          },
+          "include_auto": {
+            "title": "Include Auto",
+            "type": "boolean"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "pages_total": {
+            "description": "Live pages that count in the crawl, before `max_pages`.",
+            "title": "Pages Total",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "True when `pages_total` is more than the nodes returned.",
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "include_auto",
+          "pages_total",
+          "truncated",
+          "home_url_id",
+          "nodes",
+          "edges"
+        ],
+        "title": "LinkGraph",
+        "type": "object"
+      },
+      "LinkGraphResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LinkGraph"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "LinkGraphResponse",
         "type": "object"
       },
       "LinkedKeyword": {
@@ -28317,13 +28764,46 @@
             ],
             "description": "Present exactly when `is_pooled`: the weeks and days the cells hold, and why."
           },
+          "position": {
+            "$ref": "#/components/schemas/PositionCounts",
+            "description": "With `include=series` and `facts` or `fact_counts`: where the own brand is named in the valid answers of the weeks the point holds, as counts that add up (the mean place is `rank_sum / ordered_answers`), zeros for a week without an answer. Left out otherwise.",
+            "title": "Position"
+          },
           "prompts": {
             "description": "The prompts of the row with a valid answer on the engine in that week alone, whether the point is pooled or not.",
             "title": "Prompts",
             "type": "integer"
           },
+          "recommended": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricCell"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series` and `facts` or `fact_counts`: the recommendation rate of the weeks the point holds, as the engine's `recommended` is. Null while none of those valid answers is classified. Left out otherwise.",
+            "title": "Recommended"
+          },
+          "sentiment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentimentCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `include=series` and `facts` or `fact_counts`: the tones of the valid answers that name the own brand in the weeks the point holds, as the engine's `sentiment` is. Null when none names it with a tone. Left out otherwise.",
+            "title": "Sentiment"
+          },
           "share_of_voice": {
             "$ref": "#/components/schemas/MetricCell"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/MetricCell",
+            "description": "AI visibility of the point: valid answers that name the own brand or cite its domain (every outcome but `neither`) over the valid answers, built as `mentioned` is (counts of answers in a prompt row, prompt weighted in a topic, total or country row), over the same answers."
           },
           "week_start": {
             "description": "The Monday the week starts on, in the project's zone.",
@@ -28338,7 +28818,8 @@
           "is_pooled",
           "mentioned",
           "cited",
-          "share_of_voice"
+          "share_of_voice",
+          "visibility"
         ],
         "title": "WeekCells",
         "type": "object"
@@ -39875,6 +40356,183 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals": {
+      "get": {
+        "description": "Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each assistant has the sessions, engaged sessions and key events GA4's own `AI Assistant` channel counts (`ga4_ai_assistant_channel`) and our referrer rules count (`own_rules`), side by side, and their `difference`; neither is labelled correct. The figures are a lower bound, and Google AI Mode and Google AI Overview are not counted (GA4 files them under organic search): `meta.notes` says so. `compare=previous_period` (as many days just before the window), `compare=previous_year` or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `compare_window` and `previous` beside each value; `previous` is null unless the compared window is collected and holds a row for the key. Answers `200` with `connected: false` and no rows when the project has no live GA4 integration, and no rows when nothing is collected for the window (`meta.collected_through`); a key without a row is absent, never 0. `group_by=landing_page` is `422 not_available` until the landing page report is built.",
+        "operationId": "ai_referrals_api_v1_workspaces__workspace_id__projects__project_id__fp_ai_referrals_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window` and `previous` values.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "description": "`previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window` and `previous` values.",
+              "enum": [
+                "none",
+                "previous_period",
+                "previous_year"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+            "in": "query",
+            "name": "compare_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`.",
+              "title": "Compare From"
+            }
+          },
+          {
+            "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+            "in": "query",
+            "name": "compare_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of the window to compare with, included; at most 92 days from `compare_from`.",
+              "title": "Compare To"
+            }
+          },
+          {
+            "description": "`assistant` (default) or `origin` (only `ga4` exists today). `landing_page` is `422 not_available`: the landing page report is not built yet.",
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "default": "assistant",
+              "description": "`assistant` (default) or `origin` (only `ga4` exists today). `landing_page` is `422 not_available`: the landing page report is not built yet.",
+              "enum": [
+                "assistant",
+                "origin",
+                "landing_page"
+              ],
+              "title": "Group By",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which classifier values are filled; the other is null.",
+            "in": "query",
+            "name": "classifier",
+            "required": false,
+            "schema": {
+              "default": "both",
+              "description": "Which classifier values are filled; the other is null.",
+              "enum": [
+                "both",
+                "ga4_ai_assistant_channel",
+                "own_rules"
+              ],
+              "title": "Classifier",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiReferralsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Sessions from AI assistants in Google Analytics, under two classifiers",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
       "get": {
         "operationId": "list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get",
@@ -40803,6 +41461,103 @@
           }
         },
         "summary": "Link edges of a crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/graph": {
+      "get": {
+        "description": "Every live page that counts as a node and one edge per page pair that links in the body (and by auto-generated blocks with `include_auto`). A link to a redirect is a link to the page it leads to. Menu and footer links are not edges: `sitewide_from` on a node says how many pages have one, when that is at least half. Over `max_pages` the pages with the most edges are kept and `truncated` is true.",
+        "operationId": "graph_api_v1_workspaces__workspace_id__projects__project_id__internal_links_graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_auto",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Auto",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_pages",
+            "required": false,
+            "schema": {
+              "default": 3000,
+              "maximum": 5000,
+              "minimum": 100,
+              "title": "Max Pages",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkGraphResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The whole crawl as a graph, for the Link map",
         "tags": [
           "internal-links"
         ]

@@ -419,6 +419,18 @@ Core quotas for a standard property (verified 2026-09-29): 200,000 tokens per pr
 - Concurrency 1 per property. A circuit breaker stops a property for the rest of the hour after 3 server errors, well under the limit of 10.
 - `429 RESOURCE_EXHAUSTED` retries at the top of the next hour (hourly quotas) or at 00:05 PT (daily). `invalid_grant` follows 3.2.
 
+### 7.6 As built (WP-69 slice 1)
+
+Built on 2026-11-26 by [the WP-69 plan](superpowers/plans/2026-11-26-ai-wp-69-ga4-referrals.md), for the Overview card "AI referral visits" (route contract: [ai-visibility/contracts/fp-ai-referrals.md](ai-visibility/contracts/fp-ai-referrals.md)):
+
+- One `runReport` per run, not R1 and R2: dimensions `date`, `sessionSource`, `sessionMedium`, `sessionManualSource`, `sessionDefaultChannelGroup`, metrics `sessions`, `engagedSessions`, `keyEvents`, `totalRevenue`, no filter, paged with `offset`. The classification (both classifiers of 7.3) runs in our code, and only the rows that are AI under a classifier are stored.
+- The first run pulls the last 90 days; every later run re-pulls the last 3 days. The window is replaced in one transaction together with the pull state in `fp.integrations.backfill_state["ga4"]` (`through`, `since`), so a run that stops leaves the numbers of the run before.
+- Only `fp.ai_referral_daily` is written (migration 0041, with the seeded `fp.ai_referrer_rules`). There is no `fp.metric_observations`, and `landing_url_id` is always 0 (all pages).
+- The schedule is the `ops.schedules` row "Daily GA4 sync" (job type `ga4_sync`), made by a planner tick for each live GA4 property: daily at 06:00 America/Los_Angeles, as Search Console. The date basis is Pacific, because the property's own time zone is not stored yet.
+- Quota: a run stops before it asks for another page when the property has fewer than 12,000 of its 40,000 hourly tokens left (30%), and tries again after a wait that grows.
+- Not built: the landing page report (R2) and `group_by=landing_page`, the ambiguous referrer rules (stored in `fp.ai_referrer_rules` with their confidence, never matched), the Redis quota record shared across workers (`ga4:prop:{id}`), the per project hourly cap, the concurrency limit and circuit breaker of 7.5, `GET /api/v1/fp/referrer-rules`, and the Cloudflare and server log origins of `own_rules`.
+- The response shape of `runReport` is from the public API reference and is UNVERIFIED against a live account until the first real run.
+
 ## 8. Cloudflare AI Crawl Control
 
 ### 8.1 What is available by plan (verified 2026-09-29)

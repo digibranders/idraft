@@ -127,6 +127,7 @@ const PROBLEMS = {
   cycle_detected: [422, 'Would make a cycle'],
   too_many_matches: [422, 'Too many matches'],
   window_too_large: [422, 'The window is too large'],
+  not_available: [422, 'Not available yet'],
   not_an_ai_run: [422, 'Not an AI run'],
   // The mocks' own: what a browser changed no longer fits in its cookie
   mock_state_full: [422, 'Mock state is full'],

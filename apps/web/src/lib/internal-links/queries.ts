@@ -40,6 +40,7 @@ const PAGE = `${P}/internal-links/pages/{url_id}` as const;
 const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
 const FLOW = `${P}/internal-links/tier-flow` as const;
+const GRAPH = `${P}/internal-links/graph` as const;
 const WORKLISTS = `${P}/internal-links/worklists` as const;
 const CHANGES_SUMMARY = `${P}/internal-links/changes/summary` as const;
 const CHANGES_LINKS = `${P}/internal-links/changes/links` as const;
@@ -345,6 +346,21 @@ export const tierFlowQuery = (
   run: string | null,
 ): ApiQueryOptions<typeof FLOW> =>
   apiQuery(FLOW, { params: { path: pathOf(scope), query: withRun({ scope: linkScope }, run) } });
+
+/** The most pages the Link map draws (plan 11, W3): the canvas stays smooth to about this many. */
+export const MAP_MAX_PAGES = 3000;
+
+/** The whole crawl as the Link map's nodes and edges. A finished crawl never changes, so the answer is kept. */
+export const linkGraphQuery = (
+  scope: LinksScope,
+  includeAuto: boolean,
+  run: string | null,
+): ApiQueryOptions<typeof GRAPH> => ({
+  ...apiQuery(GRAPH, {
+    params: { path: pathOf(scope), query: withRun({ include_auto: includeAuto, max_pages: MAP_MAX_PAGES }, run) },
+  }),
+  staleTime: run === null ? 60_000 : Number.POSITIVE_INFINITY,
+});
 
 export const worklistsQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof WORKLISTS> =>
   apiQuery(WORKLISTS, { params: { path: pathOf(scope), query: withRun({}, run) } });

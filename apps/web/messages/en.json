@@ -491,7 +491,8 @@
       "integrations": "Integrations",
       "runs": "Runs",
       "costs": "Costs",
-      "settings": "Settings"
+      "settings": "Settings",
+      "insights": "Insights"
     },
     "groups": {
       "seo": "SEO",
@@ -5502,37 +5503,6 @@
     "linkCopied": "Link copied",
     "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
-    "insights": {
-      "title": "Insights",
-      "meta": "Whole project",
-      "retry": "Try again",
-      "atLeastMark": "+",
-      "startTracking": "Start tracking",
-      "viewGaps": "View gaps",
-      "viewPages": "View pages",
-      "emptyTitle": "Nothing to act on",
-      "emptyReason": "Every keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.",
-      "lines": {
-        "untracked": {
-          "text": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
-          "failed": "Could not count the keywords with a Google AI Overview",
-          "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked"
-        },
-        "gaps": {
-          "text": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
-          "failed": "Could not count the citation gaps"
-        },
-        "citingCompetitors": {
-          "text": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
-          "failed": "Could not count the domains that cite your competitors",
-          "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked"
-        },
-        "newDomains": {
-          "text": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
-          "failed": "Could not count the new cited domains"
-        }
-      }
-    },
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The platforms of this project could not be read",
     "enginesFailedReason": "The server did not answer. Try again in a moment.",
@@ -6091,6 +6061,7 @@
         "partCitedOnly": "Cited only",
         "partNeither": "Neither",
         "answers": "{count, number} {count, plural, one {answer} other {answers}}",
+        "keywordAnswersTip": "Google AI Overview has one answer for each prompt whose linked keyword has a valid check. Prompts that share a keyword share one check, so each of them counts it.",
         "segmentTip": "{label}: {share}, {k, number} of {n, number} answers",
         "emptyTitle": "Not enough data",
         "emptyReason": "These prompts have too few valid answers.",
@@ -7653,14 +7624,53 @@
         "title": "AI referral visits",
         "connect": "Connect GA4",
         "notConnectedTitle": "GA4 is not connected",
-        "notConnectedReason": "Connect Google Analytics 4 to see the visits that come from ChatGPT and Gemini, and the pages they land on.",
+        "notConnectedReason": "Connect Google Analytics 4 to see the visits that come from AI platforms such as ChatGPT, Gemini and Perplexity.",
         "linkedTitle": "GA4 is connected, visits are not collected yet",
-        "linkedReason": "This project reads a Google Analytics 4 property. The visits that come from ChatGPT and Gemini will show here once they are collected.",
+        "linkedReason": "This project reads a Google Analytics 4 property. The visits that come from AI platforms such as ChatGPT, Gemini and Perplexity will show here once they are collected.",
         "summaryLinked": "AI referral visits are not shown: Google Analytics 4 is connected, but its visits are not collected yet.",
         "summary": "AI referral visits are not shown: Google Analytics 4 is not connected to this project.",
         "footnote": "A visit is a session as Google Analytics counts it. Nothing is shown until GA4 is connected, and no visit is estimated.",
         "infoWhat": "Visits to your site that come from AI platforms.",
-        "infoHow": "A visit is a session as Google Analytics counts it, from chatgpt.com and gemini.google.com as Google Analytics classifies them. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic."
+        "infoHow": "A visit is a session as Google Analytics counts it. Each visit is counted twice, by the AI Assistant channel of Google Analytics (GA4 channel) and by our own list of AI platform referrers (Our rules), and neither is called the right one. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic.",
+        "classifierLabel": "How visits are counted",
+        "classifierOwnRules": "Our rules",
+        "classifierGa4": "GA4 channel",
+        "meta": "{period}, {classifier, select, own_rules {counted by our rules} other {counted by the GA4 channel}}",
+        "summaryRows": "AI referral visits by platform, {classifier, select, own_rules {counted by our rules} other {counted by the GA4 channel}}: {list}.",
+        "caption": "AI referral visits by platform",
+        "rowText": "{name}: {count, plural, one {# visit} other {# visits}}",
+        "rowTextChange": "{name}: {count, plural, one {# visit} other {# visits}}, {change} against the compared period",
+        "tipPrevious": "Compared period: {count, plural, one {# visit} other {# visits}}",
+        "tipNoPrevious": "No comparison for this platform",
+        "moreRows": "The top {shown} of {total} platforms are drawn. Every platform is in the Table view.",
+        "zeroTitle": "No visits from AI platforms in this period",
+        "zeroReason": "Google Analytics was collected for the whole period and counted no visit from an AI platform.",
+        "throughTitle": "Collected through {date}",
+        "throughReason": "Google Analytics visits are collected up to that day. Nothing after it is in the figures yet.",
+        "fromThroughTitle": "Collected from {since} to {through}",
+        "fromThroughReason": "Google Analytics visits are collected only for those days. The rest of this period is not in the figures.",
+        "partialNotice": "Collected through {date}",
+        "partialFromNotice": "Collected from {since} to {through}",
+        "noneCountedTitle": "{classifier, select, own_rules {No platform is counted by our rules here} other {No platform is counted by the GA4 channel here}}",
+        "noneCountedReason": "Choose the other way of counting, or open the Table view to see every platform.",
+        "summaryNoneCounted": "AI referral visits by platform: {classifier, select, own_rules {our rules count no platform} other {the GA4 channel counts no platform}} in this period.",
+        "stale": "These are the last figures read",
+        "errorTitle": "Could not load AI referral visits",
+        "errorReason": "The server did not answer. Your scope is unchanged.",
+        "summaryFromThrough": "AI referral visits are not shown: Google Analytics is collected from {since} to {through}, which is not the whole of this period.",
+        "summaryThrough": "AI referral visits are not shown: Google Analytics is collected through {date}, before the end of this period.",
+        "summaryZero": "No visits from AI platforms in this period.",
+        "headers": {
+          "platform": "Platform",
+          "ownVisits": "Visits, our rules",
+          "ownChange": "Change, our rules",
+          "ga4Visits": "Visits, GA4 channel",
+          "ga4Change": "Change, GA4 channel",
+          "difference": "Difference (our rules minus GA4 channel)",
+          "ownEngaged": "Engaged visits, our rules",
+          "ga4Engaged": "Engaged visits, GA4 channel"
+        },
+        "fileName": "ai-referral-visits"
       },
       "domainTypes": {
         "title": "Citations by domain type",
@@ -7774,6 +7784,94 @@
         "fileName": "sentiment-by-platform",
         "infoWhat": "The tone AI uses when it mentions your brand.",
         "infoHow": "The share of mentions that are positive, neutral, negative or mixed, shown as four shares and never one score. Tone is rule-based, with a model check on low-confidence mentions."
+      }
+    }
+  },
+  "aiInsights": {
+    "title": "Insights",
+    "meta": "Whole project",
+    "noAccessTitle": "You cannot open insights",
+    "noAccessReason": "Your role cannot read AI data in this project.",
+    "noPlatformTitle": "No platform is turned on",
+    "noPlatformReason": "Insights count answers, and no platform collects any yet. Turn one on in the platform settings.",
+    "retry": "Try again",
+    "atLeastMark": "+",
+    "showMore": "Show {count} more",
+    "showFewer": "Show fewer",
+    "listLabel": "{section}: list",
+    "na": "n/a",
+    "sections": {
+      "untracked": {
+        "title": "Keywords not tracked as prompts",
+        "headline": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
+        "explain": "Your latest checks show a Google AI Overview for these keywords, and no prompt asks the same question yet.",
+        "failed": "Could not count the keywords with a Google AI Overview",
+        "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked.",
+        "emptyTitle": "Every keyword with a Google AI Overview is a prompt",
+        "emptyReason": "New keywords with a Google AI Overview show here after the next check.",
+        "startTracking": "Start tracking",
+        "startTrackingFor": "Start tracking: {keyword}",
+        "volumeUnknown": "Search volume is not collected for this keyword yet.",
+        "columns": {
+          "keyword": "Keyword",
+          "volume": "Volume",
+          "cited": "Your site",
+          "action": "Action"
+        },
+        "cited": {
+          "yes": "Cited",
+          "no": "Not cited"
+        },
+        "viewAll": "View prompts"
+      },
+      "gaps": {
+        "title": "Citation gaps",
+        "headline": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
+        "explain": "AI answers cite a tracked competitor on these prompts and leave your site out, on the platforms listed.",
+        "failed": "Could not count the citation gaps",
+        "emptyTitle": "No citation gaps",
+        "emptyReason": "No tracked competitor is cited on a prompt where your site is not, in the last runs.",
+        "viewGap": "View prompt",
+        "viewGapFor": "View prompt: {prompt}",
+        "viewAll": "View all gaps",
+        "columns": {
+          "prompt": "Prompt",
+          "platforms": "Platforms",
+          "competitors": "Competitors cited",
+          "action": "Action"
+        }
+      },
+      "citingCompetitors": {
+        "title": "Domains that cite your competitors",
+        "headline": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
+        "explain": "These websites are cited in answers that mention a tracked competitor, so they are places to earn a citation too.",
+        "failed": "Could not count the domains that cite your competitors",
+        "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked.",
+        "emptyTitle": "No domain cites your competitors",
+        "emptyReason": "No cited domain of another site is cited in answers that mention a tracked competitor in the last 28 days.",
+        "viewAll": "View all cited domains",
+        "columns": {
+          "domain": "Domain",
+          "role": "Role",
+          "answers": "Answers",
+          "competitors": "Competitors"
+        },
+        "answers": "{count, plural, one {# answer} other {# answers}}"
+      },
+      "newDomains": {
+        "title": "New cited domains",
+        "headline": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
+        "explain": "Domains that AI answers cite this month and did not cite in the month before.",
+        "failed": "Could not count the new cited domains",
+        "emptyTitle": "No new cited domains",
+        "emptyReason": "Every domain cited this month was cited in the month before.",
+        "viewAll": "View all cited domains",
+        "columns": {
+          "domain": "Domain",
+          "firstSeen": "First seen",
+          "citations": "Citations"
+        },
+        "firstSeenUnknown": "The first answer that cited this domain was not recorded."
       }
     }
   },
@@ -9622,9 +9720,90 @@
       "pages": "Pages",
       "links": "Links",
       "journey": "Journey",
+      "map": "Link map",
       "flow": "Tier flow",
       "changes": "Changes",
       "opportunities": "Opportunities"
+    },
+    "map": {
+      "label": "Link map",
+      "chipLabel": "{label}:",
+      "menuName": "{label}, {value}",
+      "search": "Find a page",
+      "searchLabel": "Find a page on the map",
+      "found": "{count, number} of {total, plural, one {# page} other {# pages}}",
+      "links": "Links",
+      "linksEditorial": "Editorial",
+      "linksAuto": "Editorial and auto-generated",
+      "colour": "Colour",
+      "colourTier": "Tier",
+      "colourSection": "Section",
+      "highlight": "Highlight",
+      "lensNone": "Nothing",
+      "lensNoIn": "No links in",
+      "lensDeadEnd": "Dead ends",
+      "lensSitewide": "In the menu or footer",
+      "fullScreen": "Full screen",
+      "leaveFullScreen": "Leave full screen",
+      "tiersShown": "Tiers shown",
+      "sectionsShown": "Sections shown",
+      "sectionHome": "Home page",
+      "sectionTop": "Top level pages",
+      "sectionOther": "Other sections",
+      "size": "Bigger dot: more links",
+      "home": "Home page",
+      "kindEditorial": "editorial",
+      "kindAuto": "editorial or auto-generated",
+      "summary": "{pages, plural, one {# page} other {# pages}} and {links, plural, one {# {kind} link} other {# {kind} links}}.",
+      "summaryLargest": "{count, number} pages hang together in the largest group.",
+      "summaryUnlinked": "{count, plural, one {# page has} other {# pages have}} no {kind} link in or out: the block {side, select, below {below} other {on the right}}.",
+      "canvas": "Map of internal links. {summary} The Pages tab lists every page with its links.",
+      "truncated": "The map shows the {shown, number} pages with the most links, of {total, number}.",
+      "blockTitle": "No {kind} link in or out",
+      "blockLine": "{tier}: {count, plural, one {# page} other {# pages}}",
+      "arranging": "Arranging the map",
+      "loadFailed": "The link map could not be loaded",
+      "loadFailedReason": "Try again in a moment.",
+      "tooltipPage": "{tier}, {linksIn, plural, one {# link} other {# links}} in, {linksOut, number} out",
+      "tooltipEdge": "links to {path}",
+      "card": "Selected page",
+      "cardClose": "Close the card",
+      "cardNoTitle": "No title",
+      "cardIn": "{count, plural, one {page links to it} other {pages link to it}}",
+      "cardOut": "{count, plural, one {page it links to} other {pages it links to}}",
+      "cardSitewide": "In the menu or footer of {count, number} pages (not drawn).",
+      "details": "Page details",
+      "openJourney": "Open in Journey",
+      "viewLabel": "Map view",
+      "minimap": "Minimap",
+      "help": "Reading the map",
+      "helpDot": "A live page. Redirects and duplicate addresses count as the page they point to. A bigger dot has more links.",
+      "helpArrow": "A link in the body of one page to another, pointing at the page it opens.",
+      "helpNotDrawn": "Menu and footer links. Nearly every page has the same ones, so they are a property of the page: its card says so, and Highlight shows them.",
+      "helpFind": "Type part of an address or title. Matching pages stay lit; Enter zooms to them.",
+      "helpClick": "Keeps the page and the pages it links with lit, and opens its card. Click the background or press Escape to let go.",
+      "helpScroll": "Zooms in and out; more names appear as you zoom in. Drag the background to move the map.",
+      "helpDrag": "Moves that page.",
+      "helpDotTitle": "Dot",
+      "helpArrowTitle": "Arrow",
+      "helpNotDrawnTitle": "Menu and footer links",
+      "helpFindTitle": "Find a page",
+      "helpClickTitle": "Click a page",
+      "helpScrollTitle": "Scroll",
+      "helpDragTitle": "Drag a page",
+      "empty": "This crawl found no live page, so there is nothing to map yet.",
+      "emptyTitle": "Nothing to map",
+      "export": {
+        "page": "Page",
+        "title": "Title",
+        "tier": "Tier",
+        "linksIn": "Links in",
+        "linksOut": "Links out",
+        "onMap": "Linked on the map",
+        "linked": "Linked",
+        "unlinked": "No link in or out",
+        "sitewide": "Menu or footer links from (pages)"
+      }
     },
     "linksDropped": {
       "title": "Links of this crawl are not stored",
@@ -10156,7 +10335,7 @@
       },
       "trafficAiReferrals": {
         "what": "Visits to your site that come from AI platforms.",
-        "how": "A visit is a session as Google Analytics counts it, from chatgpt.com and gemini.google.com as Google Analytics classifies them. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic."
+        "how": "A visit is a session as Google Analytics counts it. Each visit is counted twice, by the AI Assistant channel of Google Analytics (GA4 channel) and by our own list of AI platform referrers (Our rules), and neither is called the right one. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic."
       },
       "aiFanoutTop": {
         "what": "The extra searches ChatGPT runs to build its answers.",

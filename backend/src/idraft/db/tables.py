@@ -2208,6 +2208,53 @@ gsc_page_daily = Table(
     schema="fp",
 )
 
+ai_referrer_rules = Table(
+    "ai_referrer_rules",
+    metadata,
+    Column("rule_set_version", SmallInteger, primary_key=True),
+    Column("rule_id", SmallInteger, primary_key=True),
+    Column("match_field", Text, nullable=False),
+    Column("match_type", Text, nullable=False),
+    Column("pattern", Text, nullable=False),
+    Column("assistant_code", Text, nullable=False),
+    Column("operator", Text, nullable=False),
+    Column("confidence", Text, nullable=False),
+    Column("notes", Text),
+    UniqueConstraint("rule_set_version", "match_field", "match_type", "pattern"),
+    schema="fp",
+)
+
+ai_referral_daily = Table(
+    "ai_referral_daily",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("integration_id", Uuid, primary_key=True),
+    Column("metric_date", Date, primary_key=True),
+    Column("origin", Text, nullable=False),
+    Column("classifier", Text, primary_key=True),
+    Column("rules_version", SmallInteger, primary_key=True),
+    Column("assistant_code", Text, primary_key=True),
+    Column("landing_url_id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("unit", Text, nullable=False),
+    Column("sessions", Integer),
+    Column("engaged_sessions", Integer),
+    Column("key_events", Numeric(14, 2)),
+    Column("total_revenue", Numeric(14, 2)),
+    Column("requests", BigInteger),
+    Column("is_current", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("computed_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["integration_id", "workspace_id"],
+        [integrations.c.id, integrations.c.workspace_id],
+        ondelete="CASCADE",
+    ),
+    schema="fp",
+)
+
 alert_rules = Table(
     "alert_rules",
     metadata,

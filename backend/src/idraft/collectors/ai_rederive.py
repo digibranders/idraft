@@ -28,8 +28,8 @@ import structlog
 from sqlalchemy import and_, delete, insert, literal, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from idraft.collectors.ai_answer_rows import current_derivation, insert_mentions
 from idraft.collectors.ai_context import AiContext, load_ai_context
-from idraft.collectors.ai_prompt_ingest import current_derivation, insert_mentions
 from idraft.db.tables import (
     ai_derivations,
     ai_entity_mentions,

@@ -517,6 +517,11 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    # Both windows and `origin`, so the whole grouped read is scanned.
+    ("GET", _W + "/projects/{project_id}/fp/ai-referrals"): {
+        "compare": "previous_period",
+        "group_by": "origin",
+    },
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     # The gap reads take 1 to 5 competitors the project tracks (`competitor_id`).
@@ -1089,6 +1094,28 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-68 llm-advanced
 
     # WP-69 first-party-signals
+    # A live GA4 integration that finished a sync today, so the referral read has rows to read.
+    ga4_integration = await fetchrow(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_account, "
+        "external_property, connection_id, scopes, backfill_state) VALUES ($1, $2, 'ga4', $3, "
+        "'properties/123', $4, '{openid}', jsonb_build_object('ga4', jsonb_build_object("
+        "'version', 1, 'through', current_date::text, 'complete', true, 'failures', 0))) "
+        "RETURNING id",
+        workspace.id,
+        project_id,
+        account.email,
+        connection["id"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.ai_referral_daily (project_id, integration_id, metric_date, origin, "
+        "classifier, rules_version, assistant_code, workspace_id, unit, sessions) "
+        "VALUES ($1, $2, current_date, 'ga4', 'own_rules', 1, 'chatgpt', $3, 'sessions', 5)",
+        project_id,
+        ga4_integration["id"],
+        workspace.id,
+    )
 
     # WP-70 geo-readiness
 
@@ -1590,6 +1617,7 @@ _TENANT_ROWS = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    "fp.ai_referral_daily": "workspace_id",
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
 }
@@ -1803,6 +1831,8 @@ INTERNAL_LINK_READS = [
         False,
     ),
     ("/internal-links/tier-flow", {"scope": "all"}, False),
+    # The Link map's graph (plan 10): the seeded pages are its nodes.
+    ("/internal-links/graph", {"include_auto": "true"}, True),
     ("/internal-links/worklists", {}, False),
     ("/internal-links/changes/summary", {}, False),
     # The seeded crawl holds one lost link, from the seeded home page to the seeded pricing page.
@@ -1850,6 +1880,9 @@ async def test_the_pages_and_links_of_a_project_hold_nothing_of_another_workspac
     if names_pages:
         own_site = a.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
         assert f"{own_site}-" in response.text
+        # Routes that show a path and no address (the graph) cannot leak B's full URL
+        other_site = b.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
+        assert f"{other_site}-" not in response.text
 
 
 async def test_the_crawls_and_settings_of_a_project_show_only_its_own_workspace(

@@ -52,14 +52,15 @@ describe('categoryChartOption', () => {
     expect(option('line')).toMatchObject({ animation: false });
   });
 
-  it('draws the data lines smooth with a fade, a shadow and their latest value, and the reference line plain and dashed', () => {
+  it('draws the data lines smooth with a fade and no glow, with their latest value, and the reference line plain and dashed', () => {
     const { series } = option('line') as { series: Record<string, unknown>[] };
     expect(series[0]).toMatchObject({
       smooth: 0.3,
-      lineStyle: { width: 3, shadowBlur: 12 },
+      lineStyle: { width: 3 },
       areaStyle: {},
       endLabel: { show: true },
     });
+    expect(series[0]?.lineStyle).not.toHaveProperty('shadowBlur');
     const label = (series[0]?.endLabel as { formatter: (param: { value: unknown }) => string }).formatter;
     expect(label({ value: 30 })).toBe('30');
     expect(label({ value: null })).toBe('');

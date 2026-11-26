@@ -57,3 +57,31 @@ and citation figures but no mention rate, share of voice, sentiment or position,
 Files are edited with the file tools. One commit per task, message `AI Overview engine: <task>`, no attribution lines, no dashes.
 No real provider call in any test. Only targeted, serial checks (owner rule of 2026-11-17); the full `./check.sh` runs once, in the
 main checkout, through `infra/ship.sh`.
+
+## Stage 2 build (started 2026-11-26)
+
+Owner go: "build stage 2" and add a Google AI Overview ring to the Outcome split by platform card.
+
+Checked on a real prod payload (2026-11-26, three Eventus snapshots): the `ai_overview` item has `markdown` (the whole
+answer), `items[]` (`ai_overview_element`, each with `text`, `markdown`, `links`, `references`) and `references[]` (`source`,
+`domain`, `url`, `title`, `text`). So the answer text is in the payload the parser already receives; the parser only drops it.
+
+Decisions:
+
+1. Observation shape: one `ai.observations` row per rank check whose overview was shown and whose text loaded. Engine
+   `google_ai_overview`, class `serp_ai`, `prompt_id` null, `tracked_keyword_id`, `serp_snapshot_id`, `serp_observed_at` and
+   `query_text` set, raw payload shared with the snapshot. The unique key is the rank task, so a re-ingest writes nothing twice.
+   Citations, entity mentions and the fact row go through the same functions as the other platforms (deterministic regex
+   extraction, no model call, no cost).
+2. A valid answer is a check where the overview was shown and its text loaded (`present`, `present_async_loaded`).
+   `absent`, `present_not_loaded` and `unknown` are no answer: they never count as "neither".
+3. A prompt's answer is its linked keyword's latest valid check (the keyword the existing `aio_summary` picks). Prompts that
+   share a keyword share one check and each counts, so n on the ring is the number of prompts with a valid check, not the
+   number of checks. The ring says so in its tooltip.
+4. Two meanings of `isKeywordLevelEngine` are split: "never asked per prompt" stays (run-now, cost, schedules); a new
+   predicate says "has answers" (Citations, Competitors, answer reads, Outcome split).
+5. Existing checks gain text by re-reading the stored payloads (free); no provider call.
+6. No prod write and no release without the owner's word.
+
+Order: parser and writer, extraction and backfill, summary read, OpenAPI and client, ring, then Citations, Competitors and
+Prompts one at a time.

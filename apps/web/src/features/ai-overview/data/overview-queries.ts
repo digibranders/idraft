@@ -57,10 +57,10 @@ function engineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[
 }
 
 /**
- * The engine filter of the sources reads: always the engines asked. Unlike the summary, which leaves out the filter
- * for the project's enabled engines, these routes read all three engines when it is left out, an engine that is off
- * included (OV-SCOPE-13, R12). The fan-out read keeps the plain filter: it counts only the engines that show their
- * queries, so an engine that is off and shows none adds no answer to it.
+ * The engine filter of the summary and the sources reads: always the engines asked. Left out, the routes read every
+ * engine that has answers, an engine that is off included (OV-SCOPE-13, R12) and Google AI Overview, whose answers are
+ * pooled into the totals of a read that did not ask for them. The fan-out read keeps the plain filter: it counts only
+ * the engines that show their queries, so an engine that is off and shows none adds no answer to it.
  */
 function namedEngineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[] } {
   const asked = askedEngines(read);
@@ -118,10 +118,11 @@ export interface SummaryOptions {
  * and the rate trend while its metric is Share of voice): the `total` with a point per week, each point with the cells of
  * every tracked brand (`include=series,entities`, at most 20 brands, own ones first, pooled weeks as the point's `pool`
  * says, no `previous`). `total` is there because `rows=none` leaves out every row, and the weekly points of the whole
- * scope are the `total`'s. No other card asks for it: the prompt rows with weekly entity cells are megabytes.
+ * scope are the `total`'s. `fact_counts` puts the weekly places of the brand, recommendation rate and tones on the same
+ * points, which the headline tiles draw as lines. No other card asks for it: the prompt rows with weekly entity cells are megabytes.
  */
 export const WEEKLY_SHARE_READ = {
-  include: ['entities', 'series', 'total'],
+  include: ['entities', 'fact_counts', 'series', 'total'],
   rows: 'none',
 } as const satisfies SummaryOptions;
 
@@ -140,7 +141,7 @@ export function overviewSummaryQuery(
         from: window.from,
         to: window.to,
         ...brandedParams(scope.branded),
-        ...engineFilter(read),
+        ...namedEngineFilter(read),
         ...scopeFilters(scope),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),
         ...(rows === undefined ? {} : { rows }),

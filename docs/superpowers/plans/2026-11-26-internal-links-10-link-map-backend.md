@@ -793,4 +793,22 @@ Merge `feat/link-map-backend` into `develop` and push `origin/develop` (never `m
 
 ## Built, with notes
 
-(The builder writes here: what was built, the timing of task 4, and anything that differed from the plan.)
+Built on 2026-11-26 by one Sonnet session, one task at a time, each task reviewed by a Sonnet subagent. All five tasks are done; `GET .../internal-links/graph` is live in the code and in `backend/openapi/v1.json`.
+
+**Where the plan and the code differed**
+
+- **Menu and footer links come in as pairs, not counts (G4).** The plan's `TemplateLinks(target, sources)` summed a per-target count after the redirect fold. That double counts a page that links both `/old` and `/pricing` from a menu, and it counts a page linking itself. `TemplateLinks` is now `(source, target)`, one row per distinct pair (`SELECT DISTINCT` in the read). The fold keeps a set of live source pages per folded target and drops a source equal to the target. The `min(..., len(live))` cap is gone: the set cannot exceed the pages. Cost: the statement returns every distinct template pair instead of one row per target. The Eventus timing (below) was not measured, so this is unproven on a large crawl; if it is slow, count distinct sources per target in SQL and lose the post-fold dedupe.
+- **Variants are followed (G2).** Ingest re-points links to a variant (plan 09) but not `crawl_pages.redirect_url_id`, so `/old` could redirect to `/pricing?x=1`, a variant, and every link to `/old` was lost. `GraphPage` now carries `variant_of_url_id` (instead of `is_variant`) and `resolve` follows a variant to its canonical page, in the same 5 hop budget as redirects. The start page is resolved the same way.
+- **`home_url_id` is null when the cap leaves the start page out.** The plan said "null when it is not a node"; a node the cap dropped is not in `nodes`, so the web cannot draw it.
+- **`build_graph` raises `ValueError` for `max_pages` below 1.** The route already keeps it between 100 and 5,000.
+- **Cross-tenant entries.** `test_cross_tenant.py` has no required-query table entry for the graph route (it has no required parameters). It is in `INTERNAL_LINK_READS` (a leak scan of the answer) instead, and in `read_requests` of `test_reads_isolation.py` (skipped in the shared-dictionary test like the other list reads, covered by the not-a-data-state test).
+- **More route tests than planned:** sitewide counted through the database, an ignored link, the start page and `run_id`, truncation at 100 of 101 pages, and a project of another workspace (404).
+- **The 410 test** uses `two_crawls` from `support_changes.py` and `problem` from `tests/api/entities/support.py`, as `test_older_crawls.py` does.
+
+**Tests run.** `test_graph_fold.py` (14), `test_reads_graph.py` (9), `test_reads_isolation.py` and the internal-link part of `test_cross_tenant.py` (36 together with the graph file's 9 at that run), and `tests/api/test_openapi.py` (11): all pass, serial, `--no-cov`. The whole of `test_cross_tenant.py` was started and stopped on purpose at about 57 percent (no failure so far) because it takes over an hour serially; the full gate belongs to `infra/ship.sh`.
+
+**Task 4, step 3 (timing on the Eventus crawl): skipped.** No dev database was running on this Mac (no `idraft-dev-*` containers), so the Eventus crawl (420 pages, about 15,000 links) was not available. It was not seeded. The read was only run against the small test fixtures. Someone with the crawl loaded should time the route 5 times; the target is under 100 ms.
+
+**Known gap, not changed (needs an owner decision).** G1 says a node is a page with status 200 that is not a variant. A row with `resource_type = 'other'` (a PDF, image or stylesheet the crawler stored with status 200) is therefore a node: it counts in `pages_total` and in the sitewide floor, and a link to it is an edge. Adding `crawl_pages.c.resource_type == "html"` to the page select would remove them. Not done because G1 was approved as written.
+
+**Review findings left alone:** a 200 page that also has `redirect_url_id` is a node (matches G1, ingest is not known to produce it); the page select carries the unused `crawl_page_changes` outer join from `page_rows` (same as the other page reads).

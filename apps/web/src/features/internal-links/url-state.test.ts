@@ -91,6 +91,7 @@ describe('the address of Internal links (URL state table)', () => {
       groups: new Set(),
       more: new Map(),
       treeOpen: new Set(),
+      map: { query: '', includeAuto: false, colour: 'tier', lens: 'none', selected: null },
     });
   });
 
@@ -190,5 +191,38 @@ describe('the status of the Links tab (ls)', () => {
     expect(parseLinksSearch({ ls: 'lost' }).linkStatus).toBe('lost');
     expect(parseLinksSearch({ ls: 'all' }).linkStatus).toBe('all');
     expect(parseLinksSearch({ ls: 'gone' }).linkStatus).toBe('active');
+  });
+});
+
+describe('the Link map keys (plan 11, W12)', () => {
+  it('reads the tab, the search, the auto-generated links, the colour, the highlight and the selected page', () => {
+    const state = parseLinksSearch({
+      tab: 'map',
+      mq: '  case-study ',
+      mauto: '1',
+      mcol: 'section',
+      mhl: 'deadEnd',
+      mpage: '8',
+    });
+
+    expect(state.tab).toBe('map');
+    expect(state.map).toEqual({
+      query: 'case-study',
+      includeAuto: true,
+      colour: 'section',
+      lens: 'deadEnd',
+      selected: '8',
+    });
+  });
+
+  it('falls back on a highlight, a colour or a page it does not know', () => {
+    expect(parseLinksSearch({ mhl: 'other', mcol: 'x', mauto: 'yes', mpage: '0' }).map).toEqual({
+      query: '',
+      includeAuto: false,
+      colour: 'tier',
+      lens: 'none',
+      selected: null,
+    });
+    expect(parseLinksSearch({ mpage: '007' }).map.selected).toBeNull();
   });
 });

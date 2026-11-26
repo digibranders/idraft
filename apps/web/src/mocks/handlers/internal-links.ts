@@ -33,6 +33,7 @@ import {
   weakOutlinkIds,
   worklists,
 } from '../internal-links-world';
+import { linkGraphFixture } from '../fixtures/link-graph';
 import { invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
@@ -944,6 +945,21 @@ export const internalLinkHandlers: HttpHandler[] = [
         stale: !run.run.links_available && !run.run.is_latest,
       },
     });
+  }),
+
+  mock('get', `${P}/internal-links/graph`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: ['run', 'include_auto', 'max_pages'],
+    });
+    if (caller instanceof Response) return caller;
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    const gone = requireLinks(request, run);
+    if (gone !== null) return gone;
+    const includeAuto = caller.url.searchParams.get('include_auto') === 'true';
+    const tierIds = pageTierViews().map((tier) => tier.tier_id);
+    return HttpResponse.json({ data: linkGraphFixture(run.run.run_id, tierIds, includeAuto) });
   }),
 
   mock('get', `${P}/internal-links/worklists`, ({ request, cookies, params }) => {

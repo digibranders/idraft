@@ -799,7 +799,7 @@ Table columns: ID, element, source, status (with file), backend need, mock, size
 | WB-XCH-03 | Matrix: AI presence per keyword, quadrants, scatter | DS24 9.9 | NOT BUILT | BE-LINK, matrix route | N | L | |
 | WB-XCH-04 | Page Intelligence: AI citation units per engine, prompts citing the URL, retrieved not cited | DS24 9.10 | NOT BUILT | BE-SRC-P, BE-CIT `filter[url_id]` | M | M | |
 | WB-XCH-05 | Keyword to prompt coverage (M-25) | STU M-25 | NOT BUILT | BE-LINK | N | L | |
-| WB-XCH-06 | AI referral sessions and crawler hits (M-21) | STU M-21 | NOT BUILT | first-party Ph 12 | N | L | |
+| WB-XCH-06 | AI referral sessions and crawler hits (M-21) | STU M-21 | PARTIAL: the GA4 half is built by WP-69 slice 1 (2026-11-26): the Overview card AI referral visits (`features/ai-overview/cards/traffic/referrals-card.tsx`, bars per platform, both ways of counting, Table view, mock in `mocks/handlers/first-party.ts`); crawler hits and the landing page breakdown are not built | first-party Ph 12 | Y | L | |
 
 ### 2.28 WB-LAY: layout customization system (owner R-07)
 
