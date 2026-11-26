@@ -1,10 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
+import { useQueryState } from 'nuqs';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
 import { formatTableDate } from '@/lib/format';
-import { issuePagesCsv } from '@/lib/issues/queries';
 import type { PageRow } from '@/lib/internal-links/types';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { crawledPage, EVENTUS, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
@@ -16,8 +18,9 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: router.push, replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/eventus-security/seo/issues',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -27,8 +30,15 @@ vi.mock('@/lib/api/download', async (importOriginal) => {
   return { ...actual, downloadApiFile: vi.fn(async () => undefined) };
 });
 
+// The real announcer with a spy on it, so a test counts what the page says as well as what the region holds
+vi.mock('@/lib/a11y/announcer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/a11y/announcer')>();
+  return { ...actual, announce: vi.fn(actual.announce) };
+});
+
 const PAGES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages');
-const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
+/** Where the pages list is asked for, written out so a test does not depend on the code that builds it. */
+const PAGES_PATH = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS.project_id}/internal-links/pages`;
 type RowGsc = NonNullable<NonNullable<PageRow['extras']>['gsc']>;
 const GSC_OK: RowGsc = {
   state: 'ok',
@@ -72,16 +82,38 @@ const answerPages = (
     });
   });
 
+// jsdom has no scrollIntoView: a spy stands in, and `mock.contexts` says which row was scrolled
+const scrollIntoView = vi.fn();
 beforeEach(() => {
   stubWideScreen();
   asked.length = 0;
   vi.mocked(downloadApiFile).mockClear();
+  vi.mocked(announce).mockClear();
+  router.push.mockClear();
+  scrollIntoView.mockClear();
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    writable: true,
+    value: scrollIntoView,
+  });
   server.use(answerIssues(), answerPages());
 });
 afterEach(() => {
+  vi.useRealTimers();
+  Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
   restoreWideScreen();
   document.documentElement.classList.remove('dark');
 });
+
+/** A button that writes one key of the address from outside the screen, as the Back button or a pasted link would. */
+function AddressButton({ name, value }: { name: string; value: string }): ReactElement {
+  const [, setValue] = useQueryState(name);
+  return (
+    <button type="button" onClick={() => void setValue(value)}>
+      {`Set ${name}`}
+    </button>
+  );
+}
 
 const OPEN = { searchParams: '?check=status-4xx' };
 const openCheck = async (searchParams = OPEN.searchParams) => {
@@ -261,10 +293,10 @@ describe('the pages of the check (spec 7.3)', () => {
     expect(asked.at(-1)?.searchParams.get('sort')).toBe('-linking_pages');
   });
 
-  it('says how many pages show of how many there are, and the date of the crawl', async () => {
+  it('says which pages show of how many there are, and the date of the crawl', async () => {
     server.use(answerPages(() => BROKEN, { next: null, total: 120 }));
     await openCheck();
-    expect(await screen.findByText('2 pages of 120')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 to 2 of 120 pages')).toBeInTheDocument();
     const date = formatTableDate('2026-11-25T09:12:00Z', EVENTUS_LINKS.timeZone);
     expect(screen.getByText(`Crawl of ${date}`)).toBeInTheDocument();
   });
@@ -273,17 +305,124 @@ describe('the pages of the check (spec 7.3)', () => {
     server.use(
       answerPages((url) => (url.searchParams.get('cursor') === 'c2' ? [BROKEN[1] as PageRow] : BROKEN), {
         next: 'c2',
-        total: 3,
+        total: 120,
       }),
     );
     const { user } = await openCheck();
     expect(screen.getByRole('button', { name: 'Previous page' })).toHaveAttribute('aria-disabled', 'true');
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() => expect(asked.at(-1)?.searchParams.get('cursor')).toBe('c2'));
-    expect(await screen.findByText('1 page of 3')).toBeInTheDocument();
+    // The second page starts after the 50 rows of the first
+    expect(await screen.findByText('Showing 51 to 51 of 120 pages')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Previous page' }));
     // The first page is back (from the cache, so no new ask)
-    expect(await screen.findByText('2 pages of 3')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 to 2 of 120 pages')).toBeInTheDocument();
+  });
+
+  it('says one page in the singular', async () => {
+    server.use(answerPages(() => [BROKEN[0] as PageRow]));
+    await openCheck();
+    expect(await screen.findByText('Showing 1 to 1 of 1 page')).toBeInTheDocument();
+  });
+
+  describe('the paging starts again at the first page', () => {
+    const PAGED = answerPages((url) => (url.searchParams.get('cursor') === 'c2' ? [BROKEN[1] as PageRow] : BROKEN), {
+      next: 'c2',
+      total: 120,
+    });
+    const onSecondPage = async (searchParams: string, jump: ReactElement) => {
+      server.use(PAGED);
+      const view = renderWithProviders(
+        <>
+          {jump}
+          {issuesAs('editor')}
+        </>,
+        { searchParams },
+      );
+      await screen.findByRole('table', { name: /^Pages: / });
+      await view.user.click(screen.getByRole('button', { name: 'Next page' }));
+      await waitFor(() => expect(asked.at(-1)?.searchParams.get('cursor')).toBe('c2'));
+      await screen.findByText('Showing 51 to 51 of 120 pages');
+      asked.length = 0;
+      return view;
+    };
+
+    it('when the search changes', async () => {
+      const { user } = await onSecondPage(OPEN.searchParams, <></>);
+      await user.type(screen.getByRole('searchbox', { name: 'Search pages' }), 'pr');
+      await waitFor(() => expect(asked.at(-1)?.searchParams.get('q')).toBe('pr'));
+      expect(asked.every((url) => url.searchParams.get('cursor') === null)).toBe(true);
+      expect(await screen.findByText('Showing 1 to 2 of 120 pages')).toBeInTheDocument();
+    });
+
+    it('when the sort changes', async () => {
+      const { user } = await onSecondPage(OPEN.searchParams, <AddressButton name="sort" value="path" />);
+      await user.click(screen.getByRole('button', { name: 'Set sort' }));
+      await waitFor(() => expect(asked.at(-1)?.searchParams.get('sort')).toBe('path'));
+      expect(asked.every((url) => url.searchParams.get('cursor') === null)).toBe(true);
+      expect(await screen.findByText('Showing 1 to 2 of 120 pages')).toBeInTheDocument();
+    });
+
+    it('when the check changes', async () => {
+      const { user } = await onSecondPage(OPEN.searchParams, <AddressButton name="check" value="title-long" />);
+      await user.click(screen.getByRole('button', { name: 'Set check' }));
+      await waitFor(() => expect(asked.at(-1)?.searchParams.get('filter[issue]')).toBe('title-long'));
+      expect(asked.every((url) => url.searchParams.get('cursor') === null)).toBe(true);
+      expect(await screen.findByText('Showing 1 to 2 of 120 pages')).toBeInTheDocument();
+    });
+
+    it('when the API refuses the cursor, which a newer crawl makes invalid', async () => {
+      server.use(
+        http.get(PAGES, ({ request }) => {
+          const url = new URL(request.url);
+          asked.push(url);
+          if (url.searchParams.get('cursor') === 'c2') return problem(request, 'invalid_cursor');
+          return HttpResponse.json({
+            data: BROKEN,
+            page: { has_more: true, limit: 50, next_cursor: 'c2' },
+            meta: { run_id: MOCK_RUN_ID, scope: 'all', total: 120, links_available: true },
+          });
+        }),
+      );
+      const { user } = await openCheck();
+      await user.click(screen.getByRole('button', { name: 'Next page' }));
+      await waitFor(() => expect(asked.some((url) => url.searchParams.get('cursor') === 'c2')).toBe(true));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Previous page' })).toHaveAttribute('aria-disabled', 'true'),
+      );
+      expect(screen.getByText('Showing 1 to 2 of 120 pages')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next page' })).not.toHaveAttribute('aria-disabled', 'true');
+    });
+  });
+
+  it('keeps the first page of the next check from showing the rows of the one before', async () => {
+    server.use(
+      http.get(PAGES, async ({ request }) => {
+        const url = new URL(request.url);
+        const title = url.searchParams.get('filter[issue]') === 'title-long';
+        if (title) await delay(300);
+        return HttpResponse.json({
+          data: title ? [rowOf('112', { status_code: 200 }, { count: 74 })] : BROKEN,
+          page: { has_more: false, limit: 50, next_cursor: null },
+          meta: { run_id: MOCK_RUN_ID, scope: 'all', total: title ? 1 : 2, links_available: true },
+        });
+      }),
+    );
+    const { user } = renderWithProviders(
+      <>
+        <AddressButton name="check" value="title-long" />
+        {issuesAs('editor')}
+      </>,
+      OPEN,
+    );
+    await screen.findByRole('table', { name: /^Pages: / });
+    expect(screen.getByText('Returns 404, linked from 1 page')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Set check' }));
+    expect(await screen.findByRole('heading', { level: 2, name: 'Titles over 60 characters' })).toBeInTheDocument();
+    // Until the new answer arrives, nothing of the first check stands under the second check's name
+    expect(screen.queryByText(/^Returns 404/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open /services' })).toBeNull();
+    expect(await screen.findByText('74 characters')).toBeInTheDocument();
   });
 });
 
@@ -299,7 +438,7 @@ describe('the address and the search of the open check', () => {
     await view.user.type(screen.getByRole('searchbox', { name: 'Search pages' }), 'pric');
     await waitFor(() => expect(writes.at(-1)).toBe('?check=status-4xx&q=pric'));
     await waitFor(() => expect(asked.at(-1)?.searchParams.get('q')).toBe('pric'));
-    expect(await screen.findByText('1 page of 1')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 to 1 of 1 page')).toBeInTheDocument();
   });
 
   it('shows No pages match with Clear search for a search with no answer, and clears it', async () => {
@@ -390,6 +529,15 @@ describe('the states of the open check (spec 7.4)', () => {
     expect(await screen.findByRole('table', { name: /^Pages: / })).toBeInTheDocument();
   });
 
+  it('says the links of the crawl are not stored, with no Try again, when the API says they are gone', async () => {
+    server.use(http.get(PAGES, ({ request }) => problem(request, 'links_dropped')));
+    renderWithProviders(issuesAs('editor'), OPEN);
+    expect(await screen.findByRole('heading', { name: 'Links of this crawl are not stored' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.queryByText('The pages could not be loaded')).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Pages that return a 4xx error' })).toBeInTheDocument();
+  });
+
   it('says that no pages have the issue for a check that ran and passed, with a way back to all issues', async () => {
     server.use(answerPages(() => []));
     const { user } = renderWithProviders(issuesAs('editor'), { searchParams: '?check=status-5xx' });
@@ -444,9 +592,11 @@ describe('opening a page and exporting', () => {
     const { user } = renderWithProviders(issuesAs('editor'), { searchParams: '?check=status-4xx&q=ser&sort=path' });
     await screen.findByRole('table', { name: /^Pages: / });
     await user.click(screen.getByRole('button', { name: 'Export' }));
-    const wanted = issuePagesCsv(SCOPE, { check: 'status-4xx', q: 'ser', sort: 'path', cursor: null }, null);
-    expect(wanted.query).toMatchObject({ 'filter[issue]': 'status-4xx', q: 'ser', sort: 'path', format: 'csv' });
-    expect(downloadApiFile).toHaveBeenCalledWith(wanted.path, wanted.query, 'issue-pages.csv');
+    expect(downloadApiFile).toHaveBeenCalledWith(
+      PAGES_PATH,
+      expect.objectContaining({ 'filter[issue]': 'status-4xx', q: 'ser', sort: 'path', format: 'csv' }),
+      'issue-pages.csv',
+    );
     vi.mocked(downloadApiFile).mockRejectedValueOnce(new Error('offline'));
     await user.click(screen.getByRole('button', { name: 'Export' }));
     // The toast and the live region both carry it
@@ -458,8 +608,267 @@ describe('opening a page and exporting', () => {
   it('exports in the default sort when the address names none', async () => {
     const { user } = await openCheck();
     await user.click(screen.getByRole('button', { name: 'Export' }));
-    const wanted = issuePagesCsv(SCOPE, { check: 'status-4xx', q: '', sort: '-clicks', cursor: null }, null);
-    expect(downloadApiFile).toHaveBeenCalledWith(wanted.path, wanted.query, 'issue-pages.csv');
+    expect(downloadApiFile).toHaveBeenCalledWith(
+      PAGES_PATH,
+      expect.objectContaining({ 'filter[issue]': 'status-4xx', sort: '-clicks', format: 'csv' }),
+      'issue-pages.csv',
+    );
+    expect(vi.mocked(downloadApiFile).mock.calls[0]?.[1]).not.toHaveProperty('q');
+  });
+
+  it('exports in the sort by address when Search Console is not connected', async () => {
+    server.use(answerIssues(issueList(ISSUE_CHECKS, { state: 'not_connected', window_start: null, window_end: null })));
+    const { user } = await openCheck();
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(downloadApiFile).toHaveBeenCalledWith(
+      PAGES_PATH,
+      expect.objectContaining({ sort: 'path' }),
+      'issue-pages.csv',
+    );
+  });
+
+  it('exports what the box shows when the search was typed a moment ago and is not in the address yet', async () => {
+    const { user } = await openCheck();
+    await user.type(screen.getByRole('searchbox', { name: 'Search pages' }), ' pric ');
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    expect(downloadApiFile).toHaveBeenCalledWith(PAGES_PATH, expect.objectContaining({ q: 'pric' }), 'issue-pages.csv');
+  });
+
+  it('offers no Export when the pages could not be loaded', async () => {
+    server.use(http.get(PAGES, ({ request }) => problem(request, 'internal_error')));
+    renderWithProviders(issuesAs('editor'), OPEN);
+    expect(await screen.findByText('The pages could not be loaded')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export' })).toBeNull();
+  });
+});
+
+describe('the inspector of the open check', () => {
+  const openRow = async (path: string) => {
+    const view = renderWithProviders(issuesAs('editor'), OPEN);
+    const table = await screen.findByRole('table', { name: /^Pages: / });
+    within(table)
+      .getByRole('button', { name: `Open ${path}` })
+      .focus();
+    await view.user.keyboard('{Enter}');
+    const panel = await screen.findByRole('complementary', { name: path });
+    await waitFor(() => expect(panel).toContainElement(document.activeElement as HTMLElement));
+    return { ...view, table, panel };
+  };
+
+  it('opens with Enter on the page button of a row', async () => {
+    const { panel } = await openRow('/pricing');
+    expect(panel).toBeInTheDocument();
+  });
+
+  // A page that opened its own inspector closes it with history.back(), which jsdom does not follow, so the address
+  // names the page: the inspector then closes by replacing the address, as it does for a shared link
+  it('returns focus to the page button of the row when Escape closes it', async () => {
+    const { user } = renderWithProviders(issuesAs('editor'), { searchParams: '?check=status-4xx&inspect=page:108' });
+    const table = await screen.findByRole('table', { name: /^Pages: / });
+    const panel = await screen.findByRole('complementary', { name: '/pricing' });
+    await waitFor(() => expect(panel).toContainElement(document.activeElement as HTMLElement));
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    expect(within(table).getByRole('button', { name: 'Open /pricing' })).toHaveFocus();
+    expect(bodyRow(table, '/pricing')).not.toHaveAttribute('aria-current');
+  });
+
+  it('returns focus to the title when the row is not on this page of the check', async () => {
+    server.use(answerPages(() => [BROKEN[0] as PageRow]));
+    const { user } = renderWithProviders(issuesAs('editor'), { searchParams: '?check=status-4xx&inspect=page:108' });
+    await screen.findByRole('table', { name: /^Pages: / });
+    const panel = await screen.findByRole('complementary', { name: '/pricing' });
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    expect(screen.getByRole('heading', { level: 2, name: 'Pages that return a 4xx error' })).toHaveFocus();
+  });
+
+  it('scrolls the row in view when the inspector opens and when J and K step to another row', async () => {
+    const { user, table } = await openRow('/services');
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest' });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(bodyRow(table, '/services'));
+    await user.keyboard('j');
+    await waitFor(() => expect(bodyRow(table, '/pricing')).toHaveAttribute('aria-current', 'true'));
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(bodyRow(table, '/pricing'));
+    await user.keyboard('k');
+    await waitFor(() => expect(bodyRow(table, '/services')).toHaveAttribute('aria-current', 'true'));
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(bodyRow(table, '/services'));
+  });
+
+  it('keeps the open row where it is, and says so, when J or K go past the ends of the page', async () => {
+    const writes: string[] = [];
+    const { user } = renderWithProviders(issuesAs('editor'), {
+      searchParams: '?check=status-4xx&inspect=page:108',
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const table = await screen.findByRole('table', { name: /^Pages: / });
+    const panel = await screen.findByRole('complementary', { name: '/pricing' });
+    await waitFor(() => expect(panel).toContainElement(document.activeElement as HTMLElement));
+    await user.keyboard('j');
+    await waitFor(() =>
+      expect(document.getElementById('live-region-polite')).toHaveTextContent('Last page in this list'),
+    );
+    expect(writes).toEqual([]);
+    expect(bodyRow(table, '/pricing')).toHaveAttribute('aria-current', 'true');
+    await user.keyboard('k');
+    await waitFor(() => expect(bodyRow(table, '/services')).toHaveAttribute('aria-current', 'true'));
+    await user.keyboard('k');
+    await waitFor(() =>
+      expect(document.getElementById('live-region-polite')).toHaveTextContent('First page in this list'),
+    );
+  });
+
+  it('sends View all in Links to Internal links, without the inspector keys in the address', async () => {
+    const { user, panel } = await openRow('/pricing');
+    const heading = await within(panel).findByRole('heading', { name: /^Linking pages \(\d+\)$/ });
+    await user.click(
+      within(heading.closest('section') as HTMLElement).getByRole('button', { name: 'View all in Links' }),
+    );
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(router.push).toHaveBeenCalledWith('/digibranders/eventus-security/seo/internal-links?tab=links&tgt=108');
+  });
+});
+
+describe('where focus goes', () => {
+  it('takes focus to the title of a check that opens from the list', async () => {
+    const { user } = renderWithProviders(issuesAs('editor'));
+    await user.click(await screen.findByRole('button', { name: 'Open Pages that return a 4xx error' }));
+    const title = await screen.findByRole('heading', { level: 2, name: 'Pages that return a 4xx error' });
+    expect(title).toHaveAttribute('tabindex', '-1');
+    expect(title).toHaveFocus();
+  });
+
+  it('takes focus to the title of a check a shared link opens', async () => {
+    await openCheck();
+    expect(screen.getByRole('heading', { level: 2, name: 'Pages that return a 4xx error' })).toHaveFocus();
+  });
+
+  it('leaves focus in the inspector when a shared link opens the inspector with the check', async () => {
+    renderWithProviders(issuesAs('editor'), { searchParams: '?check=status-4xx&inspect=page:108' });
+    const panel = await screen.findByRole('complementary', { name: '/pricing' });
+    await screen.findByRole('table', { name: /^Pages: / });
+    expect(panel).toContainElement(document.activeElement as HTMLElement);
+  });
+
+  it('returns to the check just left when All issues is pressed', async () => {
+    const { user } = await openCheck();
+    await user.click(screen.getByRole('button', { name: 'All issues' }));
+    await screen.findByRole('table', { name: 'Technical checks' });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Open Pages that return a 4xx error' })).toHaveFocus(),
+    );
+  });
+
+  it('returns to the page heading when a filter hides the check just left', async () => {
+    const { user } = renderWithProviders(issuesAs('editor'), { searchParams: '?check=status-4xx&severity=warning' });
+    await screen.findByRole('table', { name: /^Pages: / });
+    await user.click(screen.getByRole('button', { name: 'All issues' }));
+    await screen.findByRole('table', { name: 'Technical checks' });
+    expect(screen.queryByRole('button', { name: 'Open Pages that return a 4xx error' })).toBeNull();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Issues' })).toHaveFocus());
+  });
+});
+
+describe('the count of pages after a search is spoken', () => {
+  const wait = (ms: number): Promise<void> =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  const answerSearch = (rows: readonly PageRow[]): void =>
+    server.use(answerPages((url) => (url.searchParams.get('q') === null ? BROKEN : rows)));
+
+  it('says nothing on load, then how many pages match 500 ms after the answer, once', async () => {
+    answerSearch([BROKEN[1] as PageRow]);
+    const { user } = await openCheck();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await wait(1_000);
+    expect(announce).not.toHaveBeenCalledWith(expect.stringMatching(/^Showing/), expect.anything());
+    await user.type(screen.getByRole('searchbox', { name: 'Search pages' }), 'pric');
+    await screen.findByText('Showing 1 to 1 of 1 page');
+    await wait(300);
+    expect(announce).not.toHaveBeenCalledWith('Showing 1 page', expect.anything());
+    await wait(400);
+    expect(announce).toHaveBeenCalledWith('Showing 1 page', { key: 'issues-pages-results' });
+    expect(vi.mocked(announce).mock.calls.filter(([text]) => text === 'Showing 1 page')).toHaveLength(1);
+    expect(document.getElementById('live-region-polite')).toHaveTextContent('Showing 1 page');
+  });
+
+  it('says No pages match for a search with no answer', async () => {
+    answerSearch([]);
+    const { user } = await openCheck();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await user.type(screen.getByRole('searchbox', { name: 'Search pages' }), 'zzz');
+    await screen.findByRole('heading', { name: 'No pages match' });
+    await wait(1_000);
+    expect(announce).toHaveBeenCalledWith('No pages match', { key: 'issues-pages-results' });
+  });
+
+  it('says nothing for a move to another page of the same answer', async () => {
+    server.use(
+      answerPages((url) => (url.searchParams.get('cursor') === 'c2' ? [BROKEN[1] as PageRow] : BROKEN), {
+        next: 'c2',
+        total: 120,
+      }),
+    );
+    const { user } = await openCheck();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await screen.findByText('Showing 51 to 51 of 120 pages');
+    await wait(1_000);
+    expect(announce).not.toHaveBeenCalledWith(expect.stringMatching(/^(Showing|No pages)/), {
+      key: 'issues-pages-results',
+    });
+  });
+});
+
+describe('the cells of a page row', () => {
+  it('says why a page has no clicks in neutral words when Search Console gave no block or no number', async () => {
+    server.use(
+      answerPages(() => [
+        { ...(BROKEN[0] as PageRow), extras: { issue: { count: 2 } } },
+        rowOf('108', { status_code: 404 }, { count: 1 }, { ...GSC_OK, state: 'ok', clicks: null }),
+      ]),
+    );
+    const { table } = await openCheck();
+    for (const path of ['/services', '/pricing']) {
+      const cell = within(cellsOf(bodyRow(table, path))[CLICKS] as HTMLElement).getByText('n/a');
+      expect(cell).toHaveAccessibleDescription('Not available for this page');
+    }
+  });
+
+  it('shows n/a with a tooltip for a page that has no status', async () => {
+    server.use(answerPages(() => [rowOf('102', { status_code: null }, { count: 2 })]));
+    const { table } = await openCheck();
+    const status = within(cellsOf(bodyRow(table, '/services'))[STATUS] as HTMLElement).getByText('n/a');
+    expect(status).toHaveAccessibleDescription('No status for this page');
+  });
+});
+
+describe('a refetch that keeps the previous rows', () => {
+  it('marks the pages busy, with the static bar and no dimming, until the answer to a new search arrives', async () => {
+    server.use(
+      http.get(PAGES, async ({ request }) => {
+        const url = new URL(request.url);
+        const searching = url.searchParams.get('q') !== null;
+        if (searching) await delay(400);
+        return HttpResponse.json({
+          data: searching ? [] : BROKEN,
+          page: { has_more: false, limit: 50, next_cursor: null },
+          meta: { run_id: MOCK_RUN_ID, scope: 'all', total: searching ? 0 : 2, links_available: true },
+        });
+      }),
+    );
+    const { user, table } = await openCheck();
+    await user.type(screen.getByRole('searchbox', { name: 'Search pages' }), 'zzz');
+    await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).not.toBeNull());
+    const busy = document.querySelector('[aria-busy="true"]') as HTMLElement;
+    // The old rows stay on screen at full strength
+    expect(busy).toContainElement(table);
+    expect(busy.querySelector('[class*="opacity"]')).toBeNull();
+    await waitFor(() => expect(document.querySelector('[data-slot="refetch-bar"]')).not.toBeNull());
+    expect(await screen.findByRole('heading', { name: 'No pages match' })).toBeInTheDocument();
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(document.querySelector('[data-slot="refetch-bar"]')).toBeNull();
   });
 });
 
@@ -476,6 +885,13 @@ describe('the markup and the accessibility of the open check', () => {
 
   it('has no axe violation with pages', async () => {
     const { container } = await openCheck();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('has no axe violation in its error state', async () => {
+    server.use(http.get(PAGES, ({ request }) => problem(request, 'internal_error')));
+    const { container } = renderWithProviders(issuesAs('editor'), OPEN);
+    await screen.findByText('The pages could not be loaded');
     expect(await axe(container)).toHaveNoViolations();
   });
 

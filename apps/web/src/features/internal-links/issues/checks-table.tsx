@@ -169,6 +169,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
         {opens ? (
           <button
             type="button"
+            data-check-id={check.id}
             aria-label={t('list.open', { name })}
             onClick={() => onOpen(check.id)}
             className="flex max-w-full min-w-0 items-center rounded-sm text-left outline-none focus-visible:focus-ring"

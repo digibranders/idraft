@@ -27,7 +27,9 @@ export interface IssuesState {
 export type IssuesSearch = Readonly<Record<string, string | null | undefined>>;
 
 /** The longest search text the API takes, in code points (an emoji is one, not two). */
-const MAX_SEARCH_LENGTH = 200;
+export const SEARCH_MAX_LENGTH = 200;
+/** A request waits this long after the last keystroke of a search (13-filters-search.md section 6). */
+export const SEARCH_DELAY_MS = 250;
 const SEVERITIES: readonly IssuesSeverity[] = ['error', 'warning', 'notice'];
 const FOUND_BY: readonly IssuesFoundBy[] = ['crawl', 'ranks', 'gsc', 'ai'];
 // One entry per sort of the pages list the web sends, so a new sort in the type fails here until it is listed
@@ -79,7 +81,7 @@ export function parseIssuesSearch(search: IssuesSearch, checks: readonly IssueCh
     severity: SEVERITIES.find((severity) => severity === search.severity) ?? 'all',
     by: FOUND_BY.find((found) => found === search.by) ?? 'all',
     q: Array.from(search.q ?? '')
-      .slice(0, MAX_SEARCH_LENGTH)
+      .slice(0, SEARCH_MAX_LENGTH)
       .join(''),
     showPassed: search.passed !== 'hide',
     sort: isPageSort(search.sort) ? search.sort : null,

@@ -12,6 +12,7 @@ import { ChecksTable } from './checks-table';
 import { IssuesStrip } from './issues-strip';
 import { useFileExport } from './use-file-export';
 import { useIssuesState } from './use-issues-state';
+import { useResultAnnouncement } from './use-result-announcement';
 import { CrawlButton } from '../crawl-button';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from '../crawl-reads';
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from '../crawl-states';
@@ -43,7 +44,13 @@ import type { CrawlRun, LinksScope, PageTier } from '@/lib/internal-links/types'
 import { isIssueListResponse, issuesCsv, issuesQuery } from '@/lib/issues/queries';
 import { tabCounts, visibleChecks } from '@/lib/issues/rows';
 import type { CheckId, IssueCheck, IssueListResponse } from '@/lib/issues/types';
-import { tabOfApi, type IssuesFoundBy, type IssuesSeverity, type IssuesTab } from '@/lib/issues/url-state';
+import {
+  SEARCH_MAX_LENGTH,
+  tabOfApi,
+  type IssuesFoundBy,
+  type IssuesSeverity,
+  type IssuesTab,
+} from '@/lib/issues/url-state';
 import { useCan } from '@/lib/permissions';
 import { integrationsPath, projectPath, withQuery } from '@/lib/routes/paths';
 
@@ -51,10 +58,6 @@ const HEADING_ID = 'issues-heading';
 const EXPORT_NAME = 'issues.csv';
 /** What `passed` holds in the address when the passed checks are hidden. */
 const HIDE_PASSED = 'hide';
-/** The longest search the address takes (the API's text filters take 200 characters). */
-const SEARCH_MAX_LENGTH = 200;
-/** The wait after the last change of a filter before the count of results is spoken. */
-const RESULTS_ANNOUNCE_MS = 500;
 const ANNOUNCE_KEY = 'issues-results';
 const NO_CHECKS: readonly IssueCheck[] = [];
 const TABS: readonly IssuesTab[] = ['technical', 'on-page'];
@@ -159,37 +162,33 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   const counts = useMemo(() => tabCounts(checks), [checks]);
   const inTab = checks.filter((entry) => tabOfApi(entry.tab) === state.tab).length;
 
-  // How many checks show is said once, 500 ms after the last change of the search or a filter, and not when the
-  // number did not change (20-accessibility.md section 10.2). The first number after the list arrives is the
-  // baseline: nothing is said on load. The timer is this effect's own, so a change that ends where it began cancels
-  // the one before it.
-  const resultsText =
+  // How many checks show is said once the search or a filter settles
+  useResultAnnouncement(
     issues.isSuccess && listView
       ? visible.length === 0
         ? t('announce.none')
         : t('announce.showing', { count: visible.length })
-      : null;
-  const lastSpoken = useRef<string | null>(null);
-  useEffect(() => {
-    if (resultsText === null) return undefined;
-    if (lastSpoken.current === null) {
-      lastSpoken.current = resultsText;
-      return undefined;
-    }
-    const timer = window.setTimeout(() => {
-      if (resultsText === lastSpoken.current) return;
-      lastSpoken.current = resultsText;
-      announce(resultsText, { key: ANNOUNCE_KEY });
-    }, RESULTS_ANNOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [resultsText]);
+      : null,
+    ANNOUNCE_KEY,
+  );
 
   const open = (id: CheckId): void => setSearch({ check: id, q: null, sort: null }, { history: 'push' });
-  const back = (entry: IssueCheck): void =>
+  // The check just left gets focus back once the list is on screen (20 section 4.3)
+  const leftCheck = useRef<CheckId | null>(null);
+  const back = (entry: IssueCheck): void => {
+    leftCheck.current = entry.id;
     setSearch(
       { check: null, q: null, sort: null, tab: tabOfApi(entry.tab) === 'technical' ? null : 'on-page' },
       { history: 'push' },
     );
+  };
+  useEffect(() => {
+    const left = leftCheck.current;
+    if (left === null || openCheck !== undefined || !issues.isSuccess) return;
+    leftCheck.current = null;
+    // A filter may hide the row of the check just left: the heading is the place then
+    (document.querySelector<HTMLElement>(`[data-check-id="${left}"]`) ?? document.getElementById(HEADING_ID))?.focus();
+  }, [openCheck, issues.isSuccess]);
   const clearFilters = (): void => setSearch({ severity: null, by: null, q: null, passed: null });
 
   const file = useFileExport();
@@ -472,6 +471,8 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
             panel()
           ) : (
             <CheckView
+              // One view per check: a changed check starts with no rows, an empty draft and the first page
+              key={openCheck.id}
               check={openCheck}
               scope={scope}
               state={state}

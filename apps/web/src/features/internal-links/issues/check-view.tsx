@@ -3,18 +3,20 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Download, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useMemo, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, type ReactElement, type ReactNode } from 'react';
 
 import { useCheckWords } from './check-words';
 import { CELL, HeaderCell, NotApplicable, SEVERITY_TONE } from './checks-table';
 import { useFileExport } from './use-file-export';
+import { useResultAnnouncement } from './use-result-announcement';
 import { LinksDropped } from '../links-dropped';
 import { SkeletonRows } from '../crawl-states';
-import { useCursorPaging } from '../pages/cursor-paging';
+import { pageRange, useCursorPaging } from '../pages/cursor-paging';
 import { useSearchDraft } from '../pages/search-draft';
 import { StatusBadge } from '../status-badge';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
+import { RefetchBar } from '@/components/app/status/refetch-bar';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,19 +32,22 @@ import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { isPageRowPage } from '@/lib/internal-links/queries';
 import type { LinksScope, PageRow, PageRowPage, PageSort } from '@/lib/internal-links/types';
 import { detailMessage } from '@/lib/issues/detail';
-import { issuePagesCsv, issuePagesQuery } from '@/lib/issues/queries';
+import { ISSUE_PAGE_LIMIT, issuePagesCsv, issuePagesQuery } from '@/lib/issues/queries';
 import { idKey, type IssueCheck, type IssueGsc } from '@/lib/issues/types';
-import type { IssuesState } from '@/lib/issues/url-state';
+import { SEARCH_DELAY_MS, SEARCH_MAX_LENGTH, type IssuesState } from '@/lib/issues/url-state';
 import { cn } from '@/lib/utils';
 import type { SetIssuesSearch } from './use-issues-state';
 
 /** One empty list for every render, so the effects that read the rows do not see new ones while nothing has loaded. */
 const NO_ROWS: readonly PageRow[] = [];
 const EXPORT_NAME = 'issue-pages.csv';
-/** The request waits this long after the last keystroke (13-filters-search.md section 6). */
-const SEARCH_DELAY_MS = 250;
-/** The longest search the address takes (the API's text filters take 200 characters). */
-const SEARCH_MAX_LENGTH = 200;
+const ANNOUNCE_KEY = 'issues-pages-results';
+
+/** The page button of a row, found by the url id it carries. */
+function pageButtonOf(region: HTMLElement | null, urlId: string): HTMLElement | null {
+  const buttons = Array.from(region?.querySelectorAll<HTMLElement>('[data-url-id]') ?? []);
+  return buttons.find((button) => button.dataset.urlId === urlId) ?? null;
+}
 
 /** The answer as a page of rows (its generated type is `unknown`, see `isPageRowPage`). */
 function readPage(data: unknown): PageRowPage {
@@ -109,6 +114,9 @@ export function CheckView({
   });
   const rows = read.data?.data ?? NO_ROWS;
   const total = read.data?.meta.total ?? 0;
+  const settled = !read.isPlaceholderData;
+  const failed = read.isError && read.data === undefined;
+  const range = pageRange({ pageIndex: paging.pageIndex, rows: rows.length, limit: ISSUE_PAGE_LIMIT });
   // A cursor belongs to one crawl: a crawl that ends while a later page is open makes the API refuse the old cursor
   const { reset: startAgain, noteRun } = paging;
   const refused = isApiProblem(read.error, 'invalid_cursor');
@@ -130,14 +138,56 @@ export function CheckView({
   // The box keeps what is typed; the address and so the request follow once typing pauses
   const { draft, setDraft } = useSearchDraft(state.q === '' ? null : state.q, (q) => setSearch({ q }), SEARCH_DELAY_MS);
 
+  // The file holds what the box shows, even before the pause that writes the address
   const file = useFileExport();
   const onExport = (): void => {
-    const { path, query } = issuePagesCsv(scope, { ...selection, cursor: null }, null);
+    const { path, query } = issuePagesCsv(scope, { check: check.id, q: draft.trim(), sort, cursor: null }, null);
     file.start(() => downloadApiFile(path, query, EXPORT_NAME));
   };
 
-  const settled = !read.isPlaceholderData;
-  const failed = read.isError && read.data === undefined;
+  // How many pages match is said once the search settles, for the answer to the search on screen only
+  useResultAnnouncement(
+    failed || read.isPending || !settled
+      ? null
+      : total === 0
+        ? t('announce.pagesNone')
+        : t('announce.pagesShowing', { count: total, formatted: formatInteger(total) }),
+    ANNOUNCE_KEY,
+  );
+
+  // The row of the open page stays in view as J and K step through the rows, and when a shared link's rows arrive
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const scrolledTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeUrlId === null) {
+      scrolledTo.current = null;
+      return;
+    }
+    if (scrolledTo.current === activeUrlId) return;
+    const row = pageButtonOf(bodyRef.current, activeUrlId)?.closest('tr');
+    if (row === null || row === undefined) return;
+    scrolledTo.current = activeUrlId;
+    row.scrollIntoView({ block: 'nearest' });
+  }, [activeUrlId, order]);
+
+  // The inspector closed: focus returns to the page button of the row it showed, or to the title when the row is
+  // gone (20 section 4.3, 16 section 2.8). Focus that already sits somewhere is left there.
+  const lastActive = useRef(activeUrlId);
+  useEffect(() => {
+    const before = lastActive.current;
+    lastActive.current = activeUrlId;
+    if (activeUrlId !== null || before === null) return;
+    if (document.activeElement !== null && document.activeElement !== document.body) return;
+    (pageButtonOf(bodyRef.current, before) ?? titleRef.current)?.focus();
+  }, [activeUrlId]);
+
+  // A check that opens takes focus to its title, unless focus is already somewhere the person put it (the inspector
+  // of a shared link)
+  useEffect(() => {
+    if (document.activeElement === null || document.activeElement === document.body) titleRef.current?.focus();
+  }, []);
+
   let body: ReactNode;
   if (failed) {
     body = isLinksDropped(read.error) ? (
@@ -218,7 +268,12 @@ export function CheckView({
         <Button variant="secondary" size="sm" icon={ChevronLeft} onClick={onBack}>
           {c('back')}
         </Button>
-        <h2 id={headingId} className="min-w-0 truncate type-subsection-title text-foreground">
+        <h2
+          ref={titleRef}
+          id={headingId}
+          tabIndex={-1}
+          className="min-w-0 truncate type-subsection-title text-foreground outline-none"
+        >
           {name}
         </h2>
         <Tooltip content={t(`severity.${check.severity}.tip`)}>
@@ -240,18 +295,22 @@ export function CheckView({
             aria-label={c('searchPages')}
           />
         </InputGroup>
-        <Button
-          className="ml-auto"
-          variant="secondary"
-          size="sm"
-          icon={Download}
-          loading={file.exporting}
-          onClick={onExport}
-        >
-          {c('export')}
-        </Button>
+        {failed ? null : (
+          <Button
+            className="ml-auto"
+            variant="secondary"
+            size="sm"
+            icon={Download}
+            loading={file.exporting}
+            onClick={onExport}
+          >
+            {c('export')}
+          </Button>
+        )}
       </div>
-      <div className="grid gap-x-8 gap-y-1 border-b border-border-subtle px-3 py-2 md:grid-cols-2">
+      {/* The bar sits on the lower edge of these lines: the top of the table */}
+      <div className="relative grid gap-x-8 gap-y-1 border-b border-border-subtle px-3 py-2 md:grid-cols-2">
+        <RefetchBar active={read.isPlaceholderData} position="under-section-heading" />
         <p className="min-w-0 type-body text-foreground">
           <span className="type-body-strong">{c('labelled', { label: c('why') })}</span>{' '}
           {t(`checks.${idKey(check.id)}.why`)}
@@ -261,10 +320,19 @@ export function CheckView({
           {t(`checks.${idKey(check.id)}.fix`)}
         </p>
       </div>
-      {body}
+      <div ref={bodyRef} aria-busy={read.isPlaceholderData ? true : undefined}>
+        {body}
+      </div>
       {rows.length === 0 || failed ? null : (
         <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-subtle px-3 py-2">
-          <p className="num type-meta">{c('footer', { count: rows.length, total: formatInteger(total) })}</p>
+          <p className="num type-meta">
+            {c('range', {
+              from: formatInteger(range.from),
+              to: formatInteger(range.to),
+              count: total,
+              total: formatInteger(total),
+            })}
+          </p>
           {crawledAt === null ? null : (
             <p className="type-meta">{c('crawlOf', { date: formatTableDate(crawledAt, timeZone) })}</p>
           )}
@@ -324,6 +392,7 @@ function PageLine({
       <th scope="row" className={cn(CELL, 'text-left font-normal')}>
         <button
           type="button"
+          data-url-id={row.url_id}
           aria-label={t('check.openPage', { path: row.path })}
           onClick={() => onOpen(row.url_id)}
           className="flex max-w-full min-w-0 items-center rounded-sm text-left outline-none focus-visible:focus-ring"
@@ -344,7 +413,9 @@ function PageLine({
       <td className={CELL}>
         {row.status_code === 200 ? (
           <span className="num type-table text-foreground-secondary">200</span>
-        ) : row.status_code === null ? null : (
+        ) : row.status_code === null ? (
+          <NotApplicable reason={t('states.noStatus')} />
+        ) : (
           <StatusBadge status={row.status_code} />
         )}
       </td>
@@ -356,7 +427,10 @@ function PageLine({
   );
 }
 
-/** The clicks of a page; n/a with the reason when Search Console has no number for it. */
+/**
+ * The clicks of a page; n/a with the reason when Search Console has no number for it. The real reasons are the two
+ * states Search Console reports; no block, or a number that is not there in a state that has them, is neutral.
+ */
 function ClicksCell({ gsc }: { gsc: NonNullable<PageRow['extras']>['gsc'] | null }): ReactNode {
   const t = useTranslations('issues.states');
   if (gsc?.state === 'ok' && gsc.clicks !== null) {
@@ -366,5 +440,7 @@ function ClicksCell({ gsc }: { gsc: NonNullable<PageRow['extras']>['gsc'] | null
       </span>
     );
   }
-  return <NotApplicable reason={t(gsc?.state === 'not_connected' ? 'gscNotConnected' : 'gscPending')} />;
+  if (gsc?.state === 'not_connected') return <NotApplicable reason={t('gscNotConnected')} />;
+  if (gsc?.state === 'pending') return <NotApplicable reason={t('gscPending')} />;
+  return <NotApplicable reason={t('gscNoNumber')} />;
 }

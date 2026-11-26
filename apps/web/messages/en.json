@@ -10318,7 +10318,7 @@
       "pages": "Pages with this issue",
       "pagesShare": "{share} of the {total} pages crawled",
       "clicks": "Google Search clicks on the pages with this issue in the last 28 days, from Search Console",
-      "clicksPage": "Google Search clicks on the page in the last 28 days, from Search Console. The pages with the most clicks come first",
+      "clicksPage": "Google Search clicks on the page in the last 28 days, from Search Console",
       "linksIn": "Pages of the site that link to this page, any placement"
     },
     "strip": {
@@ -10358,6 +10358,8 @@
       "linksDropped": "This crawl no longer holds its links",
       "gscNotConnected": "Search Console is not connected",
       "gscPending": "Search Console has no page numbers yet",
+      "gscNoNumber": "Not available for this page",
+      "noStatus": "No status for this page",
       "checkNotRun": "The check did not run",
       "noPage": "No page to show",
       "noDetail": "No detail for this page",
@@ -10371,7 +10373,9 @@
     },
     "announce": {
       "showing": "Showing {count, plural, one {# check} other {# checks}}",
-      "none": "No checks match"
+      "none": "No checks match",
+      "pagesShowing": "{count, plural, one {Showing {formatted} page} other {Showing {formatted} pages}}",
+      "pagesNone": "No pages match"
     },
     "toolbar": {
       "crawlNow": "Crawl now",
@@ -10399,7 +10403,7 @@
       "export": "Export",
       "labelled": "{label}:",
       "openPage": "Open {path}",
-      "footer": "{count, plural, one {# page} other {# pages}} of {total}",
+      "range": "Showing {from} to {to} of {count, plural, one {{total} page} other {{total} pages}}",
       "crawlOf": "Crawl of {date}",
       "previousPage": "Previous page",
       "nextPage": "Next page",
