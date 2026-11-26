@@ -526,6 +526,7 @@
     "count": "{count, plural, one {# project} other {# projects}}",
     "noDomain": "No domain yet",
     "timeZone": "Times in {timeZone}",
+    "added": "Added {date}",
     "paused": "Paused",
     "empty": {
       "steps": {

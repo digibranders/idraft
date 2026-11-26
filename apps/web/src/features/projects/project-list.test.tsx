@@ -44,7 +44,9 @@ const FYNIX: ListedProject = {
   slug: 'fynix',
   name: 'Fynix',
   domain: 'fynix.digital',
+  location: 'Germany',
   timeZone: 'Europe/Berlin',
+  createdAt: '2026-03-14T09:00:00Z',
   paused: false,
 };
 

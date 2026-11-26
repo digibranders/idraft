@@ -26,7 +26,9 @@ export async function listedProjectsOf(membership: MeMembership): Promise<Listed
       slug: project.slug,
       name: project.name,
       domain: project.primary_domain?.host ?? null,
+      location: project.default_location?.name ?? null,
       timeZone: project.timezone,
+      createdAt: project.created_at,
       paused: project.status === 'paused',
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }) || a.slug.localeCompare(b.slug));
