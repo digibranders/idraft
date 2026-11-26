@@ -29,13 +29,14 @@ describe('the sort of the Pages table (decision W5)', () => {
     expect(keysOfSort('-linking_pages')).toEqual([{ id: 'linking', desc: true }]);
   });
 
-  it('sorts only the thirteen columns the API sorts, and never by equity', () => {
+  it('sorts only the fourteen columns the API sorts, and never by equity', () => {
     expect(Object.values(SORT_FIELD).sort()).toEqual([
       'anchor',
       'change',
       'citations',
       'click_depth',
       'clicks',
+      'impressions',
       'in_sitemap',
       'indexable',
       'linking_pages',
@@ -54,9 +55,8 @@ describe('the sort of the Pages table (decision W5)', () => {
     expect(sortOfKeys([{ id: 'sitemap', desc: true }])).toBe('-in_sitemap');
     expect(sortOfKeys([{ id: 'tier', desc: false }])).toBe('tier');
     expect(sortOfKeys([{ id: 'clicks', desc: true }])).toBe('-clicks');
-    for (const id of ['keywords', 'impressions']) {
-      expect(sortOfKeys([{ id, desc: false }])).toBeNull();
-    }
+    expect(sortOfKeys([{ id: 'impressions', desc: true }])).toBe('-impressions');
+    expect(sortOfKeys([{ id: 'keywords', desc: false }])).toBeNull();
   });
 });
 

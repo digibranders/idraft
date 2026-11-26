@@ -14,9 +14,14 @@ import {
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { parseLens, type MapLens } from '@/lib/internal-links/map-focus';
 import type { MapColourMode } from '@/lib/internal-links/map-graph';
+import { PAGE_SORTS } from '@/lib/internal-links/page-sorts';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
+import { searchText } from '@/lib/internal-links/search-text';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import type { ChangeScope, EdgeWorklist, OpportunityStatus, PageSort, PageWorklist } from '@/lib/internal-links/types';
+
+export { PAGE_SORTS } from '@/lib/internal-links/page-sorts';
+export { searchText } from '@/lib/internal-links/search-text';
 
 /**
  * What Internal links keeps in its address (the URL state table of plan 03): the tab, the link scope, the
@@ -77,37 +82,7 @@ const WORKLISTS: readonly PageWorklist[] = [
   'weak_outlinks',
 ];
 const EDGE_WORKLISTS: readonly EdgeWorklist[] = ['broken_and_redirected', 'links_to_non_indexable'];
-export const PAGE_SORTS: readonly PageSort[] = [
-  'path',
-  '-path',
-  'status_code',
-  '-status_code',
-  'click_depth',
-  '-click_depth',
-  'linking_pages',
-  '-linking_pages',
-  'outlinks',
-  '-outlinks',
-  'change',
-  '-change',
-  'rank',
-  '-rank',
-  'citations',
-  '-citations',
-  'anchor',
-  '-anchor',
-  'tier',
-  '-tier',
-  'clicks',
-  '-clicks',
-  'indexable',
-  '-indexable',
-  'in_sitemap',
-  '-in_sitemap',
-];
 export const DEFAULT_SORT: PageSort = '-linking_pages';
-/** The longest search text the API takes (1 to 200 characters). */
-const MAX_SEARCH_LENGTH = 200;
 
 export interface LinksState {
   tab: LinksTabId;
@@ -159,11 +134,6 @@ export interface LinksState {
   map: { query: string; includeAuto: boolean; colour: MapColourMode; lens: MapLens; selected: string | null };
 }
 
-/** A search as the address and the API hold it: trimmed, 1 to 200 characters, or `null` for none. */
-export const searchText = (value: string | null | undefined): string | null => {
-  const trimmed = value?.trim() ?? '';
-  return trimmed === '' ? null : trimmed.slice(0, MAX_SEARCH_LENGTH);
-};
 const text = searchText;
 
 /**

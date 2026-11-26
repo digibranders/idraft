@@ -34,6 +34,7 @@ export const SORT_FIELD: Readonly<Record<string, string>> = {
   anchors: 'anchor',
   tier: 'tier',
   clicks: 'clicks',
+  impressions: 'impressions',
   reason: 'indexable',
   sitemap: 'in_sitemap',
 };

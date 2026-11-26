@@ -823,6 +823,7 @@ export const internalLinkHandlers: HttpHandler[] = [
         linking_pages_total: linking.length,
         outlinks_total: outlinks.length,
         extras: pageDetailExtras(run, page),
+        notes_count: 0,
       },
     });
   }),

@@ -22,6 +22,7 @@ import type {
   PageInclude,
   PageRowPage,
   PageSort,
+  PageView,
   PageWorklist,
   StatusClass,
   TierRulePreview,
@@ -37,6 +38,9 @@ const W = '/api/v1/workspaces/{workspace_id}';
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const PAGES = `${P}/internal-links/pages` as const;
 const PAGE = `${P}/internal-links/pages/{url_id}` as const;
+const PAGE_SEARCH = `${P}/internal-links/pages/{url_id}/search` as const;
+const PAGE_OUTLINE = `${P}/internal-links/pages/{url_id}/outline` as const;
+const OVERVIEW = `${P}/internal-links/overview` as const;
 const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
 const FLOW = `${P}/internal-links/tier-flow` as const;
@@ -136,6 +140,11 @@ export interface PageQuery {
   indexable: boolean | null;
   flags: readonly PageFlagFilter[];
   worklist: PageWorklist | null;
+  /** A server view (spec 7.2); never together with `worklist`. */
+  view: PageView | null;
+  folder: string | null;
+  depth: number | null;
+  includeVariants: boolean;
   q: string | null;
   sort: PageSort;
   /** The parts to add to each row as `extras`, from `moreIncludes`. */
@@ -166,6 +175,10 @@ export const DEFAULT_PAGE_QUERY: PageQuery = {
   indexable: null,
   flags: [],
   worklist: null,
+  view: null,
+  folder: null,
+  depth: null,
+  includeVariants: false,
   q: null,
   sort: '-linking_pages',
   include: [],
@@ -175,6 +188,9 @@ export const DEFAULT_PAGE_QUERY: PageQuery = {
 
 /** The query values of the pages list; anything unset is left out, as the address leaves it out. */
 export function pageParams(query: PageQuery): PagesParams {
+  if (query.view !== null && query.worklist !== null) {
+    throw new Error('A pages query has a view or a worklist, not both');
+  }
   return {
     scope: query.scope,
     sort: query.sort,
@@ -185,6 +201,10 @@ export function pageParams(query: PageQuery): PagesParams {
     ...(query.indexable === null ? {} : { 'filter[indexable]': query.indexable }),
     ...(query.flags.length === 0 ? {} : { 'filter[flags]': [...query.flags] }),
     ...(query.worklist === null ? {} : { 'filter[worklist]': query.worklist }),
+    ...(query.view === null ? {} : { 'filter[view]': query.view }),
+    ...(query.folder === null ? {} : { 'filter[folder]': query.folder }),
+    ...(query.depth === null ? {} : { 'filter[depth]': query.depth }),
+    ...(query.includeVariants ? { 'filter[include_variants]': true } : {}),
     ...(query.q === null ? {} : { q: query.q }),
     ...(query.include.length === 0 ? {} : { include: [...query.include] }),
     ...(query.cursor === null ? {} : { cursor: query.cursor }),
@@ -200,9 +220,12 @@ export function pageFilterOf(query: PageQuery): PageFilter {
     ...(query.indexable === null ? {} : { indexable: query.indexable }),
     ...(query.flags.length === 0 ? {} : { flags: [...query.flags] }),
     ...(query.worklist === null ? {} : { worklist: query.worklist }),
+    ...(query.view === null ? {} : { view: query.view }),
+    ...(query.folder === null ? {} : { folder: query.folder }),
+    ...(query.depth === null ? {} : { depth: query.depth }),
     ...(query.q === null ? {} : { q: query.q }),
-    // Variants are left out; asking for the `variant` flag lists only them
-    include_variants: false,
+    // Variants are left out unless asked for; asking for the `variant` flag lists only them
+    include_variants: query.includeVariants,
   };
 }
 
@@ -255,6 +278,24 @@ export const pageDetailQuery = (
   apiQuery(PAGE, {
     params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({ scope: linkScope }, run) },
   });
+
+/** The Overview of the pages of a crawl (the latest when `run` is null). */
+export const overviewQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof OVERVIEW> =>
+  apiQuery(OVERVIEW, { params: { path: pathOf(scope), query: withRun({}, run) } });
+
+/** One page's Search Console days. Throws `UrlIdError` for an id that is no url id. */
+export const pageSearchQuery = (
+  scope: LinksScope,
+  urlId: string,
+  run: string | null,
+): ApiQueryOptions<typeof PAGE_SEARCH> =>
+  apiQuery(PAGE_SEARCH, {
+    params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({}, run) },
+  });
+
+/** One page's outline, read from its stored HTML (no crawl chosen). Throws `UrlIdError` for a bad id. */
+export const pageOutlineQuery = (scope: LinksScope, urlId: string): ApiQueryOptions<typeof PAGE_OUTLINE> =>
+  apiQuery(PAGE_OUTLINE, { params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) } } });
 
 export interface EdgeQuery {
   scope: LinkScope;
