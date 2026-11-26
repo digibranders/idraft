@@ -254,6 +254,22 @@ describe('the Journey tab (spec 7.5)', () => {
     expect(options.at(-1)).toBe(redirect);
   });
 
+  it('finds the page of an address of the site pasted into the picker search', async () => {
+    const { seen, onUrlUpdate } = addresses();
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103',
+      onUrlUpdate,
+    });
+    await canvas();
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Focus page: /services/soc-as-a-service. Change it.' }),
+    );
+    await user.click(await screen.findByRole('combobox', { name: 'Search pages' }));
+    await user.paste('https://www.eventussecurity.com/pricing/?utm=x#top');
+    await user.click(await screen.findByRole('option', { name: /\/pricing/ }));
+    await waitFor(() => expect(seen.at(-1)).toContain('focus=108'));
+  });
+
   it('says so when no page matches the picker search', async () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       searchParams: 'tab=journey&focus=103',

@@ -110,6 +110,7 @@ export function JourneyTab({ context }: { context: LinksTabContext }): ReactElem
         scope={scope}
         run={context.crawl.run}
         path={loaded?.path ?? t('focus')}
+        host={context.host}
         mode={state.journeyView === 'paths' ? 'paths' : 'focus'}
         onPick={refocus}
       />

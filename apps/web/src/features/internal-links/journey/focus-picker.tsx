@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState, type ReactElement } from 'react';
 
 import { readPageRows } from './page-reads';
+import { pastedPath } from './pasted-url';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,10 +46,13 @@ export function FocusPicker({
   scope,
   run,
   path,
+  host,
   mode = 'focus',
   onPick,
 }: {
   scope: LinksScope;
+  /** The site's host: an address of it pasted into the search finds its page. */
+  host: string;
   /** What the choice is for: the focus of the canvas and the tree, or the page the Path finder finds the way to. */
   mode?: 'focus' | 'paths';
   /** The crawl the pages are searched in: `null` for the latest. */
@@ -66,13 +70,16 @@ export function FocusPicker({
     return () => window.clearTimeout(timer);
   }, [typed]);
   const wanted = searchText(settled);
+  // A pasted address of this site is searched as its path, whatever its length
+  const pasted = wanted === null ? null : pastedPath(wanted, host);
+  const query = pasted ?? (wanted !== null && wanted.length >= MIN_CHARACTERS ? wanted : null);
   const read = useQuery({
     ...pagesQuery(
       scope,
       {
         ...DEFAULT_PAGE_QUERY,
         sort: 'path',
-        q: wanted !== null && wanted.length >= MIN_CHARACTERS ? wanted : null,
+        q: query,
         limit: PICK_LIMIT,
       },
       run,
