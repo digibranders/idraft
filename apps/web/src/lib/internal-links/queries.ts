@@ -1,8 +1,8 @@
-import { queryOptions, type UseQueryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions, type UseQueryOptions } from '@tanstack/react-query';
 
 import { api, unwrap } from '@/lib/api/client';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
-import { projectKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
+import { projectKey, queryKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
 import { READ_LIMIT, type Direction } from './journey-layout';
 import type { LinkScope, Placement } from './scopes';
@@ -20,6 +20,7 @@ import type {
   PageFilter,
   PageFlagFilter,
   PageInclude,
+  PageNoteList,
   PageRowPage,
   PageSort,
   PageView,
@@ -40,6 +41,8 @@ const PAGES = `${P}/internal-links/pages` as const;
 const PAGE = `${P}/internal-links/pages/{url_id}` as const;
 const PAGE_SEARCH = `${P}/internal-links/pages/{url_id}/search` as const;
 const PAGE_OUTLINE = `${P}/internal-links/pages/{url_id}/outline` as const;
+export const PAGE_NOTES = `${P}/internal-links/pages/{url_id}/notes` as const;
+export const PAGE_NOTE = `${P}/internal-links/pages/{url_id}/notes/{note_id}` as const;
 const OVERVIEW = `${P}/internal-links/overview` as const;
 const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
@@ -296,6 +299,34 @@ export const pageSearchQuery = (
 /** One page's outline, read from its stored HTML (no crawl chosen). Throws `UrlIdError` for a bad id. */
 export const pageOutlineQuery = (scope: LinksScope, urlId: string): ApiQueryOptions<typeof PAGE_OUTLINE> =>
   apiQuery(PAGE_OUTLINE, { params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) } } });
+
+/**
+ * One page's notes, newest first, as an infinite read: "show older notes" asks for the next cursor page. Notes belong
+ * to the address, not to a crawl, so there is no `run`. Throws `UrlIdError` for a bad id.
+ */
+export const pageNotesQuery = (scope: LinksScope, urlId: string) => {
+  const path = { ...pathOf(scope), url_id: checkUrlId(urlId) };
+  return infiniteQueryOptions({
+    queryKey: queryKey(PAGE_NOTES, path),
+    queryFn: ({ pageParam, signal }) =>
+      unwrap(
+        api.GET(PAGE_NOTES, {
+          params: { path, query: pageParam === null ? {} : { cursor: pageParam } },
+          signal,
+        }),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: PageNoteList): string | null => (last.meta.has_more ? last.meta.next_cursor : null),
+  });
+};
+
+/** Every read of one page by any crawl: the prefix of its detail, notes, search and outline keys. */
+export const pageKey = (scope: LinksScope, urlId: string): QueryKey => [
+  ...projectKey(scope.workspaceId, scope.projectId),
+  'internal-links',
+  'pages',
+  checkUrlId(urlId),
+];
 
 export interface EdgeQuery {
   scope: LinkScope;

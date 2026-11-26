@@ -1,6 +1,6 @@
 import { HttpResponse, type HttpHandler } from 'msw';
 
-import { projectCaller, workspaceCaller } from './access';
+import { can, projectCaller, workspaceCaller, type ProjectCaller } from './access';
 import { readRun, requireLinks } from './internal-links-run';
 import { bodyError, booleanError, isRecord, notAnObject, nullErrors, queryError } from './rules';
 import {
@@ -36,7 +36,17 @@ import {
 import { linkGraphFixture } from '../fixtures/link-graph';
 import { overviewOf, PAGE_VIEWS, sectionOfPath, viewMatches } from '../internal-links-inventory';
 import { outlineOf } from '../internal-links-outline';
-import { invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
+import {
+  add as addNote,
+  change as changeNote,
+  countOf as noteCount,
+  notesAfter,
+  remove as removeNote,
+  restore as restoreNote,
+  type NoteActor,
+  type NoteFailure,
+} from '../internal-links-notes';
+import { checkBody, invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
@@ -338,6 +348,55 @@ export const urlIdError = (location: 'path' | 'query' | 'body', path: string): V
   code: 'value_error',
   message: 'Not a url id: a whole number from 1 to 9223372036854775807, as digits without a leading zero.',
 });
+
+/** The caller of a notes route, with the page they name: the answers of `page_note_routes.py` before the note is looked at. */
+function noteCaller(
+  request: Request,
+  cookies: Readonly<Record<string, string>>,
+  params: Readonly<Record<string, string | readonly string[] | undefined>>,
+  gate: { permission: 'data:read' | 'notes:write'; query?: readonly string[] },
+): { caller: ProjectCaller; urlId: string; actor: NoteActor } | HttpResponse<Problem> {
+  const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, gate);
+  if (caller instanceof Response) return caller;
+  const urlId = String(params.url_id);
+  if (!isUrlId(urlId)) return invalid(request, [urlIdError('path', 'url_id')]);
+  if (crawledPage(urlId) === undefined) return problem(request, 'not_found');
+  const { user } = caller.session;
+  return {
+    caller,
+    urlId,
+    actor: {
+      id: user.user_id,
+      name: user.name,
+      role: caller.access.membership.role,
+      writes: can(caller.access, 'notes:write'),
+    },
+  };
+}
+
+const NOTE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The `422` for a note id that is no UUID (the path parameter is typed in the API). */
+const noteIdError = (request: Request, id: string): HttpResponse<Problem> | null =>
+  NOTE_ID.test(id)
+    ? null
+    : invalid(request, [
+        { location: 'path', path: 'note_id', code: 'uuid_parsing', message: 'Input should be a valid UUID.' },
+      ]);
+
+/** The answer for a refused note write, with the API's wording. */
+function noteFailure(request: Request, error: NoteFailure, forbidden: string, detail?: string): HttpResponse<Problem> {
+  if (error === 'invalid') return invalidField(request, 'body', 'value_error', detail ?? 'Not a note.');
+  return error === 'not_found' ? problem(request, 'not_found') : problem(request, 'forbidden', { detail: forbidden });
+}
+
+/** `limit` of the notes list: 1 to 100, 50 when left out. `null` when it is not a whole number in range. */
+function noteLimit(url: URL): number | null {
+  const given = url.searchParams.get('limit');
+  if (given === null) return 50;
+  const limit = Number(given);
+  return Number.isInteger(limit) && limit >= 1 && limit <= 100 ? limit : null;
+}
 
 interface Selection {
   url_ids?: string[] | null | undefined;
@@ -893,7 +952,7 @@ export const internalLinkHandlers: HttpHandler[] = [
         linking_pages_total: linking.length,
         outlinks_total: outlinks.length,
         extras: pageDetailExtras(run, page),
-        notes_count: 0,
+        notes_count: noteCount(caller.project.project_id, id),
       },
     });
   }),
@@ -1109,6 +1168,77 @@ export const internalLinkHandlers: HttpHandler[] = [
     const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     return HttpResponse.json({ data: outlineOf(pageRow(page, 'all'), latest.run.run_id) });
+  }),
+
+  mock('get', `${P}/internal-links/pages/{url_id}/notes`, ({ request, cookies, params }) => {
+    const found = noteCaller(request, cookies, params, { permission: 'data:read', query: ['cursor', 'limit'] });
+    if (found instanceof Response) return found;
+    const limit = noteLimit(found.caller.url);
+    if (limit === null) {
+      return invalid(request, [queryError('limit', 'range', 'Input should be between 1 and 100.')]);
+    }
+    const cursor = found.caller.url.searchParams.get('cursor');
+    const window = notesAfter(found.caller.project.project_id, found.urlId, found.actor, cursor, limit);
+    if (window === null)
+      return invalid(request, [queryError('cursor', 'invalid_cursor', 'Not a cursor of this list.')]);
+    return HttpResponse.json({
+      data: window.notes,
+      meta: { limit, next_cursor: window.next, has_more: window.next !== null, total: window.total },
+    });
+  }),
+
+  mock('post', `${P}/internal-links/pages/{url_id}/notes`, async ({ request, cookies, params }) => {
+    const found = noteCaller(request, cookies, params, { permission: 'notes:write' });
+    if (found instanceof Response) return found;
+    const body = await request.json();
+    const refused = checkBody(request, body, { required: ['body'] });
+    if (refused !== null) return refused;
+    const made = addNote(found.caller.project.project_id, found.urlId, found.actor, body.body);
+    return made.ok
+      ? HttpResponse.json({ data: made.note }, { status: 201 })
+      : noteFailure(request, made.error, '', made.detail);
+  }),
+
+  mock('patch', `${P}/internal-links/pages/{url_id}/notes/{note_id}`, async ({ request, cookies, params }) => {
+    const found = noteCaller(request, cookies, params, { permission: 'notes:write' });
+    if (found instanceof Response) return found;
+    const badId = noteIdError(request, String(params.note_id));
+    if (badId !== null) return badId;
+    const body = await request.json();
+    const refused = checkBody(request, body, { required: ['body'] });
+    if (refused !== null) return refused;
+    const changed = changeNote(
+      found.caller.project.project_id,
+      found.urlId,
+      String(params.note_id),
+      found.actor,
+      body.body,
+    );
+    return changed.ok
+      ? HttpResponse.json({ data: changed.note })
+      : noteFailure(request, changed.error, 'Only the one who wrote a note can change it.', changed.detail);
+  }),
+
+  mock('delete', `${P}/internal-links/pages/{url_id}/notes/{note_id}`, ({ request, cookies, params }) => {
+    const found = noteCaller(request, cookies, params, { permission: 'notes:write' });
+    if (found instanceof Response) return found;
+    const badId = noteIdError(request, String(params.note_id));
+    if (badId !== null) return badId;
+    const removed = removeNote(found.caller.project.project_id, found.urlId, String(params.note_id), found.actor);
+    return removed.ok
+      ? noContent()
+      : noteFailure(request, removed.error, 'Only the one who wrote a note, an owner or an admin can delete it.');
+  }),
+
+  mock('post', `${P}/internal-links/pages/{url_id}/notes/{note_id}/restore`, ({ request, cookies, params }) => {
+    const found = noteCaller(request, cookies, params, { permission: 'notes:write' });
+    if (found instanceof Response) return found;
+    const badId = noteIdError(request, String(params.note_id));
+    if (badId !== null) return badId;
+    const back = restoreNote(found.caller.project.project_id, found.urlId, String(params.note_id), found.actor);
+    return back.ok
+      ? HttpResponse.json({ data: back.note })
+      : noteFailure(request, back.error, 'Only the one who deleted a note can bring it back.');
   }),
 
   mock('get', `${P}/internal-links/worklists`, ({ request, cookies, params }) => {

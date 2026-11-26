@@ -35,6 +35,7 @@ import {
   neighborsQuery,
   pageDetailQuery,
   pageFilterOf,
+  pageNotesQuery,
   pageOutlineQuery,
   pageParams,
   pageSearchQuery,
@@ -139,6 +140,16 @@ describe('the pages query (the backend OpenAPI)', () => {
     expect(key).toContain('internal-links');
     expect(key[0]).toEqual(pagesQuery(SCOPE, DEFAULT_PAGE_QUERY, null).queryKey[0]);
     expect(JSON.stringify(key)).not.toContain('"run"');
+  });
+
+  it('keys the notes of a page under the project and the page, and refuses a bad id', () => {
+    expect(() => pageNotesQuery(SCOPE, 'abc')).toThrow(UrlIdError);
+    const key = pageNotesQuery(SCOPE, '108').queryKey;
+    const [reads] = internalLinksKeys(SCOPE);
+    expect(key.slice(0, reads?.length)).toEqual(reads);
+    expect(key).toContain('notes');
+    expect(key).toContain('108');
+    expect(pageNotesQuery(SCOPE, '109').queryKey).not.toEqual(key);
   });
 
   it('keys every read under the project, so a tier change reaches all of them', () => {

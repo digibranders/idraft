@@ -418,3 +418,102 @@ describe('the Pages overview, views and page reads of the mock API', () => {
     }
   });
 });
+
+const NOTE = z.object({
+  id: z.string(),
+  body: z.string(),
+  author: z.object({ id: z.string(), name: z.string() }),
+  edited_at: z.string().nullable(),
+  can_edit: z.boolean(),
+  can_delete: z.boolean(),
+});
+const NOTES = z.object({
+  data: z.array(NOTE),
+  meta: z.object({ total: z.number(), limit: z.number(), has_more: z.boolean(), next_cursor: z.string().nullable() }),
+});
+const NOTES_PATH = `${L}/pages/108/notes`;
+const UNKNOWN_NOTE = '0192e4a0-0000-7000-8000-000000000000';
+
+describe('the notes routes of the mock API', () => {
+  const countOf = async (browser: ReturnType<typeof mockBrowser>): Promise<number | undefined> => {
+    const detail = await browser.call('GET', `${L}/pages/108?scope=editorial`);
+    return z.object({ data: z.object({ notes_count: z.number() }) }).parse(detail.body).data.notes_count;
+  };
+
+  it('lists the notes newest first, with what the caller may do, and pages them by cursor', async () => {
+    const editor = mockBrowser('editor');
+    const all = NOTES.parse((await editor.call('GET', NOTES_PATH)).body);
+    expect(all.meta).toMatchObject({ total: 3, has_more: false, next_cursor: null });
+    expect(all.data.some((note) => note.can_edit)).toBe(true);
+    const viewer = NOTES.parse((await mockBrowser('viewer').call('GET', NOTES_PATH)).body);
+    expect(viewer.data.every((note) => !note.can_edit && !note.can_delete)).toBe(true);
+
+    const first = NOTES.parse((await editor.call('GET', `${NOTES_PATH}?limit=2`)).body);
+    expect(first.data.map((note) => note.id)).toEqual(all.data.slice(0, 2).map((note) => note.id));
+    expect(first.meta).toMatchObject({ limit: 2, has_more: true, total: 3 });
+    const second = NOTES.parse(
+      (await editor.call('GET', `${NOTES_PATH}?limit=2&cursor=${first.meta.next_cursor ?? ''}`)).body,
+    );
+    expect(second.data.map((note) => note.id)).toEqual(all.data.slice(2).map((note) => note.id));
+    expect(second.meta.has_more).toBe(false);
+    expect((await editor.call('GET', `${NOTES_PATH}?limit=0`)).status).toBe(422);
+    expect((await editor.call('GET', `${NOTES_PATH}?limit=101`)).status).toBe(422);
+  });
+
+  it('adds a note with 201, trimmed, and the page detail count follows', async () => {
+    const editor = mockBrowser('editor');
+    expect(await countOf(editor)).toBe(3);
+    const made = await editor.call('POST', NOTES_PATH, { body: '  Checked the title.  ' });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ data: { body: 'Checked the title.', can_edit: true, can_delete: true } });
+    expect(await countOf(editor)).toBe(4);
+    expect(NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data[0]?.body).toBe('Checked the title.');
+  });
+
+  it('refuses a write by a viewer with 403 and a bad body with 422', async () => {
+    expect((await mockBrowser('viewer').call('POST', NOTES_PATH, { body: 'x' })).status).toBe(403);
+    const editor = mockBrowser('editor');
+    for (const body of [{ body: '   ' }, { body: 'a'.repeat(2001) }, {}, { body: 'x', extra: 1 }]) {
+      expect([JSON.stringify(body).slice(0, 20), (await editor.call('POST', NOTES_PATH, body)).status]).toEqual([
+        JSON.stringify(body).slice(0, 20),
+        422,
+      ]);
+    }
+  });
+
+  it('lets only the author change a note, with 200, and answers 404 for what is not there', async () => {
+    const editor = mockBrowser('editor');
+    const mine = NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data.find((note) => note.can_edit);
+    if (mine === undefined) throw new Error('no note of the editor');
+    const changed = await editor.call('PATCH', `${NOTES_PATH}/${mine.id}`, { body: 'Rewritten' });
+    expect(changed.status).toBe(200);
+    expect(changed.body).toMatchObject({ data: { body: 'Rewritten' } });
+    expect(await editor.as('admin').call('PATCH', `${NOTES_PATH}/${mine.id}`, { body: 'Taken over' })).toMatchObject({
+      status: 403,
+    });
+    expect((await editor.call('PATCH', `${NOTES_PATH}/${UNKNOWN_NOTE}`, { body: 'x' })).status).toBe(404);
+    expect((await editor.call('PATCH', `${NOTES_PATH}/${mine.id}`, { body: '' })).status).toBe(422);
+    expect((await editor.call('GET', `${L}/pages/9999/notes`)).status).toBe(404);
+    expect((await editor.call('POST', `${L}/pages/9999/notes`, { body: 'x' })).status).toBe(404);
+  });
+
+  it('deletes with 204, lets an admin delete any note, and restores only for the one who deleted', async () => {
+    const editor = mockBrowser('editor');
+    const notes = NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data;
+    const theirs = notes.find((note) => !note.can_edit);
+    if (theirs === undefined) throw new Error('no note of someone else');
+    expect((await editor.call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(403);
+    expect((await mockBrowser('viewer').call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(403);
+
+    const admin = editor.as('admin');
+    expect((await admin.call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(204);
+    expect(await countOf(admin)).toBe(2);
+    expect((await admin.call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(404);
+    expect((await editor.call('POST', `${NOTES_PATH}/${theirs.id}/restore`)).status).toBe(403);
+    const back = await admin.call('POST', `${NOTES_PATH}/${theirs.id}/restore`);
+    expect(back.status).toBe(200);
+    expect(back.body).toMatchObject({ data: { id: theirs.id } });
+    expect(await countOf(admin)).toBe(3);
+    expect((await admin.call('POST', `${NOTES_PATH}/${theirs.id}/restore`)).status).toBe(404);
+  });
+});
