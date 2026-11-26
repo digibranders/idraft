@@ -26,6 +26,11 @@ from idraft.collectors.crawl_ingest import PASS_TIME, ingest_run
 from idraft.collectors.crawl_runs import INGEST_JOB, CrawlIngestTask, crawl_tick
 from idraft.collectors.dispatcher import SubmitBatch, dispatch
 from idraft.collectors.fetching import FETCH_JOB, FetchTask, fetch_task, poll_ready
+from idraft.collectors.ga4_plan import JOB as GA4_JOB
+from idraft.collectors.ga4_plan import Ga4SyncTask
+from idraft.collectors.ga4_plan import plan_syncs as plan_ga4_syncs
+from idraft.collectors.ga4_sync import Ga4Context
+from idraft.collectors.ga4_sync import sync_integration as sync_ga4_integration
 from idraft.collectors.gsc_limits import GscLimiter
 from idraft.collectors.gsc_plan import JOB as GSC_JOB
 from idraft.collectors.gsc_plan import GscSyncTask, plan_syncs
@@ -108,6 +113,10 @@ GSC_PLAN_LOCK = timedelta(seconds=55)
 # with that base keep one call (at most 30 + 60 + 120 seconds of waiting) well inside a pass.
 GSC_ATTEMPTS = 4
 GSC_BACKOFF_SECONDS = 30.0
+# GA4 syncs due now, and runs left unfinished or failed (docs/18 section 13). They share the
+# Google client of the Search Console sync, so its retry settings apply.
+GA4_PLAN_EVERY = timedelta(seconds=60)
+GA4_PLAN_LOCK = timedelta(seconds=55)
 # Crawls of sites for the internal link tracker (plan 02 Task 9): once a minute. 55 seconds is the
 # most a lock can last under a 60 second interval (a tick's lock must expire before its next run).
 # A tick of 50 posts and 50 summaries in a row can take longer when the provider is slow; a tick
@@ -345,6 +354,22 @@ def _gsc_handler(gsc: SyncContext) -> Callable[[GscSyncTask], Awaitable[None]]:
     return run
 
 
+def ga4_context(gsc: SyncContext) -> Ga4Context:
+    """What a GA4 run needs: the Google client, key and database of the Search Console sync, so
+    the two are registered under the same conditions."""
+    return Ga4Context(sessions=gsc.sessions, google=gsc.google, cipher=gsc.cipher)
+
+
+def _ga4_handler(ga4: Ga4Context) -> Callable[[Ga4SyncTask], Awaitable[None]]:
+    """The `ga4_sync` job: one run over one property."""
+
+    async def run(task: Ga4SyncTask) -> None:
+        report = await sync_ga4_integration(ga4, task.workspace_id, task.integration_id)
+        _log.info("ga4 run", integration_id=str(task.integration_id), **asdict(report))
+
+    return run
+
+
 def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequence[Tick]:
     """Register the jobs on `context.queues` and return the ticks."""
     parts = production_registry(context) if registry is None else registry
@@ -538,9 +563,9 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             _log.info("ready poll", **asdict(report))
 
     gsc = gsc_context(context)
-    gsc_ticks: list[Tick] = []
+    google_ticks: list[Tick] = []
     if gsc is None:
-        _log.info("search console sync not registered", reason="no Google OAuth client or key")
+        _log.info("google syncs not registered", reason="no Google OAuth client or key")
     else:
         context.queues.register("collect", GSC_JOB, _gsc_handler(gsc))
 
@@ -553,12 +578,27 @@ def assemble(context: WorkerContext, registry: Registry | None = None) -> Sequen
             if not report.quiet:
                 _log.info("search console sync planned", **asdict(report))
 
-        gsc_ticks.append(
+        google_ticks.append(
             Tick(name="gsc_plan", interval=GSC_PLAN_EVERY, action=plan_gsc, lock_ttl=GSC_PLAN_LOCK)
         )
 
+        context.queues.register("collect", GA4_JOB, _ga4_handler(ga4_context(gsc)))
+
+        async def plan_ga4() -> None:
+            async def send(task: Ga4SyncTask) -> bool:
+                return await context.queues.enqueue(GA4_JOB, task, dedupe_key=task.dedupe_key)
+
+            now = await database_time(context.sessions)
+            report = await plan_ga4_syncs(context.sessions, send, now=now)
+            if not report.quiet:
+                _log.info("ga4 sync planned", **asdict(report))
+
+        google_ticks.append(
+            Tick(name="ga4_plan", interval=GA4_PLAN_EVERY, action=plan_ga4, lock_ttl=GA4_PLAN_LOCK)
+        )
+
     return (
-        *gsc_ticks,
+        *google_ticks,
         *crawl_ticks(context),
         Tick(name="planner", interval=PLANNER_EVERY, action=plan, lock_ttl=PLANNER_LOCK),
         Tick(name="dispatcher", interval=DISPATCHER_EVERY, action=send, lock_ttl=DISPATCHER_LOCK),
