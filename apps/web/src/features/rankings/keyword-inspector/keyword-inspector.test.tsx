@@ -149,6 +149,14 @@ describe('The keyword inspector', () => {
     expect(await inspectorOf('seo agency')).toBeInTheDocument();
   });
 
+  it('keeps Open page in the header, beside Close and the keyword’s More actions', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const inspector = await openFromRow(user, 'seo agency');
+    expect(within(inspector).getByRole('button', { name: 'Open page' })).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(within(inspector).getByRole('button', { name: /^More actions/ })).toBeInTheDocument();
+  });
+
   it('saves the tracking settings in place, and the row follows', async () => {
     const { user } = renderWithProviders(as('editor'));
     const inspector = await openFromRow(user, 'seo agency');
