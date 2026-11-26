@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from idraft.api.schemas.common import Body
-from idraft.api.schemas.internal_links import PlacementName, TierRef, UrlId, UrlIdText
+from idraft.api.schemas.internal_links import PlacementName, TierCount, TierRef, UrlId, UrlIdText
 
 AlertChannel = Literal["app", "email", "slack"]
 DeliveryState = Literal["shown_in_app", "channel_unavailable"]
@@ -56,6 +56,55 @@ class ChangesSummary(BaseModel):
 
 class ChangesSummaryResponse(BaseModel):
     data: ChangesSummary
+
+
+class OverviewStatus(BaseModel):
+    live: int
+    variant: int
+    redirected: int
+    client_error: int
+    server_error: int
+    blocked: int
+    other: int
+
+
+class OverviewSitemap(BaseModel):
+    state: Literal["read", "no_sitemap"]
+    indexable_in_sitemap: int | None
+    indexable_missing: int | None
+    listed_not_live: int | None
+    listed_not_indexable: int | None
+
+
+class OverviewDepth(BaseModel):
+    clicks: int = Field(description="0 to 6; 6 is 6 clicks and more.")
+    pages: int
+
+
+class OverviewSection(BaseModel):
+    section: str = Field(description="The first folder of the path, `/` for a top-level page.")
+    pages: int
+
+
+class PagesOverview(BaseModel):
+    run_id: UUID
+    crawled_at: datetime | None
+    addresses: int
+    status: OverviewStatus
+    indexable: int
+    not_indexable: int
+    reachable: int
+    unreachable: int
+    orphans: int
+    sitemap: OverviewSitemap
+    depth: list[OverviewDepth]
+    tiers: list[TierCount]
+    sections: list[OverviewSection]
+    sections_total: int
+
+
+class PagesOverviewResponse(BaseModel):
+    data: PagesOverview
 
 
 class ChangeLink(BaseModel):

@@ -31,6 +31,8 @@ from sqlalchemy import (
     any_,
     case,
     cast,
+    collate,
+    desc,
     distinct,
     exists,
     false,
@@ -60,6 +62,12 @@ from idraft.api.internal_links.extras import (
     summarize_keywords,
 )
 from idraft.api.internal_links.graph import GraphLink, GraphPage, TemplateLinks, build_graph
+from idraft.api.internal_links.inventory import (
+    DEPTH_ROWS,
+    SECTIONS_MAX,
+    overview_statement,
+    section_of,
+)
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
@@ -91,6 +99,13 @@ from idraft.api.schemas.internal_links import (
     TierRef,
     TierStat,
     Worklists,
+)
+from idraft.api.schemas.internal_links_extra import (
+    OverviewDepth,
+    OverviewSection,
+    OverviewSitemap,
+    OverviewStatus,
+    PagesOverview,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
@@ -1394,6 +1409,95 @@ class LinkReadService:
                     ).scalar_one_or_none()
                 ),
             )
+
+    async def overview(
+        self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
+    ) -> PagesOverview:
+        """Every crawl count of the Pages overview (spec 6.2): the counts are the predicates of
+        `inventory`, so a number equals the total of the list it opens."""
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, run)
+            tiers = await load_tiers(db, access.workspace_id)
+            counts = (await db.execute(overview_statement(scope))).one()
+            rows = page_rows(scope)
+            live = page_conditions(PageFilter.model_validate({"view": "live"}), scope)
+            by_tier = (
+                await db.execute(
+                    select(project_pages.c.tier_id, func.count().label("pages"))
+                    .select_from(rows)
+                    .where(*live)
+                    .group_by(project_pages.c.tier_id)
+                )
+            ).all()
+            section = section_of().label("section")
+            by_section = (
+                await db.execute(
+                    select(section, func.count().label("pages"))
+                    .select_from(rows)
+                    .where(*live)
+                    .group_by(section)
+                    .order_by(desc("pages"), collate(section, "C"))
+                    .limit(SECTIONS_MAX)
+                )
+            ).all()
+            sections_total = (
+                await db.execute(
+                    select(func.count(distinct(section_of()))).select_from(rows).where(*live)
+                )
+            ).scalar_one()
+            run_row = (
+                await db.execute(
+                    select(crawl_runs.c.sitemap_pages, crawl_runs.c.finished_at).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
+                )
+            ).one()
+
+        listed = bool(run_row.sitemap_pages)
+
+        def sitemap_count(name: str) -> int | None:
+            return counts._mapping[name] if listed else None
+
+        return PagesOverview(
+            run_id=scope.run_id,
+            crawled_at=run_row.finished_at,
+            addresses=counts.addresses,
+            status=OverviewStatus(
+                live=counts.live,
+                variant=counts.variants,
+                redirected=counts.redirects,
+                client_error=counts.client_errors,
+                server_error=counts.server_errors,
+                blocked=counts.blocked,
+                other=counts.other,
+            ),
+            indexable=counts.indexable,
+            not_indexable=counts.not_indexable,
+            reachable=counts.reachable,
+            unreachable=counts.unreachable,
+            orphans=counts.orphans,
+            sitemap=OverviewSitemap(
+                state="read" if listed else "no_sitemap",
+                indexable_in_sitemap=sitemap_count("in_sitemap_indexable"),
+                indexable_missing=sitemap_count("not_in_sitemap"),
+                listed_not_live=sitemap_count("sitemap_not_live"),
+                listed_not_indexable=sitemap_count("sitemap_not_indexable"),
+            ),
+            depth=[
+                OverviewDepth(clicks=clicks, pages=counts._mapping[f"depth_{clicks}"])
+                for clicks in range(DEPTH_ROWS)
+            ],
+            tiers=[
+                TierCount(tier=tiers.ref(row.tier_id), pages=row.pages)
+                for row in sorted(
+                    by_tier,
+                    key=lambda row: (row.tier_id is None, tiers.positions.get(row.tier_id, 0)),
+                )
+            ],
+            sections=[OverviewSection(section=row.section, pages=row.pages) for row in by_section],
+            sections_total=sections_total,
+        )
 
     async def edges(
         self,

@@ -6,13 +6,22 @@ A view is a name for one predicate (`view_condition`)."""
 
 from __future__ import annotations
 
-from typing import Final
+from typing import TYPE_CHECKING, Any, Final, get_args
 
-from sqlalchemy import ColumnElement, and_, case, false, func, not_, or_, true
+from sqlalchemy import ColumnElement, and_, case, false, func, not_, or_, select, true
 
 from idraft.api.schemas.internal_links import PageView
 from idraft.crawl.status import BLOCKED_STATUSES
 from idraft.db.tables import crawl_pages, urls
+
+if TYPE_CHECKING:
+    # `page_filter` imports this module, so the scope is named for the checker only.
+    from idraft.api.internal_links.page_filter import PageScope
+
+# The sections the Overview lists; the rest are only counted.
+SECTIONS_MAX: Final = 50
+# The Overview's depth rows: 0 to 6 clicks, the last one is "6 and more".
+DEPTH_ROWS: Final = 7
 
 _STATUS: Final = crawl_pages.c.status_code
 
@@ -110,3 +119,25 @@ def view_condition(view: PageView) -> ColumnElement[bool]:
             return _reachable()
         case "unreachable":
             return and_(_live(), crawl_pages.c.click_depth.is_(None))
+
+
+def overview_statement(scope: PageScope) -> Any:
+    """One row: `addresses`, one count per view of `PageView` (labelled with the view id),
+    `orphans`, and `depth_0` to `depth_6`. Every count is a `FILTER` of the one pass."""
+    counts = [func.count().filter(view_condition(view)).label(view) for view in get_args(PageView)]
+    depths = [
+        func.count().filter(and_(_reachable(), depth_bucket() == clicks)).label(f"depth_{clicks}")
+        for clicks in range(DEPTH_ROWS)
+    ]
+    return (
+        select(
+            func.count().label("addresses"),
+            *counts,
+            func.count().filter(and_(_counted(), crawl_pages.c.is_orphan)).label("orphans"),
+            *depths,
+        )
+        .select_from(crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id))
+        .where(
+            crawl_pages.c.workspace_id == scope.workspace_id, crawl_pages.c.run_id == scope.run_id
+        )
+    )

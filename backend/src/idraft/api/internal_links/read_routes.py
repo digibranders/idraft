@@ -34,6 +34,7 @@ from idraft.api.schemas.internal_links import (
     UrlId,
     WorklistsResponse,
 )
+from idraft.api.schemas.internal_links_extra import PagesOverviewResponse
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -338,3 +339,10 @@ async def worklists(
     project_id: UUID, access: ReadData, reads: Reads, run: Run = "latest"
 ) -> WorklistsResponse:
     return WorklistsResponse(data=await reads.worklists(access, project_id, run=_run(run)))
+
+
+@router.get("/overview", summary="Counts of a crawl's pages for the Pages overview")
+async def overview(
+    project_id: UUID, access: ReadData, reads: Reads, run: Run = "latest"
+) -> PagesOverviewResponse:
+    return PagesOverviewResponse(data=await reads.overview(access, project_id, run=_run(run)))

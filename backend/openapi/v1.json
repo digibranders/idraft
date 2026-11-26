@@ -15286,6 +15286,44 @@
         "title": "OverviewCompetitorsResponse",
         "type": "object"
       },
+      "OverviewDepth": {
+        "properties": {
+          "clicks": {
+            "description": "0 to 6; 6 is 6 clicks and more.",
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clicks",
+          "pages"
+        ],
+        "title": "OverviewDepth",
+        "type": "object"
+      },
+      "OverviewSection": {
+        "properties": {
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "section": {
+            "description": "The first folder of the path, `/` for a top-level page.",
+            "title": "Section",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section",
+          "pages"
+        ],
+        "title": "OverviewSection",
+        "type": "object"
+      },
       "OverviewSeoCells": {
         "description": "Declared and never returned in this package: SEO share of voice is built nowhere yet.",
         "properties": {
@@ -15303,6 +15341,114 @@
           "visibility"
         ],
         "title": "OverviewSeoCells",
+        "type": "object"
+      },
+      "OverviewSitemap": {
+        "properties": {
+          "indexable_in_sitemap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexable In Sitemap"
+          },
+          "indexable_missing": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexable Missing"
+          },
+          "listed_not_indexable": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed Not Indexable"
+          },
+          "listed_not_live": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed Not Live"
+          },
+          "state": {
+            "enum": [
+              "read",
+              "no_sitemap"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "indexable_in_sitemap",
+          "indexable_missing",
+          "listed_not_live",
+          "listed_not_indexable"
+        ],
+        "title": "OverviewSitemap",
+        "type": "object"
+      },
+      "OverviewStatus": {
+        "properties": {
+          "blocked": {
+            "title": "Blocked",
+            "type": "integer"
+          },
+          "client_error": {
+            "title": "Client Error",
+            "type": "integer"
+          },
+          "live": {
+            "title": "Live",
+            "type": "integer"
+          },
+          "other": {
+            "title": "Other",
+            "type": "integer"
+          },
+          "redirected": {
+            "title": "Redirected",
+            "type": "integer"
+          },
+          "server_error": {
+            "title": "Server Error",
+            "type": "integer"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live",
+          "variant",
+          "redirected",
+          "client_error",
+          "server_error",
+          "blocked",
+          "other"
+        ],
+        "title": "OverviewStatus",
         "type": "object"
       },
       "OwnEntityInput": {
@@ -16444,6 +16590,112 @@
           "tier_id"
         ],
         "title": "PageTierSet",
+        "type": "object"
+      },
+      "PagesOverview": {
+        "properties": {
+          "addresses": {
+            "title": "Addresses",
+            "type": "integer"
+          },
+          "crawled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crawled At"
+          },
+          "depth": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewDepth"
+            },
+            "title": "Depth",
+            "type": "array"
+          },
+          "indexable": {
+            "title": "Indexable",
+            "type": "integer"
+          },
+          "not_indexable": {
+            "title": "Not Indexable",
+            "type": "integer"
+          },
+          "orphans": {
+            "title": "Orphans",
+            "type": "integer"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "sections_total": {
+            "title": "Sections Total",
+            "type": "integer"
+          },
+          "sitemap": {
+            "$ref": "#/components/schemas/OverviewSitemap"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierCount"
+            },
+            "title": "Tiers",
+            "type": "array"
+          },
+          "unreachable": {
+            "title": "Unreachable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "crawled_at",
+          "addresses",
+          "status",
+          "indexable",
+          "not_indexable",
+          "reachable",
+          "unreachable",
+          "orphans",
+          "sitemap",
+          "depth",
+          "tiers",
+          "sections",
+          "sections_total"
+        ],
+        "title": "PagesOverview",
+        "type": "object"
+      },
+      "PagesOverviewResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PagesOverview"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PagesOverviewResponse",
         "type": "object"
       },
       "PasswordChangeRequest": {
@@ -42003,6 +42255,80 @@
           }
         },
         "summary": "Accept, dismiss or reopen opportunities of the latest crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/overview": {
+      "get": {
+        "operationId": "overview_api_v1_workspaces__workspace_id__projects__project_id__internal_links_overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagesOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Counts of a crawl's pages for the Pages overview",
         "tags": [
           "internal-links"
         ]
