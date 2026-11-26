@@ -3,6 +3,7 @@ import type { UserEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InspectorWidthUserContext, writeInspectorWidth } from '@/lib/inspector/width-store';
+import { meQuery } from '@/lib/session/me-query';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { overviewAs } from '@/test/ai-overview-harness';
 import { stubViewport } from '@/test/customize-harness';
@@ -33,12 +34,16 @@ afterEach(() => {
 
 async function open(width: number, tab: string): Promise<{ card: HTMLElement; user: UserEvent }> {
   writeInspectorWidth(USER, width);
-  const { user } = renderWithProviders(
+  const { user, queryClient } = renderWithProviders(
     <InspectorWidthUserContext value={USER}>{overviewAs('admin')}</InspectorWidthUserContext>,
     {
       searchParams: `cmp=off&inspect=competitor:${MOCK_ENTITY_IDS.brightwave}&itab=${tab}`,
     },
   );
+  // The cards behind the drawer read who is signed in (useMe suspends). A click that lands while the first of them is
+  // still waiting for it renders that card inside the click's act(), where a suspended mount never lets the answer
+  // in: the render loops for good (a hang at 100% CPU), so the answer is waited for before anything is clicked
+  await waitFor(() => expect(queryClient.getQueryData(meQuery().queryKey)).toBeDefined(), TIMEOUT);
   const card = await screen.findByRole('complementary', { name: 'Brightwave Digital' }, TIMEOUT);
   expect(card.style.width).toBe(`${String(width)}px`);
   await within(card).findByRole('tab', { selected: true }, TIMEOUT);
