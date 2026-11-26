@@ -321,3 +321,48 @@ async def test_an_unknown_url_id_is_not_found(
     )
 
     assert problem(response)[0] == 404
+
+
+def test_a_content_check_without_its_snapshot_keeps_its_version() -> None:
+    checks = [_check(1, "a", "a", 1), _check(2, "b", "b", 2)]
+
+    history = assemble_history(_rows(checks=checks, snapshots={1: _snap("One", "a")}))
+
+    assert [(v.kind, v.changes) for v in history.versions] == [("content", []), ("first", [])]
+    assert history.changes == 1
+
+
+async def test_checks_follow_run_ids_and_a_failed_crawl_is_not_first_seen(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    pages = [("/", 200)]
+    failed, _ = await _crawl(migrated, workspace, project, 0, pages)
+    await execute(migrated, "UPDATE seo.crawl_runs SET state = 'failed' WHERE id = $1", failed)
+    # B is made after A (a later run id) but its crawl date is earlier.
+    run_a, ids = await _crawl(migrated, workspace, project, 10, pages)
+    run_b, _ = await _crawl(migrated, workspace, project, 11, pages)
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET crawled_at = $2 WHERE id = $1",
+        run_b,
+        DAY0 + timedelta(days=5),
+    )
+    page = ids["/"]
+    one = await _check_row(
+        migrated, workspace, project, run_a, page, main="a", full="a", title="One"
+    )
+    await _check_row(migrated, workspace, project, run_b, page, main="b", full="b", title="Two")
+    assert one is not None
+    url = project_url(workspace, project, "internal-links", "pages", page, "history")
+
+    body = (await api.get(url, headers=viewer.headers)).json()["data"]
+
+    assert [(v["kind"], v["run_id"]) for v in body["versions"]] == [
+        ("content", str(run_b)),
+        ("first", str(run_a)),
+    ]
+    assert body["versions"][0]["date"].startswith("2026-01-06")
+    assert body["first_seen"].startswith("2026-01-06")

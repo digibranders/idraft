@@ -224,19 +224,25 @@ async def test_the_snapshot_index_serves_the_page_history_read(migrated: Postgre
 
 
 @pytest.mark.parametrize(
-    ("name", "fragment"),
+    ("table", "name", "fragment"),
     [
-        ("page_checks_page", "(project_id, url_id, run_id DESC)"),
-        ("page_checks_snapshot", "(snapshot_id, workspace_id) WHERE (snapshot_id IS NOT NULL)"),
+        ("page_checks", "page_checks_page", "(project_id, url_id, run_id DESC)"),
+        (
+            "page_checks",
+            "page_checks_snapshot",
+            "(snapshot_id, workspace_id) WHERE (snapshot_id IS NOT NULL)",
+        ),
+        ("crawl_pages", "crawl_pages_url", "(project_id, url_id)"),
     ],
 )
-async def test_page_checks_have_the_lookup_indexes(
-    migrated: PostgresServer, name: str, fragment: str
+async def test_page_history_has_the_lookup_indexes(
+    migrated: PostgresServer, table: str, name: str, fragment: str
 ) -> None:
     async with connection(migrated) as db:
         definition = await db.fetchval(
             "SELECT indexdef FROM pg_indexes WHERE schemaname = 'seo' "
-            "AND tablename = 'page_checks' AND indexname = $1",
+            "AND tablename = $1 AND indexname = $2",
+            table,
             name,
         )
     assert definition is not None

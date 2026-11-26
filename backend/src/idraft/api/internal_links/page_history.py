@@ -23,6 +23,7 @@ from idraft.api.schemas.internal_links_history import (
     PageHistoryChange,
     PageHistoryVersion,
 )
+from idraft.collectors.crawl_store import DATA_STATES
 from idraft.crawl.page_history import Change, Snapshot, classify_change, diff_snapshots
 from idraft.crawl.page_text import Heading
 from idraft.db.tables import (
@@ -95,6 +96,7 @@ async def read_history_rows(db: AsyncSession, scope: PageScope, url_id: int) -> 
                 crawl_pages.c.workspace_id == ws,
                 crawl_pages.c.project_id == project,
                 crawl_pages.c.url_id == url_id,
+                crawl_runs.c.state.in_(DATA_STATES),
             )
         )
     ).scalar_one()
@@ -138,7 +140,7 @@ async def read_history_rows(db: AsyncSession, scope: PageScope, url_id: int) -> 
                 page_checks.c.project_id == project,
                 page_checks.c.url_id == url_id,
             )
-            .order_by(_RUN_DATE, page_checks.c.run_id)
+            .order_by(page_checks.c.run_id)
         )
     ]
     snapshots = {
@@ -207,9 +209,9 @@ def _versions(
         changes: list[Change] = []
         if kind == "first":
             version_kind: Literal["content", "site_wide", "first"] = "first"
-        elif kind == "content" and snapshot is not None:
+        elif kind == "content":
             version_kind = "content"
-            changes = [] if kept is None else diff_snapshots(kept, snapshot)
+            changes = [] if kept is None or snapshot is None else diff_snapshots(kept, snapshot)
         elif kind == "template_candidate" and check.site_wide:
             version_kind = "site_wide"
         else:

@@ -80,6 +80,9 @@ CREATE INDEX page_checks_page ON seo.page_checks (project_id, url_id, run_id DES
 CREATE INDEX page_checks_snapshot ON seo.page_checks (snapshot_id, workspace_id)
     WHERE snapshot_id IS NOT NULL;
 
+-- The oldest crawl that held a page (history endpoint, first_seen).
+CREATE INDEX crawl_pages_url ON seo.crawl_pages (project_id, url_id);
+
 CREATE TABLE seo.page_history_runs (
     run_id              uuid PRIMARY KEY,
     workspace_id        uuid NOT NULL,
