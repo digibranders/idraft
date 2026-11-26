@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Store what the page Search tab and the Monitoring tab read (daily totals with position, page history, breakdowns by query, location and device, tracked pages) and serve it under `{P}/fp/tracked-pages` and `{P}/fp/page-search`.
+**Goal:** Store what the page Search tab and the Monitoring tab read (daily totals with position, page history, breakdowns by query, location and device with the number of queries a page had in a period, tracked pages) and serve it under `{P}/fp/tracked-pages` and `{P}/fp/page-search`.
 
 **Architecture:** The existing bulk `[date, page]` pull gains position and the address strings Google used. One shared module makes two filtered reads of Google for a single page (history, breakdown) and stores them with a marker; the worker calls it for tracked pages inside the Search Console pass, the API calls it when a drawer asks. Health, periods and aggregation are pure functions. No new job, queue or schedule.
 
@@ -34,11 +34,13 @@ cd backend && uv sync --frozen
 
 - **B1** Bulk totals keep `position_sum` and Google's address strings; rows are kept 16 months, and for tracked pages for good.
 - **B2** Page history: one filtered `[date]` call per page, once, recorded by a `history` row in `fp.gsc_page_fetches`.
-- **B3** Breakdown: three filtered calls per page and period (`query` limit 100, `country` limit 50, `device` limit 25), recorded by markers of kind `query`, `country`, `device`.
+- **B3** Breakdown: three filtered calls per page and period (`query` asked for 25,000 rows and 100 kept, `country` limit 50, `device` limit 25), recorded by markers of kind `query`, `country`, `device`.
 - **B4** The page filter is `includingRegex` over stored strings (`fp.gsc_page_forms`), at most 8, else a pattern from the canonical address.
 - **B5** The API calls Google itself for a drawer, under its own budget, never waiting: no token means `429 gsc_busy`.
 - **B6** Final data only; a period is cut to the last final day; at most 92 days.
 - **B7** Only a page with a row in `core.project_pages` can be tracked or read. Limit 200 a project. `projects:write` to change, `data:read` to read.
+- **B8** (owner addition 2026-11-26, spec D21) The number of queries of a page in a period is the number of rows its query read returned, asked once with the maximum `rowLimit` of 25,000 and never paged. The top 100 rows are kept; the count is stored as `query_count` and `query_count_capped` on the marker row (`fp.gsc_page_fetches`) of the query read for the page and period. Both periods exist for tracked pages (the last full month and the month before it), so no extra call is made and the call counts of the spec do not change; the list reads stored counts only.
+- **B9** (owner addition 2026-11-26, spec D22) The Cannibalization backend does not exist, so it is not built here. `GET {P}/fp/tracked-pages` carries `cannibalization: null` on every row, a reserved field in the contract (schema `PageCannibalization | None`, always `None`, documented as reserved). The reason: no Cannibalization tables, no page and no join of a tracked keyword's rank to the page that ranks for it exist; building the verdict rules would mean inventing that backend, which belongs to the Cannibalization work.
 
 ## File structure
 
@@ -48,6 +50,7 @@ cd backend && uv sync --frozen
 | Modify `backend/tests/collectors/gsc_support.py`, `backend/tests/providers/google/test_client.py` | The fake serves filtered reads and a position per page row. |
 | Create `backend/src/idraft/db/migrations/versions/00NN_page_search.py`; modify `backend/src/idraft/db/tables.py` | Schema of spec section 6. |
 | Modify `backend/tests/db/test_tables.py`, `test_grants.py`, `support.py`, `backend/tests/security/test_cross_tenant.py` | The new tables in the registrations every table has. |
+| Modify `backend/src/idraft/db/migrations/versions/0042_page_search.py`, `backend/src/idraft/db/tables.py`, `backend/tests/db/test_grants.py`, `backend/tests/db/test_page_search_schema.py` (task 2b) | The query count columns of `fp.gsc_page_fetches`, the update rights the stores need, the revoke in the downgrade and the count and date checks. |
 | Modify `backend/src/idraft/collectors/gsc_pages.py`, `gsc_sync.py` | Position and forms in the bulk pull; 16 months; tracked rows kept. |
 | Create `backend/src/idraft/domain/page_search.py` | Pure: totals, periods, compare, health. |
 | Create `backend/src/idraft/collectors/gsc_page_detail.py` | The page filter, history and breakdown fetch and store, markers, prune. Used by worker and API. |
@@ -237,6 +240,95 @@ Add one index for the worker's and the list's read: `CREATE INDEX tracked_pages_
 - [ ] **Step 5: Run** the two test files of step 2 plus `tests/security/test_cross_tenant.py -k "tracked_pages or gsc_page"` and `tests/db/test_internal_links_changes_schema.py` (it names `fp.gsc_page_daily`). Expected: PASS. `uv run ruff check src/idraft/db tests/db` and `uv run mypy src/idraft/db`.
 
 - [ ] **Step 6: Review, fix, commit.** `git commit -m "Page search: position per page and day, address forms, page fetches, breakdowns and tracked pages"`
+
+---
+
+### Task 2b: Query count columns
+
+Task 2 is built and committed (`b2687472`, not pushed), so revision 0042 is amended in place here instead of adding 0043. Not renumbered: this is "2b".
+
+**Read first:** spec D21 and sections 5.1, 5.2 and 6; `backend/src/idraft/db/migrations/versions/0042_page_search.py` as built; `gsc_page_fetches` and `gsc_page_breakdown` in `backend/src/idraft/db/tables.py`; `backend/tests/db/test_grants.py` (the two lines of these tables), `backend/tests/db/support.py` (how a test seeds an integration and a `core.urls` row), the cases already in `tests/db/test_page_search_schema.py`, and `tests/db/test_migrations.py` `test_the_history_can_be_walked_down_and_up_again` (it walks the whole history down to 0001 and up again, so a downgrade that errors is already caught; it does not say what the downgrade leaves behind, so step 2 adds that).
+
+**Files:**
+- Modify: `backend/src/idraft/db/migrations/versions/0042_page_search.py`, `backend/src/idraft/db/tables.py`, `backend/tests/db/test_grants.py`, `backend/tests/db/test_page_search_schema.py` (Task 2 created it; add to it)
+
+Four changes, one commit (the last two are review findings of Task 2):
+
+1. `fp.gsc_page_fetches` gains `query_count integer` and `query_count_capped boolean NOT NULL DEFAULT false`. The columns sit on the marker (one row per page, period and kind) and not on `fp.gsc_page_breakdown` (one row per key): the number is stored once, and a page with no query rows still has a place for its 0 (spec D21 and question Q7).
+2. UPDATE is added for the API and worker roles on `fp.gsc_page_fetches` and `fp.gsc_page_breakdown`. Task 5 writes both with `INSERT ... ON CONFLICT DO UPDATE`, which Postgres checks as an UPDATE privilege; the grants as first built (SELECT, INSERT, DELETE) would fail on the first conflict.
+3. `downgrade()` revokes the grants that `upgrade()` added on `fp.gsc_page_daily` (API INSERT and UPDATE, worker UPDATE), so that walking down leaves the table as 0041 had it.
+4. Checks on the new tables: `CHECK (row_count >= 0)` on `fp.gsc_page_fetches`; `CHECK (clicks >= 0)` and `CHECK (impressions >= 0)` on `fp.gsc_page_breakdown`; `CHECK (date_from <= date_to)` on both. (`fp.gsc_page_forms` and `core.tracked_pages` have no such columns.)
+
+- [ ] **Step 1: Confirm the revision is not pushed.** `git log --oneline origin/develop..HEAD -- backend/src/idraft/db/migrations/versions/0042_page_search.py` lists the Task 2 commit, and `git branch -r --contains b2687472` prints nothing. If it was pushed or merged, stop: write the change as a new revision 0043 and tell the main session.
+
+- [ ] **Step 2: Write the failing tests.** In `tests/db/test_grants.py` change the expectations of `fp.gsc_page_fetches` and `fp.gsc_page_breakdown` to SELECT, INSERT, UPDATE, DELETE for both the API and the worker (the rest of the file is as Task 2 left it). Add to `tests/db/test_page_search_schema.py`, seeded as its existing cases are (the helpers of `support.py`: a workspace, an integration, a `core.urls` row) and a connection as the migration owner, so that the constraint, not a grant, is what answers:
+
+```python
+async def test_a_query_marker_carries_a_count_and_the_other_kinds_do_not() -> None:
+    # 1. Insert a fp.gsc_page_fetches row of kind 'query' with query_count NULL: IntegrityError (check violation).
+    # 2. Insert one of kind 'country' with query_count 5: IntegrityError.
+    # 3. Insert one of kind 'query' with query_count 0 (a page Google returned no query rows for): accepted.
+    # 4. Insert ones of kind 'history' and 'device' with query_count NULL: accepted.
+
+
+async def test_a_negative_query_count_is_refused() -> None:
+    # kind 'query', query_count -1: IntegrityError.
+
+
+async def test_the_capped_flag_defaults_to_false_and_is_never_null() -> None:
+    # A 'query' row inserted without query_count_capped reads back False; an explicit NULL is refused.
+
+
+async def test_counts_are_not_negative_and_a_period_does_not_end_before_it_starts() -> None:
+    # fp.gsc_page_fetches: row_count -1 is refused; date_from after date_to is refused.
+    # fp.gsc_page_breakdown: clicks -1 is refused; impressions -1 is refused; date_from after date_to is refused.
+    # The same rows with 0 counts and date_from == date_to are accepted.
+
+
+def test_walking_down_to_0041_removes_the_tables_and_the_grants_and_walking_up_restores_them() -> None:
+    # Built like test_the_history_can_be_walked_down_and_up_again in tests/db/test_migrations.py (a fresh
+    # database from the `pg` fixture, `upgrade_to_head`, then `command.downgrade(alembic_config(url), "0041")`).
+    # After the downgrade: fp.gsc_page_forms, fp.gsc_page_fetches, fp.gsc_page_breakdown and core.tracked_pages
+    # do not exist, fp.gsc_page_daily has no position_sum, and has_table_privilege shows the API role with
+    # SELECT only and the worker role with SELECT, INSERT and DELETE on fp.gsc_page_daily (what 0041 left),
+    # so no INSERT or UPDATE for the API and no UPDATE for the worker.
+    # After `upgrade_to_head` again: the tables and column are back and the grants are those of test_grants.py.
+```
+
+Write them as real code with the helpers of that package. Run `uv run pytest -n 0 --no-cov tests/db/test_page_search_schema.py tests/db/test_grants.py -k "page_search or gsc_page"`. Expected: FAIL, the columns and checks do not exist, the grants are short of UPDATE, and the downgrade leaves the `fp.gsc_page_daily` grants behind.
+
+- [ ] **Step 3: Amend the migration in place.** In `_TABLES`, `fp.gsc_page_fetches` becomes (comments say what each column holds; `row_count` is the rows stored, at most 100 for the query read):
+
+```sql
+CREATE TABLE fp.gsc_page_fetches (
+    integration_id uuid NOT NULL,
+    url_id         bigint NOT NULL REFERENCES core.urls(id),
+    kind           text NOT NULL CHECK (kind IN ('history','query','country','device')),
+    date_from      date NOT NULL,
+    date_to        date NOT NULL,
+    workspace_id   uuid NOT NULL,
+    project_id     uuid NOT NULL,
+    row_count      integer NOT NULL CHECK (row_count >= 0),  -- rows stored
+    truncated      boolean NOT NULL DEFAULT false,  -- more rows came back than were stored
+    query_count    integer,  -- kind 'query' only: the rows Google returned, the page's distinct queries it reports
+    query_count_capped boolean NOT NULL DEFAULT false,  -- the call returned its 25,000 row limit: query_count is a lower bound
+    fetched_at     timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (integration_id, url_id, kind, date_from, date_to),
+    CHECK (date_from <= date_to),
+    CHECK ((kind = 'query') = (query_count IS NOT NULL)),
+    CHECK (query_count IS NULL OR query_count >= 0),
+    FOREIGN KEY (integration_id, workspace_id) REFERENCES fp.integrations(id, workspace_id)
+        ON DELETE CASCADE
+);
+```
+
+In `upgrade()` change the two grants to `api="SELECT, INSERT, UPDATE, DELETE", worker="SELECT, INSERT, UPDATE, DELETE"` for `fp.gsc_page_fetches` and `fp.gsc_page_breakdown`. Keep the module docstring's list of tables and add one clause to the `fp.gsc_page_fetches` line: "and the number of queries of a page in a period". In `fp.gsc_page_breakdown` (not rewritten here, its other columns are as built) add `CHECK (date_from <= date_to)`, and `CHECK (clicks >= 0)` and `CHECK (impressions >= 0)` on the two count columns. `downgrade()` first revokes what `upgrade()` granted on `fp.gsc_page_daily`, then drops the tables and the column as before: `REVOKE INSERT, UPDATE ON fp.gsc_page_daily FROM <API_ROLE>` and `REVOKE UPDATE ON fp.gsc_page_daily FROM <WORKER_ROLE>`, with the role names from `idraft.db.ddl` (`API_ROLE`, `WORKER_ROLE`; if the module has a revoke helper use it, else write the two statements). Nothing needs a backfill: nothing is deployed. A development database that already ran 0042 needs `alembic downgrade 0041` and `upgrade head` (development only; the Testcontainers databases of the tests are built fresh). Do not do it to the `idraft-dev-*` containers from this task: tell the main session.
+
+- [ ] **Step 4: `tables.py`.** Add to `gsc_page_fetches`, after `truncated`: `Column("query_count", Integer)` (nullable) and `Column("query_count_capped", Boolean, nullable=False, server_default=FetchedValue())`. Mirror the two `CHECK` constraints only if the file mirrors the checks of other tables (read `gsc_page_fetches` as built and follow it).
+
+- [ ] **Step 5: Run** `uv run pytest -n 0 --no-cov tests/db/test_page_search_schema.py tests/db/test_tables.py tests/db/test_grants.py`, `tests/db/test_migrations.py -k "walked"` (the whole history down and up once, on one worker) and `tests/security/test_cross_tenant.py -k "gsc_page or tracked_pages"`. Expected: PASS. `uv run ruff check src/idraft/db tests/db`, `uv run ruff format --check src/idraft/db tests/db`, `uv run mypy src/idraft/db`.
+
+- [ ] **Step 6: Review, fix, commit.** `git commit -m "Page search: query count columns on the page fetch marker, the update right the stores need, and the checks and revokes the review asked for"`
 
 ---
 
@@ -673,7 +765,7 @@ def health_of(cur: Totals, prev: Totals | None, cur_days: int, prev_days: int) -
 
 ### Task 5: Fetching and storing one page's history and breakdowns
 
-**Read first:** spec sections 5.1, 5.5 and 6; `backend/src/idraft/collectors/gsc_store.py` (`IntegrationFacts`, `DEVICES`); `gsc_sync.py` `_Pass._query` (the call this module is handed); `db/engine.py` `workspace_transaction`.
+**Read first:** spec D21 and sections 5.1, 5.5 and 6; `backend/src/idraft/collectors/gsc_store.py` (`IntegrationFacts`, `DEVICES`); `backend/src/idraft/providers/google/client.py` (`SEARCH_ANALYTICS_ROW_LIMIT`, 25,000); `gsc_sync.py` `_Pass._query` (the call this module is handed); `db/engine.py` `workspace_transaction`. Task 2b has added `query_count` and `query_count_capped` to `fp.gsc_page_fetches`.
 
 **Files:**
 - Create: `backend/src/idraft/collectors/gsc_page_detail.py`
@@ -714,7 +806,11 @@ Then database tests (a property from `make_property`, a `core.urls` row, a fake 
 1. `test_history_fills_missing_days_and_never_replaces_a_stored_day`: a stored row for day D (clicks 9, `position_sum` NULL) and the query answering D (clicks 1, position 2.0, impressions 10) and D+1 (clicks 4, impressions 20, position 3.0). After `ensure_history`: day D still has clicks 9 and now `position_sum` 20.00; day D+1 has clicks 4 and `position_sum` 60.00; a `history` marker exists with `date_from == history_start(today)`; the call asked for dimensions `("date",)` and one `includingRegex` page filter.
 2. `test_history_is_fetched_once`: a second `ensure_history` returns False and makes no call.
 3. `test_a_page_google_knows_nothing_about_still_gets_its_marker`: the query returns `[]`; a marker with `row_count` 0 exists.
-4. `test_a_breakdown_stores_three_dimensions_and_their_markers`: the query answers by dimension; after `ensure_breakdown` the table holds the query text as key, the country in upper case (`"usa"` stored as `"USA"`), the device as given; three markers; `truncated` is true only for the dimension whose answer had exactly its row limit of rows. The calls asked for row limits 100, 50 and 25.
+4. `test_a_breakdown_stores_three_dimensions_and_their_markers`: the query answers by dimension; after `ensure_breakdown` the table holds the query text as key, the country in upper case (`"usa"` stored as `"USA"`), the device as given; three markers; for country and device `truncated` is true only when the answer had exactly its row limit of rows (50, 25) and `query_count` is NULL. The calls asked for row limits 25,000 (query), 50 and 25.
+4a. `test_the_query_read_keeps_the_top_100_and_counts_every_row_it_got`: the query answers 130 rows, clicks falling with the row number. After `ensure_breakdown(only=("query",))`: 100 rows are stored (the 100 with the most clicks), the marker has `row_count == 100`, `truncated` true, `query_count == 130`, `query_count_capped` false; exactly one call was made, with `row_limit == 25_000` and `startRow` 0 (never paged).
+4b. `test_a_query_answer_of_exactly_the_limit_is_capped`: `monkeypatch.setitem(gsc_page_detail.FETCH_LIMITS, "query", 40)`, 40 rows: `query_count == 40`, `query_count_capped` true.
+4c. `test_a_page_with_no_queries_has_a_count_of_zero`: the query answers `[]`: no breakdown rows, the marker has `query_count == 0`, `query_count_capped` false, `row_count == 0`.
+4d. `test_fetching_the_queries_again_replaces_the_count`: `store_breakdown` with 130 rows, then with 90: `query_count == 90`, 90 rows remain.
 5. `test_a_breakdown_already_fetched_asks_nothing_and_a_missing_dimension_alone_is_asked`: delete the `device` marker; the next `ensure_breakdown` makes exactly one call.
 6. `test_fetching_a_breakdown_again_replaces_its_rows`: call `store_breakdown` twice with different rows for one dimension; only the second set remains.
 7. `test_prune_drops_old_fetches_except_a_tracked_page_s_calendar_months`: four marker sets `fetched_at` 31 days ago: untracked page and October; tracked page and 5 to 11 October; tracked page and the whole of October; untracked page fetched today. After `prune`: only the last two remain, with their breakdown rows. The `history` markers are never pruned.
@@ -731,7 +827,11 @@ calls this for tracked pages inside a pass; the API calls it when a page's Searc
 
 HISTORY: Final = "history"
 DIMENSIONS: Final = ("query", "country", "device")
-ROW_LIMITS: Final = {"query": 100, "country": 50, "device": 25}
+# What a call asks for. The query read asks for the most Google allows, in one request, and never
+# pages: the number of rows it returns is the page's query count (spec D21).
+FETCH_LIMITS: Final = {"query": SEARCH_ANALYTICS_ROW_LIMIT, "country": 50, "device": 25}
+# What is kept: the top rows by clicks.
+KEEP_LIMITS: Final = {"query": 100, "country": 50, "device": 25}
 MAX_FORMS: Final = 8
 # A fetch on demand is kept this long; a tracked page's calendar months are kept for good.
 KEEP_FETCH_DAYS: Final = 30
@@ -790,9 +890,9 @@ def page_pattern(canonical_url: str, forms: Sequence[str]) -> str:
 - `fetched`: the kinds among `DIMENSIONS` that have a marker for exactly `(url_id, start, end)`.
 - `history_from`: `date_from` of the `history` marker, or None.
 - `store_history`: rows have keys `(date,)`. Insert into `fp.gsc_page_daily` with `position_sum = Decimal(str(position)) * impressions` quantized to 0.01, `ON CONFLICT (integration_id, metric_date, url_id) DO UPDATE SET position_sum = excluded.position_sum WHERE fp.gsc_page_daily.position_sum IS NULL` (SQLAlchemy: `on_conflict_do_update(index_elements=[...], set_={...}, where=gsc_page_daily.c.position_sum.is_(None))`). Then upsert the marker `(kind='history', date_from=start, date_to=end, row_count=len(rows))` with `on_conflict_do_nothing`. A row whose date is not a date raises `GoogleResponseError`. Returns the number of rows given.
-- `store_breakdown`: delete the rows of `(integration, url_id, start, end, dimension)`; insert the new ones with `on_conflict_do_update` on the primary key (two first opens of one page at the same moment must not fail on each other) (key: the query as returned; the country upper-cased and kept only when 3 characters long; the device upper-cased and kept only when in `gsc_store.DEVICES`; repeated keys summed); upsert the marker (`on_conflict_do_update`: `row_count`, `truncated`, `fetched_at`) with `truncated = len(rows) >= ROW_LIMITS[dimension]`. Every statement names `workspace_id`.
+- `store_breakdown`: for `query`, first take `given = len(rows)`, every row Google returned (the query count), then keep the `KEEP_LIMITS["query"]` rows with the most clicks (sort by clicks, then impressions, both descending, then key); the rest are dropped here, so nothing holds 25,000 rows after the call. Delete the rows of `(integration, url_id, start, end, dimension)`; insert the kept ones with `on_conflict_do_update` on the primary key (two first opens of one page at the same moment must not fail on each other) (key: the query as returned; the country upper-cased and kept only when 3 characters long; the device upper-cased and kept only when in `gsc_store.DEVICES`; repeated keys summed); upsert the marker (`on_conflict_do_update`: `row_count` with the rows stored, `truncated`, `query_count`, `query_count_capped`, `fetched_at`). For `query`: `truncated = given > KEEP_LIMITS["query"]`, `query_count = given`, `query_count_capped = given >= FETCH_LIMITS["query"]`. For country and device: `truncated = len(rows) >= FETCH_LIMITS[dimension]`, `query_count = NULL`, `query_count_capped = False` (the table's check demands a count on the query marker and none on the others). A page Google returns no query rows for gets `query_count = 0`, never NULL. Every statement names `workspace_id`. Returns the number of rows given.
 - `ensure_history`: in one `workspace_transaction` read `history_from` and, when None, `page_filter`; when a marker exists return False. Else call `query(start=history_start(today), end=final_through, dimensions=("date",), filters=(filter,), row_limit=SEARCH_ANALYTICS_ROW_LIMIT)`, then in a new transaction `store_history`. Return True.
-- `ensure_breakdown`: read `fetched` and the filter in one transaction; for each dimension of `only` without a marker, in order: call `query(start=start, end=end, dimensions=(dimension,), filters=(filter,), row_limit=ROW_LIMITS[dimension])`, then store in its own transaction. Returns the number of calls made. An exception of a call leaves the dimensions already stored in place.
+- `ensure_breakdown`: read `fetched` and the filter in one transaction; for each dimension of `only` without a marker, in order: call `query(start=start, end=end, dimensions=(dimension,), filters=(filter,), row_limit=FETCH_LIMITS[dimension])`, then store in its own transaction. Returns the number of calls made. An exception of a call leaves the dimensions already stored in place.
 - `prune`: delete breakdown rows and markers of kind in `DIMENSIONS` whose marker has `fetched_at < now - KEEP_FETCH_DAYS days`, unless the page is tracked in `facts.project_id` and `(date_from, date_to)` is a whole calendar month. Do it as two deletes that share one subquery of the marker keys to drop; breakdown rows first. Write the calendar month test in SQL: `date_from = date_trunc('month', date_from)::date AND date_to = (date_trunc('month', date_from) + interval '1 month - 1 day')::date`.
 
 - [ ] **Step 3: Run** the test file. Expected: PASS. `uv run ruff check`, `uv run ruff format --check`, `uv run mypy` on the two files.
@@ -812,7 +912,8 @@ def page_pattern(canonical_url: str, forms: Sequence[str]) -> str:
 - [ ] **Step 1: Write the failing tests** (`test_gsc_tracked_pages.py`; real passes through `sync_integration` with `FakeSearchConsole`; seed a `core.urls` row, a `core.project_pages` row if the keys need it, and a `core.tracked_pages` row; give the fake a final day so the pass has a window):
 
 1. `test_a_pass_fetches_the_history_of_a_tracked_page_once`: `set_filtered(site, ("date",), [...])` with two days; after a pass the two `fp.gsc_page_daily` rows and the `history` marker exist; a second pass sends no filtered `("date",)` request.
-2. `test_a_pass_fetches_the_last_full_month_and_the_month_before_for_a_tracked_page`: after a pass there are six breakdown markers: the three dimensions for `last_full_month(final_through)` and for `compare_window(..., "previous_period")` of it.
+2. `test_a_pass_fetches_the_last_full_month_and_the_month_before_for_a_tracked_page`: after a pass there are six breakdown markers: the three dimensions for `last_full_month(final_through)` and for `compare_window(..., "previous_period")` of it. The two `query` markers have a `query_count` (give the fake 130 rows for the month and 90 for the month before: 130 and 90, both uncapped, and 100 breakdown rows kept for the first), and the query calls asked for 25,000 rows. The pass made 7 filtered calls for the page: the history, and three dimensions for each of the two months.
+2a. `test_a_later_month_costs_three_calls_because_the_month_before_is_already_stored`: after the pass of test 2 (final day 22 November: October, and September before it), run a pass with the fake's final day moved to 30 November. November is now the last full month and October, stored as the last month before, is not fetched again: exactly 3 filtered breakdown calls are made for the page (November's three dimensions), no history call, and the November `query` marker has its count. This is the "3 calls a month" of the spec's quota table.
 3. `test_a_page_that_is_not_tracked_is_not_fetched`: no filtered request at all.
 4. `test_the_step_stops_on_the_budget_and_the_next_pass_goes_on`: three tracked pages and a `SyncContext.monotonic` that passes the deadline after the first page's fetches; the first pass reports `more=True` and the markers of one page; a second pass (fresh clock) completes the other two.
 5. `test_a_quota_error_in_the_step_fails_the_pass_and_keeps_what_was_stored`: `quota_after` set so the second filtered call fails; outcome `FAILED`, the first marker stays.
@@ -825,7 +926,7 @@ Run the two files. Expected: FAIL.
 
 - [ ] **Step 2: Implement in `gsc_sync.py`.**
 
-`_Pass._query` gains two keyword parameters, passed through to `google.search_analytics`: `filters: Sequence[DimensionFilter] = ()` and `row_limit: int | None = None` (None keeps `self._ctx.page_size`). The aggregation line becomes `aggregation="byProperty" if tuple(dimensions) == ("date",) and not filters else "auto"`: Google refuses property aggregation for a call that filters by page, and the page history call is exactly `("date",)` with a page filter.
+`_Pass._query` gains two keyword parameters, passed through to `google.search_analytics`: `filters: Sequence[DimensionFilter] = ()` and `row_limit: int | None = None` (None keeps `self._ctx.page_size`; the query read passes 25,000 and Google returns at most that many rows in one answer, so no `startRow` paging is added). The aggregation line becomes `aggregation="byProperty" if tuple(dimensions) == ("date",) and not filters else "auto"`: Google refuses property aggregation for a call that filters by page, and the page history call is exactly `("date",)` with a page filter.
 
 Add to `_Pass`:
 
@@ -860,6 +961,8 @@ Add to `_Pass`:
                 await gsc_page_detail.ensure_history(
                     sessions, self._page_query, facts, page, today=today, final_through=latest
                 )
+                # `ensure_breakdown` asks only for what has no marker, so the month before is
+                # fetched once, when the page is tracked, and a later month reuses it (D21).
                 for window in (month, before):
                     if window is not None:
                         await gsc_page_detail.ensure_breakdown(
@@ -892,7 +995,7 @@ In `run`, the step goes after the history sweep, so a failing page never holds t
         return self._ctx.page_totals and await self._tracked_pages(latest)
 ```
 
-`self.calls` already counts every `_query`, so the report shows these calls.
+`self.calls` already counts every `_query`, so the report shows these calls. The query read of this step asks for 25,000 rows (`FETCH_LIMITS`), so one answer can take seconds: the step's budget check between pages (`_out_of_time`) is what keeps the pass inside its 5 minutes, and an answer is counted and cut to 100 rows by `store_breakdown` at once.
 
 - [ ] **Step 3: Implement in `gsc_plan.py`.** In `_send_unfinished`, add a third alternative to the `or_(...)`: an `exists()` over `tracked_pages` for the integration's `workspace_id` and `project_id` with no `gsc_page_fetches` row of `kind == 'history'` for that integration and `url_id` (a correlated `~exists()` inside). Update the function's comment and the module docstring's sentence about what is sent again. `PullState.read(...).retry_due(now)` still guards the send, so a failing property waits.
 
@@ -1000,7 +1103,7 @@ def live_google(resources: Resources, facts: IntegrationFacts) -> LiveGoogle | N
     """None where this installation has no Google client or encryption key."""
 ```
 
-`query` satisfies `gsc_page_detail.PageQuery`. Its steps: the access token (first use: read the refresh token with `vault.read` in a `workspace_transaction`, then `google.refresh`; keep it on the object); `wait = limiter.try_acquire(user=facts.account, site=facts.site_url)` and raise `GscBusyError(retry_after=ceil(wait))` when positive; call `google.search_analytics(..., data_state="final", aggregation="auto", filters=filters, row_limit=row_limit)`; on `GoogleUnauthorizedError` refresh once and try once more. Map errors: `GoogleQuotaError` (call `limiter.quota_exceeded(site=...)`, raise `GscBusyError(retry_after=QUOTA_RETRY_SECONDS)`), `GoogleInvalidGrantError` and `SecretUnreadableError` (`LiveStateError("reauth_required")`), `GooglePermissionError` (`LiveStateError("no_access")`), every other `GoogleError` (the same `503 google_unavailable` problem the integrations service raises: reuse its class and code, do not invent a second one). Declare `GscBusyError` the way `problems.py` declares a 429 with `retry_after`; if no problem carries `retry_after` yet, add the field to the problem body as an extension member named `retry_after` and say so in the task report. Build the `GoogleClient` in `live_google` exactly as `IntegrationService._google` does (same settings, same `resources.http`). Nothing here logs a token, a query text or a response body.
+`query` satisfies `gsc_page_detail.PageQuery`. Its steps: the access token (first use: read the refresh token with `vault.read` in a `workspace_transaction`, then `google.refresh`; keep it on the object); `wait = limiter.try_acquire(user=facts.account, site=facts.site_url)` and raise `GscBusyError(retry_after=ceil(wait))` when positive; call `google.search_analytics(..., data_state="final", aggregation="auto", filters=filters, row_limit=row_limit)`; on `GoogleUnauthorizedError` refresh once and try once more. Map errors: `GoogleQuotaError` (call `limiter.quota_exceeded(site=...)`, raise `GscBusyError(retry_after=QUOTA_RETRY_SECONDS)`), `GoogleInvalidGrantError` and `SecretUnreadableError` (`LiveStateError("reauth_required")`), `GooglePermissionError` (`LiveStateError("no_access")`), every other `GoogleError` (the same `503 google_unavailable` problem the integrations service raises: reuse its class and code, do not invent a second one). Declare `GscBusyError` the way `problems.py` declares a 429 with `retry_after`; if no problem carries `retry_after` yet, add the field to the problem body as an extension member named `retry_after` and say so in the task report. Build the `GoogleClient` in `live_google` exactly as `IntegrationService._google` does (same settings, same `resources.http`). The query read of a page can return 25,000 rows (about 3.75 MB, spec D21 and R8): find where the timeout of `resources.http` is set. If it is under 30 seconds, give `search_analytics` a per-call timeout for filtered reads only (a keyword parameter, no change for the other callers) and say so in the task report. Nothing here logs a token, a query text or a response body.
 
 - [ ] **Step 4: Run** the two test files; ruff and mypy on the changed files. Expected: PASS.
 
@@ -1010,7 +1113,7 @@ def live_google(resources: Resources, facts: IntegrationFacts) -> LiveGoogle | N
 
 ### Task 8: Tracked pages routes
 
-**Read first:** spec sections 7.1 and 7.2 (the first five routes); `backend/src/idraft/api/fp/routes.py`, `service.py`, `repository.py` (the pattern); `backend/src/idraft/api/keywords/gsc_repository.py` `scope_of`; `backend/src/idraft/api/internal_links/page_tiers.py` `_site_hosts` and `_audit` (read only: learn how the project's hosts are found and how an audit row is written, then do the same through the project repository and `idraft.api.audit`, without importing a private name of that module); `backend/src/idraft/extraction/urls.py` `canonicalize`; `backend/tests/api/fp/test_ai_referrals.py` (how a route test is built).
+**Read first:** spec D21 and D22 and sections 7.1 and 7.2 (the first five routes, with `queries` and `cannibalization` on the list rows); `backend/src/idraft/api/fp/routes.py`, `service.py`, `repository.py` (the pattern); `backend/src/idraft/api/keywords/gsc_repository.py` `scope_of`; `backend/src/idraft/api/internal_links/page_tiers.py` `_site_hosts` and `_audit` (read only: learn how the project's hosts are found and how an audit row is written, then do the same through the project repository and `idraft.api.audit`, without importing a private name of that module); `backend/src/idraft/extraction/urls.py` `canonicalize`; `backend/tests/api/fp/test_ai_referrals.py` (how a route test is built).
 
 **Files:**
 - Create: `backend/src/idraft/api/fp/pages_repository.py`, `backend/src/idraft/api/fp/tracked.py`, `backend/src/idraft/api/fp/page_routes.py`, `backend/src/idraft/api/schemas/fp_pages.py`
@@ -1022,6 +1125,10 @@ def live_google(resources: Resources, facts: IntegrationFacts) -> LiveGoogle | N
 - [ ] **Step 2: Write the failing tests** (`test_tracked_pages.py`; `FINAL = date(2026, 11, 22)`):
 
 1. `test_the_list_gives_each_tracked_page_its_numbers_health_and_trend`: `/pricing` with 31 October days summing to 317 clicks and 41,200 impressions and 30 September days summing to 412 and 39,600, with position sums that give 5.9 and 3.8. `GET .../fp/tracked-pages` with no query: `meta.window` is October, `meta.compare_window` September, the row has `current.clicks == 317`, `current.ctr == pytest.approx(317 / 41200)`, `current.position == pytest.approx(5.9)`, `health.verdict == "declining"`, `health.flags == ["position_slipped"]`, `len(trend) == 31`, `history == "ready"` (seed the `history` marker), and `title`, `tier_id`, `path` as seeded. Without the marker: `history == "loading"` and `current`, `previous`, `health` and `trend` are all None, although the daily rows exist.
+1a. `test_queries_are_the_stored_counts_of_the_period_and_the_one_before`: for `/pricing` seed `kind='query'` markers of `fp.gsc_page_fetches` for exactly October and September with `query_count` 1240 and 1105. The row has `queries == {"value": 1240, "previous": 1105, "capped": False}`. Seed nothing else: no call reaches Google (the fake's `requests` stays empty).
+1b. `test_queries_are_null_where_nothing_is_stored_never_zero`: no query marker for the window: `queries is None`. A marker with `query_count == 0` gives `{"value": 0, ...}` (a stored zero is a real zero). Only the compared window's marker stored: `queries is None`. Only the current window's: `previous is None`. `compare=none`: `previous is None`. A window that is not a stored one (`from=2026-10-05&to=2026-10-11`): `queries is None`. A marker of kind `country` for the window is not read.
+1c. `test_a_capped_count_is_flagged_and_a_capped_previous_is_dropped`: current marker `query_count_capped` true: `capped` is True and `value` is 25000. Previous capped and current not: `previous is None` and `capped` is False.
+1d. `test_cannibalization_is_reserved_and_null`: every row has `cannibalization is None`, and the OpenAPI schema (`app.openapi()`) types the field as `PageCannibalization` or null with a description that says it is reserved.
 2. `test_compare_none_gives_no_previous`: `previous is None`, `compare_window is None`, verdict `stable`.
 3. `test_a_period_before_the_first_stored_day_has_no_previous`: a `history` marker with `date_from` after the compared window's start gives `previous is None`.
 4. `test_states`: no integration gives `meta.state == "not_connected"` with every number None and the rows still listed; an integration without `recent_done` gives `pending`; status `reauth_required` gives that state with numbers; status `error` gives `no_access` with numbers.
@@ -1037,7 +1144,7 @@ Add the five routes to `tests/api/test_route_access.py` (GETs: the permission of
 
 Run: `uv run pytest -n 0 --no-cov tests/api/fp/test_tracked_pages.py`. Expected: FAIL.
 
-- [ ] **Step 3: Schemas** (`api/schemas/fp_pages.py`, Pydantic, in the style of `schemas/fp.py`): `PageNumbers {clicks: int, impressions: int, ctr: float | None, position: float | None}`; `PageHealth {verdict, basis, change: float | None, absolute: float, small: bool, flags: list[str]}` with `Literal` types for verdict and basis; `SearchWindow {from_ (alias "from"), to, days}`; `SearchState = Literal["ok", "pending", "not_connected", "reauth_required", "no_access"]`; `SearchMeta {state, property: str | None, final_through: date | None, window: SearchWindow | None, compare_window: SearchWindow | None}`; `TrackedPageRow`, `TrackedPagesMeta(SearchMeta) {limit: int, tracked: int}`, `TrackedPagesResponse`; `TrackedIdsResponse`; `TrackPagesRequest {urls: list[str] (max 500), url_ids: list[str] (max 500), dry_run: bool = False}` refusing a body with neither; `TrackOutcome`, `TrackPagesResponse`; `UntrackRequest {url_ids: list[str]` 1 to 200`}`, `UntrackResponse`; `SuggestionRow`, `SuggestionsResponse`. Url ids are strings on the wire, as in `schemas/internal_links.py`: copy how that file types them. Give every field a short `description`: the web reads them in the generated client.
+- [ ] **Step 3: Schemas** (`api/schemas/fp_pages.py`, Pydantic, in the style of `schemas/fp.py`): `PageNumbers {clicks: int, impressions: int, ctr: float | None, position: float | None}`; `PageHealth {verdict, basis, change: float | None, absolute: float, small: bool, flags: list[str]}` with `Literal` types for verdict and basis; `SearchWindow {from_ (alias "from"), to, days}`; `SearchState = Literal["ok", "pending", "not_connected", "reauth_required", "no_access"]`; `SearchMeta {state, property: str | None, final_through: date | None, window: SearchWindow | None, compare_window: SearchWindow | None}`; `PageQueries {value: int, previous: int | None, capped: bool}`; `PageCannibalization {keywords: int, likely: int, co_ranking: int, unstable: int}`; `TrackedPageRow` with `queries: PageQueries | None` and `cannibalization: PageCannibalization | None = None`, the second described as "Reserved for the Cannibalization feature. Always null until it fills the field: the number of tracked keywords on which this page competes with another page of the site, split by verdict" (spec D22); `TrackedPagesMeta(SearchMeta) {limit: int, tracked: int}`, `TrackedPagesResponse`; `TrackedIdsResponse`; `TrackPagesRequest {urls: list[str] (max 500), url_ids: list[str] (max 500), dry_run: bool = False}` refusing a body with neither; `TrackOutcome`, `TrackPagesResponse`; `UntrackRequest {url_ids: list[str]` 1 to 200`}`, `UntrackResponse`; `SuggestionRow`, `SuggestionsResponse`. Url ids are strings on the wire, as in `schemas/internal_links.py`: copy how that file types them. Give every field a short `description`: the web reads them in the generated client.
 
 - [ ] **Step 4: Repository** (`pages_repository.py`). Every statement names the workspace and the project.
 
@@ -1056,16 +1163,18 @@ async def totals(db, scope, project_id, url_ids, window) -> dict[int, Totals]
 async def series(db, scope, project_id, url_id, window) -> dict[date, Totals]
 async def clicks_by_day(db, scope, project_id, url_ids, window) -> dict[int, dict[date, int]]
 async def history_starts(db, scope, url_ids) -> dict[int, date]
+async def query_counts(db, scope, project_id, url_ids, window) -> dict[int, tuple[int, bool]]   # url_id -> (query_count, capped)
 async def suggestions(db, scope, workspace_id, project_id, window, limit) -> list[...]
 ```
 
 - `search_scope`: the project's `gsc` integration that is not `disabled`, with its connection. None: `not_connected`. Integration or connection `reauth_required`: that state. Integration `error`: `no_access`. Otherwise `ok` when `PullState.read(...).window_end` is set and `recent_done`, else `pending`. `final_through` is `window_end` in every state that has one.
 - `totals`: `sum(clicks)`, `sum(impressions)`, `sum(position_sum)`, and `sum(impressions) FILTER (WHERE position_sum IS NOT NULL)` grouped by `url_id`, into `domain.page_search.Totals`.
+- `query_counts`: the `query_count` and `query_count_capped` of the `kind = 'query'` markers of `fp.gsc_page_fetches` for the integration, the project and `date_from`, `date_to` equal to the window, for the given url ids, in one query per window (two for the list). A page without such a marker is absent from the answer. Nothing is summed or estimated: the count is exactly what the query read stored.
 - `title`: a left join to `core.crawl_pages` of the project's latest finished crawl. Find how "latest finished" is decided by reading `api/internal_links/page_tiers.py` `crawl_scope` (state and ordering columns of `core.crawl_runs`) and write the same condition as a scalar subquery here. If `core.crawl_pages` has no title column, read `tables.py` for where the title is kept and say what you used in the report.
 
 - [ ] **Step 5: Service and routes.** `TrackedPagesService(sessions)` in `tracked.py` with `list`, `ids`, `add`, `remove`, `suggestions`; a project outside the workspace is `NotFoundError`, checked as `FpService` checks it. `TRACKED_PAGES_LIMIT: Final = 200`.
 
-- `list`: scope; with no `final_through` every number is None. Else `first, last = window_of(start, end, final_through)` (map `WindowTooLargeError` to the `422 window_too_large` problem that `fp/ai-referrals` raises, and the `ValueError` to the validation error that route gives for a start after an end); `compared = compare_window(first, last, compare)`; totals for both windows in two queries; a page with no `history` marker gets `current`, `previous`, `health` and `trend` as None (spec D19) and `history: "loading"`; for the others `previous` is None when `compared` is None, or when (the page's history starts later than `compared[0]`) and (the page has no row in the compared window); `health_of(current, previous, days, compared days)`; `trend` from `clicks_by_day`, one value per day of the window, 0 for a day without a row.
+- `list`: scope; with no `final_through` every number is None. Else `first, last = window_of(start, end, final_through)` (map `WindowTooLargeError` to the `422 window_too_large` problem that `fp/ai-referrals` raises, and the `ValueError` to the validation error that route gives for a start after an end); `compared = compare_window(first, last, compare)`; totals for both windows in two queries; a page with no `history` marker gets `current`, `previous`, `health` and `trend` as None (spec D19) and `history: "loading"`; for the others `previous` is None when `compared` is None, or when (the page's history starts later than `compared[0]`) and (the page has no row in the compared window); `health_of(current, previous, days, compared days)`; `trend` from `clicks_by_day`, one value per day of the window, 0 for a day without a row. `queries`: `query_counts` for the window and (when `compared` is not None) for the compared window; no current entry gives `queries = None`; otherwise `value` is its count, `capped` its flag, and `previous` is the compared count unless there is none or it was capped (then None). It is read whatever the row's `history` is, and the `not_connected` state gives None. `cannibalization` is always None (spec D22): the service does not read anything for it, and a comment on the field says why and points at the spec.
 - `add`: per input, in order: a path (starts with `/`) is joined to `https://<primary host>`; `canonicalize` (failure: `invalid_url`); host not one of the project's hosts: `wrong_host`; no `core.urls` row by `url_hash` joined to `core.project_pages` of the project: `not_crawled`; already tracked or repeated in this request: `already_tracked`; room left: `added` (insert) or `ok` (dry run); else `over_limit`. `url_ids` follow the same checks from `not_crawled` on. One transaction; lock the count with `SELECT ... FOR UPDATE` on the project row (or an advisory lock keyed by the project) so two requests cannot pass 200 together. One audit row when anything was added.
 - Routes in `page_routes.py`: `router = APIRouter(prefix=f"{PROJECT}/fp", tags=["first-party"])` with the five routes of the spec; `ReadData` and a `WriteProject` dependency declared as `page_tier_routes.py` declares its own; summaries and descriptions in plain sentences that state the rules of spec section 7.2. Include the router in `main.py` next to `fp_router`.
 
@@ -1093,6 +1202,7 @@ async def suggestions(db, scope, workspace_id, project_id, window, limit) -> lis
 5. `test_a_page_outside_the_project_is_not_found`: a url id with no `core.project_pages` row for this project: `404 not_found`. Same for another workspace's project.
 6. `test_not_connected_and_pending_answer_200_with_no_numbers`.
 7. `test_a_breakdown_is_fetched_once_and_served_from_the_store`: `dimension=country` with compare: two filtered `("country",)` requests (window and compared window), rows merged by key, ordered by current clicks, `previous` None for a key only in the current period and `current` None for one only in the previous; `ctr` and `position` computed from the sums; the second request reaches Google with nothing.
+7a. `test_the_query_breakdown_asks_for_25000_rows_and_serves_the_top_100`: the fake answers `("query",)` with 130 rows; `dimension=query` with `compare=none`: one filtered request with `rowLimit == 25000` and `startRow == 0`, 100 rows in `data` (the most clicks first), `meta.row_limit == 100`, `meta.truncated` true; the marker holds `query_count == 130`; a second request makes no call.
 8. `test_coverage_is_the_rows_clicks_over_the_page_s_clicks`: query rows summing to 88 clicks, page total 100: `coverage == pytest.approx(0.88)`; a page with no clicks: `coverage is None`.
 9. `test_a_breakdown_that_cannot_be_fetched_is_429_gsc_busy_with_retry_after` (spent bucket, no marker) and `test_a_stored_breakdown_is_served_when_the_budget_is_spent`.
 10. `test_reauth_required_serves_stored_breakdowns_and_fetches_nothing`: state `reauth_required`, one stored period: its rows come back; an unstored period gives `200` with `data == []`.
@@ -1111,7 +1221,7 @@ class PageSearchService:
 
 `detail`: project check, `page_row` (None: `NotFoundError`), `search_scope`. With `state == "ok"` and no history marker: load the `IntegrationFacts` (`gsc_store.load_integration`), build the live caller, `ensure_history(...)`; catch `GscBusyError` (keep its `retry_after` for `meta.retry_after`) and the `503` problem; catch `LiveStateError` and answer with its state. A page that still has no history marker after this answers with `current`, `previous` and `health` None and both series empty (spec D19). Otherwise totals, compared totals, health and both series exactly as task 8 computes them for one page (share the helper, do not copy it). `previous_series` is aligned to the compared window's own days.
 
-`breakdown`: the same checks. For each of the window and the compared window: if `state == "ok"` and the dimension has no marker, `ensure_breakdown(..., only=(dimension,))`; here `GscBusyError` and the `503` problem are raised to the client, and `LiveStateError` answers stored rows with its state. Read the stored rows of both windows (add `breakdown_rows(db, scope, url_id, window, dimension) -> dict[str, Totals]` and `fetch_marker(...)` to the repository), merge keys, order by current clicks descending, then previous clicks descending, then key. `coverage`: sum of current rows' clicks over the page's clicks of the window, None when the page's clicks are 0, capped at 1.0. `row_limit` from `ROW_LIMITS`; `truncated` and `fetched_at` from the current window's marker (None before a fetch).
+`breakdown`: the same checks. For each of the window and the compared window: if `state == "ok"` and the dimension has no marker, `ensure_breakdown(..., only=(dimension,))`; here `GscBusyError` and the `503` problem are raised to the client, and `LiveStateError` answers stored rows with its state. Read the stored rows of both windows (add `breakdown_rows(db, scope, url_id, window, dimension) -> dict[str, Totals]` and `fetch_marker(...)` to the repository), merge keys, order by current clicks descending, then previous clicks descending, then key. `coverage`: sum of current rows' clicks over the page's clicks of the window, None when the page's clicks are 0, capped at 1.0. `row_limit` from `KEEP_LIMITS` (the rows kept: 100 for queries, though the read asked for 25,000); `truncated` and `fetched_at` from the current window's marker (None before a fetch).
 
 Routes: `GET /page-search/{url_id}` and `GET /page-search/{url_id}/breakdown` with `dimension: Literal["query", "country", "device"]`, `from`, `to`, `compare` (default `previous_period`). The dependency that builds the service passes `lambda facts: live_google(resources, facts)`.
 
@@ -1127,8 +1237,8 @@ Routes: `GET /page-search/{url_id}` and `GET /page-search/{url_id}/breakdown` wi
 - Modify: `backend/openapi/v1.json`, `docs/19-api-specification.md`
 
 - [ ] **Step 1:** From `backend/`: `uv run python -m idraft.api.openapi > openapi/v1.json`.
-- [ ] **Step 2:** `uv run pytest -n 0 --no-cov tests/api/test_openapi.py`. Expected: PASS. `git diff --stat openapi/v1.json` shows only the seven new paths and the new schemas.
-- [ ] **Step 3:** In `docs/19-api-specification.md` section 3.10: replace the sentence that begins "The per-URL Search Console routes `{P}/page-performance/*`" by one that names the spec of 2026-11-26, and add seven rows to the first-party table (method, path, permission, request, response in one line each, errors `422 window_too_large`, `429 gsc_busy`, `503 google_unavailable`, phase 11). No dashes.
+- [ ] **Step 2:** `uv run pytest -n 0 --no-cov tests/api/test_openapi.py`. Expected: PASS. `git diff --stat openapi/v1.json` shows only the seven new paths and the new schemas. Read the generated `TrackedPageRow`: it has `queries` (`PageQueries`, nullable) and `cannibalization` (`PageCannibalization`, nullable, description saying it is reserved and always null for now). The web plan's types are generated from these.
+- [ ] **Step 3:** In `docs/19-api-specification.md` section 3.10: replace the sentence that begins "The per-URL Search Console routes `{P}/page-performance/*`" by one that names the spec of 2026-11-26, and add seven rows to the first-party table (method, path, permission, request, response in one line each, errors `422 window_too_large`, `429 gsc_busy`, `503 google_unavailable`, phase 11). The tracked-pages list row mentions `queries` (stored count of different queries Google reports for the period, with the previous count) and `cannibalization` (reserved, always null until the Cannibalization feature fills it). No dashes.
 - [ ] **Step 4: Review, commit.** `git commit -m "OpenAPI and the API catalog: tracked pages and page search"`
 
 If this branch is merged with another branch that changed `backend/openapi/v1.json`, never merge the file by hand: take either side and run step 1 again.
@@ -1136,5 +1246,6 @@ If this branch is merged with another branch that changed `backend/openapi/v1.js
 ## Self-review
 
 - Spec D18 (plain numbers) and D19 (no numbers before the history marker): tasks 8 and 9. The aggregation rule of the filtered reads: tasks 1 and 6.
+- Spec D21 (query count): tasks 2b (columns), 5 (25,000 row read, top 100 and the count stored), 6 (both months for tracked pages, 3 calls a later month), 8 (the list's `queries`), 9 (the query breakdown). D22 (Cannibalization reserved): tasks 8 (the field, always null) and 10 (the contract). Quota: unchanged call counts (7 to track, 3 a month), recomputed in spec section 5.2.
 - Spec D1: task 3. D2: tasks 5, 6, 9. D3: tasks 5, 6, 9. D4: tasks 3, 5. D5: task 7. D6, D7, D12, D13: task 4. D8, D9, D10, D11: tasks 2, 8. D15: tasks 8, 9. Section 5.5 retention: tasks 3, 5, 6. Section 8: task 6. Section 14: tasks 2, 8, 9 (access and cross-tenant rows).
 - Not in this plan by design (spec section 13): URL Inspection, shape D, search appearance, sitemap import, export route.
