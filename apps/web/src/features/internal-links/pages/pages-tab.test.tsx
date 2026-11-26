@@ -659,6 +659,89 @@ describe('the crawl in view on All pages', () => {
   });
 });
 
+describe('the folder, depth and variants filters (spec 7.4)', () => {
+  it('sends the folder chosen in the filter bar as filter[folder]', async () => {
+    const reads = pageReads();
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    await user.click(await screen.findByRole('button', { name: 'Add a filter' }));
+    await user.click(await screen.findByRole('button', { name: 'Folder' }));
+    await user.click(await screen.findByRole('radio', { name: '/blog/' }));
+    await waitFor(() => expect(reads().some((query) => query.get('filter[folder]') === '/blog/')).toBe(true));
+  });
+
+  it('keeps a folder of the address from a cold start, with its chip and its request', async () => {
+    const reads = pageReads();
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?view=live&folder=/blog/' });
+    expect(await screen.findByRole('button', { name: 'Folder: /blog/. Edit filter' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        reads().some((query) => query.get('filter[view]') === 'live' && query.get('filter[folder]') === '/blog/'),
+      ).toBe(true),
+    );
+  });
+
+  it('sends the depth of the address and draws a chip that clears it', async () => {
+    const reads = pageReads();
+    const updates: string[] = [];
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: '?depth=3',
+      onUrlUpdate: ({ queryString }) => updates.push(queryString),
+    });
+    await grid();
+    await waitFor(() => expect(reads()[0]?.get('filter[depth]')).toBe('3'));
+    await user.click(await screen.findByRole('button', { name: 'Remove the filter 3 clicks from the home page' }));
+    await waitFor(() => expect(updates.at(-1)).not.toContain('depth'));
+    await waitFor(() => expect(reads().at(-1)?.has('filter[depth]')).toBe(false));
+  });
+
+  it('says Home page for depth 0 and a plural for 6', async () => {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?depth=0' });
+    expect(await screen.findByRole('button', { name: 'Remove the filter Home page' })).toBeInTheDocument();
+  });
+
+  it('sends the variants of the address as filter[include_variants] and draws a chip that clears it', async () => {
+    const reads = pageReads();
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?variants=1' });
+    await rowOf('/pricing');
+    expect(reads()[0]?.get('filter[include_variants]')).toBe('true');
+    const remove = await screen.findByRole('button', { name: 'Remove the filter With parameter variants' });
+    remove.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(reads().at(-1)?.has('filter[include_variants]')).toBe(false));
+  });
+
+  it('carries the view, the folder and the depth to the CSV export', async () => {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: '?view=live&folder=/blog/&depth=2',
+    });
+    await screen.findByRole('button', { name: 'Folder: /blog/. Edit filter' });
+    await user.click(screen.getByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    await waitFor(() => expect(downloadApiFile).toHaveBeenCalled());
+    expect(vi.mocked(downloadApiFile).mock.calls.at(-1)?.[1]).toMatchObject({
+      'filter[view]': 'live',
+      'filter[folder]': '/blog/',
+      'filter[depth]': 2,
+      format: 'csv',
+    });
+  });
+
+  it('draws nothing of the Issues and Tracked seams while they are not filled', async () => {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    const table = await grid();
+    await rowOf('/pricing');
+    expect(within(table).queryByRole('columnheader', { name: /^Issues/ })).toBeNull();
+    expect(within(table).queryByRole('columnheader', { name: /^Tracked/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Columns' });
+    expect(within(dialog).queryByRole('checkbox', { name: /^Issues$/ })).toBeNull();
+    expect(within(dialog).queryByRole('checkbox', { name: /^Tracked$/ })).toBeNull();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('button', { name: 'Track in Monitoring' })).toBeNull();
+  });
+});
+
 describe('accessibility of the tab', () => {
   it.each(['light', 'dark'])('has no axe violations in the %s theme', async (theme) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');

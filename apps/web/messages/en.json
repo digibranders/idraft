@@ -9191,6 +9191,29 @@
       "ai": "AI",
       "links": "Links"
     },
+    "filters": {
+      "folder": "Folder",
+      "depthChip": "{depth, plural, =0 {Home page} =6 {6 clicks and more from the home page} one {# click from the home page} other {# clicks from the home page}}",
+      "variantsChip": "With parameter variants",
+      "remove": "Remove the filter {filter}"
+    },
+    "columns": {
+      "issues": "Issues",
+      "issuesTip": "Issues found on this page, from the Issues page",
+      "issuesCount": "{error, plural, one {# error} other {# errors}}, {warning, plural, one {# warning} other {# warnings}}, {notice, plural, one {# notice} other {# notices}}",
+      "tracked": "Tracked",
+      "trackedYes": "Tracked",
+      "trackedNo": "Not tracked"
+    },
+    "track": {
+      "action": "Track in Monitoring",
+      "onlySelection": "Choose the pages one by one to track them",
+      "done": "{added, plural, one {# page added} other {# pages added}}",
+      "already": "{count} already tracked",
+      "notLive": "{count} not added: not a live page",
+      "overLimit": "{count} not added: the limit is {limit} pages",
+      "failed": "The pages could not be tracked"
+    },
     "overview": {
       "loadFailed": "The page counts could not be loaded",
       "loadFailedReason": "Try again. If it keeps failing, the crawl may still be saving."

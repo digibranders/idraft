@@ -2,7 +2,7 @@ import { render } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { createTranslator } from 'next-intl';
 import type { ReactElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { keysOfSort, pageColumns, SORT_FIELD, sortOfKeys } from './page-columns';
 import { PAGE_SORTS } from '../url-state';
@@ -10,6 +10,12 @@ import type { Comparison } from '@/lib/internal-links/page-extras';
 import type { PageExtras, PageRow } from '@/lib/internal-links/types';
 import { crawledPages, pageRow } from '@/mocks/internal-links-world';
 import messages from '../../../../messages/en.json';
+
+// The Issues session fills this seam; the cell reads its numbers only through it
+const { issueCounts } = vi.hoisted(() => ({
+  issueCounts: vi.fn<() => { error: number; warning: number; notice: number } | null>(() => null),
+}));
+vi.mock('@/lib/pages/issue-source', () => ({ issueCountsOf: issueCounts }));
 
 const t = createTranslator({ locale: 'en', messages, namespace: 'internalLinks' });
 const groups = createTranslator({ locale: 'en', messages, namespace: 'pages.groups' });
@@ -260,5 +266,52 @@ describe('the Canonical column', () => {
     expect(cellOf('canonical', { ...BASE, canonical_url: BASE.url }).text).toBe('This page');
     expect(cellOf('canonical', { ...BASE, canonical_url: null }).text).toBe('None');
     expect(columns.find((column) => column.id === 'canonical')?.sortValue).toBeUndefined();
+  });
+});
+
+describe('the columns of the seams (spec 10.1 and 10.2)', () => {
+  const words = createTranslator({ locale: 'en', messages, namespace: 'pages.columns' });
+  const withSeams = (issues: boolean, tracked: ReadonlySet<string> | null): ReturnType<typeof pageColumns> =>
+    pageColumns(t, groups, {
+      tiers: [],
+      scope: 'editorial',
+      openJourney: () => undefined,
+      comparison: 'ready',
+      linksAvailable: true,
+      seams: { issues, tracked, t: words },
+    });
+  const shown = (built: ReturnType<typeof pageColumns>): string[] =>
+    built.filter((column) => column.defaultVisible !== false).map((column) => column.id);
+
+  it('has no Issues and no Tracked column while the seams are not filled', () => {
+    const ids = withSeams(false, null).map((column) => column.id);
+    expect(ids).not.toContain('issues');
+    expect(ids).not.toContain('tracked');
+  });
+
+  it('adds Issues to the Issues group, shown by default, and hides Flags then', () => {
+    const built = withSeams(true, null);
+    expect(built.find((column) => column.id === 'issues')?.group?.id).toBe('issues');
+    expect(shown(built)).toContain('issues');
+    expect(shown(built)).not.toContain('flags');
+    expect(built.find((column) => column.id === 'flags')?.defaultVisible).toBe(false);
+    expect(shown(columns)).toContain('flags');
+  });
+
+  it('adds Tracked to the Search group, shown by default, and says yes or no for each page', () => {
+    const built = withSeams(false, new Set([BASE.url_id]));
+    expect(built.find((column) => column.id === 'tracked')?.group?.id).toBe('search');
+    expect(shown(built)).toContain('tracked');
+    expect(cellOf('tracked', BASE, built).text).toBe('Tracked');
+    expect(cellOf('tracked', { ...BASE, url_id: 'another' }, built).text).toBe('Not tracked');
+  });
+
+  it('reads the Issues numbers only through the seam, and says none for a page without them', () => {
+    const built = withSeams(true, null);
+    issueCounts.mockReturnValueOnce({ error: 2, warning: 0, notice: 5 });
+    const counted = cellOf('issues', BASE, built).text;
+    expect(counted).toContain('2');
+    expect(counted).toContain('5');
+    expect(cellOf('issues', BASE, built).text).toBe('None');
   });
 });

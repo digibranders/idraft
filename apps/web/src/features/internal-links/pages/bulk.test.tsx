@@ -19,6 +19,19 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// The seam of the Monitoring session: unavailable as on this branch, until the one test below fills it
+const tracking = vi.hoisted(() => ({
+  available: false,
+  track: vi.fn<(urlIds: readonly string[]) => Promise<unknown>>(),
+}));
+vi.mock('@/lib/pages/tracking', () => ({
+  get TRACKING_AVAILABLE() {
+    return tracking.available;
+  },
+  useTrackedPages: () => ({ state: 'unavailable' }),
+  useTrackPages: () => ({ track: tracking.track, pending: false }),
+}));
+
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const PAGES = mswPath(`${P}/internal-links/pages`);
 const TIERS = mswPath(`${P}/pages/tiers`);
@@ -27,6 +40,8 @@ const TAGS = mswPath(`${P}/pages/tags`);
 
 beforeEach(stubWideScreen);
 afterEach(() => {
+  tracking.available = false;
+  tracking.track.mockReset();
   restoreWideScreen();
   server.events.removeAllListeners();
 });
@@ -241,6 +256,22 @@ describe('bulk tiers (spec 5.2)', () => {
     });
   });
 
+  it('sends the view and the folder of the list in the filter when every matching page is chosen', async () => {
+    stubManyPages();
+    const bodies = bodiesOf(TIERS, 'put');
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: 'view=live&folder=/blog/',
+    });
+    await screen.findByRole('button', { name: 'Folder: /blog/. Edit filter' });
+    await chooseAllMatching(user);
+    await user.keyboard('1');
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toEqual({
+      filter: { view: 'live', folder: '/blog/', include_variants: false },
+      tier_id: expect.any(String),
+    });
+  });
+
   it('forgets the selection when the filters change, and does not bring it back with them', async () => {
     stubManyPages();
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
@@ -416,5 +447,48 @@ describe('bulk tags (spec 5.3)', () => {
       { url_ids: ['116'], add: [], remove: [expect.any(String)] },
     ]);
     expect(new Set(JSON.stringify(bodies).match(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/g)).size).toBe(1);
+  });
+});
+
+describe('Track in Monitoring (spec 7.5)', () => {
+  it('offers no action while the tracking seam is not filled', async () => {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    await screen.findByRole('button', { name: 'Set tier' });
+    expect(screen.queryByRole('button', { name: 'Track in Monitoring' })).toBeNull();
+  });
+
+  it('tracks the chosen pages and repeats the numbers and the limit the outcome reports', async () => {
+    tracking.available = true;
+    tracking.track.mockResolvedValue({ added: 3, alreadyTracked: 1, notLive: 2, overLimit: 4, limit: 150 });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    await user.click(await screen.findByRole('button', { name: 'Track in Monitoring' }));
+    await waitFor(() => expect(tracking.track).toHaveBeenCalledWith(['116']));
+    expect((await screen.findAllByText('3 pages added')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/1 already tracked/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/2 not added: not a live page/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/4 not added: the limit is 150 pages/).length).toBeGreaterThan(0);
+  });
+
+  it('is disabled with its reason when every matching page is chosen', async () => {
+    tracking.available = true;
+    stubManyPages();
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await chooseAllMatching(user);
+    const action = await screen.findByRole('button', { name: 'Track in Monitoring' });
+    expect(action).toHaveAttribute('aria-disabled', 'true');
+    expect(action).toHaveAccessibleDescription('Choose the pages one by one to track them');
+    await user.click(action);
+    expect(tracking.track).not.toHaveBeenCalled();
+  });
+
+  it('says why when the pages could not be tracked', async () => {
+    tracking.available = true;
+    tracking.track.mockRejectedValue(new Error('down'));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    await user.click(await checkbox('/about'));
+    await user.click(await screen.findByRole('button', { name: 'Track in Monitoring' }));
+    expect((await screen.findAllByText('The pages could not be tracked')).length).toBeGreaterThan(0);
   });
 });

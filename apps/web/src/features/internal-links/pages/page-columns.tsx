@@ -4,6 +4,7 @@ import { Workflow } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { extraColumns } from './page-extras-cells';
+import { issuesColumn, trackedColumn, type PagesColumnWords } from './seam-columns';
 import { PAGE_SORTS } from '../url-state';
 import type { LinksTranslate } from '../tabs';
 import { ShareBarCell, type ShareColor } from '@/components/app/chart/stacked-share-bar';
@@ -87,8 +88,8 @@ export type PageGroupId = 'page' | 'indexing' | 'issues' | 'search' | 'ai' | 'li
 const LAYOUT: readonly (readonly [PageGroupId, readonly string[]])[] = [
   ['page', ['page', 'tier', 'status', 'tags']],
   ['indexing', ['reason', 'canonical', 'sitemap']],
-  ['issues', ['flags']],
-  ['search', ['clicks', 'impressions', 'keywords', 'rank']],
+  ['issues', ['issues', 'flags']],
+  ['search', ['clicks', 'impressions', 'keywords', 'rank', 'tracked']],
   ['ai', ['citations']],
   [
     'links',
@@ -110,6 +111,8 @@ const LAYOUT: readonly (readonly [PageGroupId, readonly string[]])[] = [
 ];
 /** Shown until the person chooses (the Issues and Tracked columns join when their seams are filled). */
 const DEFAULT_SHOWN: ReadonlySet<string> = new Set(['page', 'tier', 'status', 'reason', 'flags', 'clicks']);
+/** The columns that exist only while their seam is filled (spec D10). */
+const SEAM_COLUMNS: ReadonlySet<string> = new Set(['issues', 'tracked']);
 
 /**
  * The Pages columns of spec 7.2, without equity (decision W4), grouped Page, Indexing, Issues, Search, AI and Links.
@@ -125,6 +128,7 @@ export function pageColumns(
     comparison,
     linksAvailable,
     olderCrawlDate = null,
+    seams,
   }: {
     tiers: readonly PageTier[];
     scope: LinkScope;
@@ -135,6 +139,11 @@ export function pageColumns(
     linksAvailable: boolean;
     /** The date of the crawl in view when it is not the latest: the Today columns say it differs from them. */
     olderCrawlDate?: string | null;
+    /**
+     * The columns of the Issues and Monitoring seams: `issues` when the pages list carries the counts, `tracked`
+     * with the ids of the tracked pages once they are known. Absent, the table has neither column.
+     */
+    seams?: { issues: boolean; tracked: ReadonlySet<string> | null; t: PagesColumnWords };
   },
 ): Column[] {
   const extras = extraColumns(t, { comparison, linksAvailable, olderCrawlDate }, custom);
@@ -310,18 +319,27 @@ export function pageColumns(
       },
     ),
     ...extras.optional,
+    ...(seams?.issues === true ? [issuesColumn(seams.t, t('columns.none'), custom)] : []),
+    ...(seams?.tracked ? [trackedColumn(seams.t, seams.tracked, custom)] : []),
   ];
   const byId = new Map(all.map((column) => [column.id, column]));
+  // With the Issues column the Flags column steps back into the chooser
+  const shown = new Set(DEFAULT_SHOWN);
+  if (byId.has('issues')) shown.delete('flags');
+  for (const id of SEAM_COLUMNS) if (byId.has(id)) shown.add(id);
   // Columns of one group are adjacent here: the chooser draws a heading per run, so a person who moves a column
   // across groups gets a repeated heading, which is accepted (the table's header splits the run the same way)
   return LAYOUT.flatMap(([group, ids]) =>
-    ids.map((id) => {
+    ids.flatMap((id) => {
       const column = byId.get(id);
-      if (column === undefined) throw new Error(`The Pages layout names an unknown column: ${id}`);
+      if (column === undefined) {
+        if (SEAM_COLUMNS.has(id)) return [];
+        throw new Error(`The Pages layout names an unknown column: ${id}`);
+      }
       return {
         ...column,
         group: { id: group, label: groups(group) },
-        defaultVisible: DEFAULT_SHOWN.has(id),
+        defaultVisible: shown.has(id),
         // Only the columns of SORT_FIELD sort: the server sorts, so a column without a server field must not offer it
         ...(SORT_FIELD[id] === undefined ? { sortValue: undefined } : {}),
       };

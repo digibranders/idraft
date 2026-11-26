@@ -15,6 +15,8 @@ export const UNTIERED_QUERY = `tier=${UNTIERED_VALUE}`;
 /** The most ids the API takes for each list filter (a workspace has 8 tiers and Untiered, so the tier cap cannot bite). */
 export const MAX_TIERS = 9;
 export const MAX_TAGS = 50;
+/** The longest `filter[folder]` the API takes. */
+const MAX_FOLDER = 200;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx', 'blocked'];
@@ -45,6 +47,7 @@ export function pageFilterFields(
   tiers: readonly PageTier[],
   tags: readonly { termId: string; name: string }[],
   tagsLoading: boolean,
+  folders: { sections: readonly string[]; loading: boolean; label: string },
 ): FilterField[] {
   return [
     {
@@ -72,6 +75,15 @@ export function pageFilterFields(
       multi: true,
       label: t('filters.status'),
       options: STATUSES.map((value) => ({ value, label: value === 'blocked' ? t('filters.blocked') : value })),
+    },
+    {
+      id: 'folder',
+      kind: 'enum',
+      multi: false,
+      label: folders.label,
+      // The sections of the Overview read, largest first; a section is its own label
+      options: folders.sections.map((section) => ({ value: section, label: section })),
+      optionsLoading: folders.loading,
     },
     {
       id: 'idx',
@@ -106,6 +118,7 @@ export function pageQueryOf(
   host = '',
 ): PageQuery {
   const idx = enumValuesOf(values.idx)[0];
+  const [folder] = enumValuesOf(values.folder);
   return {
     scope: state.scope,
     tierIds: enumValuesOf(values.tier)
@@ -121,7 +134,7 @@ export function pageQueryOf(
     flags: enumValuesOf(values.flag).filter((value): value is PageFlagFilter => FLAGS.some(([flag]) => flag === value)),
     worklist: state.worklist,
     view: state.view,
-    folder: null,
+    folder: folder !== undefined && folder.startsWith('/') && folder.length <= MAX_FOLDER ? folder : null,
     depth: state.depth,
     includeVariants: state.variants,
     q: searchPathOf(state.q, host),

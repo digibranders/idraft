@@ -1,7 +1,7 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Layers, Tag, Tags, Workflow } from 'lucide-react';
+import { Eye, Layers, Tag as TagIcon, Tags, Workflow } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsString, useQueryStates } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
@@ -27,6 +27,7 @@ import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
+import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
@@ -40,11 +41,14 @@ import {
   changesSummaryQuery,
   isPageRowPage,
   moreIncludes,
+  overviewQuery,
   pagesPath,
   pagesQuery,
   withRun,
 } from '@/lib/internal-links/queries';
 import type { PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
+import { ISSUE_COLUMNS_AVAILABLE } from '@/lib/pages/issue-source';
+import { TRACKING_AVAILABLE, useTrackedPages, useTrackPages } from '@/lib/pages/tracking';
 import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
@@ -96,9 +100,19 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
         .flatMap((entry) => entry.terms.map((term) => ({ termId: term.termId, name: term.path }))),
     [vocabularies.loaded],
   );
+  // The sections of the Overview read (shared through the query cache) are the Folder filter's options
+  const pagesWords = useTranslations('pages');
+  const overview = useQuery(overviewQuery(scope, context.crawl.run));
+  const sections = useMemo(() => overview.data?.data.sections.map((entry) => entry.section) ?? [], [overview.data]);
+  const folderLabel = pagesWords('filters.folder');
   const fields = useMemo(
-    () => pageFilterFields(t, tiers, tags, vocabularies.pending || vocabularies.error),
-    [t, tiers, tags, vocabularies.pending, vocabularies.error],
+    () =>
+      pageFilterFields(t, tiers, tags, vocabularies.pending || vocabularies.error, {
+        sections,
+        loading: overview.isPending,
+        label: folderLabel,
+      }),
+    [t, tiers, tags, vocabularies.pending, vocabularies.error, sections, overview.isPending, folderLabel],
   );
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
@@ -155,6 +169,10 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
     context.crawl.older && crawled !== null
       ? formatIsoDate(crawled.finished_at ?? crawled.created_at, context.timeZone)
       : null;
+  // The Issues and Tracked columns exist only while their seams are filled (spec D10)
+  const trackedRead = useTrackedPages(scope);
+  const trackedIds = trackedRead.state === 'ready' ? trackedRead.data : null;
+  const columnWords = useTranslations('pages.columns');
   const columns = useMemo(
     () =>
       pageColumns(t, groups, {
@@ -164,8 +182,20 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
         comparison,
         linksAvailable,
         olderCrawlDate,
+        seams: { issues: ISSUE_COLUMNS_AVAILABLE, tracked: trackedIds, t: columnWords },
       }),
-    [t, groups, tiers, state.scope, context.openJourney, comparison, linksAvailable, olderCrawlDate],
+    [
+      t,
+      groups,
+      tiers,
+      state.scope,
+      context.openJourney,
+      comparison,
+      linksAvailable,
+      olderCrawlDate,
+      trackedIds,
+      columnWords,
+    ],
   );
   const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(
@@ -277,6 +307,28 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
   const bulk = usePageBulk(scope, query, clearSelection);
   const target: BulkTarget = { ids: [...chosen.ids], allMatching: chosen.all };
   const targetCount = chosen.all ? (total ?? 0) : chosen.ids.size;
+  // Track in Monitoring: a chosen set of pages only, and the numbers and the limit are the seam's to report
+  const trackPages = useTrackPages(scope);
+  const trackSelected = async (): Promise<void> => {
+    try {
+      const outcome = await trackPages.track(target.ids);
+      const notes = [
+        outcome.alreadyTracked > 0 ? pagesWords('track.already', { count: outcome.alreadyTracked }) : null,
+        outcome.notLive > 0 ? pagesWords('track.notLive', { count: outcome.notLive }) : null,
+        outcome.overLimit > 0
+          ? pagesWords('track.overLimit', { count: outcome.overLimit, limit: outcome.limit })
+          : null,
+      ].filter((note): note is string => note !== null);
+      toast({
+        type: 'success',
+        title: pagesWords('track.done', { added: outcome.added }),
+        ...(notes.length === 0 ? {} : { description: formatList(notes, locale) }),
+      });
+      clearSelection();
+    } catch {
+      toast({ type: 'error', title: pagesWords('track.failed') });
+    }
+  };
   const [tierDialog, setTierDialog] = useState(false);
   const [tagDialog, setTagDialog] = useState<'add' | 'remove' | null>(null);
   // The journey opens from a loaded row: one chosen page that is on another page of the list has none to open from
@@ -296,7 +348,7 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
     {
       id: 'add-tag',
       label: bulkWords('addTag'),
-      icon: Tag,
+      icon: TagIcon,
       group: 'object',
       onSelect: () => {
         bulk.clearError();
@@ -313,6 +365,20 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
         setTagDialog('remove');
       },
     },
+    ...(TRACKING_AVAILABLE
+      ? [
+          {
+            id: 'track',
+            label: pagesWords('track.action'),
+            icon: Eye,
+            group: 'object' as const,
+            disabledReason: chosen.all ? pagesWords('track.onlySelection') : null,
+            onSelect: () => {
+              if (!chosen.all && !trackPages.pending) void trackSelected();
+            },
+          },
+        ]
+      : []),
     {
       id: 'open-journey',
       label: bulkWords('openJourney'),
@@ -358,6 +424,22 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
           <>
             <TierSuggestions scope={scope} onEmptied={focusView} />
             <FilterBar compact fields={fields} values={values} onChange={setValues} />
+            {state.depth === null ? null : (
+              <Tag
+                label={pagesWords('filters.depthChip', { depth: state.depth })}
+                removeLabel={pagesWords('filters.remove', {
+                  filter: pagesWords('filters.depthChip', { depth: state.depth }),
+                })}
+                onRemove={() => setSearch({ depth: null })}
+              />
+            )}
+            {state.variants ? (
+              <Tag
+                label={pagesWords('filters.variantsChip')}
+                removeLabel={pagesWords('filters.remove', { filter: pagesWords('filters.variantsChip') })}
+                onRemove={() => setSearch({ variants: null })}
+              />
+            ) : null}
             {scopeShown ? (
               <ScopeMenu
                 scope={state.scope}
