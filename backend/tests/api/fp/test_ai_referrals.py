@@ -29,7 +29,7 @@ PREVIOUS_FROM, PREVIOUS_TO = "2026-10-22", "2026-10-31"
 SINCE = "2026-08-01"
 NOTES = [
     "Google AI Mode and Google AI Overview are not counted: Google Analytics files their "
-    "sessions under organic search.",
+    "visits under organic search.",
     "The figures are a lower bound: visits without a referrer, such as clicks from native apps, "
     "are filed under direct.",
     "The two classifiers are shown side by side and neither is labelled correct.",

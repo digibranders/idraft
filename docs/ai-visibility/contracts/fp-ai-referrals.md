@@ -111,7 +111,7 @@ The window is read the way the prompts summary reads it, so the same bounds and 
 
 `meta.notes` always holds these three sentences, in this order, then the ones that apply:
 
-1. `Google AI Mode and Google AI Overview are not counted: Google Analytics files their sessions under organic search.`
+1. `Google AI Mode and Google AI Overview are not counted: Google Analytics files their visits under organic search.`
 2. `The figures are a lower bound: visits without a referrer, such as clicks from native apps, are filed under direct.`
 3. `The two classifiers are shown side by side and neither is labelled correct.`
 
