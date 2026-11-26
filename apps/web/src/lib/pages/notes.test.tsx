@@ -69,6 +69,8 @@ describe('usePageNotes', () => {
           id,
           author: { id: 'a', name: 'A' },
           body: id,
+          mentions: [],
+          attachments: [],
           created_at: '2026-11-20T10:00:00Z',
           edited_at: null,
           can_edit: false,

@@ -122,4 +122,56 @@ describe('the notes store of the mocked API', () => {
     expect(second?.next).toBeNull();
     expect(notesAfter(PROJECT, PRICING, PRIYA, 'nope', 2)).toBeNull();
   });
+
+  it('holds no mention and no file on a note that sends none', () => {
+    const made = add(PROJECT, PRICING, MEI, 'Plain');
+    expect(made.ok && made.note.mentions).toEqual([]);
+    expect(made.ok && made.note.attachments).toEqual([]);
+  });
+
+  describe('mentions', () => {
+    const page = { type: 'page', label: '@/pricing', target: '108' };
+    const mate = { type: 'user', label: '@Priya Natarajan', target: PRIYA.id };
+
+    it('keeps the ones whose label is in the text, once per label', () => {
+      const made = add(PROJECT, PRICING, MEI, 'See @/pricing and @/pricing', [page, page, mate]);
+      expect(made.ok && made.note.mentions).toEqual([page]);
+    });
+
+    it('drops a mention whose label an edit removed, and keeps the rest when none are sent', () => {
+      const made = add(PROJECT, PRICING, MEI, 'See @/pricing and @Priya Natarajan', [page, mate]);
+      if (!made.ok) throw new Error('refused');
+      const changed = change(PROJECT, PRICING, made.note.id, MEI, 'Only @/pricing now');
+      expect(changed.ok && changed.note.mentions).toEqual([page]);
+    });
+
+    it('takes the list a change sends instead of the stored one', () => {
+      const made = add(PROJECT, PRICING, MEI, 'See @/pricing', [page]);
+      if (!made.ok) throw new Error('refused');
+      const changed = change(PROJECT, PRICING, made.note.id, MEI, 'Ask @Priya Natarajan', [mate]);
+      expect(changed.ok && changed.note.mentions).toEqual([mate]);
+    });
+
+    it('refuses an issue and names the entry', () => {
+      const issue = { type: 'issue', label: '@Missing title', target: 'title_missing' };
+      expect(add(PROJECT, PRICING, MEI, 'Fix @Missing title', [page, issue])).toMatchObject({
+        ok: false,
+        error: 'invalid',
+        field: { path: 'mentions[1].type', code: 'mention_type_unavailable' },
+      });
+      // Not in the text: dropped before it is judged, as the API does
+      expect(add(PROJECT, PRICING, MEI, 'Nothing here', [issue]).ok).toBe(true);
+    });
+
+    it('refuses an unknown type, a label without an at sign and more than 20', () => {
+      expect(add(PROJECT, PRICING, MEI, 'x @a', [{ ...page, type: 'url' }])).toMatchObject({
+        field: { path: 'mentions[0].type' },
+      });
+      expect(add(PROJECT, PRICING, MEI, 'x', [{ ...page, label: 'x' }])).toMatchObject({
+        field: { path: 'mentions[0].label' },
+      });
+      const many = Array.from({ length: 21 }, (_, index) => ({ ...page, label: `@p${String(index)}` }));
+      expect(add(PROJECT, PRICING, MEI, 'x', many)).toMatchObject({ field: { path: 'mentions', code: 'too_long' } });
+    });
+  });
 });

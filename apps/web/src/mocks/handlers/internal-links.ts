@@ -45,6 +45,7 @@ import {
   restore as restoreNote,
   type NoteActor,
   type NoteFailure,
+  type NoteField,
 } from '../internal-links-notes';
 import { checkBody, invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
@@ -385,10 +386,21 @@ const noteIdError = (request: Request, id: string): HttpResponse<Problem> | null
       ]);
 
 /** The answer for a refused note write, with the API's wording. */
-function noteFailure(request: Request, error: NoteFailure, forbidden: string, detail?: string): HttpResponse<Problem> {
-  if (error === 'invalid') return invalidField(request, 'body', 'value_error', detail ?? 'Not a note.');
+function noteFailure(
+  request: Request,
+  error: NoteFailure,
+  forbidden: string,
+  detail?: string,
+  field?: NoteField,
+): HttpResponse<Problem> {
+  if (error === 'invalid') {
+    return invalidField(request, field?.path ?? 'body', field?.code ?? 'value_error', detail ?? 'Not a note.');
+  }
   return error === 'not_found' ? problem(request, 'not_found') : problem(request, 'forbidden', { detail: forbidden });
 }
+
+/** The members of a note write besides `body` (`attachment_ids` is accepted and left to the upload task). */
+const NOTE_STRUCTURED = ['mentions', 'attachment_ids'] as const;
 
 /** `limit` of the notes list: 1 to 100, 50 when left out. `null` when it is not a whole number in range. */
 function noteLimit(url: URL): number | null {
@@ -1191,12 +1203,12 @@ export const internalLinkHandlers: HttpHandler[] = [
     const found = noteCaller(request, cookies, params, { permission: 'notes:write' });
     if (found instanceof Response) return found;
     const body = await request.json();
-    const refused = checkBody(request, body, { required: ['body'] });
+    const refused = checkBody(request, body, { required: ['body'], structured: NOTE_STRUCTURED });
     if (refused !== null) return refused;
-    const made = addNote(found.caller.project.project_id, found.urlId, found.actor, body.body);
+    const made = addNote(found.caller.project.project_id, found.urlId, found.actor, body.body, body.mentions);
     return made.ok
       ? HttpResponse.json({ data: made.note }, { status: 201 })
-      : noteFailure(request, made.error, '', made.detail);
+      : noteFailure(request, made.error, '', made.detail, made.field);
   }),
 
   mock('patch', `${P}/internal-links/pages/{url_id}/notes/{note_id}`, async ({ request, cookies, params }) => {
@@ -1205,7 +1217,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     const badId = noteIdError(request, String(params.note_id));
     if (badId !== null) return badId;
     const body = await request.json();
-    const refused = checkBody(request, body, { required: ['body'] });
+    const refused = checkBody(request, body, { required: ['body'], structured: NOTE_STRUCTURED });
     if (refused !== null) return refused;
     const changed = changeNote(
       found.caller.project.project_id,
@@ -1213,10 +1225,17 @@ export const internalLinkHandlers: HttpHandler[] = [
       String(params.note_id),
       found.actor,
       body.body,
+      body.mentions,
     );
     return changed.ok
       ? HttpResponse.json({ data: changed.note })
-      : noteFailure(request, changed.error, 'Only the one who wrote a note can change it.', changed.detail);
+      : noteFailure(
+          request,
+          changed.error,
+          'Only the one who wrote a note can change it.',
+          changed.detail,
+          changed.field,
+        );
   }),
 
   mock('delete', `${P}/internal-links/pages/{url_id}/notes/{note_id}`, ({ request, cookies, params }) => {

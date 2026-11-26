@@ -3,6 +3,7 @@ import { onMockReset } from './state';
 import { NOTE_MAX } from '@/lib/pages/notes';
 import type { Role } from '@/lib/api/types';
 import type { PageNote } from '@/lib/internal-links/types';
+import type { Schemas } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
 
 /**
@@ -21,7 +22,19 @@ export interface NoteActor {
 }
 
 export type NoteFailure = 'forbidden' | 'not_found' | 'invalid';
-export type NoteResult = { ok: true; note: PageNote } | { ok: false; error: NoteFailure; detail?: string };
+/** The field a refusal names (`body` when left out), as the API's field errors do. */
+export interface NoteField {
+  readonly path: string;
+  readonly code: string;
+}
+export type NoteResult =
+  { ok: true; note: PageNote } | { ok: false; error: NoteFailure; detail?: string; field?: NoteField };
+
+/** Mentions of a note, as the API stores them (`MENTIONS_MAX`, `MentionType` of the backend schema). */
+const MENTIONS_MAX = 20;
+type StoredMention = Schemas['PageNoteMentionIn'];
+const isMentionType = (value: unknown): value is StoredMention['type'] =>
+  value === 'page' || value === 'user' || value === 'issue' || value === 'keyword';
 
 interface StoredNote {
   readonly id: string;
@@ -29,6 +42,7 @@ interface StoredNote {
   readonly authorId: string;
   readonly authorName: string;
   body: string;
+  mentions: StoredMention[];
   readonly createdAt: string;
   editedAt: string | null;
   deletedBy: string | null;
@@ -51,6 +65,7 @@ const seeded = (
   authorId: author.id,
   authorName: author.name,
   body,
+  mentions: [],
   createdAt,
   editedAt,
   deletedBy: null,
@@ -127,6 +142,9 @@ const viewOf = (note: StoredNote, actor: NoteActor): PageNote => ({
   id: note.id,
   author: { id: note.authorId, name: note.authorName },
   body: note.body,
+  mentions: note.mentions.map((mention) => ({ ...mention })),
+  // Files arrive with the upload task; until then a note holds none.
+  attachments: [],
   created_at: note.createdAt,
   edited_at: note.editedAt,
   can_edit: actor.writes && note.authorId === actor.id,
@@ -140,6 +158,77 @@ function cleanBody(raw: string): { ok: true; body: string } | { ok: false; detai
   if (textLength(body) > NOTE_MAX) return { ok: false, detail: 'A note is at most 2,000 characters.' };
   if (body.includes('\u0000')) return { ok: false, detail: 'A note cannot hold a null character.' };
   return { ok: true, body };
+}
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** The entries whose label is in the text; of two with one label, the first (`_in_text` of the backend). */
+function inText(body: string, entries: readonly StoredMention[]): StoredMention[] {
+  const labels = new Set<string>();
+  return entries.filter((entry) => {
+    if (!body.includes(entry.label) || labels.has(entry.label)) return false;
+    labels.add(entry.label);
+    return true;
+  });
+}
+
+/**
+ * The mentions a write sends, judged as `check_mentions` does: the shape of each, then only those whose label is in the
+ * text are kept, then an issue is refused (`mention_type_unavailable`: the catalogue of issues is not live yet). The
+ * targets are not looked up. `null` when none were sent.
+ */
+function cleanMentions(
+  raw: unknown,
+  body: string,
+): { ok: true; mentions: StoredMention[] | null } | { ok: false; detail: string; field: NoteField } {
+  if (raw === undefined || raw === null) return { ok: true, mentions: null };
+  if (!Array.isArray(raw))
+    return { ok: false, detail: 'Input should be a valid list.', field: { path: 'mentions', code: 'list_type' } };
+  if (raw.length > MENTIONS_MAX) {
+    return { ok: false, detail: 'A note has at most 20 mentions.', field: { path: 'mentions', code: 'too_long' } };
+  }
+  const entries: StoredMention[] = [];
+  for (const [index, item] of raw.entries()) {
+    const at = `mentions[${String(index)}]`;
+    if (!isRecord(item))
+      return { ok: false, detail: 'Input should be an object.', field: { path: at, code: 'model_attributes_type' } };
+    const { type, label, target } = item;
+    if (!isMentionType(type)) {
+      return { ok: false, detail: 'Not a mention type.', field: { path: `${at}.type`, code: 'enum' } };
+    }
+    if (
+      typeof label !== 'string' ||
+      textLength(label) < 2 ||
+      textLength(label) > 200 ||
+      !label.startsWith('@') ||
+      /[\r\n]/.test(label)
+    ) {
+      return {
+        ok: false,
+        detail: 'A mention label is one line that starts with @.',
+        field: { path: `${at}.label`, code: 'value_error' },
+      };
+    }
+    if (typeof target !== 'string' || textLength(target) < 1 || textLength(target) > 200) {
+      return {
+        ok: false,
+        detail: 'A mention target is 1 to 200 characters.',
+        field: { path: `${at}.target`, code: 'string_type' },
+      };
+    }
+    entries.push({ type, label, target });
+  }
+  const kept = inText(body, entries);
+  const issue = kept.find((entry) => entry.type === 'issue');
+  if (issue !== undefined) {
+    return {
+      ok: false,
+      detail: 'Issues cannot be mentioned yet.',
+      field: { path: `mentions[${String(entries.indexOf(issue))}].type`, code: 'mention_type_unavailable' },
+    };
+  }
+  return { ok: true, mentions: kept };
 }
 
 const ofPage = (projectId: string, urlId: string): StoredNote[] =>
@@ -173,9 +262,17 @@ export function notesAfter(
   };
 }
 
-export function add(projectId: string, urlId: string, actor: NoteActor, raw: string): NoteResult {
+export function add(
+  projectId: string,
+  urlId: string,
+  actor: NoteActor,
+  raw: string,
+  sentMentions?: unknown,
+): NoteResult {
   const cleaned = cleanBody(raw);
   if (!cleaned.ok) return { ok: false, error: 'invalid', detail: cleaned.detail };
+  const judged = cleanMentions(sentMentions, cleaned.body);
+  if (!judged.ok) return { ok: false, error: 'invalid', detail: judged.detail, field: judged.field };
   store.nextId += 1;
   const note: StoredNote = {
     id: noteId(store.nextId),
@@ -183,6 +280,7 @@ export function add(projectId: string, urlId: string, actor: NoteActor, raw: str
     authorId: actor.id,
     authorName: actor.name,
     body: cleaned.body,
+    mentions: judged.mentions ?? [],
     createdAt: new Date().toISOString(),
     editedAt: null,
     deletedBy: null,
@@ -196,16 +294,28 @@ const find = (projectId: string, urlId: string, id: string, deleted: boolean): S
   ofPage(projectId, urlId).find((note) => note.id === id && !isLive(note) === deleted);
 
 /** Only the author. `edited_at` is set only when the body really changed. */
-export function change(projectId: string, urlId: string, id: string, actor: NoteActor, raw: string): NoteResult {
+export function change(
+  projectId: string,
+  urlId: string,
+  id: string,
+  actor: NoteActor,
+  raw: string,
+  sentMentions?: unknown,
+): NoteResult {
   const note = find(projectId, urlId, id, false);
   if (note === undefined) return { ok: false, error: 'not_found' };
   if (note.authorId !== actor.id) return { ok: false, error: 'forbidden' };
   const cleaned = cleanBody(raw);
   if (!cleaned.ok) return { ok: false, error: 'invalid', detail: cleaned.detail };
+  const judged = cleanMentions(sentMentions, cleaned.body);
+  if (!judged.ok) return { ok: false, error: 'invalid', detail: judged.detail, field: judged.field };
+  // Omitted: the stored ones whose label is still in the text stay, and are not judged again.
+  const mentions = judged.mentions ?? inText(cleaned.body, note.mentions);
   if (note.body !== cleaned.body) {
     note.body = cleaned.body;
     note.editedAt = new Date().toISOString();
   }
+  note.mentions = mentions;
   return { ok: true, note: viewOf(note, actor) };
 }
 

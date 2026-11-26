@@ -200,6 +200,8 @@ export interface BodyRules {
   optional?: readonly string[];
   /** Exactly one of these must be given (text, not null), as for a code or a recovery code. */
   exactlyOne?: readonly string[];
+  /** Members that may be present with any value: the handler judges them (a list, as `mentions` of a note). */
+  structured?: readonly string[];
 }
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -212,8 +214,8 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
  */
 export function checkBody(request: Request, body: unknown, rules: BodyRules): HttpResponse<Problem> | null {
   if (!isRecord(body)) return invalidField(request, '', 'model_attributes_type', 'Input should be an object');
-  const { required = [], optional = [], exactlyOne = [] } = rules;
-  const allowed = new Set([...required, ...optional, ...exactlyOne]);
+  const { required = [], optional = [], exactlyOne = [], structured = [] } = rules;
+  const allowed = new Set([...required, ...optional, ...exactlyOne, ...structured]);
   const errors: ValidationItem[] = [];
   for (const name of Object.keys(body)) {
     if (!allowed.has(name)) {
