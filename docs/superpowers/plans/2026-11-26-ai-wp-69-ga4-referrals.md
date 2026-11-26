@@ -21,8 +21,8 @@ numbers and no route serves them. docs/18 section 7 specifies the sync; this pla
    `fp.ai_referral_daily`.
 3. **Two classifiers stored side by side** (docs/18 7.3): `ga4_ai_assistant_channel` (rows whose `sessionDefaultChannelGroup` is
    `AI Assistant`, `assistant_code` = lowercased `sessionSource`, `rules_version` 0) and `own_rules` (rule set version 1, table
-   `fp.ai_referrer_rules`, seeded by the migration). Ambiguous rules are not stored in v1 (the table has no confidence column; the
-   headline excludes them anyway). Rows from `google` AI Overview or AI Mode are never produced: GA4 files them under organic search.
+   `fp.ai_referrer_rules`, seeded by the migration). The rules table has a `confidence` column and keeps the ambiguous rules; the classifier
+   skips them, and `fp.ai_referral_daily` (which has no confidence column) holds only the high confidence rows. Rows from `google` AI Overview or AI Mode are never produced: GA4 files them under organic search.
 4. **Window.** First run pulls the last 90 days; every later run re-pulls the last 3 days (GA4 restates recent days, docs/18 7.2).
    Sync state lives in `fp.integrations.backfill_state["ga4"]` (`{version, through, complete}`), as the GSC pull does for `"gsc"`.
    One `runReport` per run covers the whole window (the `date` dimension splits it), paged with `offset`/`limit` 100000.
