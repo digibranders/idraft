@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assistantName, referralBars, referralsStanding, type ReferralsResponse } from './referrals-model';
+import { assistantName, referralBars, referralsStanding, valueChange, type ReferralsResponse } from './referrals-model';
 
 const META: ReferralsResponse['meta'] = {
   connected: true,
@@ -35,18 +35,25 @@ describe('referralsStanding, the one place that tells a zero from visits not col
 
   it('is never a zero when the period is not collected in full, whatever the last collected day is', () => {
     expect(standing([], { collected_through: '2026-11-10', window_collected: false })).toBe(
-      '{"kind":"before_period_end","through":"2026-11-10"}',
+      '{"kind":"before_period_end","through":"2026-11-10","since":null}',
     );
     // The first collected day is after the start of the period: the days before it were never read
     expect(standing([], { collected_since: '2026-11-01', window_collected: false })).toBe(
-      '{"kind":"before_period_end","through":"2026-11-11"}',
+      '{"kind":"before_period_end","through":"2026-11-11","since":"2026-11-01"}',
+    );
+    // A first collected day that is not recorded, or is at or before the start, is not said
+    expect(standing([], { collected_since: null, window_collected: false })).toBe(
+      '{"kind":"before_period_end","through":"2026-11-11","since":null}',
     );
   });
 
   it('shows rows, and says how far they are collected only when the period is not collected in full', () => {
-    expect(standing([ROW], {})).toBe('{"kind":"rows","through":null}');
+    expect(standing([ROW], {})).toBe('{"kind":"rows","through":null,"since":null}');
     expect(standing([ROW], { collected_through: '2026-11-03', window_collected: false })).toBe(
-      '{"kind":"rows","through":"2026-11-03"}',
+      '{"kind":"rows","through":"2026-11-03","since":null}',
+    );
+    expect(standing([ROW], { collected_since: '2026-10-20', window_collected: false })).toBe(
+      '{"kind":"rows","through":"2026-11-11","since":"2026-10-20"}',
     );
   });
 });
@@ -71,6 +78,22 @@ describe('referralBars', () => {
 
   it('keeps an unknown previous unknown, never 0', () => {
     expect(referralBars([ROW], 'own_rules')[0]?.previous).toBeNull();
+  });
+});
+
+describe('valueChange', () => {
+  const counts = (sessions: number | null): { sessions: number | null; engaged_sessions: number | null } => ({
+    sessions,
+    engaged_sessions: null,
+  });
+
+  it('is the visits minus the compared visits, and nothing when either is unknown', () => {
+    expect(valueChange({ ...counts(12), previous: counts(5) })?.value).toBe(7);
+    expect(valueChange({ ...counts(3), previous: counts(5) })?.value).toBe(-2);
+    expect(valueChange({ ...counts(12), previous: null })).toBeNull();
+    expect(valueChange({ ...counts(12), previous: counts(null) })).toBeNull();
+    expect(valueChange({ ...counts(null), previous: counts(5) })).toBeNull();
+    expect(valueChange(null)).toBeNull();
   });
 });
 

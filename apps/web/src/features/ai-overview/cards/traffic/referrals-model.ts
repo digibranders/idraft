@@ -29,15 +29,17 @@ interface ValueLike extends CountsLike {
  * the whole period and no row is an AI platform's. Anything less than the whole period is not zero.
  * - `not_connected`: the project has no live GA4 property.
  * - `not_collected`: a property is linked and no sync run has finished.
- * - `before_period_end`: nothing is listed, and the period is not collected in full: what is collected stops at `through`.
- * - `rows`: visits to show; `through` is the last collected day when the period is not collected in full, else `null`.
+ * - `before_period_end`: nothing is listed, and the period is not collected in full: what is collected stops at `through`,
+ *   and starts at `since` when that is after the start of the period (`null` when it is not).
+ * - `rows`: visits to show; `through` is the last collected day when the period is not collected in full, else `null`,
+ *   and `since` is as above.
  */
 export type ReferralsStanding =
   | { kind: 'not_connected' }
   | { kind: 'not_collected' }
   | { kind: 'zero' }
-  | { kind: 'before_period_end'; through: string }
-  | { kind: 'rows'; through: string | null };
+  | { kind: 'before_period_end'; through: string; since: string | null }
+  | { kind: 'rows'; through: string | null; since: string | null };
 
 /**
  * The one place that decides between a real zero and visits not collected: the route's `meta.window_collected` (every
@@ -48,8 +50,12 @@ export function referralsStanding(response: ReferralsResponse): ReferralsStandin
   if (!meta.connected) return { kind: 'not_connected' };
   const through = meta.collected_through;
   if (through === null) return { kind: 'not_collected' };
-  if (data.length === 0) return meta.window_collected ? { kind: 'zero' } : { kind: 'before_period_end', through };
-  return { kind: 'rows', through: meta.window_collected ? null : through };
+  // The first collected day matters only when it is after the start of the period: the days before it were never read
+  const since = meta.collected_since !== null && meta.collected_since > meta.window.from ? meta.collected_since : null;
+  if (data.length === 0) {
+    return meta.window_collected ? { kind: 'zero' } : { kind: 'before_period_end', through, since };
+  }
+  return { kind: 'rows', through: meta.window_collected ? null : through, since };
 }
 
 /** The platforms Google Analytics tells apart, by the code the API sends (docs/18 section 7.4). */
@@ -108,6 +114,14 @@ export function referralBars(rows: readonly ReferralRow[], classifier: Classifie
     return [{ key: row.key, name: assistantName(row.key), sessions, previous: sessionsOf(value.previous) }];
   });
   return bars.sort((first, second) => second.sessions - first.sessions || first.name.localeCompare(second.name));
+}
+
+/** The change in visits of one classifier's value against the compared period; `null` when either count is unknown. */
+export function valueChange(value: ValueLike | null): MetricDeltaInput | null {
+  const sessions = sessionsOf(value);
+  const previous = value === null ? null : sessionsOf(value.previous);
+  if (sessions === null || previous === null) return null;
+  return { value: sessions - previous, unit: 'count', polarity: 'higher_is_better', isDetectable: null };
 }
 
 /** The change of a bar in visits; no input when nothing is compared, so no change is drawn. */

@@ -32,7 +32,7 @@ const DAILY: readonly Daily[] = [
 
 /** The three fixed sentences of `meta.notes`, in the order the route sends them. */
 const FIXED_NOTES = [
-  'Google AI Mode and Google AI Overview are not counted: Google Analytics files their sessions under organic search.',
+  'Google AI Mode and Google AI Overview are not counted: Google Analytics files their visits under organic search.',
   'The figures are a lower bound: visits without a referrer, such as clicks from native apps, are filed under direct.',
   'The two classifiers are shown side by side and neither is labelled correct.',
 ] as const;

@@ -24,6 +24,7 @@ import { useScopeUnavailable } from '../../states/scope-unavailable';
 import { BarList, type BarListProps, type ComparisonRow } from '@/components/app/chart/bar-list';
 import { ChartFrame, type ChartEmpty, type ChartError, type ChartNotice } from '@/components/app/chart/chart-frame';
 import { EngineMark } from '@/components/app/engine/engine-logo';
+import { EmptyState } from '@/components/app/status/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { LinkButton } from '@/components/ui/link-button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -46,6 +47,19 @@ type FrameState = (
   | { status: 'empty'; empty: ChartEmpty; error?: undefined }
   | { status: 'error'; error: ChartError; empty?: undefined }
 ) & { notice?: ChartNotice | undefined };
+
+/** The body when the chosen way of counting has no platform: what is missing, and the way to see the rest. */
+function NoneCounted({ classifier }: { classifier: Classifier }): ReactElement {
+  const t = useTranslations('aiOverview.sourcesTracking.referrals');
+  return (
+    <EmptyState
+      variant="card"
+      title={t('noneCountedTitle', { classifier })}
+      reason={t('noneCountedReason')}
+      headingLevel={3}
+    />
+  );
+}
 
 /**
  * OV-TRF-01 and OV-NOPORT-06: the visits that come from AI platforms, from Google Analytics (WP-69, route
@@ -130,17 +144,37 @@ export default function ReferralsCard(): ReactElement {
         summary = t('summaryZero');
         break;
       case 'before_period_end': {
-        const date = formatBusinessDate(standing.through);
-        frame = { status: 'empty', empty: { title: t('throughTitle', { date }), reason: t('throughReason') } };
-        summary = t('summaryThrough', { date });
+        const through = formatBusinessDate(standing.through);
+        if (standing.since === null) {
+          frame = {
+            status: 'empty',
+            empty: { title: t('throughTitle', { date: through }), reason: t('throughReason') },
+          };
+          summary = t('summaryThrough', { date: through });
+        } else {
+          const since = formatBusinessDate(standing.since);
+          frame = {
+            status: 'empty',
+            empty: { title: t('fromThroughTitle', { since, through }), reason: t('fromThroughReason') },
+          };
+          summary = t('summaryFromThrough', { since, through });
+        }
         break;
       }
       case 'rows': {
-        const notice: ChartNotice | undefined = read.stale
-          ? { kind: 'stale', text: t('stale') }
-          : standing.through === null
-            ? undefined
-            : { kind: 'partial', text: t('partialNotice', { date: formatBusinessDate(standing.through) }) };
+        // The last figures read and the days collected are both said, neither hiding the other
+        const collected =
+          standing.through === null
+            ? null
+            : standing.since === null
+              ? t('partialNotice', { date: formatBusinessDate(standing.through) })
+              : t('partialFromNotice', {
+                  since: formatBusinessDate(standing.since),
+                  through: formatBusinessDate(standing.through),
+                });
+        const texts = [read.stale ? t('stale') : null, collected].filter((text) => text !== null);
+        const notice: ChartNotice | undefined =
+          texts.length === 0 ? undefined : { kind: read.stale ? 'stale' : 'partial', text: texts.join('. ') };
         frame = {
           status: read.status === 'refetching' ? 'refetching' : 'ready',
           ...(notice === undefined ? {} : { notice }),
@@ -162,6 +196,8 @@ export default function ReferralsCard(): ReactElement {
   const shown = frame.status === 'ready' || frame.status === 'refetching';
   const bars = shown ? referralBars(rows, classifier) : [];
   const drawn = bars.slice(0, MAX_BARS);
+  // Rows exist, and none has a count under the chosen way of counting: the Table view still has them all
+  const noneCounted = shown && bars.length === 0;
   const rowOf = (bar: ReferralBar): ComparisonRow => {
     const input = referralChange(bar);
     const delta = input === null ? undefined : { input, test: 'interim' as const, text: formatMetricDelta(input).text };
@@ -228,8 +264,14 @@ export default function ReferralsCard(): ReactElement {
       footnote={footnote}
       controls={shown ? classifierControl : connect}
       height={180}
-      summary={shown ? t('summaryRows', { classifier, list: leaders }) : summary}
-      body={shown ? <BarList {...list} /> : null}
+      summary={
+        !shown
+          ? summary
+          : noneCounted
+            ? t('summaryNoneCounted', { classifier })
+            : t('summaryRows', { classifier, list: leaders })
+      }
+      body={shown ? noneCounted ? <NoneCounted classifier={classifier} /> : <BarList {...list} /> : null}
       table={shown ? <ReferralsTable rows={rows} caption={t('caption')} /> : null}
       menu={shown ? { fileName: t('fileName'), csv: referralsCsv(rows, headers) } : undefined}
     />

@@ -1,9 +1,12 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ReferralsCard from './referrals-card';
+import messages from '../../../../../messages/en.json';
+import { useOverview } from '../../overview-context';
 import { CardInfoProvider } from '@/components/app/chart/card-info';
 import type { Schemas } from '@/lib/api/types';
 import { problem } from '@/mocks/respond';
@@ -29,15 +32,32 @@ type Value = Schemas['AiReferralValue'];
 
 const ROUTE = '*/api/v1/workspaces/:w/projects/:p/fp/ai-referrals';
 const NOTES = [
-  'Google AI Mode and Google AI Overview are not counted: Google Analytics files their sessions under organic search.',
+  'Google AI Mode and Google AI Overview are not counted: Google Analytics files their visits under organic search.',
   'The figures are a lower bound: visits without a referrer, such as clicks from native apps, are filed under direct.',
   'The two classifiers are shown side by side and neither is labelled correct.',
 ];
+
+/** Two buttons a person's actions stand for: a scope change (the comparison off) and a refetch of what is read. */
+function Probe(): ReactElement {
+  const { setScope } = useOverview();
+  const queryClient = useQueryClient();
+  return (
+    <>
+      <button type="button" onClick={() => setScope({ compare: false })}>
+        Compare off
+      </button>
+      <button type="button" onClick={() => void queryClient.invalidateQueries()}>
+        Read again
+      </button>
+    </>
+  );
+}
 
 function render(searchParams: string): ReturnType<typeof renderWithProviders> {
   const Card = (): ReactElement => (
     <CardInfoProvider>
       <ReferralsCard />
+      <Probe />
     </CardInfoProvider>
   );
   return renderWithProviders(cardInOverview({ type: 'traffic.ai_referrals', Card, width: 'two_thirds' }), {
@@ -204,8 +224,10 @@ describe('the AI referral visits card', () => {
     expect(headers).toEqual([
       'Platform',
       'Visits, our rules',
+      'Change, our rules',
       'Visits, GA4 channel',
-      'Difference',
+      'Change, GA4 channel',
+      'Difference (our rules minus GA4 channel)',
       'Engaged visits, our rules',
       'Engaged visits, GA4 channel',
     ]);
@@ -213,8 +235,26 @@ describe('the AI referral visits card', () => {
       within(within(table).getByRole('row', { name: new RegExp(name) }))
         .getAllByRole('cell')
         .map((cell) => cell.textContent ?? '');
-    expect(cells('Gemini')).toEqual(['300', '50', '+250', '210', '35']);
-    expect(cells('Claude')).toEqual(['40', '160', '−120', '28', '112']);
+    // The change against the compared period is in the table for both ways of counting, as in the bars
+    expect(cells('Gemini')).toEqual(['300', '+100', '50', '+10', '+250', '210', '35']);
+    expect(cells('Claude')).toEqual(['40', '−10', '160', '+10', '−120', '28', '112']);
+  });
+
+  it('says no platform is counted by the chosen way, keeps the toggle and the Table view, and draws no empty chart', async () => {
+    linkGa4();
+    serve(answer([row('claude', null, value(40, null))]));
+    const { user } = render('cmp=off');
+    expect((await screen.findAllByText('No platform is counted by our rules here')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('list', { name: 'AI referral visits by platform' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Our rules' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    const table = await screen.findByRole('table', { name: 'AI referral visits by platform' });
+    expect(within(table).getByRole('row', { name: /Claude/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Table' }));
+    await user.click(screen.getByRole('radio', { name: 'GA4 channel' }));
+    expect(namesIn(await listOf())).toEqual(['Claude']);
+    await user.click(screen.getByRole('radio', { name: 'Our rules' }));
+    expect((await screen.findAllByText('No platform is counted by our rules here')).length).toBeGreaterThan(0);
   });
 
   it('writes n/a, never 0, in the table for a classifier that has no row for a platform', async () => {
@@ -227,7 +267,7 @@ describe('the AI referral visits card', () => {
     const cells = within(within(table).getByRole('row', { name: /Grok/ }))
       .getAllByRole('cell')
       .map((cell) => cell.textContent ?? '');
-    expect(cells).toEqual(['9', 'n/a', 'n/a', '6', 'n/a']);
+    expect(cells).toEqual(['9', 'n/a', 'n/a', 'n/a', 'n/a', '6', 'n/a']);
   });
 
   it('leaves a platform whose count is unknown out of the bars, and writes n/a for it in the table, never 0', async () => {
@@ -268,6 +308,85 @@ describe('the AI referral visits card', () => {
     const list = await listOf();
     expect(namesIn(list)).toHaveLength(4);
     expect(screen.getByText('Collected through Nov 5, 2026')).toBeInTheDocument();
+  });
+
+  it('says from which day to which it is collected when the first collected day is after the start of the period', async () => {
+    linkGa4();
+    serve(answer([], { collected_since: '2026-10-20', window_collected: false, compare_window: null }));
+    render('cmp=off');
+    expect(await screen.findByText('Collected from Oct 20, 2026 to Nov 11, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Collected through Nov 11, 2026')).not.toBeInTheDocument();
+    expect(screen.queryByText('No visits from AI platforms in this period')).not.toBeInTheDocument();
+  });
+
+  it('says it on the bars too, with the first collected day', async () => {
+    linkGa4();
+    serve(answer(DATA, { collected_since: '2026-10-20', window_collected: false, compare_window: null }));
+    render('cmp=off');
+    await listOf();
+    expect(screen.getByText('Collected from Oct 20, 2026 to Nov 11, 2026')).toBeInTheDocument();
+  });
+
+  it('keeps the rows and says they are the last figures read when a read of the same scope fails', async () => {
+    linkGa4();
+    let calls = 0;
+    server.use(
+      http.get(ROUTE, ({ request }) => {
+        calls += 1;
+        return calls === 1 ? HttpResponse.json(answer(DATA)) : problem(request, 'internal_error');
+      }),
+    );
+    const { user } = render('cmp=off');
+    expect(namesIn(await listOf())).toHaveLength(4);
+    await user.click(screen.getByRole('button', { name: 'Read again' }));
+    expect(await screen.findByText('These are the last figures read')).toBeInTheDocument();
+    expect(namesIn(await listOf())).toHaveLength(4);
+    expect(screen.queryByText('Could not load AI referral visits')).not.toBeInTheDocument();
+  });
+
+  it('writes both the last figures read and the days collected, neither hiding the other', async () => {
+    linkGa4();
+    let calls = 0;
+    server.use(
+      http.get(ROUTE, ({ request }) => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json(
+              answer(DATA, { collected_through: '2026-11-05', window_collected: false, compare_window: null }),
+            )
+          : problem(request, 'internal_error');
+      }),
+    );
+    const { user } = render('cmp=off');
+    await listOf();
+    await user.click(screen.getByRole('button', { name: 'Read again' }));
+    expect(
+      await screen.findByText('These are the last figures read. Collected through Nov 5, 2026'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the error state, not the last scope’s rows, when the read of a new scope fails', async () => {
+    linkGa4();
+    let calls = 0;
+    server.use(
+      http.get(ROUTE, ({ request }) => {
+        calls += 1;
+        return calls === 1 ? HttpResponse.json(answer(DATA)) : problem(request, 'internal_error');
+      }),
+    );
+    const { user } = render('');
+    expect(namesIn(await listOf())).toHaveLength(4);
+    await user.click(screen.getByRole('button', { name: 'Compare off' }));
+    expect((await screen.findAllByText('Could not load AI referral visits')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('list', { name: 'AI referral visits by platform' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
+  it('says the same about what it shows in the card and in the info text of the card catalog', () => {
+    expect(messages.info.cards.trafficAiReferrals.how).toBe(messages.aiOverview.sourcesTracking.referrals.infoHow);
+    expect(messages.info.cards.trafficAiReferrals.what).toBe(messages.aiOverview.sourcesTracking.referrals.infoWhat);
+    expect(messages.aiOverview.sourcesTracking.referrals.notConnectedReason).not.toMatch(/land on/);
+    expect(messages.aiOverview.sourcesTracking.referrals.linkedReason).not.toMatch(/land on/);
   });
 
   it('shows the notes of the answer as the footnote, and the lower bound in them', async () => {
