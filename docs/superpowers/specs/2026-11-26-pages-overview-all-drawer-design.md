@@ -1279,7 +1279,7 @@ read; a chunked body is counted and cut at the limit; both are `413 payload_too_
 10,485,760). The route then reads at most 10 MB plus one byte of the file part and refuses a file that gave
 that extra byte with the same `413`. A file of 0 bytes is `422`.
 
-**The type is decided by the content (D23).** A pure module `backend/src/idraft/notes_files.py` (no database,
+**The type is decided by the content (D23).** A pure module `backend/src/idraft/storage/file_sniff.py` (no database,
 no storage; it is the only judge) reads the first bytes and returns the content type or refuses; the file's
 name and the browser's type are never used to choose it.
 
@@ -1485,7 +1485,7 @@ Targeted and serial (section 12's rule).
 
 **Backend:**
 
-- `tests/test_notes_files.py` (pure): a real tiny PNG, JPEG, GIF87a, GIF89a, WebP and PDF are accepted as
+- `tests/storage/test_file_sniff.py` (pure): a real tiny PNG, JPEG, GIF87a, GIF89a, WebP and PDF are accepted as
   their types; an SVG, an HTML page, an XML prolog and a script, each under the names `a.png`, `a.jpg`,
   `a.pdf`, `a.txt` and with no name, are refused; a PNG header followed by HTML is accepted as PNG (its first
   bytes decide); `%PDF-` after 10 bytes of junk is refused; `RIFF` with `WAVE` is refused; a ZIP, an
@@ -1505,7 +1505,7 @@ Targeted and serial (section 12's rule).
   `403`; audit snapshots hold the mentions; the migration column check refuses a non-array and 21 entries.
 - `tests/api/internal_links/test_page_note_files.py`: upload of each accepted type (`201`, size, name,
   type from the content, key under `notes/v1/<workspace>/<project>/`); the hostile files of
-  `test_notes_files.py` through the route (`415`, and no row and no object written: the fake store counts its
+  `test_file_sniff.py` through the route (`415`, and no row and no object written: the fake store counts its
   writes); an upload announced over the limit is refused before reading (`413`, the test's receive counts
   zero reads of the body) and a chunked one is cut; a file of 10 MB passes and 10 MB plus one byte is `413`;
   an empty file is `422`; a missing `file` part is `422`; the quota (`quota_exceeded` with `limit`, `used` and
@@ -1817,7 +1817,7 @@ mark opens a list whose total is the mark's number.
 | `backend/src/idraft/api/audit.py` | four `page_note.*` actions | none expected | maybe its own actions | Keep all |
 | `docs/04-data-model.md`, `docs/19-api-specification.md`, `docs/24-security.md` | section 5.4; the notes paragraph; the `notes:write` row | none expected | its tables | Keep all |
 | `backend/src/idraft/db/migrations/versions/0043_page_note_mentions.py`, `0044_page_note_attachments.py`, `db/tables.py`, `tests/db/*` | the `mentions` column, the table `core.page_note_attachments`, the relaxed body check, the quota column `max_note_file_bytes` | none expected | `0042_page_search` is already taken on its branch; maybe more | Whichever branch merges second renumbers its files and their `down_revision` and changes nothing else. `workspace_quotas` is shared: keep every added column |
-| `backend/src/idraft/api/body_limit.py`, `api/internal_links/page_note_file_routes.py`, `page_note_files.py`, `mention_sources.py`, `storage/note_files.py`, `notes_files.py` | one more registered larger limit (the note upload), the file routes, the pure judge of a file's type, the issue seam | `api/issues` replaces `NoIssueChecks` with its catalogue | none expected | Keep both limits in `UPLOADS`; the Issues session changes the one default in `mention_sources.py` and nothing else |
+| `backend/src/idraft/api/body_limit.py`, `api/internal_links/page_note_file_routes.py`, `page_note_files.py`, `mention_sources.py`, `storage/note_files.py`, `storage/file_sniff.py` | one more registered larger limit (the note upload), the file routes, the pure judge of a file's type, the issue seam | `api/issues` replaces `NoIssueChecks` with its catalogue | none expected | Keep both limits in `UPLOADS`; the Issues session changes the one default in `mention_sources.py` and nothing else |
 | `apps/web/src/lib/pages/note-mentions.ts`, `note-files.ts`, `note-sources.ts`, `features/internal-links/inspector/note-*` | the box's helpers and chips | replaces the body of `usePageIssues` (10.1): the box then offers issues, with no change here | none expected | Keep both |
 | `docs/design-system/16-drawers-dialogs-popovers.md` | one sentence in 2.4: the Outline's blocks fold | none expected | none expected | Keep the sentence |
 | `docs/glossary/terms.md`, `final-list.md` | A5 changed, All pages added, Website audit (same text as Issues) | A12 to A14, U9b, U13 to U15 | Monitoring, Tracked wording | Keep both; drop the duplicate Website audit row |

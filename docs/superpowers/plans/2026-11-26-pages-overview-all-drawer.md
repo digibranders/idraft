@@ -17,7 +17,10 @@ is a typed seam in `src/lib/pages/` that answers `unavailable` on this branch. T
 addition of 2026-11-26, spec 9.6) is one read on demand: a pure parser in `backend/src/idraft/crawl/outline.py`
 reads the page's stored HTML of the latest crawl, and nothing is stored. The drawer's Notes tab (owner addition
 of 2026-11-26, spec 9.7) is full stack: a table `core.page_notes` keyed by project and URL, five routes with
-audit entries, and the tab.
+audit entries, and the tab. The Notes box gets three helpers (owner addition of 2026-11-27, spec 9.8): at-sign
+mentions and slash commands (a `mentions` column checked by type on the server, a combobox and chips on the
+web, the issue source a seam) and file attachments (a judge of a file's type by its bytes, a table, a
+quota, an upload route and an API-served download, the files in the existing raw bucket under `notes/`).
 
 **Tech stack:** Python 3.13, FastAPI, SQLAlchemy Core (async), pytest with testcontainers Postgres, `uv`.
 Next.js (App Router), React, TypeScript, TanStack Query, nuqs, next-intl, Tailwind v4 tokens, vitest with Testing
@@ -454,6 +457,97 @@ Routes (Task 5e), prefix `/api/v1/workspaces/{workspace_id}/projects/{project_id
 `DELETE "/{note_id}"` (`notes:write`, 204), `POST "/{note_id}/restore"` (`notes:write`). Audit actions:
 `page_note.created`, `page_note.updated`, `page_note.deleted`, `page_note.restored`.
 
+### C7b. Mentions and files on a note (spec 9.8)
+
+Defined by Tasks 5f, 5h and 5i in `backend/src/idraft/api/schemas/page_notes.py` (the C7 classes stay as
+written; these are added):
+
+```python
+MENTIONS_MAX: Final = 20
+FILES_MAX: Final = 5
+MentionType = Literal["page", "user", "issue", "keyword"]
+
+
+class PageNoteMentionIn(BaseModel):
+    type: MentionType
+    label: str   # 2 to 200 characters, starts with "@", no line break
+    target: str  # 1 to 200 characters: url id, user id, check id or keyword text, by type
+
+
+class PageNoteMention(PageNoteMentionIn):
+    path: str | None = None   # the page's current path, set for type "page" only
+
+
+class PageNoteFile(BaseModel):
+    id: UUID
+    name: str
+    size: int
+    content_type: str
+    is_image: bool
+    url: str                  # an API path, `file_path(workspace_id, project_id, url_id, id)`
+```
+
+`PageNote` gains `mentions: list[PageNoteMention] = []` and `attachments: list[PageNoteFile] = []`.
+`PageNoteWrite` gains `mentions: list[PageNoteMentionIn] | None = None` (omitted on a change: the stored ones
+whose label is still in the text stay) and `attachment_ids: list[UUID] | None = Field(default=None,
+max_length=FILES_MAX)` (omitted on a change: the files are unchanged; given: the exact list of live files
+afterwards). `PageNoteWrite.body` may be empty (Task 5i); the service refuses an empty body with no live file.
+Error codes: `mention_target_unknown`, `mention_type_unavailable` (field errors at `mentions[i]`),
+`too_many_attachments`, `quota_exceeded` (with `limit`, `used`, `requested`), `payload_too_large`,
+`unsupported_media_type`, `storage_unavailable`. New audit action: `page_note.file_uploaded`.
+
+Routes (Tasks 5h, 5i), prefix `/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}`:
+`POST "/note-attachments"` (`notes:write`, multipart, one part `file`, `201`) and
+`GET "/note-attachments/{attachment_id}"` (`data:read`, the bytes).
+
+The table is `core.page_note_attachments` exactly as spec 9.8.5 writes it (Task 5h); in `db/tables.py` it is
+`page_note_attachments`. The seam of the issue catalogue is `IssueChecks` and `NoIssueChecks` in
+`backend/src/idraft/api/internal_links/mention_sources.py` (Task 5f). The judge is `sniff(data, name)` and
+`FileRefused` in `backend/src/idraft/storage/file_sniff.py`, and the keys are `note_file_key` in
+`storage/note_files.py` (Task 5g); limits come from `NOTE_FILE_MAX_BYTES` there and nowhere else.
+
+### C7c. The box's web names (spec 9.8)
+
+Defined by Task 25f in `apps/web/src/lib/pages/note-mentions.ts` and `note-files.ts` (pure), used by 25g to 25k.
+
+```ts
+export const MAX_SUGGESTIONS = 8;
+export const MAX_MENTIONS = 20;
+export type MentionType = 'page' | 'user' | 'issue' | 'keyword';
+export interface NoteMention { type: MentionType; label: string; target: string; path?: string | null }
+export type TriggerKind = 'at' | 'command' | 'page' | 'issue' | 'keyword';
+export interface Trigger { start: number; kind: TriggerKind; query: string }
+export type CommandName = 'page' | 'issue' | 'keyword' | 'date';
+export type Suggestion =
+  | { kind: 'mention'; mention: NoteMention; hint: string; detail: string | null }
+  | { kind: 'command'; name: CommandName };
+export interface SuggestionSources {
+  teammates: readonly { id: string; name: string }[];
+  pages: readonly { id: string; path: string; title: string | null }[];
+  issues: readonly { checkId: string; name: string }[];
+  keywords: readonly string[];
+}
+/** The trigger the caret is in, or null: `@` or `/` that starts a word. */
+export function triggerAt(text: string, caret: number): Trigger | null;
+export function suggestionsFor(trigger: Trigger, sources: SuggestionSources): readonly Suggestion[];
+/** Replaces the trigger and its typed word with `insert` and one space; returns the new text and caret. */
+export function applySuggestion(text: string, trigger: Trigger, insert: string): { text: string; caret: number };
+/** The entries whose label is still in `text`, first of each label, in order. */
+export function keptMentions(text: string, mentions: readonly NoteMention[]): NoteMention[];
+export type NoteSegment = { kind: 'text'; text: string } | { kind: 'mention'; mention: NoteMention };
+export function splitNoteText(body: string, mentions: readonly NoteMention[]): NoteSegment[];
+
+// note-files.ts
+export const NOTE_FILES_MAX = 5;
+export const NOTE_FILE_MAX_BYTES = 10 * 1024 * 1024;
+export type FileRefusal = { kind: 'count' } | { kind: 'type'; name: string } | { kind: 'size'; name: string };
+export function checkNewFiles(have: number, incoming: readonly File[]): { accepted: File[]; refused: FileRefusal[] };
+```
+
+The sources come from `useNoteSources(scope, urlId, query, enabled)` in `lib/pages/note-sources.ts` (25g); the
+upload from `useNoteFileUpload(scope, urlId)` in `lib/pages/note-uploads.ts` (25j), which rejects with a
+`NoteFileRefusal` (`size`, `type`, `quota`, `storage` or `failed`).
+
 ## File structure
 
 | File | Responsibility | Task |
@@ -496,6 +590,17 @@ Routes (Task 5e), prefix `/api/v1/workspaces/{workspace_id}/projects/{project_id
 | `docs/glossary/terms.md`, `final-list.md` | the rows Outline, Notes and Add note, in their own commit | 23 |
 | `apps/web/src/lib/pages/notes.ts`, `note-drafts.ts`, `apps/web/src/mocks/internal-links-notes.ts` | the notes' reads, writes, drafts and mocks | 25d |
 | `apps/web/src/features/internal-links/inspector/drawer-notes-tab.tsx`, `note-editor.tsx`, `note-item.tsx` | the Notes tab | 25e |
+| `backend/src/idraft/db/migrations/versions/0043_page_note_mentions.py`, `api/internal_links/mention_sources.py`, `page_note_mentions.py`, `schemas/page_notes.py`, `page_notes.py` | mentions: the column, the issue seam, the checks by type | 5f |
+| `backend/src/idraft/storage/file_sniff.py`, `storage/note_files.py`, `backend/tests/storage/test_file_sniff.py`, `test_note_files.py` | the judge of a file's type by its bytes; the keys and storage of note files | 5g |
+| `backend/src/idraft/db/migrations/versions/0044_page_note_attachments.py`, `db/tables.py`, `api/body_limit.py`, `api/internal_links/page_note_files.py`, `page_note_file_routes.py`, `backend/tests/db/test_page_note_attachments_schema.py`, `tests/api/internal_links/test_page_note_files.py` | the table of note files, the quota, the upload | 5h |
+| `backend/src/idraft/api/internal_links/page_notes.py`, `page_note_files.py`, `page_note_file_routes.py`; `docs/19`, `docs/23`, `docs/24`, `docs/27` | attach, answer with files, serve | 5i |
+| `apps/web/src/lib/api/schema.ts` | regenerated client, second own commit | 6b |
+| `apps/web/src/lib/pages/note-mentions.ts`, `note-files.ts` | the box's pure logic (C7c) | 25f |
+| `apps/web/src/lib/pages/note-sources.ts`, `notes.ts`, `note-drafts.ts`, `apps/web/src/mocks/internal-links-notes.ts` | mention sources, writes, drafts, mocked rules | 25g |
+| `apps/web/src/features/internal-links/inspector/note-suggest-list.tsx`, `note-editor.tsx` | the combobox | 25h |
+| `apps/web/src/features/internal-links/inspector/note-text.tsx`, `note-chip.tsx`, `note-item.tsx` | chips in a saved note | 25i |
+| `apps/web/src/lib/pages/note-uploads.ts`, mocks and handlers of the file routes | files: upload, refusals, mocked routes | 25j |
+| `apps/web/src/features/internal-links/inspector/note-files-bar.tsx`, `note-file-list.tsx`, `drawer-notes-tab.tsx` | the file controls and the files under a note | 25k |
 | `apps/web/messages/en.json`, `docs/design-system/11-navigation.md` | words (added by each UI task; audited in 26) | 13 to 26 |
 
 ---
@@ -3674,6 +3779,806 @@ Spec 9.7.3, 9.4 (the count on the tab), 11. Contracts C5, C7. UI task.
 
 ---
 
+## Part F2. Notes: mentions, slash commands and attachments
+
+Owner addition of 2026-11-27, spec 9.8 and decisions D17 to D28. Task numbers are not shifted: the new tasks
+carry letters after the Notes tasks they extend (5f to 5i after 5e, Task 6b after Task 6, 25f to 25k after 25e).
+
+**Placement, and what may run when.** Tasks 1 to 18 are built, and Notes already has its table (5d), its API
+(5e) and its client (6). This block is written after Task 25e because its web tasks change the files Task 25e
+creates (`drawer-notes-tab.tsx`, `note-editor.tsx`, `note-item.tsx`) and the modules Task 25d creates
+(`notes.ts`, `note-drafts.ts`, the notes mock); they run after 25e and in the order 25f to 25k. The backend tasks
+5f to 5i and Task 6b depend only on 5e and Task 6, and no task from 19 to 25e reads them, so the lead may run
+them next, before Task 19, while the backend session and Colima are warm; they must all be done before 25f.
+Task 6b is the second regeneration of the client: Task 6 is done and its commit is not touched, so the new
+routes and fields come in a commit of their own, right after the last new backend task (5i). The new schema
+fields have defaults (`mentions`, `attachments`), so the generated types make them optional and the mocks and
+fixtures written before Task 25f still typecheck, as for `notes_count`.
+
+Where a test written in 25d or 25e no longer holds after these tasks (the placeholder text; "Add note" is
+disabled for an empty text, which now means no text and no file; the mock refusing an empty body), the later
+task changes that test in its own commit and says so.
+
+Backend order: 5f (mentions: the column and the checks), 5g (the judge of a file's type and the storage of
+note files, pure and storage only), 5h (the table, the quota, the upload route), 5i (attach, answer, serve),
+then 6b. Web order: 25f (pure modules), 25g (data for mentions), 25h (the combobox), 25i (chips), 25j (data for
+files), 25k (the file controls). Each is one Sonnet context.
+
+### Task 5f: Mentions on notes: the column, the checks, the answers
+
+Spec 9.8.1, 9.8.6 (mentions), decisions D17, D18, D19. Contract C7b. Backend only. The note routes and the
+audit entries exist (5e); this task adds one column and what the writes do with it.
+
+**Files:**
+- Create: `backend/src/idraft/db/migrations/versions/0043_page_note_mentions.py`
+- Modify: `backend/src/idraft/db/tables.py` (`page_notes.mentions`)
+- Modify: `backend/tests/db/test_grants.py`, `backend/tests/db/test_page_notes_schema.py`
+- Create: `backend/src/idraft/api/internal_links/mention_sources.py`, `page_note_mentions.py`
+- Modify: `backend/src/idraft/api/schemas/page_notes.py`, `api/internal_links/page_notes.py`,
+  `page_note_routes.py`, `api/resources.py`, `api/main.py` (the issue seam is passed in)
+- Create: `backend/tests/api/internal_links/test_page_note_mentions.py`
+- Modify: `backend/tests/api/internal_links/test_page_notes.py` (only where a shape changed),
+  `backend/openapi/v1.json`, `docs/04-data-model.md` (section 5.4), `docs/19-api-specification.md`
+
+- [ ] **Step 1: Read first.** Spec 9.8.1 whole. `0042_page_notes.py` and `0038_keyword_prompt_links.py`
+  (how a column is added and its grant widened: `column_grant`), `api/internal_links/page_notes.py` and
+  `schemas/page_notes.py` (Task 5e: `PageNoteWrite`, `_note_view`, the audit calls), `api/problems.py`
+  (`invalid_fields`, `invalid_field`, the 422 helpers; how a field error carries a code and a location,
+  `grep -rn "invalid_fields" backend/src/idraft/api | head`), `api/workspaces/repository.py` (how a membership
+  is read), `api/internal_links/extras.py` `_KEYWORDS` (the tracked keyword rules: `is_active`, `deleted_at`),
+  `tables.py` `memberships`, `tracked_keywords`, `keywords`, `urls`, `crawl_pages`.
+
+- [ ] **Step 2: Write the failing tests.**
+  - `tests/db`: `mentions` is an array of at most 20 (a non-array and 21 entries are refused by the check);
+    default `[]`; the API role may update `mentions` and the grants test lists it with `body`, `edited_at`,
+    `deleted_at`, `deleted_by`; migration up and down.
+  - `test_page_note_mentions.py`, as spec 9.8.8 lists for it (a seeded crawl, an owner, two editors, a
+    viewer, a member of a second workspace, a user who is in no workspace, tracked keywords active, inactive
+    and deleted, a fake `IssueChecks`).
+
+- [ ] **Step 3: Run, expect failures.**
+  `uv run pytest -n 0 --no-cov tests/db/test_page_notes_schema.py tests/db/test_grants.py tests/api/internal_links/test_page_note_mentions.py`
+
+- [ ] **Step 4: Implement.** The migration (`Revision ID: 0043`, `Revises: 0042`, a docstring that says what and
+  that the API writes it):
+
+```python
+def upgrade() -> None:
+    op.execute(
+        """
+        ALTER TABLE core.page_notes
+            ADD COLUMN mentions jsonb NOT NULL DEFAULT '[]'
+            CHECK (jsonb_typeof(mentions) = 'array' AND jsonb_array_length(mentions) <= 20)
+        """
+    )
+    op.execute(column_grant("core.page_notes", role="app_api", privilege="UPDATE", columns=("mentions",)))
+
+
+def downgrade() -> None:
+    op.execute("ALTER TABLE core.page_notes DROP COLUMN mentions")
+```
+
+  `tables.py`: `Column("mentions", JSONB, nullable=False, server_default=FetchedValue())` on `page_notes`.
+  `schemas/page_notes.py`: the classes of C7b (`PageNoteMentionIn`, `PageNoteMention`), `mentions` on
+  `PageNote` (default empty) and `PageNoteWrite.mentions: list[PageNoteMentionIn] | None = None` with
+  `max_length=MENTIONS_MAX`; `label` validated 2 to 200 characters, starts with `@`, no `\n` or `\r`;
+  `target` 1 to 200 characters.
+  `mention_sources.py`: `IssueChecks` and `NoIssueChecks` exactly as spec 9.8.1 writes them.
+  `page_note_mentions.py`:
+
+```python
+async def check_mentions(
+    db: AsyncSession,
+    access: WorkspaceAccess,
+    project_id: UUID,
+    body: str,
+    mentions: Sequence[PageNoteMentionIn],
+    issues: IssueChecks,
+) -> list[StoredMention]: ...
+async def paths_of(db: AsyncSession, mentions: Sequence[StoredMention]) -> dict[str, str]: ...
+```
+
+  `check_mentions` first drops entries whose label is not in `body` and repeated labels (first kept), then
+  validates the rest by type with one statement each (all targets of a type in one query): page (a crawl page
+  of this project holds the `url_id`; a target that is not digits is a field error), user (`memberships` of
+  `access.workspace_id`; a target that is not a UUID is a field error), keyword (an active, not deleted
+  `tracked_keywords` row of the project whose `keywords.text` equals the target), issue (`issues.known`;
+  `None` is `mention_type_unavailable`, a missing id is `mention_target_unknown`). Every failure is one `422`
+  that lists each failing entry at `mentions[i].target` (or `.type`) with its code (follow
+  `invalid_fields`). It returns the entries to store, as plain dicts `{type, label, target}`.
+  `page_notes.py`: `create` calls `check_mentions` with the new body; `update` with the new body and the
+  `mentions` sent, or, when omitted, the stored ones (so entries whose label left the text are dropped);
+  `mentions` is written in the same statement as `body`; `edited_at = now()` when the body or the stored list
+  changed; `_note_view` fills `mentions` (page entries get `path` from `core.urls` through `paths_of`, one
+  query for the whole list, so a list of notes costs one more statement); the audit snapshots of
+  `page_note.created` and `page_note.updated` hold `mentions`. The service takes `issues: IssueChecks`
+  (default `NoIssueChecks()`), passed from `main.py` and `resources.py` as the other collaborators are.
+  `docs/04-data-model.md` section 5.4: the column and its rule in two sentences. `docs/19-api-specification.md`:
+  the changed bodies and the new error codes.
+
+- [ ] **Step 5: Run the tests of step 3, then** `uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_notes.py tests/api/test_openapi.py tests/api/test_route_access.py tests/db/test_migrations.py tests/db/test_rls.py`.
+  Regenerate the OpenAPI document (Backend commands). Then ruff, ruff format, mypy and `lint-imports` on the
+  files this task changed, as the Backend commands say.
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages API: mentions on a page note, checked by type"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: every `target` is
+  checked against the database for its type, scoped to the workspace and the project (a page of another
+  project, a user of another workspace, a tracked keyword of another project are each refused); an `issue`
+  entry cannot be stored on this branch; a label not in the text never reaches the column; the list is capped
+  at 20 in the schema and in the database; the checks run in the note's transaction; `path` is derived on
+  read and never stored; a refused write records no audit row and changes nothing; the migration revises
+  `0042`, touches no other table and the grant adds only `mentions`; no mention can make the server read
+  anything but ids and text (no HTML, no URL fetch); labels are stored as text and never interpreted.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 5g: The judge of a file's type and the storage of note files
+
+Spec 9.8.5 (type, name, storage key), decisions D22, D23. Pure code and one storage module; no table, no route.
+
+**Files:**
+- Create: `backend/src/idraft/storage/file_sniff.py`, `backend/src/idraft/storage/note_files.py`
+- Create: `backend/tests/storage/test_file_sniff.py`, `backend/tests/storage/test_note_files.py`
+
+- [ ] **Step 1: Read first.** Spec 9.8.5 whole. `storage/screenshots.py` (the pattern: key function, `put`,
+  `get` through `ObjectStore` with `compress` and `decompress`), `storage/raw.py` (`ObjectStore`, `compress`,
+  `decompress`, `UNPACKED_MAX`), `tests/storage/test_raw.py` and `support.py` (the fake store and how tests
+  count its reads and writes), `api/imports/service.py` `_is_csv` and `_filename` (the house way to treat a
+  name).
+
+- [ ] **Step 2: Write the failing tests.**
+  - `test_file_sniff.py`: exactly the pure list of spec 9.8.8 (`tests/storage/test_file_sniff.py` item). Build
+    the byte strings in the test (a 1 by 1 PNG, a minimal JPEG, `GIF89a`, `RIFF....WEBP`, `%PDF-1.4`); every
+    hostile case is a named test so a failure says which.
+  - `test_note_files.py`: `note_file_key(workspace, project, attachment)` is
+    `notes/v1/<workspace>/<project>/<attachment>.zst`; it refuses an argument that is not a UUID; `put_note_file`
+    then `get_note_file` give the bytes back through the fake store; `get_note_file` of a missing key raises the
+    store's error; the stored object is the compressed one.
+
+- [ ] **Step 3: Run, expect failures.**
+  `uv run pytest -n 0 --no-cov tests/storage/test_file_sniff.py tests/storage/test_note_files.py`
+
+- [ ] **Step 4: Implement.**
+
+```python
+# storage/file_sniff.py
+NOTE_FILE_MAX_BYTES: Final = 10 * 1024 * 1024
+IMAGE_TYPES: Final = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
+ACCEPTED_TYPES: Final = IMAGE_TYPES | {"application/pdf", "text/plain", "text/csv"}
+
+
+class FileRefused(Exception):
+    """The file is not one a note may hold. `reason` is a short code: `empty`, `type`, `markup`, `name`."""
+    def __init__(self, reason: str) -> None: ...
+
+
+def sniff(data: bytes, name: str) -> str:
+    """The content type of `data`, decided by its bytes; the name only chooses text/csv over text/plain."""
+
+def display_name(name: str | None) -> str:
+    """The name to show: path parts and control characters removed, 255 characters at most, never empty."""
+```
+
+  The rules are the table of spec 9.8.5, in one function per family (`_image`, `_pdf`, `_text`) and one tuple of
+  blocked extensions and one of markup markers as module constants with a one-line comment each. `sniff`
+  raises `FileRefused`, never anything else, whatever the input (a test feeds random bytes). Keep it free of
+  imports from the rest of the app.
+  `note_files.py`: `note_file_key`, `put_note_file(store, workspace_id, project_id, attachment_id, data)` and
+  `get_note_file(store, key)` written like `screenshots.py` (compress in a thread, store; read, decompress).
+
+- [ ] **Step 5: Run the tests of step 3. Then**
+
+```bash
+uv run ruff check src/idraft/storage/file_sniff.py src/idraft/storage/note_files.py tests/storage/test_file_sniff.py tests/storage/test_note_files.py
+uv run ruff format --check src/idraft/storage/file_sniff.py src/idraft/storage/note_files.py tests/storage/test_file_sniff.py tests/storage/test_note_files.py
+uv run mypy src/idraft/storage tests/storage/test_file_sniff.py tests/storage/test_note_files.py
+uv run lint-imports
+```
+
+- [ ] **Step 6: Commit.** `git commit -m "Storage: a judge of a note file's type by its content, and the keys of note files"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: the type comes only
+  from the bytes (the name's one use is csv versus plain text, and the blocked extensions); SVG, HTML, XML,
+  scripts, archives, executables and Office files are each refused, under every file name, with test cases
+  that name them; the PDF magic is at byte 0; the WebP check needs `RIFF` and `WEBP` together; text is
+  validated whole (UTF-8, no NUL, only the allowed control characters) and the markup markers are looked for
+  in the first 1,024 bytes after lower-casing; a PNG with HTML after its data is accepted as PNG on purpose
+  and a comment says why it is harmless (the serving headers of 5i); no function reads more than the bytes it
+  is given; the module imports nothing from `idraft.api`; the storage key is built from UUIDs only, never from
+  a name.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 5h: The table of note files, the quota and the upload route
+
+Spec 9.8.5 (size, the table, the cap and costs), 9.8.6 (the upload), decisions D21, D25, D26. Contract C7b.
+
+**Files:**
+- Create: `backend/src/idraft/db/migrations/versions/0044_page_note_attachments.py`
+- Modify: `backend/src/idraft/db/tables.py` (`page_note_attachments`, `workspace_quotas.max_note_file_bytes`)
+- Modify: `backend/tests/db/test_tables.py`, `support.py`, `test_grants.py`, `backend/tests/security/test_cross_tenant.py`,
+  `backend/tests/db/test_page_notes_schema.py`, and every test that lists the columns of `workspace_quotas`
+  (`grep -rln "max_serp_checks_per_month" backend/tests`)
+- Create: `backend/tests/db/test_page_note_attachments_schema.py`
+- Create: `backend/src/idraft/api/internal_links/page_note_files.py`, `page_note_file_routes.py`
+- Modify: `backend/src/idraft/api/body_limit.py`, `api/audit.py` (`page_note.file_uploaded`),
+  `api/resources.py`, `api/main.py`, `api/schemas/page_notes.py` (`PageNoteFile`)
+- Create: `backend/tests/api/internal_links/test_page_note_files.py` (the upload half; 5i adds the rest)
+- Modify: `backend/tests/api/test_route_access.py`, `backend/tests/api/test_body_limit.py`,
+  `backend/openapi/v1.json`, `docs/04-data-model.md` (sections 4.1 and 5.5)
+
+- [ ] **Step 1: Read first.** Spec 9.8.5 whole. `0042` and `0043`, `db/ddl.py`, `api/body_limit.py`
+  (`LargerLimit`, `UPLOADS`, how `main.py` passes them), `api/imports/routes.py` and `service.py` `upload`
+  (a multipart route: `UploadFile`, the 413 and 415 errors), `api/ai/screenshots.py` (how a service gets the
+  store from `Resources`, `StorageUnavailableError` when it is `None`), `api/quotas/service.py` (how the
+  quota rows are read and `quota_exceeded` is raised with `limit`, `used`, `requested`), `tests/api/test_body_limit.py`,
+  `tests/api/ai/test_screenshots.py` (the fake store in an API test), `tests/db/test_page_notes_schema.py`.
+
+- [ ] **Step 2: Write the failing tests.**
+  - `tests/db`: the migration up and down; the table in `test_tables.py`; tenant column and seed row in
+    `support.py` and `test_cross_tenant.py`; `test_grants.py` (the API role has `SELECT`, `INSERT` and `UPDATE`
+    on exactly `note_id` and `removed_at`, no `DELETE`; the worker role nothing); the checks of spec 9.8.8
+    (size 0 and 10,485,761, an unknown content type, `removed_at` without `note_id`, a name of 0 and 256
+    characters); the body check now allows an empty body, and refuses 2,001 characters and an untrimmed one;
+    `max_note_file_bytes` defaults to 1,073,741,824 and refuses a negative value; deleting a project removes
+    its file rows.
+  - `test_body_limit.py`: a `POST` to `…/note-attachments` has the 11 MB limit and any other method and
+    path keeps 1 MB.
+  - `test_page_note_files.py` (the upload half of spec 9.8.8's list): each accepted type; the hostile files
+    through the route with the fake store counting its writes (none); the size cases; empty; missing part; the
+    quota cases including concurrency at the edge (two uploads through `asyncio.gather` with room for one);
+    no storage is `503`; a failing store records no row; a viewer is `403`; a member of another workspace is
+    `404`; a `url_id` no crawl holds is `404`; one audit row per upload.
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.** The migration as spec 9.8.5 writes it (table, two indexes, the body check, the
+  quota column), then `tenant_isolation("core.page_note_attachments")` and the grants. `tables.py` and the
+  data model sections to match. `body_limit.py`: a second `LargerLimit`
+  (`NOTE_FILE_PATH = re.compile(r"/api/v1/workspaces/[^/]+/projects/[^/]+/internal-links/pages/[0-9]+/note-attachments")`,
+  `Limit(NOTE_FILE_MAX_BYTES + 1 MiB framing, "A note file is at most 10 MB.")`) in `UPLOADS`; the constant
+  for the file size comes from `storage/file_sniff.py`, not a copy.
+  `page_note_files.py`:
+
+```python
+class PageNoteFileService:
+    def __init__(
+        self, *, sessions: async_sessionmaker[AsyncSession], store: ObjectStore | None
+    ) -> None: ...
+
+    async def upload(
+        self, access: WorkspaceAccess, project_id: UUID, url_id: int, *,
+        filename: str | None, data: bytes, info: RequestInfo,
+    ) -> PageNoteFile: ...
+```
+
+  `upload`: no store is `StorageUnavailableError`; more than `NOTE_FILE_MAX_BYTES` bytes is `PayloadTooLargeError`;
+  `sniff` (a `FileRefused` is `UnsupportedMediaTypeError` for `type`, `markup` and `name`, and a field `422`
+  for `empty`); then one transaction: the page check of 5e (`_require_page`, import it, do not copy it), the
+  advisory lock `pg_advisory_xact_lock(hashtextextended(<workspace id>::text, 0))`, the quota (the sum of
+  `size_bytes` of every row of the workspace plus this file against `max_note_file_bytes` of the workspace's
+  quota row; over is `QuotaExceededError` with `limit`, `used`, `requested`, as the quota service raises it),
+  a new attachment id, `put_note_file` (a `RawStorageError` is `StorageUnavailableError`, and the transaction
+  rolls back so no row exists), the insert with `note_id` null, `uploaded_by` the caller and the sniffed type,
+  `audit.record` `page_note.file_uploaded`. It returns `PageNoteFile` with `url` built by one function
+  (`file_path(workspace_id, project_id, url_id, attachment_id)`, beside the service) that the answers of 5i
+  reuse. The route reads the part with `await file.read(NOTE_FILE_MAX_BYTES + 1)`.
+  The route file: the router with the prefix of the notes routes, `WriteNotes` dependency, summary "Upload a
+  file for a note", a description that lists the status codes of spec 9.8.6. `resources.py` and `main.py`:
+  `page_note_files: PageNoteFileService` built with the store `main.py` already opens (`sources`), the router
+  included.
+
+- [ ] **Step 5: Run the tests of step 2, regenerate the OpenAPI document, run the route access and OpenAPI
+  tests, and the Backend commands on every file this task changed** (add `src/idraft/api/body_limit.py
+  src/idraft/api/audit.py src/idraft/api/main.py src/idraft/api/resources.py src/idraft/db`).
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages API: the table of note files, the workspace quota and the upload route"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: the size is enforced
+  before the bytes are read (the middleware limit, then a read of at most the limit plus one byte), with a
+  test that proves it; the type is the judge's, nothing else; the object is written before the row and a
+  failure leaves no row; the quota counts every row of the workspace and is checked under a lock; no
+  statement deletes a row or an object; the key holds only UUIDs; the grants allow updating `note_id` and
+  `removed_at` only; the body check change is in the migration and the old rule (non-empty) is kept in the
+  service until 5i; the quota column default and check; no dash in SQL comments; `PageNoteFile.url` is an API
+  path with no host; nothing is logged that holds a file name or bytes.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 5i: Attach files to a note, answer with them, serve them
+
+Spec 9.8.5 (attaching, serving, soft delete), 9.8.6, decisions D24, D26, D27. Contract C7b.
+
+**Files:**
+- Modify: `backend/src/idraft/api/schemas/page_notes.py`, `api/internal_links/page_notes.py`,
+  `page_note_files.py`, `page_note_file_routes.py`, `page_note_routes.py`
+- Modify: `backend/tests/api/internal_links/test_page_note_files.py` (the attach and serve half),
+  `test_page_notes.py` (shapes), `backend/tests/api/test_route_access.py`, `backend/openapi/v1.json`
+- Modify: `docs/19-api-specification.md`, `docs/24-security.md`, `docs/27-cost-model.md` (section 7),
+  `docs/23-backup-disaster-recovery.md` (section 9.1)
+
+- [ ] **Step 1: Read first.** Spec 9.8.5 and 9.8.6 whole, `page_notes.py` as 5f left it,
+  `api/ai/screenshot_routes.py` `screenshot` (the response and its headers), `api/ai/screenshots.py` `image`
+  (reading the object), how a `Content-Disposition` with a non-ASCII name is written
+  (`grep -rn "filename\*" backend/src | head`; reuse a helper if one exists, else write one function and test
+  it).
+
+- [ ] **Step 2: Write the failing tests** in `test_page_note_files.py` (the attach and serve half of spec
+  9.8.8's list) and in `test_page_notes.py` (every note answer now has `mentions` and `attachments`; a note
+  with an empty body and no file is `422`; with an empty body and one file is `201`; the sixth file is `422`
+  `too_many_attachments`; each way an id can be wrong (another uploader, another page, another project, already
+  attached, removed, unknown) is `422` at `attachment_ids[i]`; a change with a shorter list marks the dropped
+  file removed and frees a slot, and `edited_at` follows; a change without `attachment_ids` leaves the files; a
+  change that leaves an empty body and no live file is `422`; the download cases: bytes equal, the headers of
+  the table in spec 9.8.5 for a PNG, a PDF, a text file and a name holding a quote, a CRLF and non-ASCII
+  characters, `404` for a pending file, a removed file, a deleted note's file, another page and another
+  workspace, `200` again after restore, a viewer reads it, a note's delete and restore do not touch the file
+  rows; the list of notes costs a fixed number of statements however many notes and files it has).
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.** `schemas/page_notes.py`: `attachments: list[PageNoteFile]` on `PageNote` (default
+  empty), `PageNoteWrite.attachment_ids: list[UUID] | None = Field(default=None, max_length=FILES_MAX)`; the
+  body validator now allows an empty string (the rest of its rules stay) and the service refuses an empty
+  body with no live file (`422` at `body`, the message "A note has text or at least one file."). `page_notes.py`:
+  `create` and `update` call one function in `page_note_files.py`,
+  `attach(db, access, project_id, url_id, note_id, ids, *, replace: bool)`, that locks the rows, checks each
+  id as spec 9.8.5 lists, sets `note_id` (and, for `replace`, `removed_at` on the files not in the list),
+  enforces 5 live files, and returns the change for the audit snapshot; `_note_view` fills `attachments` for
+  every note of a page in one statement (`note_id = ANY(...) AND removed_at IS NULL`, oldest first) and builds
+  `url` with `file_path`. The `edited_at` rule: the body, the kept mentions or the set of live files changed.
+  The download: `GET …/note-attachments/{attachment_id}` in the files router, `data:read`, one statement that
+  joins the file to its note (`deleted_at IS NULL`), checks the page, project and workspace and
+  `removed_at IS NULL AND note_id IS NOT NULL`, then `get_note_file` and a `Response` with the headers of the
+  table in spec 9.8.5; an object that is missing or damaged is `404` with a log line that names the file id
+  and nothing else. The audit snapshots hold `attachment_ids` with names and sizes. The docs: spec 9.8.6's list.
+
+- [ ] **Step 5: Run the tests, regenerate the OpenAPI document, then**
+  `uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_notes.py tests/api/internal_links/test_page_note_mentions.py tests/api/internal_links/test_page_note_files.py tests/storage tests/api/test_openapi.py tests/api/test_route_access.py tests/api/test_body_limit.py tests/db/test_page_note_attachments_schema.py`
+  and the Backend commands on every file this task changed.
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages API: files on a note, attached by id, answered and served with safe headers"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list, with hostile files
+  tried by hand through the route: an SVG named `.png`, an HTML page named `.txt` and `.png`, a PNG with a
+  script after its data, a PDF with a script, a file named `x.html` with text inside, a name holding quotes,
+  newlines and `../`; each is refused or served with `nosniff`, the sandboxing policy and the right
+  disposition (images inline, everything else attachment); the download checks the permission, the workspace,
+  the project, the page, the note's `deleted_at` and the file's `removed_at` in one statement; a pending file
+  is never served; the content type served is the stored one; `attachment_ids` can only name the caller's own
+  pending files of this page; the fifth-and-sixth file rule holds under a concurrent change (the note row is
+  locked); soft delete and restore need no change to the file rows; `can_edit` still governs who may change
+  files; the list's statement count does not grow with the notes; no endpoint returns a storage key.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 6b (Haiku): Regenerate the web client again, alone in its commit
+
+Run it right after Task 5i. Task 6 is done and stays as it is.
+
+- [ ] **Step 1:**
+
+```bash
+cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all-drawer-f3d1f7/apps/web
+pnpm gen:api
+pnpm typecheck
+git add src/lib/api/schema.ts
+git commit -m "Regenerate the API client for note mentions and files"
+```
+
+  Expected: `schema.ts` gains the paths `…/internal-links/pages/{url_id}/note-attachments` and
+  `…/note-attachments/{attachment_id}`, the schemas `PageNoteMention`, `PageNoteMentionIn`, `PageNoteFile`
+  and, on `PageNote` and `PageNoteWrite`, `mentions`, `attachments` and `attachment_ids` (all optional because
+  they have defaults). `pnpm typecheck` passes. If a mock fails to typecheck, stop and tell the lead: the fix
+  is in the mock, in a commit of its own, not an edit of `schema.ts`. If it fails otherwise, stop and report.
+
+- [ ] **Step 2: Independent senior review (Sonnet subagent).** The commit holds `schema.ts` only, and its diff
+  is only additions that Tasks 5f to 5i explain.
+
+- [ ] **Step 3: Fix what the review found** (regenerate again, never hand-edit), commit.
+
+### Task 25f: The box's pure modules: triggers, suggestions, mentions, chips' text and file checks
+
+Spec 9.8.2 (the at sign, slash commands, what a note keeps), 9.8.3 (splitting a body), 9.8.4 (the checks).
+Contract C7c. Pure TypeScript, no component, no request, no visible change.
+
+**Files:**
+- Create: `apps/web/src/lib/pages/note-mentions.ts`, `note-mentions.test.ts`, `note-files.ts`, `note-files.test.ts`
+
+- [ ] **Step 1: Read first.** Spec 9.8.2 to 9.8.4. `apps/web/design-preview/il-notes.js` (read only: `triggerAt`,
+  `choicesFor`, `renderText`, `addFiles`; the behaviour to match, not the code to copy), `lib/pages/notes.ts`
+  and `note-drafts.ts` (Task 25d), `lib/format/date.ts` (the date formatter `/date` will use is passed in),
+  `lib/format/number.ts` `formatBytes`.
+
+- [ ] **Step 2: Write the failing tests.** The pure lists of spec 9.8.8 for `note-mentions.test.ts` and
+  `note-files.test.ts`; in addition: `suggestionsFor` returns teammates, then pages, then issues, then
+  keywords, at most 8 in all, each narrowed by a case-insensitive "contains" on the name, the path and title,
+  the issue name or the keyword, and nothing for an empty source; the `/page`, `/issue` and `/keyword` kinds
+  return one kind each; `commandsFor('pa')` is `/page`; `/date` carries no mention; `applySuggestion` replaces
+  from the trigger's start to the caret, adds one space, and returns the new caret; with the caret in the
+  middle of the text the tail is kept; `keptMentions` drops an entry whose label is gone and keeps the order;
+  `splitNoteText` never produces a part that is not a plain string or a mention object (a body with `<b>` and
+  `&` comes back character for character when its parts are joined); a label made of regular-expression
+  characters (`@"c++ (best)"`) is matched literally.
+
+- [ ] **Step 3: Run, expect failures.**
+  `pnpm exec vitest run --maxWorkers=1 src/lib/pages/note-mentions.test.ts src/lib/pages/note-files.test.ts`
+
+- [ ] **Step 4: Implement** the exports of C7c. No regular expression is built from a label (use `indexOf`).
+  `checkNewFiles(have, incoming)` accepts a file when `file.type` is one of the seven types, or when the type
+  is empty or `application/octet-stream` or `application/vnd.ms-excel` and the extension is `.csv`, `.txt`,
+  `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` or `.pdf`; it is a courtesy check, a comment says the server decides.
+  It stops accepting at 5 (counting `have`), and returns the refusals in the order the files came.
+
+- [ ] **Step 5: Run the tests of step 3, then the web commands on the four files** (`pnpm exec eslint
+  --max-warnings 0`, `pnpm typecheck`, `pnpm exec prettier --check`).
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages: the note box's trigger, suggestion, mention and file-check logic"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: the modules are pure
+  (no React, no `fetch`, no `Date.now()` hidden: the clock and the date formatter come in as arguments); the
+  trigger rules match spec 9.8.2 at the edges (an e-mail address, `and/or`, a path mid-sentence, the caret
+  in the middle of a word, a newline before the trigger); `splitNoteText` cannot inject: every part is a
+  string or a mention whose label is shown as text later; nothing builds a `RegExp` from user text; the
+  limits are the spec's (8, 20, 5, 10 MB) and defined once.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 25g: Mentions on the web: types, sources, writes, drafts and the mocked rules
+
+Spec 9.8.1 (the rules the mock must keep), 9.8.2 (the four sources), 9.8.6. Contracts C5, C7, C7b, C7c. No
+visible change: the box does not use them yet.
+
+**Files:**
+- Modify: `apps/web/src/lib/internal-links/types.ts`, `queries.ts`
+- Create: `apps/web/src/lib/pages/note-sources.ts`, `note-sources.test.tsx`
+- Modify: `apps/web/src/lib/pages/notes.ts`, `notes.test.tsx`, `note-drafts.ts`, `note-drafts.test.ts`
+- Modify: `apps/web/src/mocks/internal-links-notes.ts`, `internal-links-notes.test.ts`,
+  `apps/web/src/mocks/handlers/internal-links.ts`, `handlers/internal-links.test.ts`
+
+- [ ] **Step 1: Read first.** Spec 9.8.1 and 9.8.2 (the list of sources). `lib/pages/notes.ts`, `note-drafts.ts`,
+  `lib/pages/issue-source.ts` (`usePageIssues`, the seam), the workspace members read the web already has
+  (`features/workspace-settings/members-screen.tsx` and its query: `grep -rn "members" src/lib src/features/workspace-settings | head`;
+  reuse it, do not write a second), the pages list query with `q` and `filter[view]`
+  (`lib/internal-links/queries.ts`), the page detail's `extras.keywords` (`pageDetailQuery`, `types.ts`
+  `PageInclude`), the mock world's users (`mocks/internal-links-world.ts`), `mocks/handlers/internal-links.ts`
+  (the note handlers of Task 25d).
+
+- [ ] **Step 2: Write the failing tests.**
+  - `note-sources.test.tsx` (`renderHook`, the mocked API): `useNoteSources(scope, urlId, query, enabled)`
+    returns the workspace's teammates, the live pages matching the query (the pages request carries
+    `filter[view]=live`, `q` and `limit=8`, and is sent once after the pause, not on every key), the page's
+    tracked keywords from its detail, and the issues from the seam (empty while it is `unavailable`); nothing
+    is requested while `enabled` is false; an error in one source leaves the others.
+  - `notes.test.tsx`: `add(body, { mentions, attachmentIds })` sends `mentions` and `attachment_ids` and omits
+    them when empty; `change` likewise; a note read has `mentions`.
+  - `note-drafts.test.ts`: the draft also holds mentions and files (`noteDraftMentions`, `setNoteDraftMentions`,
+    `noteDraftFiles`, `setNoteDraftFiles`), per project and page, in memory only; `clearNoteDraft` clears all
+    three; the text functions behave as before.
+  - mock and handler tests: the mock enforces spec 9.8.1 (at most 20; a label not in the body is dropped; the
+    first of two equal labels is kept; a page of an unknown address, a user who is not a member and a keyword
+    that is not tracked are each refused with the API's `422` shape; an `issue` mention is refused with
+    `mention_type_unavailable`); notes come back with `mentions` and, for a page, its `path`.
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.** `types.ts`: `PageNoteMention = Schemas['PageNoteMention']` (no copy of the
+  shape); `note-sources.ts` as the contract C7c says, built on the existing reads; `notes.ts` and
+  `note-drafts.ts` extended as the tests say and nothing else; the mock store and its handlers enforce the
+  rules above with the same codes as the backend.
+
+- [ ] **Step 5: Run the tests, then the web commands on the files of this task and**
+  `pnpm exec vitest run --maxWorkers=1 src/features/internal-links/inspector src/lib/pages`.
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages: note mentions on the web, their sources, writes and mocked rules"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: no copy of a response
+  type; the teammates come from the existing members read; the page search is paused and cancelled with the
+  box and costs no request while the list is closed; the issues come only through the seam (`usePageIssues`)
+  and are empty on this branch; the keywords come from the page detail the drawer already has (no new
+  request); the mock enforces what the API enforces, so a UI test cannot pass against a rule the server lacks;
+  the draft store is memory only.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 25h: The combobox in the note box
+
+Spec 9.8.2 (the box, the keys table), 9.8.7, 11. Contracts C7c. UI task.
+
+**Files:**
+- Create: `apps/web/src/features/internal-links/inspector/note-suggest-list.tsx`, `note-suggest-list.test.tsx`
+- Modify: `apps/web/src/features/internal-links/inspector/note-editor.tsx`, `drawer-notes-tab.tsx`,
+  `note-item.tsx` (the edit box passes the note's mentions), `drawer-notes-tab.test.tsx`
+- Modify: `apps/web/messages/en.json`
+
+- [ ] **Step 1: Read first.** Spec 9.8.2 and 9.8.7 whole. `note-editor.tsx` and `drawer-notes-tab.tsx`
+  (Task 25e: the native `keydown` listener and why it is native), `lib/pages/note-mentions.ts` (25f),
+  `note-sources.ts` (25g), `components/ui/` for a listbox or popover you can reuse
+  (`ls src/components/ui | grep -i "list\|popover\|combo"`; if there is none, the list is a small component of
+  this task, positioned under the box, with the project's popover tokens and z-index), `lib/a11y/announcer.ts`,
+  `lib/format` (the date formatter for `/date`).
+
+- [ ] **Step 2: Words** (namespace `pages.drawer.notes`). Change `placeholder` to "What changed on this page,
+  what is planned, what to check later. Type @ to mention, / for commands." and add:
+
+| Key | Text |
+|---|---|
+| `suggestions.label` | Suggestions |
+| `suggestions.count` | {count, plural, one {# suggestion} other {# suggestions}}, use the arrow keys |
+| `suggestions.teammate` | Teammate |
+| `suggestions.page` | Page |
+| `suggestions.issue` | Issue on this page |
+| `suggestions.keyword` | Tracked keyword |
+| `commands.page` | Link a page of the site |
+| `commands.issue` | Link an issue found on this page |
+| `commands.keyword` | Mention a tracked keyword of this page |
+| `commands.date` | Put in today's date |
+
+- [ ] **Step 3: Write the failing tests** (the box inside the real `Inspector`, the mocked API):
+  - the `textarea` has role `combobox`, `aria-autocomplete="list"`, `aria-expanded` false; typing `@` opens a
+    `listbox` named "Suggestions" with options, `aria-expanded` true, `aria-controls` the list and
+    `aria-activedescendant` the first option; the count is announced once;
+  - typing after the `@` narrows the rows; at most 8; each option's text holds its label and its hint
+    ("Teammate", "Page", "Tracked keyword"); no rows closes the list;
+  - Down and Up move the active row and wrap; Enter and Tab pick it and put the label and a space into the
+    text, keep the caret after it and keep the focus in the box; the entry is added once; Enter on a closed
+    list adds a line;
+  - a pick with the mouse (`mousedown`) works and the box keeps its caret;
+  - Escape with the list open closes only the list: the text is unchanged, the drawer's `onClose` was not
+    called and, in an edit box, the edit is not cancelled; a second Escape in the edit box cancels the edit,
+    and in the add box closes the drawer (the draft kept);
+  - Ctrl + Enter and Meta + Enter save with the list open or closed; the saved request carries the entries
+    whose label is still in the text and none whose label was deleted;
+  - `/` opens the four commands; `/pa` narrows to `/page`; picking `/page` puts `/page ` and opens the page
+    list; `/date` inserts the date and no entry; `/xyz` closes the list; `and/or` and `a@b.com` open nothing;
+  - the list closes on blur and when the caret leaves the word; typing J and K types the letters;
+  - while the list is open the Add note button and the hint stay reachable; `axe` finds nothing with the list
+    open.
+
+- [ ] **Step 4: Run, expect failures.**
+  `pnpm exec vitest run --maxWorkers=1 src/features/internal-links/inspector/note-suggest-list.test.tsx src/features/internal-links/inspector/drawer-notes-tab.test.tsx`
+
+- [ ] **Step 5: Implement.** UI rules first (Rules for every task). `note-suggest-list.tsx`:
+  `NoteSuggestList({ id, suggestions, activeIndex, onPick, label })`, a `ul` with `role="listbox"`, one `li`
+  per row with `role="option"`, `aria-selected`, an icon hidden from assistive technology, the label, the hint
+  and, for a page, its title; rows are picked on `mousedown` (prevent default). `note-editor.tsx`: the
+  `Textarea` gets the combobox attributes; one state `{ trigger, active }` from `triggerAt` on every change
+  and caret move (`selectionStart`, on `input`, `click` and `keyup` for arrows); `suggestionsFor(trigger,
+  sources)` with the sources of 25g (enabled only while a trigger is open); the native keydown listener of
+  Task 25e grows: while the list is open, Down, Up, Enter (no Cmd or Ctrl) and Tab are handled and prevented,
+  Escape calls `preventDefault`, `stopPropagation` and closes the list; when it is closed the listener is as
+  25e left it. A pick calls `applySuggestion`, sets the value and the caret, adds the entry to the box's
+  mentions (`onMentionsChange`) and announces nothing more. `drawer-notes-tab.tsx` keeps the box's mentions
+  in state started from `noteDraftMentions`, written back on change, cleared on save, passed to `add`
+  (through `keptMentions`); an edit box starts from the note's mentions.
+
+- [ ] **Step 6: Run the tests, then the web commands, the inspector tests and the two message tests
+  (`src/i18n/messages.test.ts src/lib/glossary/glossary-words.test.ts`).**
+
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: the note box suggests mentions and slash commands"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: the combobox pattern
+  is complete (role, `aria-expanded`, `aria-controls`, `aria-activedescendant`, `aria-autocomplete`, options
+  with `aria-selected`) and a screen reader hears the count; Escape never closes the drawer while the list is
+  open (proven against the real `Inspector`, no shared drawer file in the diff) and the add box's Escape with
+  the list closed still closes it; focus never leaves the box on a pick or a mouse pick; the trigger rules
+  are those of 25f (no list for an e-mail address or `and/or`); no request is made while the list is closed;
+  a label that is no longer in the text is never sent; `/date` goes through the app's date formatter; every
+  visible string is in `en.json` and in the glossary's words ("mention", "teammate"); no hex colour or
+  arbitrary Tailwind value; the list is not clipped by the drawer.
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
+### Task 25i: Chips in a saved note, and what the page and issue chips open
+
+Spec 9.8.3, 9.8.7 (chips). Contracts C7c. UI task.
+
+**Files:**
+- Create: `apps/web/src/features/internal-links/inspector/note-text.tsx`, `note-chip.tsx`, `note-text.test.tsx`
+- Modify: `apps/web/src/features/internal-links/inspector/note-item.tsx`, `drawer-notes-tab.test.tsx`,
+  `apps/web/src/features/internal-links/inspector/page-drawer-context.ts` (only if the drawer needs a way to
+  open another page that it lacks), `page-inspector.tsx`
+- Modify: `apps/web/messages/en.json`
+
+- [ ] **Step 1: Read first.** Spec 9.8.3 whole. `note-item.tsx` (Task 25e: the body is a text child),
+  `lib/pages/note-mentions.ts` `splitNoteText`, `page-drawer-context.ts` (`hrefs.issueCheck`, how the drawer
+  steps to another row), `components/app/inspector/use-inspector.ts` (read only: how `?inspect=page:<id>` is
+  opened and whether any page id can be opened, not only one in the table), `components/ui/text-link.tsx`,
+  `icon` components.
+
+- [ ] **Step 2: Words.**
+
+| Key | Text |
+|---|---|
+| `chips.openPage` | Open {path} |
+| `chips.openIssue` | Open this check on the Issues page |
+| `chips.user` | Teammate {name} |
+| `chips.keyword` | Tracked keyword {keyword} |
+
+- [ ] **Step 3: Write the failing tests** (`note-text.test.tsx`, then the tab):
+  - a body with two mentions renders text, chip, text, chip, text in order; a label that appears twice is two
+    chips; a label that is not in the text is not drawn; text that looks like a label but has no entry is
+    plain text;
+  - a page chip is a `button` named "Open /pricing" (the current `path`, not the label) and pressing it opens
+    that page in the drawer (`?inspect=page:<target>`, the same tab, through the shared hook) with no request
+    for notes of the old page left hanging; Enter and Space work;
+  - an issue chip is a link to `hrefs.issueCheck(target)` when that returns a route, and plain text with its
+    icon when it returns `null` (no `a`, no disabled button);
+  - user and keyword chips are `span`s, not focusable, with the icon hidden from assistive technology and the
+    full words available as text;
+  - a body `<img src=x onerror=alert(1)> @/pricing` adds exactly one extra element, the chip (no `img`);
+  - a chip never breaks the line height of the note; long labels truncate with the full text in the accessible
+    name; `axe` finds nothing.
+
+- [ ] **Step 4: Run, expect failures.**
+
+- [ ] **Step 5: Implement.** `note-text.tsx`: `NoteText({ body, mentions, onOpenPage, issueHref })` renders
+  `splitNoteText` as a `p` with `whitespace-pre-wrap break-words`, each text part a text child, each mention a
+  `NoteChip`. `note-chip.tsx`: the four kinds as the table of spec 9.8.3 says, with the project's primary-subtle
+  tokens (read `DESIGN_SYSTEM.md`; no hex), the icon per kind hidden from assistive technology, focus ring on
+  the buttons. `note-item.tsx` uses `NoteText` where it rendered the body, and passes `onOpenPage` (the
+  shared inspector hook) and `issueHref`. Add to the drawer context only what is missing to open another
+  page; if `use-inspector.ts` already offers it, add nothing there and say so in the commit message.
+
+- [ ] **Step 6: Run the tests, then the web commands on the files of this task, the inspector tests and the
+  message tests.**
+
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: mentions in saved notes show as chips"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: search the diff for
+  `dangerouslySetInnerHTML`, `innerHTML`, a `RegExp` built from a label and any link built from note text
+  (none may be there); the page chip opens the page named by `target` and its name shows the current `path`;
+  the issue chip is never a dead link; chips that are not actions are not tab stops; the author-only rules
+  of 25e are untouched; a stored mention for a user who left or a page that is gone still draws; no shared
+  drawer file is in the diff.
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
+### Task 25j: Files on the web: types, upload, refusals and the mocked routes
+
+Spec 9.8.4 (limits, refusal wording), 9.8.5 (two steps), 9.8.6. Contracts C7, C7b, C7c. No visible change.
+
+**Files:**
+- Modify: `apps/web/src/lib/internal-links/types.ts`, `queries.ts`
+- Create: `apps/web/src/lib/pages/note-uploads.ts`, `note-uploads.test.tsx`
+- Modify: `apps/web/src/lib/pages/notes.ts`, `notes.test.tsx`, `note-drafts.ts`, `note-drafts.test.ts`
+- Modify: `apps/web/src/mocks/internal-links-notes.ts`, `internal-links-notes.test.ts`,
+  `apps/web/src/mocks/handlers/internal-links.ts`, `handlers/internal-links.test.ts`
+
+- [ ] **Step 1: Read first.** Spec 9.8.4 and 9.8.5. The API client's call for a `multipart/form-data` request
+  (`src/lib/api`; how the keyword import upload is sent: `grep -rn "keyword-imports/upload" src | head`), how an
+  `ApiError` carries `status` and the problem `code`, `lib/pages/note-files.ts` (25f), the notes mock and its
+  handlers (25d, 25g), how a mock handler returns bytes (`HttpResponse`).
+
+- [ ] **Step 2: Write the failing tests.**
+  - `note-uploads.test.tsx`: `useNoteFileUpload(scope, urlId)` has `upload(file)` that sends one multipart
+    request and resolves with the file (`id`, `name`, `size`, `content_type`, `is_image`, `url`); `pending`
+    while it runs; a `413` rejects with `{ kind: 'size' }`, a `415` with `{ kind: 'type' }`, a `422
+    quota_exceeded` with `{ kind: 'quota' }`, a `503` with `{ kind: 'storage' }`, anything else with `{ kind:
+    'failed' }`; the request carries no `Content-Type` header of its own (the browser sets the boundary).
+  - `notes.test.tsx`: a note read has `attachments`; `add` and `change` send `attachment_ids`.
+  - `note-drafts.test.ts`: the draft's files (File objects) survive as in 25g.
+  - mock and handler tests: upload stores the bytes in memory, answers `201` with an `id` and a `url`; the
+    mock refuses a file over 10 MB (`413`), a type that is not one of the seven or whose name is `.html`,
+    `.svg`, `.xml` or `.js`, or whose first bytes start with `<` after blanks (`415`), an empty file (`422`),
+    and a seventh megabyte over the workspace cap set by a test hook (`422 quota_exceeded`); attaching
+    follows the backend's rules (only the uploader's pending files of this page, at most 5 live, a file
+    attaches once, a dropped id is removed); a note with an empty body and one file is accepted and with
+    neither is `422`; the download handler returns the bytes with the stored type; `404` for a pending,
+    removed or deleted-note file; a deleted note's files come back on restore.
+
+- [ ] **Step 3: Run, expect failures.**
+
+- [ ] **Step 4: Implement.** `types.ts`: `PageNoteFile = Schemas['PageNoteFile']`. `queries.ts`: the path
+  constants for the two file routes. `note-uploads.ts`: `NoteFileRefusal` as a union and `useNoteFileUpload`;
+  `notes.ts` writes take `attachmentIds`; the mock store and handlers per the tests. The mock states in one
+  comment that its type check is by declared type, name and the first byte, and that the server sniffs
+  properly (the unit of truth is `storage/file_sniff.py`).
+
+- [ ] **Step 5: Run the tests, then the web commands on the files of this task and the inspector and
+  `src/lib/pages` tests.**
+
+- [ ] **Step 6: Commit.** `git commit -m "Pages: note files on the web, their upload, refusals and mocked routes"`.
+
+- [ ] **Step 7: Independent senior review (Sonnet subagent).** Besides the common list: no copy of a response
+  type; the upload sends one file per request with no hand-set content type; every server refusal maps to a
+  refusal kind the box can word; the mock enforces what the API enforces; no file bytes or names are logged;
+  a draft's files are memory only.
+
+- [ ] **Step 8: Fix what the review found**, rerun, commit.
+
+### Task 25k: The file controls in the note box and the files under a note
+
+Spec 9.8.4, 9.8.7, 11. Contracts C7c. UI task.
+
+**Files:**
+- Create: `apps/web/src/features/internal-links/inspector/note-files-bar.tsx`, `note-file-list.tsx`,
+  `note-files-bar.test.tsx`
+- Modify: `apps/web/src/features/internal-links/inspector/note-editor.tsx`, `note-item.tsx`,
+  `drawer-notes-tab.tsx`, `drawer-notes-tab.test.tsx`, `page-inspector.test.tsx`
+- Modify: `apps/web/messages/en.json`
+
+- [ ] **Step 1: Read first.** Spec 9.8.4, 9.8.5 (two steps), 9.8.7. `note-editor.tsx`, `drawer-notes-tab.tsx`,
+  `note-item.tsx`, `lib/pages/note-files.ts`, `note-uploads.ts`, `note-drafts.ts`,
+  `components/ui/icon-button.tsx`, `lib/format/number.ts` `formatBytes`, `lib/a11y/announcer.ts`,
+  `design-preview/il-notes.js` `composer` and `renderFiles` (read only: the layout and the wording).
+
+- [ ] **Step 2: Words.**
+
+| Key | Text |
+|---|---|
+| `files.attach` | Attach files |
+| `files.remove` | Remove {name} |
+| `files.drop` | Drop files to attach |
+| `files.tooMany` | At most {max} files per note. |
+| `files.wrongType` | {name}: only images (PNG, JPEG, GIF, WebP), PDF, text and CSV files. |
+| `files.tooBig` | {name}: over {max}. |
+| `files.quota` | Your workspace has no room left for files. |
+| `files.storage` | Files cannot be stored right now. Try again later. |
+| `files.failed` | {name} could not be uploaded. |
+| `files.uploading` | Uploading {done} of {total} files |
+| `files.open` | {name}, {size}. Opens in a new tab. |
+| `files.thumb` | {name} |
+| `saveNoText` | A note needs text or a file. |
+
+  (`tooBig` takes `max` as "10 MB" from the formatter. Several refusals are joined with a space in code into
+  the one line.)
+
+- [ ] **Step 3: Write the failing tests:**
+  - the paperclip is an icon button named "Attach files" that opens the file chooser (a hidden `input` with
+    `multiple` and an `accept` list of the seven types, not a tab stop); choosing files adds chips above the
+    row: a thumbnail for an image (an object URL, `alt` empty), a file icon for others, the name, the size and
+    a "Remove {name}" button; removing one updates the list and `URL.revokeObjectURL` is called;
+  - drop: dragging files over the box shows "Drop files to attach" (text) and dropping adds them; a drop of
+    something that is not a file does nothing; paste of an image from the clipboard adds the file and no text;
+  - refusals show in one `role="alert"` line under the box: a sixth file, a `.zip`, an 11 MB file, and three
+    problems at once in one line; the line clears with the next accepted file; accepted files stay;
+  - Add note is enabled with text, or with files and no text; with neither it is disabled; saving uploads the
+    files one by one (the button busy and "Uploading 2 of 3 files" announced once), then adds the note with
+    the ids; the box and the chips are empty after and keep the focus; a failed upload keeps the text, the
+    mentions and every file in the box, shows its refusal line or an error toast, and the retry sends only
+    what was not uploaded (the ids already got are kept); a server refusal (`415`, `413`, quota) is worded
+    like the client's;
+  - the draft keeps the files across a tab switch and a step to another page and back, and loses them after
+    a save;
+  - a saved note shows its images as thumbnails (a link, `target="_blank"`, `rel="noopener noreferrer"`,
+    `alt` the name) and other files as rows with icon, name and size; each link's name is "{name}, {size}.
+    Opens in a new tab."; a note with files and no text shows no empty paragraph;
+  - edit: the edit box lists the note's files with Remove buttons and the paperclip; saving sends the exact
+    list of ids that remain plus the new ones; removing every file and the text is refused with "A note needs
+    text or a file."; Escape handling and focus return are as before;
+  - `axe` finds nothing with files in the box, with the drop state, and with files under a note.
+
+- [ ] **Step 4: Run, expect failures.**
+  `pnpm exec vitest run --maxWorkers=1 src/features/internal-links/inspector/note-files-bar.test.tsx src/features/internal-links/inspector/drawer-notes-tab.test.tsx`
+
+- [ ] **Step 5: Implement.** UI rules first. `note-files-bar.tsx`: the chips, the hidden input, the drop and
+  paste handlers (on the box's wrapper and the `textarea`), the refusal line; the state is `File[]` kept in
+  the draft store and the refusal text in a `useState`. `note-file-list.tsx`: thumbnails and rows for a
+  saved note (`attachments`), links to `file.url`. `note-editor.tsx`: the paperclip in its row and the bar
+  under the text; the Add note button's disabled rule is `text.trim() === '' && files.length === 0`.
+  `drawer-notes-tab.tsx`: the save path uploads, then writes; it holds `uploaded: Map<File, id>` for the
+  retry; announces progress through `announce`; counts of files and the 10 MB cap come from `note-files.ts`.
+  `note-item.tsx`: renders `NoteFileList` after the text; the edit state carries the note's files.
+
+- [ ] **Step 6: Run the tests, then the web commands, the inspector tests and the message tests.**
+
+- [ ] **Step 7: Commit.** `git commit -m "Page drawer: attach files to a note, with refusals, thumbnails and file rows"`.
+
+- [ ] **Step 8: Independent senior review (Sonnet subagent).** Besides the common list: file names are text
+  nodes and attributes only (never HTML); links carry `rel="noopener noreferrer"`; object URLs are revoked;
+  the client's checks are a courtesy and every server refusal is shown the same way; the order is upload,
+  then note, and a failure leaves nothing lost; a note with files and no text works end to end; the drop
+  target does not swallow drops of text; the refusal line is announced; focus after add, after a failed save
+  and after removing a chip; no layout shift of the Add note button when five chips are present (check at
+  the drawer's least width); no shared drawer file is in the diff; no `any`, no `as` on a `File` or on an
+  API type.
+
+- [ ] **Step 9: Fix what the review found**, rerun, commit.
+
+---
+
 ## Part G. Words and the final checks
 
 ### Task 26 (Haiku): Audit the words
@@ -3700,8 +4605,9 @@ node -e "const m=require('./messages/en.json');const w=(o,p=[])=>Object.entries(
 - [ ] **Step 3: Read `docs/glossary/terms.md` rows A5, A12 and A15 and `final-list.md`.** They were written
   in commit afc686bf. Confirm the visible strings use "Pages", "All pages", "Overview", "Tracked",
   "Parameter variant", "Orphan page", "Untiered", "Linking pages", "Outlinks", "Best rank", "Outline", "Notes",
-  "Add note" as those files write them, that no string under `pages.drawer.notes` says "comment", "post" or
-  "annotation", and that the Outline's strings say "the latest crawl", "alt text", "Open Graph" and
+  "Add note" as those files write them, that no string under `pages.drawer.notes` says "comment", "post",
+  "annotation", "tag" (say "mention") or "attachment" (say "file"), that the box's strings use "teammate",
+  "tracked keyword" and "issue" as spec 11 says, that every refusal line says what is allowed, and that the Outline's strings say "the latest crawl", "alt text", "Open Graph" and
   "X card" the same way everywhere. Report a mismatch; fix the string, not the glossary.
 
 - [ ] **Step 4: Commit** only if something changed:
@@ -3733,6 +4639,10 @@ uv run ruff check src/idraft/db/tables.py src/idraft/db/migrations/versions/0042
 uv run mypy src/idraft/db src/idraft/api/audit.py src/idraft/api/resources.py
 uv run pytest -n 0 --no-cov tests/db/test_page_notes_schema.py tests/db/test_tables.py tests/db/test_grants.py tests/db/test_rls.py tests/db/test_migrations.py
 uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_notes.py tests/api/test_audit.py
+uv run ruff check src/idraft/storage/file_sniff.py src/idraft/storage/note_files.py src/idraft/api/body_limit.py src/idraft/db/migrations/versions/0043_page_note_mentions.py src/idraft/db/migrations/versions/0044_page_note_attachments.py tests/storage tests/db/test_page_note_attachments_schema.py
+uv run mypy src/idraft/storage src/idraft/api/body_limit.py tests/storage
+uv run pytest -n 0 --no-cov tests/storage/test_file_sniff.py tests/storage/test_note_files.py tests/db/test_page_note_attachments_schema.py tests/api/test_body_limit.py
+uv run pytest -n 0 --no-cov tests/api/internal_links/test_page_note_mentions.py tests/api/internal_links/test_page_note_files.py
 uv run pytest -n 0 --no-cov tests/api/internal_links/test_inventory.py tests/api/internal_links/test_page_search.py tests/api/internal_links/test_page_outline.py tests/api/internal_links/test_page_sort_extra.py tests/api/internal_links/test_reads_pages.py tests/api/internal_links/test_variants.py tests/api/test_openapi.py tests/api/test_route_access.py
 uv run python -m idraft.api.openapi | diff - openapi/v1.json
 ```
@@ -3743,7 +4653,7 @@ uv run python -m idraft.api.openapi | diff - openapi/v1.json
 
 ```bash
 cd /Users/a12345/Desktop/AI/idraft/platform/.claude/worktrees/pages-overview-all-drawer-f3d1f7/apps/web
-pnpm gen:api && git diff --exit-code src/lib/api/schema.ts
+pnpm gen:api && git diff --exit-code src/lib/api/schema.ts   # one regeneration covers Tasks 6 and 6b
 pnpm typecheck
 pnpm exec eslint --max-warnings 0 src/lib/pages src/lib/internal-links src/lib/routes src/lib/navigation src/features/internal-links src/components/app/data-table src/mocks/handlers/internal-links.ts src/mocks/internal-links-inventory.ts src/mocks/internal-links-outline.ts src/mocks/internal-links-notes.ts src/test/pages-harness.tsx "src/app/[workspace]/[project]/seo"
 pnpm exec prettier --check src/lib/pages src/features/internal-links src/components/app/data-table messages/en.json
@@ -3754,6 +4664,7 @@ pnpm exec vitest run --maxWorkers=1 src/components/app/data-table
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/pages-page
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/pages
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/inspector
+pnpm exec vitest run --maxWorkers=1 src/lib/pages/note-mentions.test.ts src/lib/pages/note-files.test.ts src/lib/pages/note-sources.test.tsx src/lib/pages/note-uploads.test.tsx
 pnpm exec vitest run --maxWorkers=1 src/features/internal-links/tabs.test.ts src/features/internal-links/url-state.test.ts src/features/internal-links/internal-links-screen.test.tsx src/features/internal-links/states.test.tsx
 pnpm exec vitest run --maxWorkers=1 "src/app/[workspace]/[project]/seo" src/features/shell/project-shell.test.tsx src/i18n/messages.test.ts src/lib/glossary/glossary-words.test.ts
 ```
@@ -3798,6 +4709,13 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
      - The drawer's Notes tab: add a note with Ctrl + Enter, switch tabs with a draft typed and come back,
        edit a note and press Escape (the drawer stays open), delete it and press Undo; the tab's count
        follows; at the drawer's least width every tab is reachable (the last ones through More).
+     - The note box at 1280 by 720 (spec 9.8, the owner's check): type `@` and see the list open under the
+       box with at most 8 rows, not clipped by the drawer's edge and with Add note still visible; pick a
+       teammate with Enter and a page with the mouse; press Escape (the list closes, the drawer stays open);
+       type `/date`; attach five files (the sixth shows its refusal line) and check that the five chips, the
+       refusal line, the row and the list of notes under it fit the drawer without the button leaving the
+       screen; save, and see the chips and the thumbnails; open a page chip (the drawer goes to that page)
+       and a thumbnail (a new tab). Repeat the box at the drawer's least width and at 1920 by 1080.
      - Overview: every strip number and every card row opens All pages, and the list's total equals the
        number on the mark. Check at least one row of each card.
      - `/seo/internal-links?tab=pages&view=orphans&tier=none` lands on
@@ -3815,7 +4733,9 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
   `git log --oneline a8167b06..HEAD` and `git diff --stat a8167b06..HEAD`, spec sections 13, 14 and 16, and
   the checklist of step 6. It checks: nothing of spec 13 ("Not in this build") was built (for the Outline: no
   new table, column or cache, and no HTML reader other than `crawl/outline.py`; for Notes: no Notes column
-  in All pages, no change to the chart notes routes, one new table and no other); the only changes
+  in All pages, no change to the chart notes routes, and the tables are `core.page_notes` and
+  `core.page_note_attachments` only; of spec 9.8.9: no notification, no virus scan, no server-side thumbnail,
+  no deletion from storage, no new bucket and no server file); the only changes
   to shared files are the Pages entries of spec 14; every acceptance line has its proof; the commits are in
   the order backend, client, web; no attribution line in any commit message
   (`git log a8167b06..HEAD --format=%B | grep -i "co-authored\|generated with"` prints nothing).
@@ -3830,7 +4750,7 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 
 | Spec section | Tasks |
 |---|---|
-| 3 decisions D1 to D16 | D13 5c; D14 5b; D15 5d; D16 5e; D1 14; D2 16; D3 13, 23; D4 11, 23; D5 23 to 25 (no shared drawer file); D6 18 (pager untouched); D7 3; D8 1, 3, 8, 10; D9 19; D10 20, 22; D11, D12 21 |
+| 3 decisions D1 to D28 | D17 to D19 5f, 25g; D20 25f, 25h; D21 5h, 5i, 25j, 25k; D22 5g, 5h; D23 5g; D24 5i; D25 5h; D26 5h, 5i; D27 (nothing built: the key shape in 5g, the statement in 5i); D28 (nothing built); D13 5c; D14 5b; D15 5d; D16 5e; D1 14; D2 16; D3 13, 23; D4 11, 23; D5 23 to 25 (no shared drawer file); D6 18 (pager untouched); D7 3; D8 1, 3, 8, 10; D9 19; D10 20, 22; D11, D12 21 |
 | 4 words | 1 |
 | 5 routes, tabs, redirects, sidebar | 9, 13, 14, 16 |
 | 6 Overview | 3, 8, 10, 13, 21, 22 |
@@ -3839,9 +4759,10 @@ git diff a8167b06..HEAD | grep -nP '^\+.*[\x{2012}-\x{2015}]'
 | 9 drawer | 5, 9, 11, 23 to 25 |
 | 9.6 the Outline tab | 5b (parser), 5c (read), 6 (client), 7 (types, query), 8 (mock), 9 (hook), 23 (tab), 25b, 25c (the tab's body) |
 | 9.7 the Notes tab | 5d (table), 5e (API, audit, count), 6 (client), 11 (`canNote`), 23 (tab, glossary), 25d (reads, writes, drafts, mock), 25e (the tab's body) |
+| 9.8 the Notes box: mentions, slash commands, attachments | mentions 5f (column, checks), 25f (pure), 25g (sources, writes, mock), 25h (combobox, slash), 25i (chips); files 5g (type judge, storage), 5h (table, quota, upload), 5i (attach, serve), 25j (upload, mock), 25k (controls, thumbnails); client 6b; D17 to D28 across them; words 25h to 25k, 26; checks 27 |
 | 10 seams | 9, 20, 22, 24, 25, 25b, 25c ("See in Issues" through `hrefs.issueCheck`) |
 | 11 words | every UI task, 26 |
 | 12 tests | every task, 27 |
-| 14 merge points | Rules, 14, 27 |
-| 15 blocks | 5 (before dispatching), 5b (before dispatching), 5c (`no_html`), 9, 20 |
+| 14 merge points | Rules, 5f, 5h, 14, 27 |
+| 15 blocks | 5 (before dispatching), 5b (before dispatching), 5c (`no_html`), 5f (the issue seam), 5h (migration numbers), 9, 20 |
 | 16 acceptance | 27 |
