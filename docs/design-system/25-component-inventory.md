@@ -1324,7 +1324,7 @@ interface ToasterProps { label: string; closeLabel: string }             // "Not
 
 - **Variants:** none (360 px, `surface-elevated`, visible limit 3).
 - **States:** success and info dismiss after 6 s; toasts with an action and error toasts persist until dismissed (section 23, item 25); timers pause on hover, focus and hidden document; progress updates by id.
-- **A11y:** Base UI Toast region named "Notifications", reachable with F6; toasts never take focus; error assertive, others polite. The Close button is kept out of the accessibility tree until the pointer or focus is in the region (Base UI), so a screen reader does not hear "Close" after every toast; the action button is always exposed. Placement: bottom right at 360 px from 768 px up, across the bottom below; aligning to the main column while the inspector is docked arrives with the shell.
+- **A11y:** Base UI Toast region named "Notifications", reachable with F6; toasts never take focus; error assertive, others polite. The Close button is kept out of the accessibility tree until the pointer or focus is in the region (Base UI), so a screen reader does not hear "Close" after every toast; the action button is always exposed. Placement: bottom right at 360 px from 768 px up, across the bottom below. While the inspector drawer is open the toasts stay where they are, so they can cover its bottom right corner.
 - **Use:** dialog submitted and closed, reversible bulk actions with Undo, background jobs the user started, 429 retry countdown.
 - **Not for:** alert events, page conditions (`Banner`), validation or permission errors (inline), inline edits (visible in place), copy confirmation, warnings.
 
@@ -4973,10 +4973,10 @@ interface InspectorFooterProps { secondary?: Slot; primary: Slot; start?: Slot }
 Purpose: the window splitter on the inspector's left edge.
 
 ```ts
-interface InspectorResizeHandleProps { valueNow: number; min: 360; max: number; defaultWidth: number; controlsId: string; onResize: (widthPx: number) => void; onReset: () => void }   // max 640; defaultWidth 400 or 440
+interface InspectorResizeHandleProps { width: number; max: number; controlsId: string; onResize: (width: number) => void; onReset: () => void; onPreview: (width: number | null) => void }   // min 480; max is the smaller of 60% of the viewport and 960; default 640
 ```
 
-- **States:** idle (1 px `border`), hover and drag (2 px `border-strong`, reflow on pointer up), focus (ring). **A11y:** `role="separator"`, `aria-orientation="vertical"`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext="400 pixels"`; Left widens and Right narrows by 16 px, Shift by 64 px, Home, End, Enter resets; double-click resets; menu alternative in the header.
+- **States:** idle (1 px `border`), hover and drag (2 px `border-strong`; the card follows the pointer, the width is saved once on release), focus (ring). **A11y:** `role="separator"`, `aria-orientation="vertical"`, `aria-valuenow`, `aria-valuemin="480"`, `aria-valuemax`, `aria-valuetext="640 pixels"`; Left widens and Right narrows by 16 px, Shift by 64 px, Home goes to 480, End to the maximum, Enter and double-click reset to 640. There is no menu alternative: the width items were removed from the header, and one saved width applies to every drawer.
 - **Not for:** the sheet.
 
 ## 19. Hooks

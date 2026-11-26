@@ -349,7 +349,7 @@
   --duration-instant: 0ms;
   --duration-fast: 100ms;          /* hover, press, selection feedback */
   --duration-base: 150ms;          /* popovers, menus, tooltips */
-  --duration-slow: 200ms;          /* drawers, dialogs, inspector */
+  --duration-slow: 200ms;          /* drawers, dialogs */
   --duration-reveal: 400ms;        /* theme change: the circular reveal from the theme switch */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);

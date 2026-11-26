@@ -7,6 +7,9 @@ Date: 2026-09-29
 Users inspect many records in sequence and must not lose list context (scroll, filters, selection).
 
 ## Decision
+
+Superseded in part on 2026-11-26: the inspector no longer docks beside the list, it is always an overlay drawer (see docs/superpowers/specs/2026-11-26-shared-overlay-drawer-design.md).
+
 A docked, resizable (360 to 640 px; 400 px default, 440 px for prompt, citation and answer evidence), URL-addressable right inspector (`?inspect=type:id`) opens from table rows; Back closes it; previous and next record navigation; full pages only for deep objects. It overlays when docking at its 360 px minimum would leave the main column narrower than 720 px, and becomes a full-screen sheet below 768 px ([16-drawers-dialogs-popovers.md](../16-drawers-dialogs-popovers.md) section 2.6).
 
 ## Alternatives considered

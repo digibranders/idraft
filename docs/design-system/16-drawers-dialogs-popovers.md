@@ -63,9 +63,9 @@ The inspector is the product's main detail pattern: every record in every table 
 The inspector is a floating card under the top bar: rounded, bordered, with a soft shadow, 12 px from the top bar and from the right and bottom edges of the window. Its body is a column of cards on the page background ([ADR-DS-019](adr/ADR-DS-019-card-drawer-inspector.md)).
 
 ```
-| Top bar (always full width; the inspector never narrows it)                                              |
+| Top bar (always full width, the drawer sits below it)                                                     |
 +-----------------------------------------------------+----------------------------------------------------+
-| Rankings table (main column, >= 720 px)             |  12 px                                             |
+| Rankings table (the page, not narrowed)             |  12 px                                             |
 |                                                     |  +----------------------------------------------+  |
 | [] best crm for startups   4   6   ^2  ...          |  | best crm for startups  [Check now] [⋮] [x]   |  |
 | [>] crm pricing  (active row, 2 px edge)            |  | (2 lines max)                                |  |
@@ -120,7 +120,7 @@ One width rule serves every inspector type; no type has a width of its own.
 | Minimum | 480 px (`--size-inspector-min`) |
 | Maximum | The smaller of 60% of the viewport and 960 px (`--size-inspector-max`), rounded down to a multiple of 8 px, and never below 480 px |
 
-The width is one saved width per user for the whole app: a person who widens the keyword drawer finds every other drawer at that width. It is kept in `localStorage` under `idraft.pref.<userId>.inspector-width` as a whole number of pixels, so it is cleared with the other preferences at sign-out. A stored value outside 480 to 960 is ignored and the default applies. On a smaller window the stored value is clamped when the card is drawn, never rewritten, so the saved width returns on a larger window. Where storage is blocked or full the width is kept in memory until the page reloads. With no signed-in user (design-system previews) nothing is stored.
+The width is one saved width per user for the whole app: a person who widens the keyword drawer finds every other drawer at that width. It is kept in `localStorage` under `idraft.pref.<userId>.inspector-width` as a whole number of pixels, so it is cleared with the other preferences at sign-out. A stored value outside 480 to 960 is ignored and the default applies. On a smaller window the stored value is clamped when the card is drawn, never rewritten, so the saved width returns on a larger window. Where storage is blocked or full the width is kept in memory until the page reloads. With no signed-in user (design-system previews) the width is kept in memory only.
 
 Resizing:
 - A vertical separator on the inspector's left edge: 1 px visible line (`border`), 8 px hit area centered on it, `cursor: col-resize`. Hover and drag show a 2 px `border-strong` line; keyboard focus shows the `ring`.
@@ -137,7 +137,7 @@ Reasons: the reference screens use underline tabs in the inspector; one tab form
 
 Rules:
 - At most 5 tabs. Labels are one word where possible (keyword inspector: "Overview", "SERP", "AI", "Timeline"). An object that needs a sixth tab needs a full page instead.
-- Tabs hug their labels and start at the left content edge; labels never truncate. At the 640 px default the row is 600 px wide (20 px padding on each side), which fits the five prompt labels and shows more tabs before "More tabs" than the 480 px minimum does. When a narrower width cannot fit every label, the tabs that do not fit move into a trailing "More tabs" menu button outside the tablist (`Tabs` `overflow="menu"`, [25-component-inventory.md](25-component-inventory.md) section 3.38).
+- Tabs hug their labels and start at the left content edge; labels never truncate. At the 640 px default the row is about 606 px wide (16 px padding on each side), which fits the five prompt labels and shows more tabs before "More tabs" than the 480 px minimum does. When a narrower width cannot fit every label, the tabs that do not fit move into a trailing "More tabs" menu button outside the tablist (`Tabs` `overflow="menu"`, [25-component-inventory.md](25-component-inventory.md) section 3.38).
 - Semantics: Base UI Tabs (`role="tablist"`), arrow keys move between tabs with automatic activation ([20-accessibility.md](20-accessibility.md) section 5), the panel is `role="tabpanel"` labelled by its tab. Panels render their skeleton immediately, so arrow keys never wait on a fetch.
 - The first tab is always "Overview" and is the default. Tab state lives in the URL (section 2.7).
 
@@ -187,7 +187,7 @@ The card is `fixed`, 12 px under the top bar and 12 px from the right and bottom
 | 1920 | 208 + 20 | 960 | 1268 | 1040 | 948 | 720 |
 | 390 (mobile) | n/a | n/a | full-width sheet | n/a | n/a | n/a |
 
-Below 1280 the sidebar is a 56 px rail or gone, and the smallest strip of table left of the card is 321 px. The narrowest strip anywhere is 272 px, at exactly 1280 with the drawer dragged to its maximum. The first column of the table is pinned to the left edge, so a sideways scroll never moves it under the card: at least 232 px of the first data column show at every allowed width.
+Below 1280 the sidebar is a 56 px rail or gone, and the smallest strip of table left of the card is 323 px or more. The narrowest strip anywhere is 272 px, at exactly 1280 with the drawer dragged to its maximum. The first column of the table is pinned to the left edge, so a sideways scroll never moves it under the card: at least 232 px of the first data column show at every allowed width.
 
 | Mode | Stacking | Semantics | Behaviour |
 |---|---|---|---|

@@ -9,7 +9,7 @@ Every screen is built from one of seven templates. A template fixes the regions,
 ## 1. Reading the wireframes
 
 - Wireframes are schematic: they show information architecture and component placement, not visual design. Sizes in the region tables are authoritative; the drawings are not to scale vertically.
-- Horizontal scale is about 12 px per character. Full-shell drawings are 120 characters wide (1440 px viewport). Screen drawings in section 9 omit the sidebar and top bar (shown once in 9.1) and are 104 characters wide: the 1,232 px main column at 1440 (208 px sidebar), or an 832 px main column plus a 400 px inspector. Inspector columns are drawn about 40 to 50 characters wide for legibility; the real widths are 400 px, and 440 px for prompt, citation and answer evidence ([23-application-patterns.md](23-application-patterns.md) section 4).
+- Horizontal scale is about 12 px per character. Full-shell drawings are 120 characters wide (1440 px viewport). Screen drawings in section 9 omit the sidebar and top bar (shown once in 9.1) and are 104 characters wide: the 1,232 px main column at 1440 (208 px sidebar). Inspector columns are drawn about 40 to 50 characters wide for legibility; the real inspector is a 640 px card by default (480 to 960 px) that lays over the page, and the table keeps its width ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2).
 - Metric strips are drawn with three text rows (label, value, context) for legibility. The built strip is one 76 px panel with two rows: the context follows the delta on the value row ([23-application-patterns.md](23-application-patterns.md) section 2).
 - Screen drawings in section 9 draw the filter bar directly under the title block. When a page has a metric strip, the built page places the strip between the title block (or tabs) and the filter bar, 16 px from each ([23-application-patterns.md](23-application-patterns.md) section 3.1).
 - `[Label]` is a button, `[Label v]` a menu or select, `[Field: Value x]` a filter chip, `(i)` a `MetricInfo` trigger, `[x]` a checked checkbox, `[ ]` unchecked, `~~~` a chart area, `###` a bar, `{Name}` a highlighted mention.
@@ -134,7 +134,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 
 **URL state:** all filter keys, `q`, `sort`, `view`, `tab`, `by`, `inspect`, `itab`, `stats`.
 
-**Responsive:** column tiers by viewport width ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.1; section 9.3 shows the sets), inspector overlay below 720 px of main column, full-screen sheet below 768 px viewport, filter bar collapses to "Filters (3)" below 768 px.
+**Responsive:** column tiers by viewport width ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.1; section 9.3 shows the sets), the inspector lays over the page at every width from 900 px and is a full-width sheet below 900 px, filter bar collapses to "Filters (3)" below 768 px.
 
 ## 5. T3 Detail
 
@@ -534,7 +534,7 @@ Column chooser extras (not in the default set): Previous rank, Best rank, Target
 | 1024 (sidebar collapsed) | 928 px | Keyword, Rank, Δ; Comfortable density adds the secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6) |
 | 768 | 736 px | Keyword, Rank, Δ, as at 1024 |
 
-At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 400, below the 720 px minimum, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6), so the table keeps its 1,032 px set.
+At 1280 px the inspector lays over the table like at every width, so the table keeps its 1,032 px set and 400 px of it stay visible at the 640 px default ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6).
 
 **Grouping.** "Group: none" menu in the toolbar: Keyword group, Topic, Ranking URL, Intent. One level. Group header rows show the group name, keyword count, summed volume and top 10 count; never averaged ranks unless the API supplies them with `n_ranked`.
 
@@ -707,7 +707,7 @@ The drawing narrows the table to fit; at 1440 all columns below except Top compe
 | # | Column | Type | Default / min width | Priority | Notes |
 |---|---|---|---|---|---|
 | 0 | (select) | `select` | 40 / 40 | always | |
-| 1 | Prompt | `prompt` | 360 / 240, flex | 1 (pinned) | One line; `PromptTypeBadge` hidden in Compact density and while the cell is narrower than 384 px (a container query, so it also goes when the inspector docks); lock icon for locked core panel |
+| 1 | Prompt | `prompt` | 360 / 240, flex | 1 (pinned) | One line; `PromptTypeBadge` hidden in Compact density and while the cell is narrower than 384 px (a container query, so it also goes in a narrow column); lock icon for locked core panel |
 | 2 | Topic | `badge` | 144 / 88 | 3 | Deepest term; path in tooltip |
 | 3 | ChatGPT | `engineGroup` | 88 | 2 | Value of the engine-column metric (default Mention rate A1). 88 px, not 72: the header holds the engine name and its sort control |
 | 4 | Gemini | `engineGroup` | 88 | 2 | Same |
@@ -720,7 +720,7 @@ The drawing narrows the table to fit; at 1440 all columns below except Top compe
 | 10 | Updated | `date` | 144 / 104 | 4 | Last valid observation; stale badge |
 | 11 | (actions) | `actions` | 40 / 40 | always | Run now, Edit, Open page |
 
-Priorities follow [19-responsive-behavior.md](19-responsive-behavior.md) section 6.3: 1280 shows Prompt, the three engine columns, Mention rate and Citation rate; 1440 adds Topic and Trend; 1680 adds Top competitor and Updated. Default widths of all columns total 1,360 px, so all fit at 1680 (1,424 px table region). Docking the inspector never changes the set; the table scrolls horizontally with Prompt pinned. Column chooser extras: Recommendation rate, SOV, Change (per engine, colored only when detectable), Volatility, Linked keywords (count and primary keyword rank), Versions, Panel.
+Priorities follow [19-responsive-behavior.md](19-responsive-behavior.md) section 6.3: 1280 shows Prompt, the three engine columns, Mention rate and Citation rate; 1440 adds Topic and Trend; 1680 adds Top competitor and Updated. Default widths of all columns total 1,360 px, so all fit at 1680 (1,424 px table region). Opening the inspector never changes the set; the table scrolls horizontally with Prompt pinned. Column chooser extras: Recommendation rate, SOV, Change (per engine, colored only when detectable), Volatility, Linked keywords (count and primary keyword rank), Versions, Panel.
 
 The toolbar "Engine columns" `MetricSwitcher` sets which metric the engine group shows (Mention, Citation, Recommendation, SOV) and writes `metric=`.
 

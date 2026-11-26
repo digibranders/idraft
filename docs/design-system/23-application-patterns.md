@@ -96,7 +96,7 @@ Cells stretch to fill the panel, so the dividers run at equal intervals and the 
 |---|---|
 | Container width at least `n x 140 + (n - 1)` px (`md`) | One row. A 6-item strip needs 845 px |
 | Narrower (for example 6 items in a narrow panel on a small screen) | Two rows with `ceil(n / 2)` cells in the first row, separated by a 1 px `border-subtle` line; height becomes 153 px (76 + 1 + 76) |
-| `sm` in the inspector | Always the grid of section 2.2; the cells share the whole content width of the inspector (608 px at the 640 px default, less at the 480 px minimum), wrapping by the container rule above |
+| `sm` in the inspector | Always the grid of section 2.2; the cells share the whole content width of the inspector (about 606 px at the 640 px default, less at the 480 px minimum), wrapping by the container rule above |
 | Viewport below 768 px | Two-column grid inside the panel, dividers between cells kept, 76 px cells (96 px with context lines) ([19-responsive-behavior.md](19-responsive-behavior.md) section 5) |
 
 Items never reorder, truncate their value, or hide when wrapping. A strip that would need three rows has too many items: split the scope or drop metrics.

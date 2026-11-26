@@ -16,8 +16,8 @@ Implementation: Tailwind `--spacing: 0.25rem` and named size utilities in [`glob
 | 1.5 | `1.5` | 6 | Icon to label in chips and tabs, between toolbar buttons |
 | 2 | `2` | 8 | Icon to label in buttons, badge horizontal padding, sidebar item inset, inspector title to badges, button group gap |
 | 3 | `3` | 12 | Table cell and control horizontal padding, key-value cell padding, quote box padding, sidebar icon to label, gap between top-bar controls |
-| 4 | `4` | 16 | Panel padding, gap between page blocks, space between sidebar groups, gap between form fields vertically |
-| 5 | `5` | 20 | Page gutter, inspector padding, metric strip cell padding, page header offset below the top bar |
+| 4 | `4` | 16 | Panel padding, inspector padding, gap between page blocks, space between sidebar groups, gap between form fields vertically |
+| 5 | `5` | 20 | Page gutter, metric strip cell padding, page header offset below the top bar |
 | 6 | `6` | 24 | Gap between underline tab labels, dialog padding |
 | 8 | `8` | 32 | Gap between major page regions, empty state padding |
 | 10 | `10` | 40 | Onboarding and auth layouts only |
@@ -38,7 +38,7 @@ Values follow [reference/visual-spec.md](reference/visual-spec.md) section 4.
 | Between page blocks (header to metric strip, strip to filter bar, panel to panel) | 16 px |
 | Panel padding | 16 px; panel title row 48 px |
 | Metric strip cell padding | 20 px |
-| Inspector content padding | 20 px; badges 8 px below the inspector title |
+| Inspector content padding | 16 px (`px-4`); badges 8 px below the inspector title |
 | Key-value grid cell padding | 12 px |
 | Quote box padding | 12 px |
 | Sidebar items | 4 px apart, 8 px inset from the sidebar edge; 16 px of space between groups (no divider lines); group label 16 px above and 4 px below |

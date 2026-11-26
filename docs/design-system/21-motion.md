@@ -25,7 +25,7 @@ Defined in `tokens.css`. Components use tokens, never literal durations or cubic
 | `--duration-instant` | 0 ms | 0 ms | Explicit "no transition" |
 | `--duration-fast` | 100 ms | 0 ms | Hover and press color changes, selection feedback, overlay exits for small popups, toast exits |
 | `--duration-base` | 150 ms | 0 ms | Popovers, menus, selects, tooltips, toasts; exits of dialogs and drawers |
-| `--duration-slow` | 200 ms | 0 ms | Dialogs, drawers, sheets, overlay inspector, sidebar drawer (enter) |
+| `--duration-slow` | 200 ms | 0 ms | Dialogs, drawers, sheets, sidebar drawer (enter) |
 | `--duration-reveal` | 400 ms | 0 ms | Theme change only: the circular reveal from the `ThemeSwitch` (section 5.1) |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | n/a | Enter and state changes: fast start, gentle settle |
 | `--ease-exit` | `cubic-bezier(0.4, 0, 1, 1)` | n/a | Exit: accelerates away, finishes quickly |
