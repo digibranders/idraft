@@ -13,7 +13,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from idraft.api.internal_links.inventory import section_of
+from idraft.api.internal_links.inventory import SECTIONS_MAX, section_of
 from idraft.api.resources import Resources
 from idraft.api.schemas.internal_links import PageView
 from idraft.db.tables import urls
@@ -375,6 +375,79 @@ async def test_the_sections_are_largest_first_then_by_name(
         ("/docs/", 1),
     ]
     assert data["sections_total"] == 3
+
+
+async def _overview_of(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, paths: list[str]
+) -> dict[str, Any]:
+    """The overview of a crawl of exactly these live pages."""
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    await seed_crawl(migrated, workspace, project, [(path, 200) for path in paths])
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "overview"), headers=viewer.headers
+    )
+    assert response.status_code == 200, response.text
+    data: dict[str, Any] = response.json()["data"]
+    return data
+
+
+async def test_only_the_largest_fifty_sections_are_listed_and_all_are_counted(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    folders = [f"/s{number:02d}/" for number in range(SECTIONS_MAX + 1)]
+
+    data = await _overview_of(api, resources, migrated, [f"{folder}page" for folder in folders])
+
+    assert [row["section"] for row in data["sections"]] == folders[:SECTIONS_MAX]
+    assert data["sections_total"] == SECTIONS_MAX + 1
+    assert data["sections_total"] > len(data["sections"])
+
+
+async def test_sections_of_the_same_size_are_ordered_by_bytes_not_by_the_database_collation(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    data = await _overview_of(api, resources, migrated, ["/a/page", "/B/page", "/c/page"])
+
+    assert [row["section"] for row in data["sections"]] == ["/B/", "/a/", "/c/"]
+
+
+async def test_a_crawl_without_pages_has_zeros_and_no_tiers_or_sections(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    data = await _overview_of(api, resources, migrated, [])
+
+    assert data["addresses"] == 0
+    assert data["status"] == dict.fromkeys(
+        ("live", "variant", "redirected", "client_error", "server_error", "blocked", "other"), 0
+    )
+    for key in ("indexable", "not_indexable", "reachable", "unreachable", "orphans"):
+        assert data[key] == 0, key
+    assert [(row["clicks"], row["pages"]) for row in data["depth"]] == [
+        (clicks, 0) for clicks in range(7)
+    ]
+    assert data["tiers"] == []
+    assert data["sections"] == []
+    assert data["sections_total"] == 0
+
+
+async def test_a_run_of_another_project_is_not_found(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    other = await keyword_project(migrated, workspace)
+    foreign, _ = await seed_crawl(migrated, workspace, other, [("/", 200)])
+
+    response = await api.get(
+        project_url(workspace, project, "internal-links", "overview"),
+        params={"run": str(foreign)},
+        headers=viewer.headers,
+    )
+
+    assert problem(response) == (404, "not_found")
 
 
 @pytest.mark.parametrize("view", get_args(PageView))
