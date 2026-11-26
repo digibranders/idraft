@@ -37,7 +37,7 @@ export interface DayCompareScreenProps {
 }
 
 /**
- * The page of one prompt (16-drawers-dialogs-popovers.md section 1.1: the study that the 440 px inspector cannot hold).
+ * The page of one prompt (16-drawers-dialogs-popovers.md section 1.1: the study that the drawer cannot hold).
  * It opens with Compare days: one platform, the last four days with a valid answer side by side, each built from the
  * answer's own detail. It needs `data:read`, as every AI read does.
  */

@@ -14,13 +14,16 @@ import { useZoneDay } from '@/lib/dom/use-zone-day';
 import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { formatInteger } from '@/lib/format';
 import { PromptOrderContext } from '@/lib/inspector/prompt-order';
+import { promptPath } from '@/lib/routes/paths';
 
 const NO_ENGINES: readonly ProjectEngine[] = [];
 const NO_ENTITIES: PromptCounts['entities'] = [];
 
 export interface PromptDrawerHostProps {
   workspaceId: string;
+  workspaceSlug: string;
   projectId: string;
+  projectSlug: string;
   timeZone: string;
 }
 
@@ -31,7 +34,13 @@ export interface PromptDrawerHostProps {
  * provides the order for J and K (`PromptOrderContext`). The answer viewer is not wired here: the dates of the answers
  * are plain text.
  */
-export function PromptDrawerHost({ workspaceId, projectId, timeZone }: PromptDrawerHostProps): ReactElement | null {
+export function PromptDrawerHost({
+  workspaceId,
+  workspaceSlug,
+  projectId,
+  projectSlug,
+  timeZone,
+}: PromptDrawerHostProps): ReactElement | null {
   const t = useTranslations('prompts');
   const inspector = useInspector();
   const order = useContext(PromptOrderContext);
@@ -75,6 +84,7 @@ export function PromptDrawerHost({ workspaceId, projectId, timeZone }: PromptDra
       key={projectId}
       scope={scope}
       promptId={target.id}
+      pageHref={promptPath(workspaceSlug, projectSlug, target.id)}
       timeZone={timeZone}
       range={range}
       engines={enabled}
