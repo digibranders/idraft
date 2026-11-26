@@ -159,7 +159,10 @@ Words used below:
 - **broken**: counted, `status_code >= 400` and not 401, 403 or 429.
 - **unreachable**: redirected or broken.
 - **target**: the row of the same crawl whose `url_id` is this row's `redirect_url_id` (or `canonical_url_id`).
-  A target the crawl did not fetch has no row and never makes a rule true.
+  A target the crawl did not fetch has no row and never makes a rule true. A rule about a target reads only
+  the target's status: "its target is broken" means the target's status is 400 or more and not 401, 403 or 429.
+- A sitemap check matches nothing when the crawl found no sitemap (section 5), in the counts and in the list
+  of pages alike.
 
 | id | Rule | Detail shown per page |
 |---|---|---|
