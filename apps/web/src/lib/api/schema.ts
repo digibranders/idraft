@@ -2234,6 +2234,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: when its content changed
+         * @description Reads the latest crawl; `404` when the URL is not in it.
+         */
+        get: operations["get_page_history_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/paths": {
         parameters: {
             query?: never;
@@ -9992,6 +10012,19 @@ export interface components {
             /** Is New */
             is_new: boolean;
         };
+        /** PageDeclared */
+        PageDeclared: {
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "json_ld" | "meta_modified" | "og_updated" | "sitemap";
+        };
         /** PageDetail */
         PageDetail: {
             extras: components["schemas"]["PageDetailExtras"];
@@ -10062,6 +10095,117 @@ export interface components {
             tier_ids?: (string | "none")[] | null;
             /** Worklist */
             worklist?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
+        };
+        /** PageGoogleCrawl */
+        PageGoogleCrawl: {
+            /**
+             * Behind
+             * @description Google's last crawl is older than the last content change.
+             */
+            behind: boolean;
+            /** Coverage State */
+            coverage_state: string | null;
+            /** Crawled At */
+            crawled_at: string | null;
+        };
+        /** PageHistory */
+        PageHistory: {
+            /**
+             * Changes
+             * @description Content versions, before the cap on `versions`.
+             */
+            changes: number;
+            /** @description Newest declared date; null when none or the site's dates are unreliable. */
+            declared: components["schemas"]["PageDeclared"] | null;
+            /** Declared Unreliable */
+            declared_unreliable: boolean;
+            /**
+             * First Seen
+             * Format: date-time
+             * @description The oldest crawl that held the page.
+             */
+            first_seen: string;
+            google: components["schemas"]["PageGoogleCrawl"] | null;
+            /**
+             * History Starts
+             * @description The oldest crawl with a kept check.
+             */
+            history_starts: string | null;
+            /** Last Change */
+            last_change: string | null;
+            /**
+             * Readable
+             * @description false for a redirect or an error page.
+             */
+            readable: boolean;
+            /**
+             * Status
+             * @description Status of the page in the latest crawl.
+             */
+            status: number | null;
+            /** Tracked */
+            tracked: boolean;
+            /**
+             * Versions
+             * @description Newest first.
+             */
+            versions: components["schemas"]["PageHistoryVersion"][];
+            /**
+             * Versions Capped
+             * @description true when more than 100 existed.
+             */
+            versions_capped: boolean;
+            /**
+             * Why
+             * @description Set when not readable.
+             */
+            why: ("redirect" | "error") | null;
+        };
+        /**
+         * PageHistoryChange
+         * @description One line of a version's change list. `level` is for headings. For `links`, `before` is
+         *     `all` or `editorial` (which count moved) and `delta` the signed difference; for `words`
+         *     `delta` is the signed difference in words.
+         */
+        PageHistoryChange: {
+            /** After */
+            after: string | null;
+            /** Before */
+            before: string | null;
+            /** Delta */
+            delta: number | null;
+            /** Level */
+            level: number | null;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "title" | "description" | "heading_added" | "heading_removed" | "words" | "links" | "edited";
+        };
+        /** PageHistoryResponse */
+        PageHistoryResponse: {
+            data: components["schemas"]["PageHistory"];
+        };
+        /** PageHistoryVersion */
+        PageHistoryVersion: {
+            /** Changes */
+            changes: components["schemas"]["PageHistoryChange"][];
+            /**
+             * Date
+             * Format: date-time
+             * @description The date of the crawl that saw this version.
+             */
+            date: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "content" | "site_wide" | "first";
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
         };
         /** PageRow */
         PageRow: {
@@ -20129,6 +20273,39 @@ export interface operations {
             };
         };
     };
+    get_page_history_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageHistoryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     paths_api_v1_workspaces__workspace_id__projects__project_id__internal_links_paths_get: {
         parameters: {
             query: {
@@ -24229,9 +24406,13 @@ export const opportunityOriginValues: ReadonlyArray<FlattenedDeepRequired<compon
 export const opportunityStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Opportunity"]["status"]> = ["open", "accepted", "dismissed"];
 export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OpportunityDecisions"]["status"]> = ["open", "accepted", "dismissed"];
 export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
+export const pageDeclaredSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageDeclared"]["source"]> = ["json_ld", "meta_modified", "og_updated", "sitemap"];
 export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pageHistoryWhyAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHistory"]["why"]> = ["redirect", "error"];
+export const pageHistoryChangeTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHistoryChange"]["type"]> = ["title", "description", "heading_added", "heading_removed", "words", "links", "edited"];
+export const pageHistoryVersionKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHistoryVersion"]["kind"]> = ["content", "site_wide", "first"];
 export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "blocked", "redirect", "non_indexable", "generic_anchors", "variant"];
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
 export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
