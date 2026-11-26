@@ -108,6 +108,30 @@ describe('outcomeMix', () => {
   });
 });
 
+describe('Google AI Overview in the outcome mix', () => {
+  it('is a fourth platform with its own four shares over its own answers, never pooled with the others', () => {
+    const prompts = [
+      promptRow('p1', [
+        ...prompt('p1', [6, 5, 4, 35], 'chatgpt_web').engines,
+        ...prompt('p1', [3, 1, 2, 6], 'google_ai_overview').engines,
+      ]),
+    ];
+    const codes: readonly EngineCode[] = ['chatgpt_web', 'google_ai_overview'];
+    const [chatgpt, overview] = outcomeMix(prompts, codes);
+    expect(chatgpt?.state === 'ok' && chatgpt.answers).toBe(50);
+    if (overview?.state !== 'ok') throw new Error('expected shares');
+    expect(overview.engineCode).toBe('google_ai_overview');
+    expect(overview.answers).toBe(12);
+    expect(overview.shares.map((entry) => entry.k)).toEqual([3, 1, 2, 6]);
+    expect(overview.shares.reduce((sum, entry) => sum + entry.share, 0)).toBeCloseTo(1, 12);
+  });
+
+  it('is none when the prompts hold no answer of it', () => {
+    const [, overview] = outcomeMix([prompt('p1', [4, 0, 0, 0])], ['chatgpt_web', 'google_ai_overview']);
+    expect(overview).toEqual({ engineCode: 'google_ai_overview', state: 'none' });
+  });
+});
+
 describe('outcomeFigures (the six line trick of buildAggregates)', () => {
   it('reads each outcome part as a mentioned cell, so a part is the strip rate of that part', () => {
     const prompts = [prompt('p1', [3, 2, 1, 4]), prompt('p2', [0, 5, 2, 9])];

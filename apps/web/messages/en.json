@@ -6091,6 +6091,7 @@
         "partCitedOnly": "Cited only",
         "partNeither": "Neither",
         "answers": "{count, number} {count, plural, one {answer} other {answers}}",
+        "keywordAnswersTip": "Google AI Overview has one answer for each prompt whose linked keyword has a valid check. Prompts that share a keyword share one check, so each of them counts it.",
         "segmentTip": "{label}: {share}, {k, number} of {n, number} answers",
         "emptyTitle": "Not enough data",
         "emptyReason": "These prompts have too few valid answers.",

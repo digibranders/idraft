@@ -9,6 +9,10 @@ import type { EngineCode } from '@/lib/api/types';
  * The Overview's summary and the Prompts page's are one read of the same scope (R12): the same request
  * parameters, so the same prompt rows and the same counts. The Prompts page's factory cannot be imported by the
  * feature (a feature may not import another), so this test is what keeps the two from drifting apart.
+ *
+ * One difference is on purpose: the Overview names the engines it asks (`filter[engine_code_in]`) so that the answers
+ * of Google AI Overview, which the summary carries when the filter is left out, are pooled only into the reads that
+ * ask for them. The Prompts page leaves the filter out and so also reads Google AI Overview; the rest is equal.
  */
 
 const ALL: readonly EngineCode[] = ['chatgpt_web', 'gemini_web', 'google_ai_mode'];
@@ -64,6 +68,8 @@ describe('the summary read of the Overview and of the Prompts page', () => {
       ...(scope.topic === null ? {} : { term: scope.topic }),
       ...(brandedOnly ? { brandedOnly: true } : {}),
     });
-    expect(queryOf(overview)).toEqual(queryOf(prompts));
+    const { 'filter[engine_code_in]': engines, ...rest } = queryOf(overview) as Record<string, unknown>;
+    expect(engines).toEqual(ALL);
+    expect(rest).toEqual(queryOf(prompts));
   });
 });

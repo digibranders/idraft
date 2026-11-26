@@ -36,10 +36,19 @@ const CHART_COLORS: ReadonlyMap<string, EngineChartColor> = new Map<string, Engi
 
 export const engineChartColor = (engineCode: string): EngineChartColor => CHART_COLORS.get(engineCode) ?? 'chart-other';
 
-/** The label the catalog gives an engine ("AI Mode"); `null` for an engine it does not list, never its code. */
-export const engineLabel = (engineCode: string): string | null =>
-  ENGINES.find((engine) => engine.code === engineCode)?.label ?? null;
+/**
+ * The engines these cards draw, in their fixed order: the catalog's (the platforms asked per prompt, which a layout may
+ * name) and Google AI Overview, which a layout may not name but the Outcome split draws.
+ */
+const DRAWN_ENGINES: ReadonlyArray<{ code: EngineCode; label: string }> = [
+  ...ENGINES,
+  { code: 'google_ai_overview', label: 'Google AI Overview' },
+];
 
-/** The engines named, once each, in the order of the catalog whatever the order they came in. */
+/** The label of an engine ("AI Mode"); `null` for an engine that is not drawn here, never its code. */
+export const engineLabel = (engineCode: string): string | null =>
+  DRAWN_ENGINES.find((engine) => engine.code === engineCode)?.label ?? null;
+
+/** The engines named, once each, in the order of the catalog (Google AI Overview last) whatever the order they came in. */
 export const inCatalogOrder = (codes: readonly EngineCode[]): EngineCode[] =>
-  ENGINES.map((engine) => engine.code).filter((code) => codes.includes(code));
+  DRAWN_ENGINES.map((engine) => engine.code).filter((code) => codes.includes(code));

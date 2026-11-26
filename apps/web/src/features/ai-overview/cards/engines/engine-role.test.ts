@@ -38,6 +38,7 @@ describe('engineLabel', () => {
     expect(engineLabel('chatgpt_web')).toBe('ChatGPT');
     expect(engineLabel('gemini_web')).toBe('Gemini');
     expect(engineLabel('google_ai_mode')).toBe('Google AI Mode');
+    expect(engineLabel('google_ai_overview')).toBe('Google AI Overview');
     expect(engineLabel('perplexity_web')).toBeNull();
   });
 });
@@ -47,5 +48,6 @@ describe('inCatalogOrder', () => {
     expect(inCatalogOrder(['google_ai_mode', 'chatgpt_web'])).toEqual(['chatgpt_web', 'google_ai_mode']);
     expect(inCatalogOrder(['gemini_web', 'gemini_web'])).toEqual(['gemini_web']);
     expect(inCatalogOrder([])).toEqual([]);
+    expect(inCatalogOrder(['google_ai_overview', 'google_ai_mode'])).toEqual(['google_ai_mode', 'google_ai_overview']);
   });
 });

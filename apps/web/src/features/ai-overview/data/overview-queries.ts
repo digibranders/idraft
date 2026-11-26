@@ -57,10 +57,10 @@ function engineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[
 }
 
 /**
- * The engine filter of the sources reads: always the engines asked. Unlike the summary, which leaves out the filter
- * for the project's enabled engines, these routes read all three engines when it is left out, an engine that is off
- * included (OV-SCOPE-13, R12). The fan-out read keeps the plain filter: it counts only the engines that show their
- * queries, so an engine that is off and shows none adds no answer to it.
+ * The engine filter of the summary and the sources reads: always the engines asked. Left out, the routes read every
+ * engine that has answers, an engine that is off included (OV-SCOPE-13, R12) and Google AI Overview, whose answers are
+ * pooled into the totals of a read that did not ask for them. The fan-out read keeps the plain filter: it counts only
+ * the engines that show their queries, so an engine that is off and shows none adds no answer to it.
  */
 function namedEngineFilter(read: ReadScope): { 'filter[engine_code_in]'?: EngineCode[] } {
   const asked = askedEngines(read);
@@ -140,7 +140,7 @@ export function overviewSummaryQuery(
         from: window.from,
         to: window.to,
         ...brandedParams(scope.branded),
-        ...engineFilter(read),
+        ...namedEngineFilter(read),
         ...scopeFilters(scope),
         ...(include.length === 0 ? {} : { include: [...include].sort() }),
         ...(rows === undefined ? {} : { rows }),

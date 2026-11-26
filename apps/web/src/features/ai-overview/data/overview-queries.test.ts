@@ -67,6 +67,7 @@ describe('overviewSummaryQuery', () => {
     expect(queryOf(overviewSummaryQuery(PROJECT, readOf({ branded })))).toEqual({
       from: '2026-10-16',
       to: '2026-11-12',
+      'filter[engine_code_in]': ALL,
       ...expected,
     });
   });
@@ -96,15 +97,26 @@ describe('overviewSummaryQuery', () => {
     expect(options.queryKey).toEqual(reordered.queryKey);
   });
 
-  it('sends no engine filter for an all-engines scope, however the engines are listed', () => {
-    expect(queryOf(overviewSummaryQuery(PROJECT, readOf({ engines: null })))).not.toHaveProperty(
-      'filter[engine_code_in]',
-    );
+  it('names the engines of an all-engines scope, so an engine the read does not ask is never pooled in', () => {
+    expect(queryOf(overviewSummaryQuery(PROJECT, readOf({ engines: null })))).toMatchObject({
+      'filter[engine_code_in]': ALL,
+    });
     const reordered = readOf({ engines: ['google_ai_mode', 'chatgpt_web', 'gemini_web'] });
-    expect(queryOf(overviewSummaryQuery(PROJECT, reordered))).not.toHaveProperty('filter[engine_code_in]');
-    // Two engines are on in the project and both are chosen: that is all of them
+    expect(queryOf(overviewSummaryQuery(PROJECT, reordered))).toMatchObject({ 'filter[engine_code_in]': ALL });
     const two = readOf({ engines: ['gemini_web', 'chatgpt_web'] }, ['chatgpt_web', 'gemini_web']);
-    expect(queryOf(overviewSummaryQuery(PROJECT, two))).not.toHaveProperty('filter[engine_code_in]');
+    expect(queryOf(overviewSummaryQuery(PROJECT, two))).toMatchObject({
+      'filter[engine_code_in]': ['chatgpt_web', 'gemini_web'],
+    });
+  });
+
+  it('asks Google AI Overview only when the read names it, and never pools it into the other reads', () => {
+    const answered = readOf({ engines: null }, [...ALL, 'google_ai_overview']);
+    expect(queryOf(overviewSummaryQuery(PROJECT, answered))).toMatchObject({
+      'filter[engine_code_in]': [...ALL, 'google_ai_overview'],
+    });
+    const plain = overviewSummaryQuery(PROJECT, readOf({ engines: null }));
+    expect(JSON.stringify(queryOf(plain))).not.toContain('google_ai_overview');
+    expect(plain.queryKey).not.toEqual(overviewSummaryQuery(PROJECT, answered).queryKey);
   });
 
   it('sends a subset of the engines in the order of the project, so equal choices share one entry', () => {
