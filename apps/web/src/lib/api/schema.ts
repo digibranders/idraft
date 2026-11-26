@@ -1974,6 +1974,26 @@ export interface paths {
         patch: operations["update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessions from AI assistants in Google Analytics, under two classifiers
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each assistant has the sessions, engaged sessions and key events GA4's own `AI Assistant` channel counts (`ga4_ai_assistant_channel`) and our referrer rules count (`own_rules`), side by side, and their `difference`; neither is labelled correct. The figures are a lower bound, and Google AI Mode and Google AI Overview are not counted (GA4 files them under organic search): `meta.notes` says so. `compare=previous_period` (as many days just before the window), `compare=previous_year` or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `compare_window` and `previous` beside each value; `previous` is null unless the compared window is collected and holds a row for the key. Answers `200` with `connected: false` and no rows when the project has no live GA4 integration, and no rows when nothing is collected for the window (`meta.collected_through`); a key without a row is absent, never 0. `group_by=landing_page` is `422 not_available` until the landing page report is built.
+         */
+        get: operations["ai_referrals_api_v1_workspaces__workspace_id__projects__project_id__fp_ai_referrals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
         parameters: {
             query?: never;
@@ -4566,6 +4586,93 @@ export interface components {
              * @description Prompts whose linked keyword has a rank check that could read the page.
              */
             tracked: number;
+        };
+        /**
+         * AiReferralCounts
+         * @description The three numbers of one classifier and key over one window.
+         */
+        AiReferralCounts: {
+            /** Engaged Sessions */
+            engaged_sessions: number;
+            /**
+             * Key Events
+             * @description The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.
+             */
+            key_events: string | null;
+            /** Sessions */
+            sessions: number;
+        };
+        /** AiReferralRow */
+        AiReferralRow: {
+            /**
+             * Difference
+             * @description `own_rules` sessions minus `ga4_ai_assistant_channel` sessions; null when either is null.
+             */
+            difference: number | null;
+            /** @description Sessions GA4's own `AI Assistant` channel group counts. Null when the classifier was not asked for or has no row for the key in the window. */
+            ga4_ai_assistant_channel: components["schemas"]["AiReferralValue"] | null;
+            /**
+             * Key
+             * @description The assistant code, or the origin with `group_by=origin`.
+             */
+            key: string;
+            /** @description Sessions our referrer rules count. Null when the classifier was not asked for or has no row for the key in the window. */
+            own_rules: components["schemas"]["AiReferralValue"] | null;
+        };
+        /** AiReferralValue */
+        AiReferralValue: {
+            /** Engaged Sessions */
+            engaged_sessions: number;
+            /**
+             * Key Events
+             * @description The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.
+             */
+            key_events: string | null;
+            /** @description The same numbers over the compared window. Null when nothing is compared, when the compared window is not fully collected, or when the key has no row in it. */
+            previous: components["schemas"]["AiReferralCounts"] | null;
+            /** Sessions */
+            sessions: number;
+        };
+        /** AiReferralsMeta */
+        AiReferralsMeta: {
+            /**
+             * Collected Through
+             * @description The last day a finished sync run stored; null when the sync never finished or nothing is connected.
+             */
+            collected_through: string | null;
+            compare_window: components["schemas"]["MetricWindow"] | null;
+            /**
+             * Connected
+             * @description The project has a ga4 integration whose status is not `disabled`.
+             */
+            connected: boolean;
+            /** Last Success At */
+            last_success_at: string | null;
+            /**
+             * Lower Bound
+             * @description Always true: the figures are a lower bound.
+             */
+            lower_bound: boolean;
+            /**
+             * Notes
+             * @description Fixed English sentences the web shows (lower bound, Google AI Mode and AI Overview not counted, the two classifiers, and what is not collected).
+             */
+            notes: string[];
+            /**
+             * Rules Version
+             * @description The rule set version of the `own_rules` rows in the window; null when there are none.
+             */
+            rules_version: number | null;
+            window: components["schemas"]["MetricWindow"];
+        };
+        /** AiReferralsResponse */
+        AiReferralsResponse: {
+            /**
+             * Data
+             * @description One row per assistant (or origin) with a row in the window. An absent key is no row, and is read as zero only when `meta.collected_through` is at or after `to`.
+             */
+            data: components["schemas"]["AiReferralRow"][];
+            meta: components["schemas"]["AiReferralsMeta"];
         };
         /** AiSeriesResponse */
         AiSeriesResponse: {
@@ -19305,6 +19412,51 @@ export interface operations {
             };
         };
     };
+    ai_referrals_api_v1_workspaces__workspace_id__projects__project_id__fp_ai_referrals_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window` and `previous` values. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description `assistant` (default) or `origin` (only `ga4` exists today). `landing_page` is `422 not_available`: the landing page report is not built yet. */
+                group_by?: "assistant" | "origin" | "landing_page";
+                /** @description Which classifier values are filled; the other is null. */
+                classifier?: "both" | "ga4_ai_assistant_channel" | "own_rules";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiReferralsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_project_integrations_api_v1_workspaces__workspace_id__projects__project_id__integrations_get: {
         parameters: {
             query?: {
@@ -23728,6 +23880,9 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGet
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryGroup_byValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["group_by"]> = ["assistant", "origin", "landing_page"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryClassifierValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["classifier"]> = ["both", "ga4_ai_assistant_channel", "own_rules"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryChangeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["change"]> = ["lost", "added"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryLink_scopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["link_scope"]> = ["editorial", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryOnlyValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["only"]> = ["top", "all"];
