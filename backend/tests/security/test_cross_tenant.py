@@ -1852,6 +1852,9 @@ async def test_the_pages_and_links_of_a_project_hold_nothing_of_another_workspac
     if names_pages:
         own_site = a.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
         assert f"{own_site}-" in response.text
+        # Routes that show a path and no address (the graph) cannot leak B's full URL
+        other_site = b.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
+        assert f"{other_site}-" not in response.text
 
 
 async def test_the_crawls_and_settings_of_a_project_show_only_its_own_workspace(

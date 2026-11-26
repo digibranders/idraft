@@ -207,15 +207,15 @@ async def test_over_max_pages_the_graph_is_truncated(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     pages = [(f"/p{number}", 200) for number in range(101)]
-    links = [SeedLink("/p0", "/p1", "content")]
+    links = [SeedLink("/p99", "/p100", "content")]
 
     data, ids, _ = await _custom_graph(api, resources, migrated, pages, links, max_pages=100)
 
     assert data["pages_total"] == 101
     assert data["truncated"] is True
     assert len(data["nodes"]) == 100
-    # The two linked pages have the most edges, so they stay
-    assert {str(ids["/p0"]), str(ids["/p1"])} <= {node["url_id"] for node in data["nodes"]}
+    # The two linked pages have the most edges, so they stay though theirs are the highest ids
+    assert {str(ids["/p99"]), str(ids["/p100"])} <= {node["url_id"] for node in data["nodes"]}
     assert len(data["edges"]) == 1
 
 
