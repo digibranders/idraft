@@ -42172,6 +42172,55 @@
             }
           },
           {
+            "description": "Only the pages one check of the Issues page found. It sets the variant handling the check needs, so `filter[include_variants]` is ignored with it.",
+            "in": "query",
+            "name": "filter[issue]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "status-4xx",
+                    "status-5xx",
+                    "clicks-page-broken",
+                    "rank-page-broken",
+                    "cited-page-broken",
+                    "clicks-page-orphan",
+                    "redirect-broken",
+                    "redirect-chain",
+                    "links-to-redirect",
+                    "redirect-pages",
+                    "canonical-broken",
+                    "noindex",
+                    "canonical-elsewhere",
+                    "sitemap-broken",
+                    "sitemap-nonindexable",
+                    "not-in-sitemap",
+                    "broken-internal-links",
+                    "orphans",
+                    "editorial-orphans",
+                    "links-to-nonindexable",
+                    "deep-pages",
+                    "nofollow-internal",
+                    "title-missing",
+                    "title-duplicate",
+                    "title-long",
+                    "title-short",
+                    "url-format",
+                    "url-long",
+                    "off-target"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the pages one check of the Issues page found. It sets the variant handling the check needs, so `filter[include_variants]` is ignored with it.",
+              "title": "Filter[Issue]"
+            }
+          },
+          {
             "in": "query",
             "name": "q",
             "required": false,

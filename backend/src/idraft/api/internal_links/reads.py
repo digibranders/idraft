@@ -64,6 +64,8 @@ from idraft.api.internal_links.page_filter import PageScope, page_conditions, pa
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.internal_links.status_filter import status_classes
+from idraft.api.issues.catalogue import BY_ID
+from idraft.api.issues.rules import condition
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
 from idraft.api.schemas.common import UserRef
@@ -940,6 +942,20 @@ async def attach_extras(
         )
 
 
+def _page_filter_conditions(
+    found: PageFilter, scope: PageScope, issue: str | None
+) -> list[ColumnElement[bool]]:
+    """The Pages filter, with the rule of one check of the Issues page when `issue` is set."""
+    if issue is None:
+        return page_conditions(found, scope)
+    if BY_ID[issue].need == "links":
+        scope.require_links()
+    # The check says which variants count, so the list's own variant filter is off.
+    conditions = page_conditions(found.model_copy(update={"include_variants": True}), scope)
+    conditions.append(condition(issue, scope))
+    return conditions
+
+
 class LinkReadService:
     def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
@@ -965,11 +981,12 @@ class LinkReadService:
         cursor: str | None,
         limit: int,
         include: Sequence[str] = (),
+        issue: str | None = None,
     ) -> PageList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
-            conditions = page_conditions(found, scope)
+            conditions = _page_filter_conditions(found, scope, issue)
             total = (
                 await db.execute(
                     select(func.count()).select_from(page_rows(scope)).where(*conditions)
@@ -983,6 +1000,7 @@ class LinkReadService:
                 "view": view.value,
                 "sort": sort,
                 "filter": found.model_dump(mode="json"),
+                "issue": issue,
             }
             statement = _page_select(view, sorter).where(*conditions)
             if cursor is not None:
@@ -1019,6 +1037,7 @@ class LinkReadService:
         view: LinkScope,
         found: PageFilter,
         sort: str,
+        issue: str | None = None,
     ) -> str:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
@@ -1027,7 +1046,7 @@ class LinkReadService:
             rows = (
                 await db.execute(
                     _page_select(view, sorter)
-                    .where(*page_conditions(found, scope))
+                    .where(*_page_filter_conditions(found, scope, issue))
                     .order_by(*_page_order(sorter))
                     .limit(EXPORT_ROWS_MAX)
                 )

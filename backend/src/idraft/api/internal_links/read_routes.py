@@ -32,6 +32,7 @@ from idraft.api.schemas.internal_links import (
     UrlId,
     WorklistsResponse,
 )
+from idraft.api.schemas.issues import CheckId
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -115,6 +116,14 @@ async def list_pages(
     flags: Flags = None,
     include_variants: Annotated[bool, Query(alias="filter[include_variants]")] = False,
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
+    issue: Annotated[
+        CheckId | None,
+        Query(
+            alias="filter[issue]",
+            description="Only the pages one check of the Issues page found. It sets the variant "
+            "handling the check needs, so `filter[include_variants]` is ignored with it.",
+        ),
+    ] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
@@ -137,7 +146,7 @@ async def list_pages(
     view = LinkScope(scope)
     if output == "csv":
         text = await reads.pages_csv(
-            access, project_id, run=_run(run), view=view, found=found, sort=sort
+            access, project_id, run=_run(run), view=view, found=found, sort=sort, issue=issue
         )
         return _csv(text, "pages")
     listed = await reads.pages(
@@ -150,6 +159,7 @@ async def list_pages(
         cursor=page.cursor,
         limit=page.limit,
         include=include or (),
+        issue=issue,
     )
     return PageRowPage(
         data=listed.rows,
