@@ -4,6 +4,7 @@ here reaches Google: every number is a stored row."""
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import date, timedelta
 from typing import Any
@@ -512,6 +513,23 @@ async def test_the_limit_of_200(
     assert [row["outcome"] for row in body["data"]] == ["added", "over_limit", "over_limit"]
     assert body["data"][2]["url_id"] == str(ids["/three"])
     assert body["meta"] == {"limit": 200, "tracked": 200, "added": 1}
+    assert await _tracked_count(migrated, project) == 200
+
+
+async def test_two_adds_at_199_pages_at_once_add_exactly_one(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    await bulk_pages(migrated, workspace, project, 199, tracked=True)
+    await seed_pages(migrated, workspace, project, {"/one": None, "/two": None})
+
+    first, second = await asyncio.gather(
+        _post(api, workspace, project, owner, {"urls": ["/one"]}),
+        _post(api, workspace, project, owner, {"urls": ["/two"]}),
+    )
+
+    outcomes = sorted(r.json()["data"][0]["outcome"] for r in (first, second))
+    assert outcomes == ["added", "over_limit"]
     assert await _tracked_count(migrated, project) == 200
 
 

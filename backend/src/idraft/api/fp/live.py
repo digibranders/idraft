@@ -20,7 +20,7 @@ from typing import Final, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from idraft.api.integrations.service import _unavailable
+from idraft.api.integrations.service import unavailable_problem
 from idraft.api.problems import ProblemError
 from idraft.api.resources import Resources
 from idraft.collectors.gsc_limits import Budgets, GscLimiter
@@ -136,7 +136,7 @@ class LiveGoogle:
         except GooglePermissionError:
             raise LiveStateError("no_access") from None
         except GoogleError as error:
-            raise _unavailable(error) from None
+            raise unavailable_problem(error) from None
 
 
 def live_google(resources: Resources, facts: IntegrationFacts) -> LiveGoogle | None:
@@ -154,6 +154,7 @@ def live_google(resources: Resources, facts: IntegrationFacts) -> LiveGoogle | N
             resources.http,
             client_id=settings.google_oauth_client_id.get_secret_value(),
             client_secret=settings.google_oauth_client_secret.get_secret_value(),
+            attempts=1,  # a retry would hold the request and spend uncounted budget
         ),
         cipher=EnvelopeCipher({1: settings.secrets_key}),
         facts=facts,

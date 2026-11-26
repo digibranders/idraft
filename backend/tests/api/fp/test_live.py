@@ -154,6 +154,20 @@ async def test_a_server_error_is_google_unavailable(google: Harness) -> None:
     assert problem.value.problem_code == "google_unavailable"
 
 
+async def test_a_server_error_is_not_retried(google: Harness) -> None:
+    """A request is answered or refused at once: a retry would hang it and spend more of the
+    budget than was counted."""
+    fake = google.fake
+    assert isinstance(fake, FakeSearchConsole)
+    prop = await make_property(google.pg, fake)
+    fake.statuses[SITE] = 500
+
+    with pytest.raises(ServiceUnavailableError):
+        await read(await live(google, prop))
+
+    assert len(fake.filtered_requests(SITE)) == 1
+
+
 async def test_the_access_token_is_asked_for_once_per_object(google: Harness) -> None:
     fake = google.fake
     assert isinstance(fake, FakeSearchConsole)
