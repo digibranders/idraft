@@ -223,10 +223,13 @@ export function ringTable({ rows, segments }) {
   headRow.append(
     corner,
     ...rows.map((row) => {
-      const th = el('th', 'text-right type-micro font-normal break-words pl-1 pb-1', row.label.replace(/^Google /, ''));
-      // The table head style of the page sets capitals and tracking, which break a short name apart in a narrow column
-      th.style.textTransform = 'none';
-      th.style.letterSpacing = 'normal';
+      // The platform's mark alone: a name takes two lines in a narrow column. The name stays for screen readers and the hover,
+      // and the rings above carry the names in the same order (the two Google platforms share one mark)
+      const th = el('th', 'type-micro font-normal pl-1 pb-1');
+      const mark = el('span', 'flex justify-end', null);
+      mark.append(window.PreviewUI.engineLogo(row.label), el('span', 'sr-only', row.label));
+      th.dataset.tip = row.label;
+      th.append(mark);
       return th;
     }),
   );
