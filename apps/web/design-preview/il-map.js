@@ -40,9 +40,11 @@ const TIER_STYLE = [
 ];
 const UNTIERED_STYLE = { token: 'surface', outline: 'border-strong' };
 const SECTION_TOKEN = ['chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5', 'chart-6'];
-// Links into the selected page and links out of it
-const IN_TOKEN = 'chart-3';
+// Links into the selected page and links out of it. Two things tell them apart, so neither has to be read by
+// colour alone: links in are green and dotted, links out blue and solid.
+const IN_TOKEN = 'chart-positive';
 const OUT_TOKEN = 'chart-1';
+const IN_LINE = { type: [1, 6], cap: 'round', width: 2.75 };
 const LINKS_MENU = [['editorial', 'Editorial'], ['auto', 'Editorial and auto-generated']];
 const COLOUR_MENU = [['tier', 'Tier'], ['section', 'Section']];
 const LENSES = [
@@ -241,7 +243,7 @@ function option(data, width, height) {
     if (!shown.has(edge.from) || !shown.has(edge.to)) return [];
     let lineStyle = { color: line, opacity: 0.32, width: 1 };
     if (focus.selected) {
-      if (edge.to === focus.selected) lineStyle = { color: token(IN_TOKEN), opacity: 0.95, width: 1.75 };
+      if (edge.to === focus.selected) lineStyle = { color: token(IN_TOKEN), opacity: 1, ...IN_LINE };
       else if (edge.from === focus.selected) lineStyle = { color: token(OUT_TOKEN), opacity: 0.95, width: 1.75 };
       else lineStyle = { color: line, opacity: 0.05, width: 1 };
     } else if (focus.lit && !(focus.lit.has(edge.from) && focus.lit.has(edge.to))) lineStyle = { color: line, opacity: 0.05, width: 1 };
@@ -425,10 +427,11 @@ function fillCard(card, data, actions) {
   head.append(words, close);
   const tier = el('p', 'flex items-center gap-1.5 type-meta text-foreground');
   tier.append(swatch(group), tierLabel(tierIdOf(page)));
+  // The mark is the line as drawn on the map: dotted for links in, solid for links out
   const direction = (tokenName, count, word) => {
     const row = el('p', 'flex items-center gap-1.5 type-meta text-foreground');
-    const mark = el('span', 'h-0.5 w-4 shrink-0 rounded-full');
-    mark.style.background = token(tokenName);
+    const mark = el('span', `w-5 shrink-0 border-t-[3px] ${tokenName === IN_TOKEN ? 'border-dotted' : 'border-solid'}`);
+    mark.style.borderColor = token(tokenName);
     row.append(mark, el('span', 'num', number(count)), el('span', 'text-foreground-secondary', word));
     return row;
   };
