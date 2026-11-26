@@ -30,7 +30,7 @@ import type { CardProps } from '@/features/layouts';
 import type { PromptsSummary } from '@/lib/api/types';
 import { boundaryMarkLines, type ChartBoundary } from '@/lib/charts/boundaries';
 import { escapeHtml, type CategorySeries } from '@/lib/charts/category-chart';
-import { fadeDown } from '@/lib/charts/rich-style';
+import { withAlpha } from '@/lib/charts/rich-style';
 import { tipRowHtml, tipTitleHtml } from '@/lib/charts/tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 import { formatChartDate, formatDateRange, formatList, formatPercent } from '@/lib/format';
@@ -128,17 +128,11 @@ function stackedAreaOption(
   const layers = shown.map((entry) => ({
     ...entry,
     stack: 'share',
-    // Smooth bands that fade toward the axis (15-data-visualization.md section 1a); no shadow, so the bands stay apart
+    // Smooth, flat bands (15-data-visualization.md section 1a): one colour each, no gradient and no shadow
     smooth: 0.25,
     showSymbol: false,
     lineStyle: { width: 1.5, color: entry.color },
-    areaStyle: {
-      color: fadeDown(
-        entry.color ?? tokens.other,
-        entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY,
-        (entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY) * 0.55,
-      ),
-    },
+    areaStyle: { color: withAlpha(entry.color ?? tokens.other, entry.id === ownId ? OWN_OPACITY : OTHER_OPACITY) },
     // The end labels of the line style do not belong to a stacked band
     endLabel: { show: false },
     emphasis: { focus: 'series' },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, type ReactElement, type ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { SEGMENTS, type Segment, type Split } from './headline-model';
 import { CardInfoButton, type CardInfo } from '@/components/app/chart/card-info';
@@ -48,7 +48,6 @@ export function Sparkline({
   label?: string;
   className?: string;
 }): ReactElement | null {
-  const fade = useId().replaceAll(':', '');
   const values = points.filter((value): value is number => value !== null);
   if (values.length < 2) return null;
   const low = Math.min(...values);
@@ -77,15 +76,10 @@ export function Sparkline({
         style={{ height }}
         {...(label === undefined ? { 'aria-hidden': true } : { role: 'img', 'aria-label': label })}
       >
-        <defs>
-          <linearGradient id={fade} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" style={{ stopColor: 'var(--chart-1)', stopOpacity: 0.32 }} />
-            <stop offset="1" style={{ stopColor: 'var(--chart-1)', stopOpacity: 0 }} />
-          </linearGradient>
-        </defs>
         <path
           d={`${line} L${String(last.x)},${String(height)} L${String(first.x)},${String(height)} Z`}
-          fill={`url(#${fade})`}
+          className="fill-chart-1"
+          fillOpacity={0.12}
         />
         <path
           d={line}

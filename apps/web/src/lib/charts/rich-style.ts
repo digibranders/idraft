@@ -1,20 +1,10 @@
 import { color as zrColor } from 'echarts/core';
 
 /**
- * The rich chart style of docs/design-system/15-data-visualization.md section 1a: smooth lines, a fade under each line,
- * no glow, entrance motion that gives way to reduced motion, and a gradient line that follows the pointer. Pure
+ * The chart style of docs/design-system/15-data-visualization.md section 1a: smooth lines, flat colours (no glow, no
+ * gradient), entrance motion that gives way to reduced motion, and a flat line that follows the pointer. Pure
  * helpers, so the option builders that use them stay testable without a canvas.
  */
-
-/** ECharts reads a gradient as a plain object, so no ECharts import is needed here. */
-export interface LinearGradient {
-  type: 'linear';
-  x: number;
-  y: number;
-  x2: number;
-  y2: number;
-  colorStops: readonly { offset: number; color: string }[];
-}
 
 /** A colour at an opacity. A colour ECharts cannot parse (a stand-in in a test) is returned as it is. */
 export function withAlpha(color: string, alpha: number): string {
@@ -32,21 +22,6 @@ export function shade(color: string, amount: number): string {
   const mix = (channel: number | undefined): number =>
     Math.round((channel ?? 0) + (target - (channel ?? 0)) * Math.abs(amount));
   return zrColor.stringify([mix(channels[0]), mix(channels[1]), mix(channels[2]), channels[3] ?? 1], 'rgba');
-}
-
-/** A vertical fade of one colour from `from` opacity at the top to `to` at the bottom. */
-export function fadeDown(color: string, from: number, to: number): LinearGradient {
-  return {
-    type: 'linear',
-    x: 0,
-    y: 0,
-    x2: 0,
-    y2: 1,
-    colorStops: [
-      { offset: 0, color: withAlpha(color, from) },
-      { offset: 1, color: withAlpha(color, to) },
-    ],
-  };
 }
 
 /** Whether to draw without motion: the person asked the system for less, or motion cannot be asked about (no `matchMedia`: a test, the server). */
@@ -71,13 +46,13 @@ export function chartMotion(): {
   };
 }
 
-/** The axis pointer of a time chart: a 2 px line, bright at the top and fading out toward the axis. */
-export function fadingPointer(color: string): {
+/** The axis pointer of a time chart: a flat 2 px line, softer than the data lines. */
+export function flatPointer(color: string): {
   type: 'line';
   z: number;
-  lineStyle: { width: number; type: 'solid'; color: LinearGradient };
+  lineStyle: { width: number; type: 'solid'; color: string };
 } {
-  return { type: 'line', z: 0, lineStyle: { width: 2, type: 'solid', color: fadeDown(color, 0.7, 0) } };
+  return { type: 'line', z: 0, lineStyle: { width: 2, type: 'solid', color: withAlpha(color, 0.4) } };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { chartMotion, fadeDown, withAlpha } from './rich-style';
+import { chartMotion, withAlpha } from './rich-style';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
@@ -23,7 +23,7 @@ export function ghostTrendOption(tokens: ChartTokens): Record<string, unknown> {
         symbol: 'none',
         data: [...GHOST_POINTS],
         lineStyle: { width: 3, type: [6, 6], color: withAlpha(tokens.other, 0.5) },
-        areaStyle: { color: fadeDown(tokens.other, 0.16, 0) },
+        areaStyle: { color: withAlpha(tokens.other, 0.08) },
       },
     ],
   };

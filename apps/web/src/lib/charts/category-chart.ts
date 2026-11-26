@@ -1,4 +1,4 @@
-import { chartMotion, fadeDown, fadingPointer } from './rich-style';
+import { chartMotion, flatPointer, withAlpha } from './rich-style';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
@@ -109,7 +109,7 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
       axisPointer:
         kind === 'bar'
           ? { type: 'shadow', lineStyle: { color: tokens.borderStrong, width: 1 } }
-          : fadingPointer(tokens.palette[0] ?? tokens.foreground),
+          : flatPointer(tokens.palette[0] ?? tokens.foreground),
       // Kept inside the chart, so a card that clips its content does not cut it off
       confine: true,
       borderRadius: 8,
@@ -171,7 +171,7 @@ export function categoryChartOption(input: CategoryChartInput): Record<string, u
         lineStyle: dashed
           ? { width: 2, type: dashOf(entry.role), join: 'round' }
           : { width: 3, type: 'solid', join: 'round', cap: 'round', color },
-        ...(dashed ? {} : { areaStyle: { color: fadeDown(color, shown.length > 1 ? 0.16 : 0.32, 0) } }),
+        ...(dashed ? {} : { areaStyle: { color: withAlpha(color, shown.length > 1 ? 0.08 : 0.14) } }),
         emphasis: { focus: 'none', scale: 1.3 },
         endLabel: dashed
           ? { show: false }

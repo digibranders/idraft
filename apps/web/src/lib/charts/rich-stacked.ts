@@ -1,5 +1,5 @@
 import { escapeHtml } from './category-chart';
-import { chartMotion, fadeDown } from './rich-style';
+import { chartMotion } from './rich-style';
 import { tipRowHtml, tipTitleHtml } from './tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
@@ -87,7 +87,7 @@ export function stackedColumnsOption({ rows, segments, tokens }: StackedInput): 
         // A row with nothing to show has no datum for any segment
         data: rows.map((row) => (row.shares === null ? null : (row.shares[at] ?? 0))),
         itemStyle: {
-          color: fadeDown(color, 1, 0.72),
+          color,
           borderRadius: 6,
           borderColor: tokens.surfaceElevated,
           borderWidth: 1.5,
