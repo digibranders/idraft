@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatDateRange, formatDecimal, formatInteger, formatPercent } from '@/lib/format';
 
 /** The keys under `pageSearch.health` (catalog keys are camelCase). */
-const HEALTH_KEYS = {
+export const HEALTH_KEYS = {
   lost: 'lost',
   sharp_drop: 'sharpDrop',
   declining: 'declining',

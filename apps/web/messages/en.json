@@ -10378,6 +10378,36 @@
     "noAccessTitle": "You do not have access to Monitoring",
     "noAccessReason": "You do not have permission to view search data. Ask an admin of this workspace.",
     "loadingHistory": "Loading this page's history",
+    "filtersLabel": "Period and filters",
+    "healthOption": "{name} ({count, number})",
+    "notConnectedTitle": "Search Console is not connected",
+    "trendLabel": "Clicks per day for {path}",
+    "removeFailed": "Could not stop tracking the pages",
+    "pendingBanner": "Search Console is loading the last 28 days.",
+    "loadFailed": "Could not load the tracked pages",
+    "loadFailedReason": "The list did not load. Try again.",
+    "noMatchReason": "Change or clear the filters to see more of the tracked pages.",
+    "clearFilters": "Clear filters",
+    "inspector": {
+      "typeLabel": "Page",
+      "typeNoun": "page",
+      "back": "Back to Monitoring",
+      "copyUrl": "Copy address",
+      "copied": "Address copied",
+      "visit": "Open page"
+    },
+    "csv": {
+      "clicksBefore": "Clicks before",
+      "impressionsBefore": "Impressions before",
+      "ctrBefore": "CTR before",
+      "positionBefore": "Average position before",
+      "queriesBefore": "Queries before",
+      "cannibalizationKeywords": "Cannibalization keywords",
+      "likely": "Likely",
+      "coRanking": "Co-ranking",
+      "unstable": "Unstable",
+      "fileName": "monitoring.csv"
+    },
     "add": {
       "title": "Add pages",
       "tabs": {

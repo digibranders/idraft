@@ -9,6 +9,9 @@ import type { DateRangeValue } from '@/components/app/date-range/range-model';
 /** The address keys of the panel (spec D20). The shell hands them to `useInspector({ entryKeys })`, so closing the drawer removes them. */
 export const PAGE_SEARCH_KEYS = ['sp_win', 'sp_from', 'sp_to', 'sp_cmp', 'sp_m', 'sp_tab'] as const;
 
+/** The keys that belong to one open record, not to the page behind it: Monitoring's period and comparison stay when its drawer closes. */
+export const PAGE_SEARCH_ENTRY_KEYS = ['sp_m', 'sp_tab'] as const;
+
 export const METRICS: readonly MetricKey[] = ['clicks', 'impressions', 'ctr', 'position'];
 export const DEFAULT_METRICS: readonly MetricKey[] = ['clicks', 'impressions'];
 export const PANEL_TABS = ['queries', 'locations', 'devices'] as const;
