@@ -223,6 +223,26 @@ async def test_the_snapshot_index_serves_the_page_history_read(migrated: Postgre
     assert definition is not None
 
 
+@pytest.mark.parametrize(
+    ("name", "fragment"),
+    [
+        ("page_checks_page", "(project_id, url_id, run_id DESC)"),
+        ("page_checks_snapshot", "(snapshot_id, workspace_id) WHERE (snapshot_id IS NOT NULL)"),
+    ],
+)
+async def test_page_checks_have_the_lookup_indexes(
+    migrated: PostgresServer, name: str, fragment: str
+) -> None:
+    async with connection(migrated) as db:
+        definition = await db.fetchval(
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = 'seo' "
+            "AND tablename = 'page_checks' AND indexname = $1",
+            name,
+        )
+    assert definition is not None
+    assert fragment in definition
+
+
 @pytest.mark.parametrize("table", sorted(COLUMNS))
 async def test_each_workspace_sees_only_its_own_rows(migrated: PostgresServer, table: str) -> None:
     alpha = await seed_tenant(migrated, "rls-a")

@@ -74,6 +74,12 @@ CREATE TABLE seo.page_checks (
     FOREIGN KEY (snapshot_id, workspace_id) REFERENCES seo.page_snapshots(id, workspace_id)
 );
 
+-- The previous check of a page (ingest) and its history (endpoint); run ids are UUIDv7.
+CREATE INDEX page_checks_page ON seo.page_checks (project_id, url_id, run_id DESC);
+
+CREATE INDEX page_checks_snapshot ON seo.page_checks (snapshot_id, workspace_id)
+    WHERE snapshot_id IS NOT NULL;
+
 CREATE TABLE seo.page_history_runs (
     run_id              uuid PRIMARY KEY,
     workspace_id        uuid NOT NULL,

@@ -26,7 +26,6 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
-    Index,
     Integer,
     LargeBinary,
     MetaData,
@@ -38,7 +37,6 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
     Uuid,
-    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET, INT4RANGE, JSONB
 
@@ -2346,7 +2344,6 @@ page_snapshots = Table(
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
     ),
-    Index("page_snapshots_page_taken", "project_id", "url_id", text("taken_at DESC")),
     schema="seo",
 )
 
