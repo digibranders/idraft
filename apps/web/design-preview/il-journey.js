@@ -1551,7 +1551,9 @@ function pagePicker({ prefix, current, onPick, ariaLabel, popoverLabel }) {
     search.placeholder = 'Search pages';
     search.setAttribute('aria-label', 'Search pages');
     const list = el('div', 'flex max-h-72 flex-col gap-0.5 overflow-auto');
-    const sorted = activePages().sort((a, b) => (tierPosition(tierIdOf(a)) || 99) - (tierPosition(tierIdOf(b)) || 99) || a.path.localeCompare(b.path));
+    // Redirect pages come after the real pages
+    const isRedirect = (page) => page.status >= 300 && page.status < 400;
+    const sorted = activePages().sort((a, b) => Number(isRedirect(a)) - Number(isRedirect(b)) || (tierPosition(tierIdOf(a)) || 99) - (tierPosition(tierIdOf(b)) || 99) || a.path.localeCompare(b.path));
     const fill = () => {
       const query = search.value.trim().toLowerCase();
       const found = sorted.filter((candidate) => !query || candidate.path.toLowerCase().includes(query) || candidate.title.toLowerCase().includes(query));
@@ -1559,7 +1561,15 @@ function pagePicker({ prefix, current, onPick, ariaLabel, popoverLabel }) {
         const item = el('button', `flex h-row-compact w-full items-center gap-2 rounded-sm px-2 text-left hover:bg-surface-hover ${FOCUS_RING} ${candidate.id === current ? 'bg-surface-selected' : ''}`);
         item.type = 'button';
         if (candidate.id === current) item.setAttribute('aria-current', 'true');
-        item.append(el('span', 'type-table text-foreground truncate flex-1', candidate.path), tierBadge(tierIdOf(candidate)));
+        if (isRedirect(candidate)) {
+          // It shares its path with the page it leads to, so it says where it points
+          const target = candidate.redirect ? pageById(candidate.redirect) : null;
+          const words = el('span', 'flex min-w-0 flex-1 flex-col');
+          words.append(el('span', 'type-table text-foreground truncate', candidate.path), el('span', 'type-meta text-foreground-secondary truncate', `Redirects to ${target ? target.path : '?'}`));
+          item.classList.remove('h-row-compact');
+          item.classList.add('py-1');
+          item.append(words, el('span', 'inline-flex h-badge shrink-0 items-center rounded-sm border border-neutral-border bg-neutral-subtle px-2 type-micro text-neutral-text', 'Redirect'));
+        } else item.append(el('span', 'type-table text-foreground truncate flex-1', candidate.path), tierBadge(tierIdOf(candidate)));
         item.addEventListener('click', () => {
           api.close();
           onPick(candidate.id);

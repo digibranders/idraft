@@ -9558,6 +9558,8 @@
       "searchPages": "Search pages",
       "noPageMatch": "No crawled page matches “{query}”. Check the spelling or search for part of the path.",
       "loadingPages": "Loading pages",
+      "redirectBadge": "Redirect",
+      "redirectsTo": "Redirects to {path}",
       "clear": "Clear",
       "openList": "Show pages",
       "follow": "Follow",
