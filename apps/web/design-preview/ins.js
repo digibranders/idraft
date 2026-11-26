@@ -8,9 +8,26 @@
  * States for review: `?insights=loading`, `?insights=empty` or `?insights=error` in the page address.
  */
 import { formatInteger } from './vendor/format/number.js';
-import { DEFAULT_COMPETITORS, gapRows, trackedOf } from './cit-data.js';
+import { DEFAULT_COMPETITORS, TRACKED, gapRows, trackedOf } from './cit-data.js';
 import { NEUTRAL_BADGE, el, engineName } from './aiov-parts.js';
 import { na, table } from './tables.js';
+
+const list = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
+/** A domain as the real page draws it: a favicon box, then the domain in monospace. */
+const domainCell = (host) => {
+  const wrap = el('span', 'flex min-w-0 items-center gap-1.5 font-mono type-table');
+  wrap.append(el('span', 'size-4 shrink-0 rounded-xs border border-border bg-surface-subtle'), el('span', 'truncate', host));
+  return wrap;
+};
+/** The prompt's own page: the preview opens it in the prompt inspector, as the Citations page does. */
+const promptLink = (row) => {
+  const a = link('View prompt', '#/prompts/explorer', `View prompt: ${row.prompt.text}`);
+  a.addEventListener('click', (event) => {
+    event.preventDefault();
+    window.PreviewPrompts?.openPrompt(row.prompt.id);
+  });
+  return a;
+};
 
 const ui = window.PreviewUI;
 const view = ui.$('[data-view="insights"]');
@@ -22,10 +39,10 @@ const UNTRACKED = [
   ['edr vs mdr', 3200, true], ['network security assessment', 2100, false], ['zero trust architecture explained', 6600, false],
   ['managed soc providers', null, false], ['vulnerability scanning frequency', 590, false],
 ];
+// The real page lists third-party domains only (role "Third party"), each with the one competitor it is cited with
 const CITING = [
-  ['gartner.com', 'Review site', 41, ['Brightwave']], ['g2.com', 'Review site', 37, ['Brightwave', 'Corevault']], ['csoonline.com', 'Publisher', 29, ['Corevault']],
-  ['reddit.com', 'Community', 24, ['Brightwave']], ['techtarget.com', 'Publisher', 19, ['Sentrix']], ['crowdstrike.com', 'Competitor', 17, ['Corevault']],
-  ['darkreading.com', 'Publisher', 14, ['Sentrix', 'Brightwave']], ['capterra.com', 'Review site', 12, ['Brightwave']],
+  ['gartner.com', 41, 0], ['g2.com', 37, 1], ['csoonline.com', 29, 2], ['reddit.com', 24, 0],
+  ['techtarget.com', 19, 3], ['darkreading.com', 14, 1], ['capterra.com', 12, 0], ['trustradius.com', 9, 2],
 ];
 const NEW_DOMAINS = [
   ['cybernews.com', 'Nov 3', 9], ['helpnetsecurity.com', 'Nov 6', 7], ['trustradius.com', 'Nov 8', 6], ['securityweek.com', 'Nov 12', 5],
@@ -122,19 +139,19 @@ export function renderInsights() {
       columns: [
         { header: 'Prompt', cell: (r) => r.prompt.text },
         { header: 'Platforms', cell: (r) => { const s = el('span', 'flex flex-wrap gap-1'); r.lostOn.forEach((code) => s.append(el('span', NEUTRAL_BADGE, engineName(code)))); return s; } },
-        { header: 'Competitors cited', cell: (r) => r.lostTo.map((id) => trackedOf(id).name).join(', ') },
-        { header: 'Action', actions: true, cell: (r) => link('View prompt', '#/citations/gaps', `View prompt: ${r.prompt.text}`) },
+        { header: 'Competitors cited', cell: (r) => list.format(r.lostTo.map((id) => trackedOf(id).name)) },
+        { header: 'Action', actions: true, cell: (r) => promptLink(r) },
       ],
     }),
     card({
-      id: 'citing', count: CITING.length, rows: CITING.map(([domain, role, answers, rivals]) => ({ domain, role, answers, rivals })), viewAll: ['View all cited domains', '?owner=third#/citations'],
+      id: 'citing', count: CITING.length, rows: CITING.map(([domain, answers, rival]) => ({ domain, role: 'Third party', answers, rival: TRACKED[rival].name })), viewAll: ['View all cited domains', '?owner=third#/citations'],
       headline: (n) => `${pick(n, 'cited domain cites', 'cited domains cite')} your tracked competitors, last 28 days`,
       explain: 'These websites are cited in answers that mention a tracked competitor, so they are places to earn a citation too.',
       columns: [
-        { header: 'Domain', cell: (r) => r.domain },
+        { header: 'Domain', cell: (r) => domainCell(r.domain) },
         { header: 'Role', cell: (r) => r.role },
         { header: 'Answers', cell: (r) => el('span', 'num', formatInteger(r.answers)) },
-        { header: 'Competitors', cell: (r) => r.rivals.join(', ') },
+        { header: 'Competitors', cell: (r) => r.rival },
       ],
     }),
     card({
@@ -142,7 +159,7 @@ export function renderInsights() {
       headline: (n) => `${pick(n, 'new cited domain', 'new cited domains')} this month`,
       explain: 'Domains that AI answers cite this month and did not cite in the month before.',
       columns: [
-        { header: 'Domain', cell: (r) => r.domain },
+        { header: 'Domain', cell: (r) => domainCell(r.domain) },
         { header: 'First seen', cell: (r) => r.first },
         { header: 'Citations', cell: (r) => el('span', 'num', formatInteger(r.citations)) },
       ],
