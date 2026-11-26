@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { NOTE_FILES_MAX, NOTE_FILE_MAX_BYTES, checkNewFiles } from './note-files';
 
 const file = (name: string, type: string, size = 10): File => {
-  const made = new File(['x'], name, { type });
+  const made = new File(['x'], name, { type, lastModified: 1_700_000_000_000 });
   // The bytes are not needed, only the size the browser reports
   Object.defineProperty(made, 'size', { value: size });
   return made;
@@ -82,6 +82,32 @@ describe('checkNewFiles', () => {
       { kind: 'size', name: 'big.pdf' },
       { kind: 'type', name: 'b.zip' },
     ]);
+  });
+
+  it('refuses an empty file with its own refusal', () => {
+    const { accepted, refused } = checkNewFiles(0, [file('empty.txt', 'text/plain', 0), file('a.txt', 'text/plain')]);
+    expect(accepted).toHaveLength(1);
+    expect(refused).toEqual([{ kind: 'empty', name: 'empty.txt' }]);
+  });
+
+  it('refuses a duplicate (same name, size and date) of a file in the batch or already in the box', () => {
+    const first = file('a.png', 'image/png');
+    const same = file('a.png', 'image/png');
+    const other = file('b.png', 'image/png');
+    const inBatch = checkNewFiles(0, [first, same, other]);
+    expect(inBatch.accepted).toEqual([first, other]);
+    expect(inBatch.refused).toEqual([{ kind: 'duplicate', name: 'a.png' }]);
+    const inBox = checkNewFiles(1, [same], [first]);
+    expect(inBox.accepted).toEqual([]);
+    expect(inBox.refused).toEqual([{ kind: 'duplicate', name: 'a.png' }]);
+  });
+
+  it('does not call a file a duplicate when its size or date differs', () => {
+    const first = file('a.png', 'image/png', 10);
+    const bigger = file('a.png', 'image/png', 11);
+    const older = new File(['x'], 'a.png', { type: 'image/png', lastModified: first.lastModified - 5000 });
+    Object.defineProperty(older, 'size', { value: 10 });
+    expect(checkNewFiles(0, [first, bigger, older]).accepted).toHaveLength(3);
   });
 
   it('is not thrown by nothing, a negative count or an odd count', () => {

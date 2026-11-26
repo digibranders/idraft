@@ -1,9 +1,8 @@
 import { EVENTUS } from './internal-links-world';
 import { onMockReset } from './state';
 import { NOTE_MAX } from '@/lib/pages/notes';
-import type { Role } from '@/lib/api/types';
+import type { Role, Schemas } from '@/lib/api/types';
 import type { PageNote } from '@/lib/internal-links/types';
-import type { Schemas } from '@/lib/api/types';
 import { textLength } from '@/lib/text/length';
 
 /**
