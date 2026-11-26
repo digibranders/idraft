@@ -29,6 +29,28 @@ const WORKLIST_KEY = {
 type WorklistId = keyof typeof WORKLIST_KEY;
 type PlainViewId = Exclude<ViewId, WorklistId | 'lost_links_top'>;
 
+/** The message keys under `pages.view` are camelCase; the view ids are the API's words, so the two are mapped here. */
+const VIEW_KEY = {
+  all: 'all',
+  live: 'live',
+  indexable: 'indexable',
+  not_indexable: 'notIndexable',
+  redirects: 'redirects',
+  errors: 'errors',
+  client_errors: 'clientErrors',
+  server_errors: 'serverErrors',
+  blocked: 'blocked',
+  other: 'other',
+  variants: 'variants',
+  untiered: 'untiered',
+  in_sitemap_indexable: 'inSitemapIndexable',
+  not_in_sitemap: 'notInSitemap',
+  sitemap_not_live: 'sitemapNotLive',
+  sitemap_not_indexable: 'sitemapNotIndexable',
+  reachable: 'reachable',
+  unreachable: 'unreachable',
+} as const satisfies Record<PlainViewId, string>;
+
 const isWorklistId = (id: ViewId): id is WorklistId => id in WORKLIST_KEY;
 const isEdge = (id: ViewId): id is EdgeWorklist => id === 'broken_and_redirected' || id === 'links_to_non_indexable';
 
@@ -42,8 +64,7 @@ export function useViewLabel(scope: LinksScope): (id: ViewId) => string {
     (id: ViewId): string => {
       if (isWorklistId(id)) return tw(WORKLIST_KEY[id]);
       if (id === 'lost_links_top') return tiers === null ? tw('lostLinksTopFallback') : tw('lostLinksTop', { tiers });
-      const plain: PlainViewId = id;
-      return tv(plain);
+      return tv(VIEW_KEY[id]);
     },
     [tv, tw, tiers],
   );
