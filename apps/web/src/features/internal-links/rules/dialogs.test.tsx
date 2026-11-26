@@ -105,6 +105,24 @@ describe('tier rules (spec 5.2)', () => {
     expect(within(dialog).getAllByRole('button', { name: /^Count pages for rule/ })).toHaveLength(1);
   });
 
+  it('turns an address of the site pasted into a rule path into its path', async () => {
+    const creates = bodiesOf(RULES, 'post');
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const dialog = await openFromMenu(user, 'Tier rules', 'Tier rules');
+    await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
+    const path = within(dialog).getByRole('textbox', { name: 'Rule 3 path' });
+    await user.clear(path);
+    await user.click(path);
+    await user.paste('https://www.eventussecurity.com/industries/?utm=x');
+    expect(path).toHaveValue('/industries');
+    await user.click(within(dialog).getByRole('button', { name: 'Save rules' }));
+    await waitFor(() =>
+      expect(creates).toEqual([
+        { match_type: 'prefix', value: '/industries', tier_id: expect.any(String), position: 3 },
+      ]),
+    );
+  });
+
   it('saves a new rule, in order, with its tier', async () => {
     const creates = bodiesOf(RULES, 'post');
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));

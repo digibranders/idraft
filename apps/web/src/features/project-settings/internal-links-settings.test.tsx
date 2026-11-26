@@ -138,6 +138,19 @@ describe('Project settings > Internal links', () => {
     );
   });
 
+  it('saves the host of a pasted address as an allowed subdomain', async () => {
+    const seen = patches();
+    const { user } = renderWithProviders(screenAs('editor'));
+    await user.click(await screen.findByRole('textbox', { name: 'Allowed subdomains' }));
+    await user.paste('https://blog.eventussecurity.com/news/, docs.eventussecurity.com');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(seen).toEqual([
+        { internal_links: { allowed_subdomains: ['blog.eventussecurity.com', 'docs.eventussecurity.com'] } },
+      ]),
+    );
+  });
+
   it('has an Alerts section whose changes join the save bar and are sent as the changed alert members', async () => {
     const seen = patches();
     const { user } = renderWithProviders(screenAs('editor'));

@@ -31,6 +31,7 @@ import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { EMPTY_VALUE, formatCurrency, formatInteger, formatTableDateTime } from '@/lib/format';
 import { failedText } from '@/lib/internal-links/crawl-failure';
+import { hostOfEntry } from '@/lib/internal-links/pasted-url';
 import { updateSettingsMutation } from '@/lib/internal-links/mutations';
 import { CRAWL_LIMIT, crawlsQuery, linkSettingsQuery, pageTiersQuery } from '@/lib/internal-links/queries';
 import type { CrawlRun, CrawlSchedule, InternalLinksSettingsPatch } from '@/lib/internal-links/types';
@@ -79,7 +80,7 @@ interface Edits {
 const hostsOf = (text: string): string[] =>
   text
     .split(',')
-    .map((part) => part.trim())
+    .map((part) => hostOfEntry(part.trim()))
     .filter((part) => part !== '');
 const sameHosts = (left: readonly string[], right: readonly string[]): boolean =>
   left.length === right.length && left.every((host, index) => host === right[index]);

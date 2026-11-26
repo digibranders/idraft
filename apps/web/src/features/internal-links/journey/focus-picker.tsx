@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState, type ReactElement } from 'react';
 
 import { readPageRows } from './page-reads';
-import { pastedPath } from './pasted-url';
+import { pastedPath } from '@/lib/internal-links/pasted-url';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

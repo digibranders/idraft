@@ -21,6 +21,7 @@ import { announce } from '@/lib/a11y/announcer';
 import { useDebouncedValue } from '@/lib/dom/use-debounced-value';
 import { createRuleMutation, deleteRuleMutation, updateRuleMutation } from '@/lib/internal-links/mutations';
 import { internalLinksKeys, tierRulePreviewQuery, tierRulesQuery } from '@/lib/internal-links/queries';
+import { pastedPath } from '@/lib/internal-links/pasted-url';
 import { checkRuleValue, MAX_RULES, type RuleValueProblem } from '@/lib/internal-links/rule-value';
 import type { LinksScope, PageTier, TierRuleView } from '@/lib/internal-links/types';
 
@@ -143,12 +144,15 @@ export function RulesDialog({
   open,
   onOpenChange,
   scope,
+  host,
   tiers,
   canWrite,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   scope: LinksScope;
+  /** The site's host: an address of it pasted into a path field becomes its path. */
+  host: string;
   tiers: readonly PageTier[];
   canWrite: boolean;
 }): ReactElement {
@@ -358,7 +362,7 @@ export function RulesDialog({
                       aria-invalid={error === undefined ? undefined : true}
                       aria-describedby={error === undefined ? undefined : `${baseId}-${rule.key}`}
                       value={rule.value}
-                      onValueChange={(value) => edit(rule.key, { value })}
+                      onValueChange={(value) => edit(rule.key, { value: pastedPath(value, host) ?? value })}
                       onFocus={() => touch(rule.key)}
                       size="sm"
                       autoComplete="off"

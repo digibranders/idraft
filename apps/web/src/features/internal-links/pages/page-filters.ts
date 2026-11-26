@@ -1,6 +1,7 @@
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import type { DownloadQuery } from '@/lib/api/download';
 import { enumValuesOf } from '@/lib/filters/filter-values';
+import { searchPathOf } from '@/lib/internal-links/pasted-url';
 import { pageParams, type PageQuery } from '@/lib/internal-links/queries';
 import type { PageFlagFilter, PageTier, StatusClass } from '@/lib/internal-links/types';
 import type { LinksTranslate } from '../tabs';
@@ -97,7 +98,13 @@ export function pageFilterFields(
  * id that is not one the API takes is left out (the filter bar keeps an id from the address while its options load),
  * so a hand-edited address never makes the request a 422.
  */
-export function pageQueryOf(state: LinksState, values: FilterValues, cursor: string | null, limit: number): PageQuery {
+export function pageQueryOf(
+  state: LinksState,
+  values: FilterValues,
+  cursor: string | null,
+  limit: number,
+  host = '',
+): PageQuery {
   const idx = enumValuesOf(values.idx)[0];
   return {
     scope: state.scope,
@@ -113,7 +120,7 @@ export function pageQueryOf(state: LinksState, values: FilterValues, cursor: str
     indexable: idx === 'yes' ? true : idx === 'no' ? false : null,
     flags: enumValuesOf(values.flag).filter((value): value is PageFlagFilter => FLAGS.some(([flag]) => flag === value)),
     worklist: state.worklist,
-    q: state.q,
+    q: searchPathOf(state.q, host),
     sort: state.sort,
     include: [],
     cursor,

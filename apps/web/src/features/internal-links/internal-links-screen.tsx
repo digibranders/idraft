@@ -436,6 +436,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
         open={dialog === 'rules'}
         onOpenChange={(next) => setDialog(next ? 'rules' : null)}
         scope={scope}
+        host={host}
         tiers={context.tiers}
         canWrite={canWrite}
       />

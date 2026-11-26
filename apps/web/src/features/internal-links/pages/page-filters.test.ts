@@ -63,6 +63,12 @@ describe('pageQueryOf', () => {
     });
   });
 
+  it('searches a pasted address of the site as its path', () => {
+    const state = parseLinksSearch({ q: 'https://www.eventussecurity.com/blog/?utm=x' });
+    expect(pageQueryOf(state, {}, null, 100, 'eventussecurity.com').q).toBe('/blog');
+    expect(pageQueryOf(state, {}, null, 100).q).toBe('https://www.eventussecurity.com/blog/?utm=x');
+  });
+
   it('is the default read for an address with no filters', () => {
     expect(pageQueryOf(parseLinksSearch({}), {}, null, 100)).toEqual(DEFAULT_PAGE_QUERY);
   });

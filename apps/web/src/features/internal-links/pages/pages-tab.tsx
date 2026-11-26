@@ -157,7 +157,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     [table.cols, known, columns],
   );
   const include = useMemo(() => moreIncludes(visible), [visible]);
-  const query = { ...pageQueryOf(state, values, paging.cursor, paging.size), include };
+  const query = { ...pageQueryOf(state, values, paging.cursor, paging.size, context.host), include };
   // The rows stay while new filters load: no skeleton flash (12-tables.md section 7)
   const read = useQuery({
     ...pagesQuery(scope, query, chosenRun),
@@ -189,10 +189,10 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   const gone = isLinksDropped(read.error);
   useEffect(() => {
     if (gone) return undefined;
-    const wanted = withRun(pageExportQuery(pageQueryOf(state, values, null, paging.size)), chosenRun);
+    const wanted = withRun(pageExportQuery(pageQueryOf(state, values, null, paging.size, context.host)), chosenRun);
     registerExport(() => downloadApiFile(pagesPath(scope), wanted, EXPORT_NAME));
     return () => registerExport(null);
-  }, [registerExport, scope, state, values, paging.size, chosenRun, gone]);
+  }, [registerExport, scope, state, values, paging.size, chosenRun, gone, context.host]);
 
   const range = pageRange({ pageIndex: paging.pageIndex, rows: rows.length, limit: paging.size });
   const searched = state.q !== null;

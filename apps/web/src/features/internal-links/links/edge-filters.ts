@@ -4,6 +4,7 @@ import { searchText, type LinksState } from '../url-state';
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import type { DownloadQuery } from '@/lib/api/download';
 import { enumValuesOf, type FilterValue } from '@/lib/filters/filter-values';
+import { searchPathOf } from '@/lib/internal-links/pasted-url';
 import { edgeParams, type EdgeQuery } from '@/lib/internal-links/queries';
 import { PLACEMENT_KEY, PLACEMENTS, type Placement } from '@/lib/internal-links/scopes';
 import type { PageTier, StatusClass } from '@/lib/internal-links/types';
@@ -74,7 +75,13 @@ const tierIdsOf = (value: FilterValue | undefined): string[] =>
  * refuse is left out (the filter bar keeps what the address holds while its options load). The page ids come from
  * `LinksState`, which holds only ids the API takes: a malformed one is shown as not found by the tab, never read.
  */
-export function edgeQueryOf(state: LinksState, values: FilterValues, cursor: string | null, limit: number): EdgeQuery {
+export function edgeQueryOf(
+  state: LinksState,
+  values: FilterValues,
+  cursor: string | null,
+  limit: number,
+  host = '',
+): EdgeQuery {
   const source = values.sq;
   return {
     scope: state.scope,
@@ -92,8 +99,8 @@ export function edgeQueryOf(state: LinksState, values: FilterValues, cursor: str
     source: state.source,
     target: state.target,
     worklist: state.edgeWorklist,
-    qSource: source?.kind === 'text' ? searchText(source.text) : null,
-    qTarget: state.lq,
+    qSource: source?.kind === 'text' ? searchPathOf(searchText(source.text), host) : null,
+    qTarget: searchPathOf(state.lq, host),
     cursor,
     limit,
   };

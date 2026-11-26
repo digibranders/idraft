@@ -201,7 +201,7 @@ function LinksList({
     chosenRun,
   ]);
   const paging = useCursorPaging(filtersKey);
-  const query = edgeQueryOf(state, values, paging.cursor, paging.size);
+  const query = edgeQueryOf(state, values, paging.cursor, paging.size, context.host);
   const read = useQuery({
     ...edgesQuery(scope, query, chosenRun),
     placeholderData: keepPreviousData,
@@ -249,10 +249,10 @@ function LinksList({
 
   // The page's Export downloads the same filter as the server's CSV (decision W13)
   useEffect(() => {
-    const wanted = withRun(edgeExportQuery(edgeQueryOf(state, values, null, paging.size)), chosenRun);
+    const wanted = withRun(edgeExportQuery(edgeQueryOf(state, values, null, paging.size, context.host)), chosenRun);
     registerExport(() => downloadApiFile(edgesPath(scope), wanted, EXPORT_NAME));
     return () => registerExport(null);
-  }, [registerExport, scope, state, values, paging.size, chosenRun]);
+  }, [registerExport, scope, state, values, paging.size, chosenRun, context.host]);
 
   const notes = [
     ...(state.edgeWorklist === null
