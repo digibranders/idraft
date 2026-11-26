@@ -221,7 +221,7 @@ describe('DrawerCustomizer', () => {
     });
   });
 
-  it('exposes no menuItem below 768 px, in the sheet the drawer becomes there', async () => {
+  it('exposes no menuItem below 768 px, where the drawer is a sheet', async () => {
     vi.stubGlobal('innerWidth', 600);
     viewport.setWidth(37.5);
     renderWithProviders(<Page />);

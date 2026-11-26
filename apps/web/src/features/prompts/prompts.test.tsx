@@ -3012,9 +3012,20 @@ describe('the drawers lie over the page', () => {
     expect(within(topic).getByRole('heading', { level: 2, name: group })).toHaveFocus();
     // The Prompts tab lists the group's prompts: one leads back to a prompt
     await user.click(await within(topic).findByRole('tab', { name: /^Prompts/ }));
-    const [item] = await within(topic).findAllByRole('listitem');
-    const title = within(item ?? topic).getByRole('button').textContent ?? '';
-    await user.click(within(item ?? topic).getByRole('button'));
+    // The Overview's platform rows are list items too, and stay until the tab has switched
+    await waitFor(() =>
+      expect(within(topic).getByRole('tab', { name: /^Prompts/ })).toHaveAttribute('aria-selected', 'true'),
+    );
+    await waitFor(() => expect(within(topic).queryByRole('link', { name: /^ChatGPT: / })).toBeNull());
+    const lead = await waitFor(() => {
+      for (const item of within(topic).getAllByRole('listitem')) {
+        const button = within(item).queryByRole('button');
+        if (button !== null) return button;
+      }
+      throw new Error('The Prompts tab lists no row with a button yet');
+    });
+    const title = lead.textContent ?? '';
+    await user.click(lead);
     const again = await screen.findByRole('complementary', { name: title });
     expect(screen.getAllByRole('complementary')).toHaveLength(1);
     expect(within(again).getByRole('heading', { level: 2, name: title })).toHaveFocus();
