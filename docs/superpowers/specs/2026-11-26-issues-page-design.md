@@ -357,9 +357,10 @@ Top to bottom:
    Pages with a notice, Checks passed ("9 of 27"). Each has its definition in a tooltip.
 3. One panel: the two tabs with the number of checks that found pages, search, the severity pills, "Show passed
    checks", then the table. Rows are grouped by category with a group header row. The header row is easy to see: its text is bold and in
-the main text colour (`type-body-strong text-foreground`), on the subtle surface, and the row is as tall as a
+the main text colour (`type-subsection-title`, 14 px at weight 600, the boldest 14 px style of the type scale;
+`type-body-strong` at 500 was checked on screen on 2026-11-26 and looks too light), on the subtle surface, and the row is as tall as a
 table row of the compact density. A category header is never smaller or paler than the check names under it. The check names are the main
-thing on the page, so they are bold and in the main text colour as well (`type-body-strong text-foreground`),
+thing on the page, so they are bold and in the main text colour as well (`type-subsection-title text-foreground`),
 for every row, passed or not. A passed check shows its state in the Pages cell ("Passed" and a check mark), not
 by a pale name. The header stands apart from the names by its band (subtle surface, a border above), not by
 being larger.
