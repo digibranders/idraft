@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, Ref } from 'react';
+import { useCallback, type ReactElement, type Ref } from 'react';
 
 import { useImportantTiers } from './important-tiers';
 import { Button } from '@/components/ui/button';
@@ -37,12 +37,16 @@ export function useViewLabel(scope: LinksScope): (id: ViewId) => string {
   const tv = useTranslations('pages.view');
   const tw = useTranslations('internalLinks.worklists');
   const { tiers } = useImportantTiers(scope);
-  return (id) => {
-    if (isWorklistId(id)) return tw(WORKLIST_KEY[id]);
-    if (id === 'lost_links_top') return tiers === null ? tw('lostLinksTopFallback') : tw('lostLinksTop', { tiers });
-    const plain: PlainViewId = id;
-    return tv(plain);
-  };
+  // Stable between renders, so an effect that depends on it runs for a change of view, not for every render
+  return useCallback(
+    (id: ViewId): string => {
+      if (isWorklistId(id)) return tw(WORKLIST_KEY[id]);
+      if (id === 'lost_links_top') return tiers === null ? tw('lostLinksTopFallback') : tw('lostLinksTop', { tiers });
+      const plain: PlainViewId = id;
+      return tv(plain);
+    },
+    [tv, tw, tiers],
+  );
 }
 
 export interface ViewMenuProps {
@@ -122,18 +126,13 @@ export function ViewMenu({
       },
     };
   });
-  // A line that is not a choice: the menu has no plain text row, so it is a disabled item with nothing at its end
+  // Two lines that are not choices. The menu has no plain text row, and a disabled item would need a reason it has
+  // none to give, so they are items that do nothing: focusable, so keyboard and screen reader users reach them
   if (known && !entries.some((entry) => entry.section === 'linkProblems')) {
-    items.push({
-      id: 'no-issues',
-      label: tl('pages.noIssues'),
-      group: t('sections.linkProblems'),
-      kind: 'action',
-      disabledReason: '',
-    });
+    items.push({ id: 'no-issues', label: tl('pages.noIssues'), group: t('sections.linkProblems'), kind: 'action' });
   }
   if (known && worklists.may_be_incomplete) {
-    items.push({ id: 'coverage', label: tl('coverage.incomplete'), kind: 'action', disabledReason: '' });
+    items.push({ id: 'coverage', label: tl('coverage.incomplete'), kind: 'action' });
   }
   return (
     <Menu

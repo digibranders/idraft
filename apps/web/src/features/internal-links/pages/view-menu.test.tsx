@@ -230,6 +230,11 @@ describe('the View menu', () => {
     expect(within(menu).getByText('No issues')).toBeInTheDocument();
     const all = within(menu).getAllByRole('menuitem');
     expect(all.at(-1)).toContainElement(last);
+    // Reachable and announced by its name: not disabled, and no description that points at nothing
+    const line = within(menu).getByRole('menuitem', { name: 'May be incomplete' });
+    expect(line).not.toHaveAttribute('aria-disabled', 'true');
+    expect(line).not.toHaveAttribute('aria-describedby');
+    expect(within(menu).getByRole('menuitem', { name: 'No issues' })).not.toHaveAttribute('aria-describedby');
   });
 
   it('opens with the keyboard, picks with Enter and gives focus back to the trigger', async () => {

@@ -9144,7 +9144,6 @@
     },
     "view": {
       "trigger": "View: {view}",
-      "label": "View",
       "sections": {
         "pages": "Pages",
         "sitemap": "Sitemap",
