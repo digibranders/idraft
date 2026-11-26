@@ -1106,8 +1106,9 @@ export function sortRows(
 /** `include`: a comma list or repeated parameters. */
 export function parseInclude(url: URL): Set<Include> | ValidationItem {
   const values = url.searchParams.getAll('include').flatMap((value) => value.split(','));
-  // The last four are blocks of the rank columns that the real API fills; this UI does not ask for them yet,
-  // so the mocks accept them and answer null (the row views)
+  // `sparkline` to `aio` are blocks of the rank columns that the real API fills; this UI does not ask for them
+  // yet, so the mocks accept them and answer null (the row views). `counts` is the strip's: the page carries
+  // `page.counts` (rankCounts), and the rows are not changed
   const allowed = [
     'metrics',
     'groups',

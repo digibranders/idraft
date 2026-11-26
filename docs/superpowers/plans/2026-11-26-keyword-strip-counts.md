@@ -30,7 +30,7 @@ All six are counts of tracked keywords inside the list's current filters (`filte
 |---|---|
 | `total` | none |
 | `ranked` | `current_rank IS NOT NULL` |
-| `beyond` | `current_rank IS NULL` |
+| `beyond` | `last_observed_at IS NOT NULL AND current_rank IS NULL` (checked and not found: the `rank_is_null=true` rule; a keyword never checked has no state row and is in `total` only) |
 | `top3` | `current_rank <= 3` |
 | `top10` | `current_rank <= 10` |
 | `top20` | `current_rank <= 20` |
@@ -330,6 +330,18 @@ git commit -m "Keywords strip: one include=counts read replaces six limit=1 read
 - [ ] **Step 1: After the owner releases**, load `https://app.idraft.ai/digibranders/eventus-security/seo/keywords` in the signed-in browser and read the request list.
 
 Expected: `tracked-keywords` calls fall from 8 to 3 (the list read, the strip read, `useTrackedCount`), requests from 22 to 17, and the last response arrives earlier than the 2.6 s measured on 2026-11-26.
+
+## As built (2026-11-26)
+
+Built and committed on `develop`; not released. Differences from the tasks above:
+
+- The test file seeds six keywords (ranks 2, 8, 15, 40, one checked and not found, one never checked) and pins that the never-checked one is in `total` only. See `backend/tests/api/keywords/test_tracked_keyword_counts.py`.
+- The web tests run against an MSW mock of the API, so three more files changed: `mocks/handlers/keyword-rules.ts` (`counts` is an allowed include, `rankCounts` computes it with the same rank rules as the server), `mocks/handlers/tracked-keywords.ts` (returns `page.counts`) and `mocks/factories/keyword.ts` (the `Include` type). The shared test helper `test/rankings-harness.tsx` answers `include=counts` too.
+- `strip-queries.test.ts` was deleted with `stripQueries`; `rank-strip.test.tsx` and `rankings.test.tsx` now assert one request carrying `include=counts`. The old "one read fails, the others stay" test no longer applies: one read feeds all six counts, so a failure blanks all of them.
+- `docs/19-api-specification.md` and the route description list `counts`.
+- Checks run: the four backend test files of the keywords API and the OpenAPI, compression and route-access tests; the whole `features/rankings` folder and the tracked-keywords mock test (70 files, 1,157 tests); typecheck; eslint and prettier on the seven changed web files. `pnpm build` was not run.
+
+**Release order matters.** `infra/ship.sh` deploys the backend before the web app, so a normal release is safe. A new web release against the old API gets `422` on `include=counts` and the strip shows its error banner. So `idraft-activate rollback backend` on its own, after this ships, would break the strip until the web is rolled back too.
 
 ## Left for later
 
