@@ -2126,6 +2126,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The whole crawl as a graph, for the Link map
+         * @description Every live page that counts as a node and one edge per page pair that links in the body (and by auto-generated blocks with `include_auto`). A link to a redirect is a link to the page it leads to. Menu and footer links are not edges: `sitewide_from` on a node says how many pages have one, when that is at least half. Over `max_pages` the pages with the most edges are kept and `truncated` is true.
+         */
+        get: operations["graph_api_v1_workspaces__workspace_id__projects__project_id__internal_links_graph_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors": {
         parameters: {
             query?: never;
@@ -7640,6 +7660,56 @@ export interface components {
              */
             tracked_keyword_id: string;
         };
+        /** GraphEdge */
+        GraphEdge: {
+            /**
+             * Links
+             * @description How many links the source has to the target.
+             */
+            links: number;
+            /**
+             * Source
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            source: string;
+            /**
+             * Target
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            target: string;
+        };
+        /** GraphNode */
+        GraphNode: {
+            /**
+             * Links In
+             * @description Pages that link to it, redirects folded.
+             */
+            links_in: number;
+            /**
+             * Links Out
+             * @description Pages it links to, redirects folded.
+             */
+            links_out: number;
+            /** Path */
+            path: string;
+            /**
+             * Sitewide From
+             * @description Pages that link to it from a menu, header, footer, sidebar or breadcrumb; 0 unless that is at least half the pages. Those links are never edges.
+             */
+            sitewide_from: number;
+            /**
+             * Tier Id
+             * @description The page's tier; null is Untiered.
+             */
+            tier_id: string | null;
+            /** Title */
+            title: string | null;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
         /** GroupMembers */
         GroupMembers: {
             /** Tracked Keyword Ids */
@@ -8713,6 +8783,39 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** LinkGraph */
+        LinkGraph: {
+            /** Edges */
+            edges: components["schemas"]["GraphEdge"][];
+            /**
+             * Home Url Id
+             * @description The page the crawl started from.
+             */
+            home_url_id: string | null;
+            /** Include Auto */
+            include_auto: boolean;
+            /** Nodes */
+            nodes: components["schemas"]["GraphNode"][];
+            /**
+             * Pages Total
+             * @description Live pages that count in the crawl, before `max_pages`.
+             */
+            pages_total: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Truncated
+             * @description True when `pages_total` is more than the nodes returned.
+             */
+            truncated: boolean;
+        };
+        /** LinkGraphResponse */
+        LinkGraphResponse: {
+            data: components["schemas"]["LinkGraph"];
         };
         /** LinkedKeyword */
         LinkedKeyword: {
@@ -19766,6 +19869,43 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EdgeRowPage"];
                     "text/csv": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    graph_api_v1_workspaces__workspace_id__projects__project_id__internal_links_graph_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                include_auto?: boolean;
+                max_pages?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkGraphResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
