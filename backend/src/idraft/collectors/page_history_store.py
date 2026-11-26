@@ -46,7 +46,7 @@ class PageHistory:
 def history_of(
     html: str,
     page_url: str,
-    canonical_url: str | None,
+    html_canonical: str | None,
     sitemap_lastmod: datetime | None,
     links: Sequence[FoundLink],
     edges: Sequence[PageEdge],
@@ -62,7 +62,7 @@ def history_of(
             words=text.words,
             links_all=len(edges),
             links_editorial=sum(1 for edge in edges if edge.scope is LinkScope.EDITORIAL),
-            canonical=canonical_url,
+            canonical=html_canonical,
             main_hash=content_hash(text.main_text),
             full_hash=content_hash(text.full_text),
         ),

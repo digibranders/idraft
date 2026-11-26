@@ -275,3 +275,44 @@ async def test_a_page_that_cannot_be_read_keeps_no_history_and_the_crawl_goes_on
         migrated, "SELECT count(*) AS n FROM seo.crawl_links WHERE run_id = $1", crawled.task.run_id
     )
     assert links["n"] > 0
+
+
+async def test_a_changed_canonical_tag_reaches_the_snapshot() -> None:
+    def page(canonical: str | None) -> str:
+        head = (
+            "" if canonical is None else f'<head><link rel="canonical" href="{canonical}"></head>'
+        )
+        return f"<html>{head}<body><main>same</main></body></html>"
+
+    url = "https://example.com/a"
+    hosts = frozenset({"example.com"})
+    old = await crawl_ingest._from_html(
+        page("https://example.com/a"), 1, url, url, hosts, history_run=uuid.uuid4()
+    )
+    new = await crawl_ingest._from_html(page("/b"), 1, url, url, hosts, history_run=uuid.uuid4())
+    bare = await crawl_ingest._from_html(page(None), 1, url, url, hosts, history_run=uuid.uuid4())
+
+    assert old.history is not None
+    assert new.history is not None
+    assert bare.history is not None
+    assert old.history.snapshot.canonical == "https://example.com/a"
+    assert new.history.snapshot.canonical == "https://example.com/b"
+    assert bare.history.snapshot.canonical is None
+    assert old.history.snapshot.main_hash == new.history.snapshot.main_hash
+
+
+async def test_a_crawl_that_hits_the_links_cap_still_gets_its_summary(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(crawl_ingest, "LINKS_PER_CRAWL_MAX", 1)
+    on_page = synthetic_site()
+    crawled = await _crawled(migrated, worker_db, on_page)
+
+    outcome = await _ingest(worker_db, on_page, MemoryStore(), crawled.task)
+
+    assert outcome.failed is False
+    summary = await fetchrow(
+        migrated, "SELECT * FROM seo.page_history_runs WHERE run_id = $1", crawled.task.run_id
+    )
+    assert summary is not None
+    assert summary["pages_checked"] > 0

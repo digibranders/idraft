@@ -606,13 +606,14 @@ async def _from_html(
 ) -> _PageLinks:
     links = await asyncio.to_thread(classify, html, crawled_url)
     # The provider's pages listing does not carry the canonical; the HTML does.
-    html_canonical = _canonical(await asyncio.to_thread(canonical_of, html, crawled_url))
+    named = await asyncio.to_thread(canonical_of, html, crawled_url)
+    html_canonical = _canonical(named)
     edges, capped = await asyncio.to_thread(_edges_of, links, canonicalize(canonical_url), hosts)
     kept: PageHistory | None = None
     if history_run is not None:  # only a crawl's own ingest keeps a history
         try:
             kept = await asyncio.to_thread(
-                history_of, html, crawled_url, canonical_url, sitemap_lastmod, links, edges
+                history_of, html, crawled_url, named, sitemap_lastmod, links, edges
             )
         except Exception as failure:  # one bad page keeps no history; never the page's text
             _log.warning(
@@ -691,6 +692,7 @@ async def _links(
                 links_stored=run.links_stored,
                 pages_without_links=len(left.all()),
             )
+            await _history_summary(db, run)
             await _checkpoint(db, run, ingest_phase="template")
         return True
     hosts = site_hosts(run.target_host, run.allowed_subdomains)
@@ -813,7 +815,7 @@ async def _links(
                     taken_at=run.crawled_at or datetime.now(UTC),
                     pages=recorded,
                 )
-        except exc.SQLAlchemyError as failure:
+        except Exception as failure:  # a failing history never fails the crawl
             _log.warning(
                 "crawl page history not stored",
                 run_id=str(run.id),
@@ -830,7 +832,7 @@ async def _history_summary(db: AsyncSession, run: _Run) -> None:
     try:
         async with db.begin_nested():
             await summarize_history(db, run_id=run.id, workspace_id=run.workspace_id)
-    except exc.SQLAlchemyError as failure:
+    except Exception as failure:  # a failing history never fails the crawl
         _log.warning(
             "crawl page history not summarised", run_id=str(run.id), error=type(failure).__name__
         )
