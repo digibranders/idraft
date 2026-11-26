@@ -615,6 +615,39 @@ class TierFlowResponse(BaseModel):
     data: TierFlow
 
 
+class GraphNode(BaseModel):
+    url_id: UrlIdText
+    path: str
+    title: str | None
+    tier_id: UUID | None = Field(description="The page's tier; null is Untiered.")
+    links_in: int = Field(description="Pages that link to it, redirects folded.")
+    links_out: int = Field(description="Pages it links to, redirects folded.")
+    sitewide_from: int = Field(
+        description="Pages that link to it from a menu, header, footer, sidebar or breadcrumb; "
+        "0 unless that is at least half the pages. Those links are never edges."
+    )
+
+
+class GraphEdge(BaseModel):
+    source: UrlIdText
+    target: UrlIdText
+    links: int = Field(ge=1, description="How many links the source has to the target.")
+
+
+class LinkGraph(BaseModel):
+    run_id: UUID
+    include_auto: bool
+    pages_total: int = Field(description="Live pages that count in the crawl, before `max_pages`.")
+    truncated: bool = Field(description="True when `pages_total` is more than the nodes returned.")
+    home_url_id: UrlIdText | None = Field(description="The page the crawl started from.")
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
+class LinkGraphResponse(BaseModel):
+    data: LinkGraph
+
+
 class Worklists(BaseModel):
     run_id: UUID
     under_linked_t1: int
