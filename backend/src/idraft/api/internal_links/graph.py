@@ -1,8 +1,9 @@
 """The Link map's graph from a crawl's stored pages and links (plan 10). Pure: no database.
 
 A node is a live page that counts (status 200, not a variant). A link to a redirect is a link to
-the page the redirect leads to. One edge per page pair. Menu and footer links are never edges:
-they are a count on the page they point to, kept only when at least half the pages have it."""
+the page the redirect leads to, and a link to a variant is a link to its canonical page. One edge
+per page pair. Menu and footer links are never edges: they are a count of the pages that link to a
+page from a template, kept only when at least half the pages do."""
 
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ class GraphPage:
     title: str | None
     status_code: int | None
     redirect_url_id: int | None
-    is_variant: bool
+    variant_of_url_id: int | None
     tier_id: UUID | None
 
 
@@ -38,10 +39,11 @@ class GraphLink:
 
 @dataclass(frozen=True, slots=True)
 class TemplateLinks:
-    """How many pages link to `target` from a menu, header, footer, sidebar or breadcrumb."""
+    """`source` links to `target` from a menu, header, footer, sidebar or breadcrumb. One row per
+    pair: the fold counts distinct pages after redirects and variants are folded."""
 
+    source: int
     target: int
-    sources: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,16 +74,27 @@ def build_graph(
     home_url_id: int | None,
     max_pages: int,
 ) -> BuiltGraph:
+    if max_pages < 1:
+        raise ValueError(f"max_pages must be at least 1, got {max_pages}")
     by_id = {page.url_id: page for page in pages}
-    live = {page.url_id for page in pages if page.status_code == 200 and not page.is_variant}
+    live = {
+        page.url_id for page in pages if page.status_code == 200 and page.variant_of_url_id is None
+    }
 
     def resolve(url_id: int | None) -> int | None:
-        """The node a url id stands for: itself, or the page its redirects lead to."""
+        """The node a url id stands for: itself, the page its redirects lead to, or the canonical
+        page of a variant."""
         for _ in range(REDIRECT_HOPS + 1):
             if url_id is None or url_id in live:
                 return url_id
             page = by_id.get(url_id)
-            url_id = None if page is None else page.redirect_url_id
+            if page is None:
+                return None
+            url_id = (
+                page.variant_of_url_id
+                if page.variant_of_url_id is not None
+                else page.redirect_url_id
+            )
         return None
 
     edges: Counter[tuple[int, int]] = Counter()
@@ -93,12 +106,15 @@ def build_graph(
     links_in: Counter[int] = Counter(target for _, target in edges)
     links_out: Counter[int] = Counter(source for source, _ in edges)
 
-    template_sources: Counter[int] = Counter()
+    template_sources: dict[int, set[int]] = {}
     for row in template:
         target = resolve(row.target)
-        if target is not None:
-            template_sources[target] += row.sources
+        if row.source in live and target is not None and target != row.source:
+            template_sources.setdefault(target, set()).add(row.source)
     floor = SITEWIDE_SHARE * len(live)
+
+    def sitewide_from(sources: set[int]) -> int:
+        return len(sources) if len(sources) >= floor else 0
 
     ranked = sorted(live, key=lambda url_id: (-(links_in[url_id] + links_out[url_id]), url_id))
     kept = ranked[:max_pages]
@@ -111,17 +127,16 @@ def build_graph(
             tier_id=by_id[url_id].tier_id,
             links_in=links_in[url_id],
             links_out=links_out[url_id],
-            # A redirect and its target can both be in a menu: never more pages than there are
-            sitewide_from=(
-                min(template_sources[url_id], len(live)) if template_sources[url_id] >= floor else 0
-            ),
+            sitewide_from=sitewide_from(template_sources.get(url_id, set())),
         )
         for url_id in kept
     ]
+    home = resolve(home_url_id)
     return BuiltGraph(
         pages_total=len(live),
         truncated=len(live) > len(kept),
-        home_url_id=resolve(home_url_id),
+        # Null too when the cap left the start page out: the web draws it from `nodes`
+        home_url_id=home if home in kept_set else None,
         nodes=nodes,
         edges=[
             GraphLink(source, target, count)
