@@ -80,6 +80,23 @@ class FakeSearchConsole(FakeGoogle):
         self.malformed = False
         # (page, clicks, impressions) rows per property and day, for the `[date, page]` call.
         self.page_days: dict[str, dict[date, list[tuple[str, int, int]]]] = {}
+        # Rows of a filtered read (one with `dimensionFilterGroups`), per property and
+        # dimensions: dicts with "keys", "clicks", "impressions", "position".
+        self.filtered: dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]] = {}
+        # A position per page of the `[date, page]` read; pages not named answer 3.0.
+        self.page_positions: dict[str, float] = {}
+
+    def set_filtered(
+        self, site: str, dimensions: tuple[str, ...], rows: list[dict[str, Any]]
+    ) -> None:
+        self.filtered[(site, dimensions)] = rows
+
+    def filtered_requests(self, site: str | None = None) -> list[dict[str, Any]]:
+        return [
+            body
+            for requested, body in self.requests
+            if "dimensionFilterGroups" in body and (site is None or requested == site)
+        ]
 
     def set_day(self, site: str, day: date, rows: list[Row]) -> None:
         self.days.setdefault(site, {})[day] = rows
@@ -91,7 +108,9 @@ class FakeSearchConsole(FakeGoogle):
         return [
             body
             for requested, body in self.requests
-            if body["dimensions"] == ["date", "page"] and (site is None or requested == site)
+            if body["dimensions"] == ["date", "page"]
+            and "dimensionFilterGroups" not in body
+            and (site is None or requested == site)
         ]
 
     def detail_requests(self, site: str | None = None) -> list[dict[str, Any]]:
@@ -100,6 +119,7 @@ class FakeSearchConsole(FakeGoogle):
             for requested, body in self.requests
             if len(body["dimensions"]) > 1
             and body["dimensions"] != ["date", "page"]
+            and "dimensionFilterGroups" not in body
             and (site is None or requested == site)
         ]
 
@@ -128,6 +148,24 @@ class FakeSearchConsole(FakeGoogle):
         if self.malformed:
             return httpx.Response(200, json={"rows": [{"keys": ["x"], "clicks": 1}]})
         start, end = date.fromisoformat(body["startDate"]), date.fromisoformat(body["endDate"])
+        if "dimensionFilterGroups" in body:
+            dimensions = tuple(body["dimensions"])
+            found = self.filtered.get((site, dimensions), [])
+            if "date" in dimensions:
+                at = dimensions.index("date")
+                found = [
+                    row
+                    for row in found
+                    if start <= date.fromisoformat(row["keys"][at]) <= end
+                    and date.fromisoformat(row["keys"][at]) <= self.final_through
+                ]
+            if body["aggregationType"] == "byProperty":
+                # Google refuses property aggregation for a call that filters by page.
+                return httpx.Response(400, json={"error": {"message": "invalid aggregation"}})
+            found = found[body["startRow"] : body["startRow"] + body["rowLimit"]]
+            return httpx.Response(
+                200, json={"rows": [{"ctr": 0.1, **row} for row in found]} if found else {}
+            )
         served = [
             (day, rows)
             for day, rows in sorted(self.days.get(site, {}).items())
@@ -140,7 +178,7 @@ class FakeSearchConsole(FakeGoogle):
                     "clicks": float(clicks),
                     "impressions": float(impressions),
                     "ctr": 0.1,
-                    "position": 3.0,
+                    "position": self.page_positions.get(url, 3.0),
                 }
                 for day, items in sorted(self.page_days.get(site, {}).items())
                 if start <= day <= end and (body["dataState"] == "all" or day <= self.final_through)
