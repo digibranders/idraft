@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import csv
 import io
+import uuid
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from idraft.api.issues.catalogue import BY_ID, CHECKS
+from idraft.api.issues.service import checks_statement
 from idraft.api.resources import Resources
-from tests.api.auth.support import execute, make_workspace
+from tests.api.auth.support import execute, fetch, make_workspace
 from tests.api.entities.support import member, problem
+from tests.api.internal_links.support import seed_crawl
 from tests.api.issues.support import EXPECTED, PAGES, audit_site
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
@@ -221,3 +226,146 @@ async def test_csv(api: httpx.AsyncClient, resources: Resources, migrated: Postg
     by_check = {row[2]: row for row in rows[1:]}
     assert by_check["status-4xx"][5:] == ["ran", str(len(EXPECTED["status-4xx"])), ""]
     assert by_check["rank-page-broken"][5:] == ["not_run", "", ""]
+
+
+@dataclass(frozen=True)
+class _Crawl:
+    workspace_id: uuid.UUID
+    project_id: uuid.UUID
+    run_id: uuid.UUID
+
+
+async def test_every_rule_is_evaluated_once_per_page(migrated: PostgresServer) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    run_id, _ = await audit_site(migrated, workspace, project)
+    running = [check for check in CHECKS if check.found_by == "crawl"]
+    statement = checks_statement(_Crawl(workspace.id, project, run_id), running)
+    # The dialect class has no type hints for its constructor.
+    dialect = postgresql.asyncpg.dialect()  # type: ignore[no-untyped-call]
+    sql = str(statement.compile(dialect=dialect, compile_kwargs={"literal_binds": True}))
+
+    plan = "\n".join(row[0] for row in await fetch(migrated, f"EXPLAIN {sql}"))
+
+    assert "flags AS MATERIALIZED" in sql
+    assert "CTE Scan on flags" in plan, plan
+
+
+async def test_the_example_path_is_the_first_in_byte_order(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    rows = _rows(await _read(api, resources, migrated))
+
+    # "/Zed_page" sorts before "/aa_x" in bytes and after it in most locales; "/About" is first.
+    assert "/Zed_page" < "/aa_x"
+    assert rows["url-format"]["pages"] == 5
+    assert rows["url-format"]["example_path"] == "/About"
+
+
+async def test_run_picks_the_crawl(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    older, _ = await seed_crawl(migrated, workspace, project, [("/", 200), ("/gone", 404)])
+    newer, _ = await audit_site(migrated, workspace, project)
+    other_project = await keyword_project(migrated, workspace)
+    foreign, _ = await seed_crawl(migrated, workspace, other_project, [("/", 200)])
+    url = project_url(workspace, project, "issues")
+
+    by_older = await api.get(url, params={"run": str(older)}, headers=viewer.headers)
+    by_newer = await api.get(url, params={"run": str(newer)}, headers=viewer.headers)
+    latest = await api.get(url, params={"run": "latest"}, headers=viewer.headers)
+    by_foreign = await api.get(url, params={"run": str(foreign)}, headers=viewer.headers)
+
+    assert by_older.json()["meta"]["run_id"] == str(older)
+    assert by_older.json()["summary"]["pages_crawled"] == 2
+    assert _rows(by_older)["status-4xx"]["pages"] == 1
+    assert _rows(by_older)["status-4xx"]["example_path"] == "/gone"
+    assert latest.json() == by_newer.json()
+    assert latest.json()["meta"]["run_id"] == str(newer)
+    assert latest.json()["summary"]["pages_crawled"] == len(PAGES)
+    assert problem(by_foreign) == (404, "not_found")
+
+
+async def test_a_crawl_without_pages_passes_every_check(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    run_id, _ = await seed_crawl(migrated, workspace, project, [])
+    await execute(migrated, "UPDATE seo.crawl_runs SET sitemap_pages = 1 WHERE id = $1", run_id)
+
+    response = await api.get(project_url(workspace, project, "issues"), headers=viewer.headers)
+
+    summary = response.json()["summary"]
+    assert summary["pages_crawled"] == 0
+    assert summary["pages_with_issue"] == 0
+    assert summary["checks_ran"] == len(EXPECTED)
+    assert summary["checks_passed"] == len(EXPECTED)
+    for check_id in EXPECTED:
+        row = _rows(response)[check_id]
+        assert row["state"] == "ran", check_id
+        assert row["pages"] == 0, check_id
+        assert row["example_path"] is None, check_id
+
+
+async def test_rows_with_missing_values_count_as_crawled_and_are_not_found(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    response = await _read(api, resources, migrated)
+
+    found = {path for paths in EXPECTED.values() for path in paths}
+    assert "/no-depth" not in found
+    assert "/no-status" not in found
+    assert response.json()["summary"]["pages_crawled"] == len(PAGES)
+    for check_id in ("deep-pages", "noindex", "status-4xx", "status-5xx", "url-format"):
+        assert _rows(response)[check_id]["pages"] == len(EXPECTED[check_id]), check_id
+
+
+async def test_a_page_found_by_an_error_and_a_notice_counts_once(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    run_id, ids = await seed_crawl(
+        migrated, workspace, project, [("/Bad_Page", 200), ("/fine", 200), ("/gone", 404)]
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET title = 'A page title of exactly forty characters' "
+        "WHERE run_id = $1 AND url_id = $2",
+        run_id,
+        ids["/Bad_Page"],
+    )
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET title = 'Another page title of about forty chars' "
+        "WHERE run_id = $1 AND url_id = $2",
+        run_id,
+        ids["/fine"],
+    )
+    # /Bad_Page: broken-internal-links (error) and url-format (notice). /gone: status-4xx (error).
+    # /fine: nothing. There is no sitemap, so the sitemap checks do not run.
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET broken_outlinks = 1 WHERE run_id = $1 AND url_id = $2",
+        run_id,
+        ids["/Bad_Page"],
+    )
+
+    response = await api.get(project_url(workspace, project, "issues"), headers=viewer.headers)
+
+    summary = response.json()["summary"]
+    assert summary["pages_crawled"] == 3
+    assert summary["pages_with_error"] == 2
+    assert summary["pages_with_warning"] == 0
+    assert summary["pages_with_notice"] == 1
+    assert summary["pages_with_issue"] == 2
+    rows = _rows(response)
+    assert rows["broken-internal-links"]["example_path"] == "/Bad_Page"
+    assert rows["url-format"]["example_path"] == "/Bad_Page"
+    assert rows["status-4xx"]["example_path"] == "/gone"

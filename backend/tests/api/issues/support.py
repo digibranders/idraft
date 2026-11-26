@@ -44,6 +44,12 @@ PAGES: Final[list[tuple[str, int]]] = [
     ("/title-30", 200),
     ("/depth-3", 200),
     (PATH_115, 200),
+    # Byte order puts "Z" before "a"; a locale order puts "aa_x" first.
+    ("/Zed_page", 200),
+    ("/aa_x", 200),
+    # Live HTML with no click depth, and a row the crawler got no status for.
+    ("/no-depth", 200),
+    ("/no-status", 200),
 ]
 LINKS: Final = [
     SeedLink("/", "/services", "content"),
@@ -100,6 +106,8 @@ _COLUMNS: Final[dict[str, dict[str, object]]] = {
     "/title-60": {"title": "Title sixty " + "s" * 48},
     "/title-30": {"title": "Title thirty " + "t" * 17},
     "/depth-3": {"click_depth": 3},
+    "/no-depth": {"click_depth": None, "non_indexable_reason": None},
+    "/no-status": {"status_code": None, "resource_type": "other"},
 }
 # path -> column that holds a URL id -> path of the page it names
 _TARGETS: Final[dict[str, dict[str, str]]] = {
@@ -138,7 +146,7 @@ EXPECTED: Final[dict[str, list[str]]] = {
     "title-duplicate": ["/Plans_Old", "/pricing"],
     "title-long": ["/long-title"],
     "title-short": ["/services"],
-    "url-format": ["/About", "/Plans_Old", "/old_page"],
+    "url-format": ["/About", "/Plans_Old", "/Zed_page", "/aa_x", "/old_page"],
     "url-long": [LONG_PATH],
 }
 

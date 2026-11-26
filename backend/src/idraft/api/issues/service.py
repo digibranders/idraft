@@ -3,14 +3,16 @@ and the totals of the strip (spec sections 5 and 6.1)."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, literal, or_, select
+from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api.internal_links.reads import read_scope
 from idraft.api.issues.catalogue import BY_ID, CHECKS, Check
-from idraft.api.issues.rules import condition
+from idraft.api.issues.rules import CrawlRef, condition
 from idraft.api.schemas.issues import (
     IssueCheck,
     IssueGsc,
@@ -39,7 +41,48 @@ def _not_run_reason(check: Check, *, has_sitemap: bool, links_dropped: bool) -> 
 def _pages_with(severity: str, columns: dict[str, ColumnElement[bool]]) -> ColumnElement[int]:
     """Pages found by at least one running check of that severity."""
     found = [column for check_id, column in columns.items() if BY_ID[check_id].severity == severity]
-    return func.count().filter(or_(*found)) if found else literal(0)
+    return func.count().filter(or_(*found))
+
+
+def checks_statement(crawl: CrawlRef, running: Sequence[Check]) -> Select[*tuple[Any, ...]]:
+    """One row of totals for the crawl: `crawled`, `issue`, `error`, `warning`, `notice`, then
+    `n<i>` (pages found) and `e<i>` (first path in byte order) for the i-th running check.
+    Each severity has a running check that needs nothing, so no list of columns is empty."""
+    # MATERIALIZED makes PostgreSQL evaluate every condition once per page. A plain subquery is
+    # pulled up into the aggregate and each condition is then evaluated once per use.
+    flags = (
+        select(
+            urls.c.path.label("path"),
+            *(condition(check.id, crawl).label(f"c{index}") for index, check in enumerate(running)),
+        )
+        .select_from(crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id))
+        .where(
+            crawl_pages.c.workspace_id == crawl.workspace_id,
+            crawl_pages.c.run_id == crawl.run_id,
+        )
+        .cte("flags")
+        .prefix_with("MATERIALIZED")
+    )
+    columns: dict[str, ColumnElement[bool]] = {
+        check.id: flags.c[f"c{index}"] for index, check in enumerate(running)
+    }
+    # shortcut: every read runs this aggregate over the crawl's pages; store the counts
+    # per crawl when a read takes over a second on a real crawl.
+    return select(
+        func.count().label("crawled"),
+        func.count().filter(or_(*columns.values())).label("issue"),
+        _pages_with("error", columns).label("error"),
+        _pages_with("warning", columns).label("warning"),
+        _pages_with("notice", columns).label("notice"),
+        *(
+            func.count().filter(column).label(f"n{index}")
+            for index, column in enumerate(columns.values())
+        ),
+        *(
+            func.min(flags.c.path.collate("C")).filter(column).label(f"e{index}")
+            for index, column in enumerate(columns.values())
+        ),
+    )
 
 
 class IssueService:
@@ -74,48 +117,7 @@ class IssueService:
                 for check in CHECKS
             }
             running = [check for check in CHECKS if reasons[check.id] is None]
-            # Every condition is evaluated once per page, here; the aggregate below counts them.
-            flags = (
-                select(
-                    urls.c.path.label("path"),
-                    *(
-                        condition(check.id, scope).label(f"c{index}")
-                        for index, check in enumerate(running)
-                    ),
-                )
-                .select_from(crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id))
-                .where(
-                    crawl_pages.c.workspace_id == scope.workspace_id,
-                    crawl_pages.c.run_id == scope.run_id,
-                )
-                .subquery("flags")
-            )
-            columns: dict[str, ColumnElement[bool]] = {
-                check.id: flags.c[f"c{index}"] for index, check in enumerate(running)
-            }
-            # shortcut: every read runs this aggregate over the crawl's pages; store the counts
-            # per crawl when a read takes over a second on a real crawl.
-            counts = (
-                await db.execute(
-                    select(
-                        func.count().label("crawled"),
-                        func.count().filter(or_(*columns.values())).label("issue")
-                        if columns
-                        else literal(0).label("issue"),
-                        _pages_with("error", columns).label("error"),
-                        _pages_with("warning", columns).label("warning"),
-                        _pages_with("notice", columns).label("notice"),
-                        *(
-                            func.count().filter(column).label(f"n{index}")
-                            for index, column in enumerate(columns.values())
-                        ),
-                        *(
-                            func.min(flags.c.path.collate("C")).filter(column).label(f"e{index}")
-                            for index, column in enumerate(columns.values())
-                        ),
-                    )
-                )
-            ).one()
+            counts = (await db.execute(checks_statement(scope, running))).one()
         found_by_index = counts._mapping
         pages = {check.id: found_by_index[f"n{index}"] for index, check in enumerate(running)}
         examples = {check.id: found_by_index[f"e{index}"] for index, check in enumerate(running)}

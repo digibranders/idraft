@@ -77,14 +77,16 @@ def _target_status(column: ColumnElement[int]) -> ColumnElement[int]:
     )
 
 
-_NBSP: Final = chr(0xA0)
-# Whitespace at either end of a title: spaces, tabs, line breaks and the non-breaking space.
-_EDGE_SPACE: Final = f"^[[:space:]{_NBSP}]+|[[:space:]{_NBSP}]+$"
+# An explicit list, so a title is the same on every cluster whatever its locale.
+_TRIMMED: Final = " \t\n\r\f\v" + chr(0xA0)
+_EDGE_SPACE: Final = f"^[{_TRIMMED}]+|[{_TRIMMED}]+$"
 
 
 def _trimmed_title(page: FromClause) -> ColumnElement[str]:
     """The title with its edge whitespace removed; empty when there is no title. The one
-    expression that the key and the length of a title are both read from."""
+    expression that the key and the length of a title are both read from. It removes the
+    space, tab, line feed, carriage return, form feed, vertical tab and the non-breaking
+    space (U+00A0), and nothing else."""
     return func.regexp_replace(func.coalesce(page.c.title, ""), _EDGE_SPACE, "", "g")
 
 

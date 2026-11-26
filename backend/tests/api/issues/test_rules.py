@@ -158,6 +158,24 @@ async def test_a_cursor_of_one_check_is_refused_on_another(
     assert problem(other) == (400, "invalid_cursor")
 
 
+async def test_the_cursor_of_the_plain_pages_list_still_pages(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    await audit_site(migrated, workspace, project)
+    url = project_url(workspace, project, "internal-links", "pages")
+    params: dict[str, str | int] = {"sort": "path", "limit": 1}
+    first = await api.get(url, params=params, headers=viewer.headers)
+    cursor = first.json()["page"]["next_cursor"]
+
+    second = await api.get(url, params={**params, "cursor": cursor}, headers=viewer.headers)
+
+    assert second.status_code == 200, second.text
+    assert second.json()["data"][0]["path"] != first.json()["data"][0]["path"]
+
+
 async def test_a_title_is_trimmed_of_every_kind_of_whitespace(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
