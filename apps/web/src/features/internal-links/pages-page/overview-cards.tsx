@@ -1,7 +1,10 @@
 'use client';
 
+import type { Route } from 'next';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useId, useMemo, type ReactElement } from 'react';
 
 import { CardLegend, CardRowsTable, type CardRow } from './card-rows';
 import {
@@ -15,7 +18,12 @@ import { ChartFrame, type ChartEmpty, type ChartHeight } from '@/components/app/
 import { RingsChart } from '@/components/app/chart/rings-chart';
 import { StackedShareBar, type ShareColor, type ShareRow } from '@/components/app/chart/stacked-share-bar';
 import { TierBadge } from '@/components/app/tier/tier-badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatInteger, formatList, formatPercent } from '@/lib/format';
+import { changesSummaryQuery } from '@/lib/internal-links/queries';
+import type { LinksScope } from '@/lib/internal-links/types';
+import type { IssueSeverity, Seam } from '@/lib/pages/issue-source';
+import type { CardKey } from '@/lib/pages/overview-csv';
 import type { OverviewModel, OverviewRow } from '@/lib/pages/overview-model';
 
 export interface OverviewCardsProps {
@@ -58,6 +66,44 @@ const SITEMAP_COLORS = {
   sitemap_not_live: 'chart-4',
   sitemap_not_indexable: 'chart-5',
 } as const satisfies Record<string, ShareColor>;
+
+/** The label of a row of a card, in words: the cards and the CSV export say the same thing. */
+export function useRowLabel(): (card: CardKey, row: OverviewRow) => string {
+  const t = useTranslations('pages.cards');
+  const badge = useTranslations('tierBadge');
+  return useMemo(
+    () => (card, row) => {
+      switch (card) {
+        case 'status':
+          return t(
+            `status.rows.${camel(row.id) as 'live' | 'variant' | 'redirected' | 'clientError' | 'serverError' | 'blocked' | 'other'}`,
+          );
+        case 'funnel':
+          return t(`funnel.rows.${camel(row.id) as 'addresses' | 'live' | 'indexable' | 'inSitemapIndexable'}`);
+        case 'sections':
+          return row.folded === undefined ? row.id : t('sections.other', { count: row.folded });
+        case 'tiers':
+          // The badge beside the row carries the code, so the label is the tier's name
+          return row.tier === null || row.tier === undefined ? badge('untiered') : row.tier.name;
+        case 'depth':
+          return row.id === 'unreachable'
+            ? t('depth.unreachable')
+            : t('depth.row', { depth: Number(row.id.replace('depth_', '')) });
+        case 'sitemap':
+          return t(
+            `sitemap.rows.${camel(row.id) as 'inSitemapIndexable' | 'notInSitemap' | 'sitemapNotLive' | 'sitemapNotIndexable'}`,
+          );
+      }
+    },
+    [t, badge],
+  );
+}
+
+/** The title of a card of the Overview. */
+export function useCardTitle(): (card: CardKey) => string {
+  const t = useTranslations('pages.cards');
+  return useMemo(() => (card) => t(`${card}.title`), [t]);
+}
 
 /** A model row in words: the count, its share, what its hover says and the link its mark opens. */
 function useCardRow(): (row: OverviewRow, label: string, swatchToken?: string) => CardRow {
@@ -182,18 +228,13 @@ function BarCard({
 export function StatusCard({ model, refetching }: OverviewCardsProps): ReactElement {
   const t = useTranslations('pages.cards');
   const toRow = useCardRow();
+  const rowLabel = useRowLabel();
   const pairs: Pair[] =
     model === null
       ? []
       : model.status.map((row) => ({
           row,
-          card: toRow(
-            row,
-            t(
-              `status.rows.${camel(row.id) as 'live' | 'variant' | 'redirected' | 'clientError' | 'serverError' | 'blocked' | 'other'}`,
-            ),
-            STATUS_TOKENS[row.id as keyof typeof STATUS_TOKENS],
-          ),
+          card: toRow(row, rowLabel('status', row), STATUS_TOKENS[row.id as keyof typeof STATUS_TOKENS]),
         }));
   // A group of 0 has no segment and no legend row; the table keeps it
   const drawn = pairs.filter(({ row }) => row.count > 0);
@@ -244,10 +285,8 @@ export function StatusCard({ model, refetching }: OverviewCardsProps): ReactElem
 export function FunnelCard(props: OverviewCardsProps): ReactElement {
   const t = useTranslations('pages.cards');
   const toRow = useCardRow();
-  const pairs = (props.model?.funnel ?? []).map((row) => ({
-    row,
-    card: toRow(row, t(`funnel.rows.${camel(row.id) as 'addresses' | 'live' | 'indexable' | 'inSitemapIndexable'}`)),
-  }));
+  const rowLabel = useRowLabel();
+  const pairs = (props.model?.funnel ?? []).map((row) => ({ row, card: toRow(row, rowLabel('funnel', row)) }));
   return (
     <BarCard
       {...props}
@@ -265,10 +304,8 @@ export function FunnelCard(props: OverviewCardsProps): ReactElement {
 export function SectionsCard(props: OverviewCardsProps): ReactElement {
   const t = useTranslations('pages.cards');
   const toRow = useCardRow();
-  const pairs = (props.model?.sections ?? []).map((row) => ({
-    row,
-    card: toRow(row, row.folded === undefined ? row.id : t('sections.other', { count: row.folded })),
-  }));
+  const rowLabel = useRowLabel();
+  const pairs = (props.model?.sections ?? []).map((row) => ({ row, card: toRow(row, rowLabel('sections', row)) }));
   return (
     <BarCard
       {...props}
@@ -285,13 +322,9 @@ export function SectionsCard(props: OverviewCardsProps): ReactElement {
 /** Card 4: live pages by tier, each row with its tier badge. */
 export function TiersCard(props: OverviewCardsProps): ReactElement {
   const t = useTranslations('pages.cards');
-  const badge = useTranslations('tierBadge');
   const toRow = useCardRow();
-  const pairs = (props.model?.tiers ?? []).map((row) => ({
-    row,
-    // The badge beside the row carries the code, so the label is the tier's name
-    card: toRow(row, row.tier === null || row.tier === undefined ? badge('untiered') : row.tier.name),
-  }));
+  const rowLabel = useRowLabel();
+  const pairs = (props.model?.tiers ?? []).map((row) => ({ row, card: toRow(row, rowLabel('tiers', row)) }));
   const icons = Object.fromEntries(
     (props.model?.tiers ?? []).map((row) => [row.id, <TierBadge key={row.id} tier={row.tier ?? null} />]),
   );
@@ -313,15 +346,8 @@ export function TiersCard(props: OverviewCardsProps): ReactElement {
 export function DepthCard(props: OverviewCardsProps): ReactElement {
   const t = useTranslations('pages.cards');
   const toRow = useCardRow();
-  const pairs = (props.model?.depth ?? []).map((row) => ({
-    row,
-    card: toRow(
-      row,
-      row.id === 'unreachable'
-        ? t('depth.unreachable')
-        : t('depth.row', { depth: Number(row.id.replace('depth_', '')) }),
-    ),
-  }));
+  const rowLabel = useRowLabel();
+  const pairs = (props.model?.depth ?? []).map((row) => ({ row, card: toRow(row, rowLabel('depth', row)) }));
   const scales = Object.fromEntries(
     pairs.map(({ row }) => [row.id, row.tone === 'warning' ? 'warning' : 'seq-5']),
   ) as Record<string, BarScaleColor>;
@@ -343,17 +369,12 @@ export function DepthCard(props: OverviewCardsProps): ReactElement {
 export function SitemapCard({ model, refetching }: OverviewCardsProps): ReactElement {
   const t = useTranslations('pages.cards');
   const toRow = useCardRow();
+  const rowLabel = useRowLabel();
   const title = t('sitemap.title');
   const rows = model?.sitemap ?? null;
   const pairs: Pair[] = (rows ?? []).map((row) => ({
     row,
-    card: toRow(
-      row,
-      t(
-        `sitemap.rows.${camel(row.id) as 'inSitemapIndexable' | 'notInSitemap' | 'sitemapNotLive' | 'sitemapNotIndexable'}`,
-      ),
-      SITEMAP_COLORS[row.id as keyof typeof SITEMAP_COLORS],
-    ),
+    card: toRow(row, rowLabel('sitemap', row), SITEMAP_COLORS[row.id as keyof typeof SITEMAP_COLORS]),
   }));
   const total = pairs.reduce((sum, { row }) => sum + row.count, 0);
   const segments = pairs.map(({ row, card }) => ({
@@ -410,8 +431,157 @@ export function SitemapCard({ model, refetching }: OverviewCardsProps): ReactEle
   );
 }
 
-/** The six cards of the Overview, in the order of the spec. */
-export function OverviewCards(props: OverviewCardsProps): ReactElement {
+interface Line {
+  id: string;
+  label: string;
+  value: string;
+  /** The link the whole line is; the Changes card's first-crawl and pending sentences are not lines. */
+  href: Route;
+  accessibleText: string;
+}
+
+/** A card with no chart: a title and lines, label left and value right, each line a link. */
+function LinesCard({
+  title,
+  lines,
+  loading,
+}: {
+  title: string;
+  lines: readonly Line[];
+  loading: boolean;
+}): ReactElement {
+  const titleId = useId();
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="flex h-full flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+    >
+      <h2 id={titleId} className="type-section-title">
+        {title}
+      </h2>
+      {loading ? (
+        <div className="flex flex-col gap-2">
+          <Skeleton shape="text-14" widthPct={100} />
+          <Skeleton shape="text-14" widthPct={80} />
+          <Skeleton shape="text-14" widthPct={64} />
+        </div>
+      ) : (
+        <ul className="flex flex-col">
+          {lines.map((line) => (
+            <li key={line.id}>
+              <Link
+                href={line.href}
+                aria-label={line.accessibleText}
+                className="flex min-h-control-sm items-center justify-between gap-3 rounded-sm px-1 outline-none hover:bg-surface-hover focus-visible:focus-ring"
+              >
+                <span className="min-w-0 type-body">{line.label}</span>
+                <span className="shrink-0 num type-body-strong">{line.value}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const SEVERITIES = ['error', 'warning', 'notice'] as const;
+
+export interface IssuesCardProps {
+  totals: Seam<{ withIssue: number; error: number; warning: number; notice: number }>;
+  /** The Issues page filtered to one severity. */
+  href: (severity: IssueSeverity) => Route;
+}
+
+/** Card 7: the pages with an error, a warning and a notice, from the Issues seam only. Absent until it answers. */
+export function IssuesCard({ totals, href }: IssuesCardProps): ReactElement | null {
+  const t = useTranslations('pages.cards');
+  if (totals.state !== 'ready') return null;
+  const lines = SEVERITIES.map((severity): Line => {
+    const label = t(`issues.${severity === 'error' ? 'errors' : severity === 'warning' ? 'warnings' : 'notices'}`);
+    const value = formatInteger(totals.data[severity]);
+    return {
+      id: severity,
+      label,
+      value,
+      href: href(severity),
+      accessibleText: t('issues.opens', { label, count: value }),
+    };
+  });
+  return <LinesCard title={t('issues.title')} lines={lines} loading={false} />;
+}
+
+export interface ChangesCardProps {
+  scope: LinksScope;
+  run: string | null;
+  /** Internal links, Changes, on the crawl in view. */
+  href: Route;
+}
+
+/** Card 8: what the crawl changed against the one before it, from the changes read; four lines, or one sentence. */
+export function ChangesCard({ scope, run, href }: ChangesCardProps): ReactElement | null {
+  const t = useTranslations('pages.cards');
+  const changes = useTranslations('internalLinks.changes');
+  const read = useQuery(changesSummaryQuery(scope, run));
+  const title = t('changes.title');
+  const summary = read.data?.data;
+  if (summary === undefined) return read.isError ? null : <LinesCard title={title} lines={[]} loading />;
+  const line = (id: string, label: string, value: string): Line => ({
+    id,
+    label,
+    value,
+    href,
+    accessibleText: t('changes.opens', { label, value }),
+  });
+  if (summary.state === 'ready') {
+    const lines = [
+      line('pagesAdded', t('changes.pagesAdded'), formatInteger(summary.pages_added)),
+      line('pagesRemoved', t('changes.pagesRemoved'), formatInteger(summary.pages_lost)),
+      // Zero links that were not compared would read as none, so the two link lines wait for a comparison
+      ...(summary.links_compared
+        ? [
+            line(
+              'editorial',
+              t('changes.editorial'),
+              t('changes.editorialValue', {
+                added: formatInteger(summary.editorial_added),
+                lost: formatInteger(summary.editorial_lost),
+              }),
+            ),
+            line('lostToTop', t('changes.lostToTop'), formatInteger(summary.lost_to_top)),
+          ]
+        : []),
+    ];
+    return <LinesCard title={title} lines={lines} loading={false} />;
+  }
+  if (summary.state === 'first_crawl') return <SentenceCard title={title} text={t('changes.firstCrawl')} />;
+  if (summary.state === 'pending') return <SentenceCard title={title} text={t('changes.pending')} />;
+  return <SentenceCard title={title} text={changes('unavailableTitle')} detail={changes('unavailableText')} />;
+}
+
+function SentenceCard({ title, text, detail }: { title: string; text: string; detail?: string }): ReactElement {
+  const titleId = useId();
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="flex h-full flex-col gap-3 rounded-lg border border-border bg-surface p-4"
+    >
+      <h2 id={titleId} className="type-section-title">
+        {title}
+      </h2>
+      <p className="type-body">{text}</p>
+      {detail === undefined ? null : <p className="type-meta">{detail}</p>}
+    </section>
+  );
+}
+
+export interface OverviewCardsExtras {
+  issues: IssuesCardProps;
+  changes: ChangesCardProps;
+}
+
+/** The cards of the Overview, in the order of the spec: six from the overview read, then Issues and the changes. */
+export function OverviewCards({ issues, changes, ...props }: OverviewCardsProps & OverviewCardsExtras): ReactElement {
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
       <StatusCard {...props} />
@@ -420,6 +590,8 @@ export function OverviewCards(props: OverviewCardsProps): ReactElement {
       <TiersCard {...props} />
       <DepthCard {...props} />
       <SitemapCard {...props} />
+      <IssuesCard {...issues} />
+      <ChangesCard {...changes} />
     </div>
   );
 }

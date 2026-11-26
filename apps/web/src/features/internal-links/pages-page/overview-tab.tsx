@@ -3,19 +3,22 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
-import { useMemo, type ReactElement } from 'react';
+import { useEffect, useMemo, type ReactElement } from 'react';
 
-import { OverviewCards } from './overview-cards';
+import { OverviewCards, useCardTitle, useRowLabel } from './overview-cards';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { InlineError } from '@/components/app/status/inline-error';
+import { csvBlob, downloadBlob, safeText } from '@/lib/csv/csv-write';
 import { formatInteger } from '@/lib/format';
 import { overviewQuery } from '@/lib/internal-links/queries';
 import type { LinksScope } from '@/lib/internal-links/types';
 import { useIssueTotals } from '@/lib/pages/issue-source';
+import { overviewCsv } from '@/lib/pages/overview-csv';
 import { overviewModel, type OverviewRow } from '@/lib/pages/overview-model';
-import { projectPath } from '@/lib/routes/paths';
+import { projectPath, withQuery } from '@/lib/routes/paths';
 
 const GROUP_ID = 'pages';
+const EXPORT_NAME = 'pages-overview.csv';
 
 export interface OverviewTabProps {
   scope: LinksScope;
@@ -25,10 +28,19 @@ export interface OverviewTabProps {
   projectSlug: string;
   /** The address of All pages for a query; it carries the crawl in view. */
   allPages: (query: Record<string, string>) => Route;
+  /** The page's Export: the Overview hands it the file of its cards. */
+  registerExport: (run: (() => Promise<void>) | null) => void;
 }
 
-/** The Overview (spec 6.4): the strip of page counts and, under it, the first six cards. */
-export function OverviewTab({ scope, run, workspaceSlug, projectSlug, allPages }: OverviewTabProps): ReactElement {
+/** The Overview (spec 6.4): the strip of page counts and, under it, the cards. */
+export function OverviewTab({
+  scope,
+  run,
+  workspaceSlug,
+  projectSlug,
+  allPages,
+  registerExport,
+}: OverviewTabProps): ReactElement {
   const t = useTranslations('pages');
   const common = useTranslations('common');
   const read = useQuery(overviewQuery(scope, run));
@@ -37,6 +49,27 @@ export function OverviewTab({ scope, run, workspaceSlug, projectSlug, allPages }
     () => (read.data === undefined ? null : overviewModel(read.data.data, allPages)),
     [read.data, allPages],
   );
+  const rowLabel = useRowLabel();
+  const cardTitle = useCardTitle();
+
+  // The file is the cards' rows as they are drawn; it exists while the read is ready and goes with the tab
+  useEffect(() => {
+    if (model === null) return;
+    registerExport(() => {
+      downloadBlob(
+        csvBlob(
+          overviewCsv(model, {
+            header: [t('cards.export.card'), t('cards.export.row'), t('cards.export.count')],
+            card: cardTitle,
+            row: (card, row) => safeText(rowLabel(card, row)),
+          }),
+        ),
+        EXPORT_NAME,
+      );
+      return Promise.resolve();
+    });
+    return () => registerExport(null);
+  }, [model, registerExport, t, cardTitle, rowLabel]);
 
   if (read.isError && model === null) {
     return (
@@ -89,6 +122,12 @@ export function OverviewTab({ scope, run, workspaceSlug, projectSlug, allPages }
       href: projectPath(workspaceSlug, projectSlug, '/seo/issues'),
     });
   }
+  const issuesPath = projectPath(workspaceSlug, projectSlug, '/seo/issues');
+  const changesHref = withQuery(
+    projectPath(workspaceSlug, projectSlug, '/seo/internal-links'),
+    new URLSearchParams({ tab: 'changes', ...(run === null ? {} : { run }) }).toString(),
+  );
+  const issuesHref = (severity: string): Route => withQuery(issuesPath, new URLSearchParams({ severity }).toString());
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
       <MetricStrip
@@ -97,7 +136,12 @@ export function OverviewTab({ scope, run, workspaceSlug, projectSlug, allPages }
         groups={[{ id: GROUP_ID, items }]}
         status={model === null ? 'loading' : read.isFetching ? 'refetching' : 'ready'}
       />
-      <OverviewCards model={model} refetching={read.isFetching} />
+      <OverviewCards
+        model={model}
+        refetching={read.isFetching}
+        issues={{ totals: issues, href: issuesHref }}
+        changes={{ scope, run, href: changesHref }}
+      />
     </div>
   );
 }

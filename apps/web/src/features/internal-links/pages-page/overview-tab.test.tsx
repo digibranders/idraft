@@ -2,8 +2,9 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { downloadBlob } from '@/lib/csv/csv-write';
 import { formatInteger, formatPercent } from '@/lib/format';
-import type { PagesOverview } from '@/lib/internal-links/types';
+import type { ChangesSummary, PagesOverview } from '@/lib/internal-links/types';
 import { overviewModel } from '@/lib/pages/overview-model';
 import { pagesTabPath, withQuery } from '@/lib/routes/paths';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
@@ -23,6 +24,23 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+const seam = vi.hoisted(() => ({
+  totals: { state: 'unavailable' } as
+    | { state: 'unavailable' }
+    | { state: 'ready'; data: { withIssue: number; error: number; warning: number; notice: number } },
+}));
+vi.mock('@/lib/pages/issue-source', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/pages/issue-source')>()),
+  useIssueTotals: () => seam.totals,
+}));
+vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/csv/csv-write')>()),
+  downloadBlob: vi.fn(),
+}));
+
+const CHANGES = mswPath(
+  `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS.project_id}/internal-links/changes/summary`,
+);
 const OVERVIEW = mswPath(
   `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS.project_id}/internal-links/overview`,
 );
@@ -55,6 +73,8 @@ const opens = (label: string, count: number): string => `${label}, ${formatInteg
 
 beforeEach(() => stubWideScreen());
 afterEach(() => {
+  seam.totals = { state: 'unavailable' };
+  vi.mocked(downloadBlob).mockClear();
   restoreWideScreen();
   server.resetHandlers();
 });
@@ -239,5 +259,126 @@ describe('the Overview cards (spec 6.4)', () => {
     const { container } = renderWithProviders(pagesAs('viewer', 'overview'));
     await card(TITLES[5]);
     expect(await axe(container)).toHaveNoViolations();
+  });
+});
+
+const SUMMARY: ChangesSummary = {
+  run_id: MOCK_RUN_ID,
+  previous_run_id: OLDER_RUN,
+  previous_finished_at: null,
+  state: 'ready',
+  links_compared: true,
+  editorial_lost: 3,
+  editorial_added: 7,
+  all_lost: 4,
+  all_added: 9,
+  lost_to_top: 2,
+  important_max_position: 2,
+  pages_added: 12,
+  pages_lost: 5,
+  alert: null,
+};
+function serveChanges(summary: ChangesSummary): void {
+  server.use(http.get(CHANGES, () => HttpResponse.json({ data: summary })));
+}
+const opensChanges = (label: string, value: string): string => `${label}, ${value}. Opens Internal links, Changes`;
+
+describe('the Issues and Since the last crawl cards (spec 6.4, 10.1)', () => {
+  it('shows four lines from the changes read, each a link to the Changes tab of Internal links', async () => {
+    serve(fixture);
+    serveChanges(SUMMARY);
+    renderWithProviders(pagesAs('viewer', 'overview'));
+    const region = await card('Since the last crawl');
+    const lines = [
+      ['Pages added', formatInteger(SUMMARY.pages_added)],
+      ['Pages removed', formatInteger(SUMMARY.pages_lost)],
+      [
+        'Editorial links added and lost',
+        `${formatInteger(SUMMARY.editorial_added)} added, ${formatInteger(SUMMARY.editorial_lost)} lost`,
+      ],
+      ['Links lost to important tiers', formatInteger(SUMMARY.lost_to_top)],
+    ] as const;
+    for (const [label, value] of lines) {
+      const link = await within(region).findByRole('link', { name: opensChanges(label, value) });
+      expect(link.getAttribute('href')).toContain('tab=changes');
+    }
+  });
+
+  it('keeps the crawl chosen in the picker on the lines of the changes card', async () => {
+    serve(fixture);
+    serveChanges(SUMMARY);
+    renderWithProviders(pagesAs('viewer', 'overview'), { searchParams: `?run=${OLDER_RUN}` });
+    const region = await card('Since the last crawl');
+    const link = await within(region).findByRole('link', {
+      name: opensChanges('Pages added', formatInteger(SUMMARY.pages_added)),
+    });
+    expect(link.getAttribute('href')).toContain(`run=${OLDER_RUN}`);
+  });
+
+  it('says the first crawl has nothing to compare, and the comparison is pending, in one sentence each', async () => {
+    serve(fixture);
+    serveChanges({ ...SUMMARY, state: 'first_crawl', previous_run_id: null });
+    const first = renderWithProviders(pagesAs('viewer', 'overview'));
+    expect(await screen.findByText('This is the first crawl. Changes appear after the next one.')).toBeInTheDocument();
+    const region = screen.getByRole('region', { name: 'Since the last crawl' });
+    expect(within(region).queryByRole('link')).toBeNull();
+    first.unmount();
+    serveChanges({ ...SUMMARY, state: 'pending' });
+    renderWithProviders(pagesAs('viewer', 'overview'));
+    expect(await screen.findByText('Comparing with the crawl before')).toBeInTheDocument();
+  });
+
+  it('uses the words of the Changes tab when the changes could not be worked out', async () => {
+    serve(fixture);
+    serveChanges({ ...SUMMARY, state: 'unavailable' });
+    renderWithProviders(pagesAs('viewer', 'overview'));
+    expect(await screen.findByText('Changes could not be worked out for this crawl')).toBeInTheDocument();
+    expect(screen.getByText('The crawl is still complete. Crawl again to compare.')).toBeInTheDocument();
+  });
+
+  it('draws no Issues card and five strip numbers while the Issues seam is unavailable', async () => {
+    serve(fixture);
+    serveChanges(SUMMARY);
+    renderWithProviders(pagesAs('viewer', 'overview'));
+    await card('Addresses by status');
+    await card('Since the last crawl');
+    expect(screen.queryByRole('region', { name: 'Issues' })).toBeNull();
+    const strip = await screen.findByRole('group', { name: 'Page counts of this crawl' });
+    expect(within(strip).getAllByRole('link')).toHaveLength(5);
+  });
+
+  it('draws the Issues card from the seam only, with three rows that open the Issues page by severity', async () => {
+    seam.totals = { state: 'ready', data: { withIssue: 31, error: 4, warning: 17, notice: 22 } };
+    serve(fixture);
+    serveChanges(SUMMARY);
+    renderWithProviders(pagesAs('viewer', 'overview'));
+    const region = await card('Issues');
+    const rows = [
+      ['Pages with an error', 4, 'error'],
+      ['Pages with a warning', 17, 'warning'],
+      ['Pages with a notice', 22, 'notice'],
+    ] as const;
+    for (const [label, count, severity] of rows) {
+      const link = within(region).getByRole('link', { name: `${label}, ${formatInteger(count)}. Opens Issues` });
+      expect(link.getAttribute('href')).toMatch(new RegExp(`/seo/issues\\?severity=${severity}$`));
+    }
+    const strip = await screen.findByRole('group', { name: 'Page counts of this crawl' });
+    expect(within(strip).getAllByRole('link')).toHaveLength(6);
+    expect(within(strip).getByText(formatInteger(31))).toBeInTheDocument();
+  });
+
+  it('downloads pages-overview.csv with the header and the live count from the page Export', async () => {
+    serve(fixture);
+    serveChanges(SUMMARY);
+    const { user } = renderWithProviders(pagesAs('viewer', 'overview'));
+    await card('Addresses by status');
+    await user.click(await screen.findByRole('button', { name: 'Export' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    const [blob, name] = vi.mocked(downloadBlob).mock.calls[0] ?? [];
+    expect(name).toBe('pages-overview.csv');
+    const text = await (blob as Blob).text();
+    expect(text).toContain('Card,Row,Count');
+    expect(text).toContain(`Addresses by status,Live pages,${String(fixture.status.live)}`);
   });
 });

@@ -9284,7 +9284,30 @@
       "shareOfAddresses": "{share} of every address",
       "shareOfLive": "{share} of live pages",
       "opens": "{label}, {count}. Opens All pages",
-      "summary": "{title}: {rows}"
+      "summary": "{title}: {rows}",
+      "issues": {
+        "title": "Issues",
+        "errors": "Pages with an error",
+        "warnings": "Pages with a warning",
+        "notices": "Pages with a notice",
+        "opens": "{label}, {count}. Opens Issues"
+      },
+      "changes": {
+        "title": "Since the last crawl",
+        "pagesAdded": "Pages added",
+        "pagesRemoved": "Pages removed",
+        "editorial": "Editorial links added and lost",
+        "editorialValue": "{added} added, {lost} lost",
+        "lostToTop": "Links lost to important tiers",
+        "opens": "{label}, {value}. Opens Internal links, Changes",
+        "firstCrawl": "This is the first crawl. Changes appear after the next one.",
+        "pending": "Comparing with the crawl before"
+      },
+      "export": {
+        "card": "Card",
+        "row": "Row",
+        "count": "Count"
+      }
     }
   },
   "internalLinks": {

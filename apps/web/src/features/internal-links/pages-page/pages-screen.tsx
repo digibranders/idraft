@@ -201,7 +201,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
           crawlPending={crawl.pending}
           crawlsOff={crawl.crawlsOff}
           onCrawlNow={() => crawl.start()}
-          onExport={ready && tab === 'all' ? onExport : null}
+          onExport={ready ? onExport : null}
           exporting={exporting}
           onSummary={null}
           onShare={null}
@@ -227,6 +227,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
             workspaceSlug={workspaceSlug}
             projectSlug={project.slug}
             allPages={allPages}
+            registerExport={registerExport}
           />
         ) : (
           <PagesTab context={pagesContext} />
