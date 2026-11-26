@@ -2251,6 +2251,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file for a note
+         * @description Multipart, one part `file`, one file per request. The type is decided by the content, never by the name or the type the browser sends: an image (PNG, JPEG, GIF, WebP), a PDF, a CSV or a text file. The file belongs to no note until a note is saved with its id. `413 payload_too_large` over 10 MB (`limit_bytes`), `415 unsupported_media_type` for any other kind of file (a web page, an SVG, a script, an archive), `422` for an empty file or a missing `file` part and for `quota_exceeded` (`limit`, `used`, `requested`: the workspace stores 1 GiB of note files unless its limit says otherwise), `503 storage_unavailable` when the file could not be stored, and `404 not_found` for an address no crawl of the project holds.
+         */
+        post: operations["upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bytes of a note's file
+         * @description `data:read`. The file as it was stored, through the API so that the permission and the workspace are checked on every read. `404 not_found` for a file that is not attached to a note, was removed from its note, belongs to a deleted note, or is of another page, project or workspace; the file of a note comes back when the note is restored. The `Content-Type` is the one stored from the content, `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy` are always sent, and `Content-Disposition` is `inline` for PNG, JPEG, GIF and WebP images and `attachment` for every other type.
+         */
+        get: operations["download_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments__attachment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes": {
         parameters: {
             query?: never;
@@ -5440,6 +5480,14 @@ export interface components {
              * @description The JSON of `ImportOptions`.
              */
             options?: string | null;
+        };
+        /** Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post */
+        Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post: {
+            /**
+             * File
+             * @description The file, at most 10 MB.
+             */
+            file: string;
         };
         /** BrandCell */
         BrandCell: {
@@ -10350,6 +10398,11 @@ export interface components {
         };
         /** PageNote */
         PageNote: {
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["PageNoteFile"][];
             author: components["schemas"]["PageNoteAuthor"];
             /** Body */
             body: string;
@@ -10369,6 +10422,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Mentions
+             * @default []
+             */
+            mentions: components["schemas"]["PageNoteMention"][];
         };
         /** PageNoteAuthor */
         PageNoteAuthor: {
@@ -10379,6 +10437,31 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /**
+         * PageNoteFile
+         * @description A file sent for a note (spec 9.8.5). `url` is an API path, never a host.
+         */
+        PageNoteFile: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Image */
+            is_image: boolean;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+            /** Url */
+            url: string;
+        };
+        /** PageNoteFileResponse */
+        PageNoteFileResponse: {
+            data: components["schemas"]["PageNoteFile"];
         };
         /** PageNoteList */
         PageNoteList: {
@@ -10397,17 +10480,58 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** PageNoteMention */
+        PageNoteMention: {
+            /** Label */
+            label: string;
+            /** Path */
+            path?: string | null;
+            /** Target */
+            target: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "page" | "user" | "issue" | "keyword";
+        };
+        /**
+         * PageNoteMentionIn
+         * @description One `@` in a note. The label is display text the server never interprets; the target is
+         *     checked against the database by type (spec 9.8.1).
+         */
+        PageNoteMentionIn: {
+            /** Label */
+            label: string;
+            /** Target */
+            target: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "page" | "user" | "issue" | "keyword";
+        };
         /** PageNoteResponse */
         PageNoteResponse: {
             data: components["schemas"]["PageNote"];
         };
         /**
          * PageNoteWrite
-         * @description The body of a create and of a change. Trimmed, 1 to 2,000 characters, no null character.
+         * @description The body of a create and of a change. Trimmed, at most 2,000 characters, no null character.
+         *     It may be empty only when the note holds a file: the service refuses a note with neither.
+         *     `mentions` omitted on a change: the stored ones whose label is still in the text stay.
+         *     `attachment_ids` omitted on a change: the files are unchanged; given, it is the exact list of
+         *     the note's files afterwards. More than `FILES_MAX` is refused by the service, with its code.
          */
         PageNoteWrite: {
+            /**
+             * Attachment Ids
+             * @description Files uploaded for this page and not yet attached, at most 5.
+             */
+            attachment_ids?: string[] | null;
             /** Body */
             body: string;
+            /** Mentions */
+            mentions?: components["schemas"]["PageNoteMentionIn"][] | null;
         };
         /** PageOutline */
         PageOutline: {
@@ -20647,6 +20771,83 @@ export interface operations {
             };
         };
     };
+    upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNoteFileResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    download_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments__attachment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                attachment_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                    "image/gif": unknown;
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                    "text/csv": unknown;
+                    "text/plain": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_page_notes_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_get: {
         parameters: {
             query?: {
@@ -25002,6 +25203,8 @@ export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<co
 export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pageFilterViewAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["view"]> = ["live", "indexable", "not_indexable", "redirects", "errors", "client_errors", "server_errors", "blocked", "other", "variants", "in_sitemap_indexable", "not_in_sitemap", "sitemap_not_live", "sitemap_not_indexable", "reachable", "unreachable"];
 export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pageNoteMentionTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageNoteMention"]["type"]> = ["page", "user", "issue", "keyword"];
+export const pageNoteMentionInTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageNoteMentionIn"]["type"]> = ["page", "user", "issue", "keyword"];
 export const pageOutlineStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageOutline"]["state"]> = ["ok", "redirect", "error", "not_html", "no_html"];
 export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "blocked", "redirect", "non_indexable", "generic_anchors", "variant"];
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
