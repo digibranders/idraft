@@ -15,16 +15,16 @@ Library: Apache ECharts 6.1 (verified 2026-09-29) through an in-house wrapper; s
 
 ## 1a. Rich style
 
-Decided by the owner on 2026-11-23, replacing the quiet rules this document had since design-system v2. It applies to charts only; everything else in the app keeps the no gradient, no glow, no shadow rules of the UI rules.
+Decided by the owner on 2026-11-23, replacing the quiet rules this document had since design-system v2. It applies to charts only; everything else in the app keeps the no gradient, no glow, no shadow rules of the UI rules. On 2026-11-26 the owner removed glow from charts as well: no mark has a glow, a shadow or a drop shadow, and the colours stay as they are.
 
 | Element | Rule |
 |---|---|
-| Lines | Smooth (0.3), 3 px, a fade under each line (32% at the top for one line, 16% when several share the chart, to nothing at the axis) and a soft shadow in the line's colour. The latest value is written at the end of each data line in the line's colour. Reference and aggregate lines stay dashed 2 px, with no fade and no end label. Markers keep their shapes ([20-accessibility.md](20-accessibility.md) section 12.2) with a ring in the surface colour |
+| Lines | Smooth (0.3), 3 px, a fade under each line (32% at the top for one line, 16% when several share the chart, to nothing at the axis), no glow. The latest value is written at the end of each data line in the line's colour. Reference and aggregate lines stay dashed 2 px, with no fade and no end label. Markers keep their shapes ([20-accessibility.md](20-accessibility.md) section 12.2) with a ring in the surface colour |
 | Stacked areas | Smooth, each layer fading toward the axis, 1.5 px line in its colour |
 | Rings | One plain ring per subject: solid token colours, a thin gap between the segments, no gradient, no shadow, no depth. The number in the middle and the name below are text outside the canvas. The exact shares of every segment are in a table under the rings |
-| Cylinder bars | A ranked list of many brands (share of voice, you and up to 10 competitors) is a list of horizontal bars drawn as cylinders lying down: lit along the top edge, shaded underneath, rounded ends, a soft shadow in the bar's own colour (CSS `bar-cylinder`, so the list keeps its text, tooltips and buttons). You are `chart-1`, every other brand has its own colour, and `chart-other` past the palette |
-| Stacked columns | One 100% column per subject, rounded segments (6 px) that fade toward their base, a soft shadow in the segment's colour; the exact shares are in a table under the chart |
-| Sparklines | A smooth 2.25 px line in `chart-1` with a fade under it, a soft shadow and a dot on the latest point (an HTML dot, because a dot in a stretched SVG becomes an ellipse) |
+| Cylinder bars | A ranked list of many brands (share of voice, you and up to 10 competitors) is a list of horizontal bars drawn as cylinders lying down: lit along the top edge, shaded underneath, rounded ends, no glow (CSS `bar-cylinder`, so the list keeps its text, tooltips and buttons). You are `chart-1`, every other brand has its own colour, and `chart-other` past the palette |
+| Stacked columns | One 100% column per subject, rounded segments (6 px) that fade toward their base, no glow; the exact shares are in a table under the chart |
+| Sparklines | A smooth 2.25 px line in `chart-1` with a fade under it, no glow, and a dot on the latest point (an HTML dot, because a dot in a stretched SVG becomes an ellipse) |
 | Treemap | Rounded tiles (8 px) with a 3 px gap, each tile fading toward its base |
 | Empty trend | The empty state of a line chart has a faint dashed curve behind its words: a drawing of what is coming, not data, hidden from assistive technology |
 | Motion | The entrance animates over 800 ms and updates over 400 ms, unless `prefers-reduced-motion: reduce` is set or motion cannot be asked about, where the chart draws at once (`chartMotion` in `lib/charts/rich-style.ts`) |
@@ -83,7 +83,7 @@ Every chart renders inside `ChartFrame`:
 | Y axis line | none | none |
 | Ticks | none | none |
 | Split lines (gridlines) | horizontal only, 1 px dashed, `chart-grid` (the `border-subtle` value) | same |
-| Series line | 3 px smooth data lines with a fade and a shadow, 2 px dashed reference lines (section 1a). Own brand (`chart-1`) solid with circle markers; other series with the marker shapes of [20-accessibility.md](20-accessibility.md) section 12.2. Round joins. Markers are drawn on series with 60 points or fewer; denser series show a 6 px symbol on hover (emphasis) and for isolated points | same |
+| Series line | 3 px smooth data lines with a fade and no glow, 2 px dashed reference lines (section 1a). Own brand (`chart-1`) solid with circle markers; other series with the marker shapes of [20-accessibility.md](20-accessibility.md) section 12.2. Round joins. Markers are drawn on series with 60 points or fewer; denser series show a 6 px symbol on hover (emphasis) and for isolated points | same |
 | Reference series (previous period, baselines, averages) | 2 px dashed, pattern `[4, 4]`, `chart-reference` | same |
 | "All" and "Other" aggregates | 2 px dashed, pattern `[8, 4]`, `chart-other` | same |
 | Estimates | 2 px dotted, pattern `[1, 3]`, "Estimate" in the series name | same |

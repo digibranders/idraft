@@ -1,8 +1,8 @@
 import { color as zrColor } from 'echarts/core';
 
 /**
- * The rich chart style of docs/design-system/15-data-visualization.md section 1a: smooth lines, a fade under each line, a
- * soft shadow, entrance motion that gives way to reduced motion, and a gradient line that follows the pointer. Pure
+ * The rich chart style of docs/design-system/15-data-visualization.md section 1a: smooth lines, a fade under each line,
+ * no glow, entrance motion that gives way to reduced motion, and a gradient line that follows the pointer. Pure
  * helpers, so the option builders that use them stay testable without a canvas.
  */
 
@@ -47,14 +47,6 @@ export function fadeDown(color: string, from: number, to: number): LinearGradien
       { offset: 1, color: withAlpha(color, to) },
     ],
   };
-}
-
-/** The soft shadow under a mark that gives it depth. */
-export function softShadow(
-  color: string,
-  strength = 1,
-): { shadowColor: string; shadowBlur: number; shadowOffsetY: number } {
-  return { shadowColor: withAlpha(color, 0.4), shadowBlur: 12 * strength, shadowOffsetY: 5 * strength };
 }
 
 /** Whether to draw without motion: the person asked the system for less, or motion cannot be asked about (no `matchMedia`: a test, the server). */

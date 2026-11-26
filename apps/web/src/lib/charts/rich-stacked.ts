@@ -1,10 +1,10 @@
 import { escapeHtml } from './category-chart';
-import { chartMotion, fadeDown, softShadow } from './rich-style';
+import { chartMotion, fadeDown } from './rich-style';
 import { tipRowHtml, tipTitleHtml } from './tooltip-row';
 import type { ChartTokens } from '@/lib/design/read-tokens';
 
 /**
- * One stacked 100% column per row, with rounded segments that fade toward their base and a soft shadow
+ * One stacked 100% column per row, with rounded segments that fade toward their base and no glow
  * (15-data-visualization.md section 1a). The exact shares of every segment belong in a table beside the chart, because a
  * colour never carries a number alone.
  */
@@ -91,7 +91,6 @@ export function stackedColumnsOption({ rows, segments, tokens }: StackedInput): 
           borderRadius: 6,
           borderColor: tokens.surfaceElevated,
           borderWidth: 1.5,
-          ...softShadow(color, 0.4),
         },
         emphasis: { focus: 'series' },
       };

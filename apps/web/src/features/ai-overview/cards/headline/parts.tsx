@@ -33,7 +33,7 @@ const TOKEN: Readonly<Record<Segment, 'seq-6' | 'seq-4' | 'seq-3' | 'chart-bar-n
 const SPARK_WIDTH = 100;
 
 /**
- * A smooth line with a fade under it, a soft shadow and a dot on the latest point (15-data-visualization.md section 1a),
+ * A smooth line with a fade under it, no glow and a dot on the latest point (15-data-visualization.md section 1a),
  * in `chart-1`. The dot is an HTML element, because a dot inside a stretched SVG would turn into an ellipse. A gap in
  * the series breaks no line, it is skipped.
  */
@@ -94,7 +94,7 @@ export function Sparkline({
           strokeLinejoin="round"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
-          className="stroke-chart-1 spark-glow"
+          className="stroke-chart-1"
         />
       </svg>
       <span

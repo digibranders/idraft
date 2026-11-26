@@ -1,7 +1,7 @@
 import { color as zrColor } from 'echarts/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CHART_CURSOR, chartMotion, fadeDown, fadingPointer, shade, softShadow, withAlpha } from './rich-style';
+import { CHART_CURSOR, chartMotion, fadeDown, fadingPointer, shade, withAlpha } from './rich-style';
 
 /** A 7-character hex colour from its channels, so no colour literal sits in the test. */
 const hex = (red: number, green: number, blue: number): string =>
@@ -42,14 +42,6 @@ describe('fadeDown', () => {
     expect(fade).toMatchObject({ type: 'linear', x: 0, y: 0, x2: 0, y2: 1 });
     expect(read(fade.colorStops[0]?.color)?.[3]).toBe(0.4);
     expect(read(fade.colorStops[1]?.color)?.[3]).toBe(0);
-  });
-});
-
-describe('softShadow', () => {
-  it('scales the blur and the drop with the strength', () => {
-    const shadow = softShadow(BLACK, 0.5);
-    expect(shadow).toMatchObject({ shadowBlur: 6, shadowOffsetY: 2.5 });
-    expect(read(shadow.shadowColor)?.[3]).toBe(0.4);
   });
 });
 

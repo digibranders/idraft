@@ -193,7 +193,7 @@ export function sampleBadge(text = 'Sample data') {
 let sparklineCount = 0;
 
 /**
- * A smooth line with a fade under it, a soft shadow and a dot on the latest week. Returns a wrapper (the dot is an
+ * A smooth line with a fade under it, no glow, and a dot on the latest week. Returns a wrapper (the dot is an
  * HTML element, because a dot inside a stretched SVG would turn into an ellipse).
  */
 export function sparkline(points, { token = 'chart-1', height = 28, label } = {}) {
@@ -258,7 +258,6 @@ export function sparkline(points, { token = 'chart-1', height = 28, label } = {}
   line.setAttribute('stroke-linejoin', 'round');
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('vector-effect', 'non-scaling-stroke');
-  line.style.filter = `drop-shadow(0 3px 3px color-mix(in srgb, var(--${token}) 40%, transparent))`;
   svg.append(defs, area, line);
   const dot = el('span', 'absolute size-2 rounded-full border-2 border-surface');
   dot.style.background = `var(--${token})`;

@@ -33,9 +33,6 @@ const fade = (token, from, to, horizontal = false) =>
     { offset: 1, color: charts.token(token, to) },
   ]);
 
-/** The soft shadow under a mark that gives it depth. */
-const glow = (token, strength = 1) => ({ shadowColor: charts.token(token, 0.4), shadowBlur: 12 * strength, shadowOffsetY: 5 * strength });
-
 /** The popover of the shared tooltip anatomy, for charts whose tooltip names one mark instead of an axis position. */
 function itemTooltip(rowOf) {
   return {
@@ -66,7 +63,7 @@ function itemTooltip(rowOf) {
 
 /**
  * Lines over the weekly runs, as `lineOption` of aiov-charts.js takes them (`{ name, token, values, dashed, width }`, an
- * optional 95% `band`, the `boundary` week of a comparison) with smooth curves, a fade under each line, a soft shadow
+ * optional 95% `band`, the `boundary` week of a comparison) with smooth curves, a fade under each line, no glow
  * and the latest value written at the end of every line.
  */
 export function richLineOption({ labels, lines, band, boundary, format = pctAxis, tooltipFormat, min, max, tooltipRows }) {
@@ -100,7 +97,7 @@ export function richLineOption({ labels, lines, band, boundary, format = pctAxis
       z: line.dashed ? 2 : 3,
       lineStyle: line.dashed
         ? { width: line.width ?? 2, join: 'round', type: [4, 4], color: charts.token(line.token, line.dashedAlpha ?? 1) }
-        : { width: line.width ?? 3, join: 'round', cap: 'round', color, ...glow(line.token) },
+        : { width: line.width ?? 3, join: 'round', cap: 'round', color },
       // One line gets a strong fade; several share a lighter one so they stay legible where they cross
       areaStyle: line.dashed ? undefined : { color: fade(line.token, solid > 1 ? 0.16 : 0.34, 0) },
       emphasis: { focus: 'none', scale: 1.3 },
@@ -268,7 +265,7 @@ export function stackedColumnsOption({ rows, segments }) {
       barWidth: '46%',
       barMaxWidth: 64,
       data: rows.map((row) => (row.shares === null ? null : row.shares[at])),
-      itemStyle: { color: fade(segment.token, 1, 0.72), borderRadius: 6, borderColor: charts.token('surface'), borderWidth: 1.5, ...glow('foreground', 0.5) },
+      itemStyle: { color: fade(segment.token, 1, 0.72), borderRadius: 6, borderColor: charts.token('surface'), borderWidth: 1.5 },
       emphasis: { focus: 'series' },
     })),
   };
