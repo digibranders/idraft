@@ -9135,6 +9135,30 @@
       }
     }
   },
+  "pages": {
+    "title": "Pages",
+    "tabs": {
+      "label": "Pages views",
+      "overview": "Overview",
+      "all": "All pages"
+    },
+    "strip": {
+      "label": "Page counts of this crawl",
+      "addresses": "Addresses crawled",
+      "live": "Live pages",
+      "indexable": "Indexable",
+      "orphans": "Orphan pages",
+      "errors": "Error pages",
+      "withIssue": "Pages with an issue",
+      "addressesTip": "Every address the crawl read, parameter variants included",
+      "liveTip": "Pages that answered 200 with HTML, of every address",
+      "liveBaseTip": "Of live pages"
+    },
+    "overview": {
+      "loadFailed": "The page counts could not be loaded",
+      "loadFailedReason": "Try again. If it keeps failing, the crawl may still be saving."
+    }
+  },
   "internalLinks": {
     "title": "Internal links",
     "status": {
