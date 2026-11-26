@@ -4,7 +4,8 @@ import { http, HttpResponse } from 'msw';
 import { type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { useNoteSources, type NoteSourceView } from './note-sources';
+import { membersRead, useNoteSources, type NoteSourceView } from './note-sources';
+import { membersQuery } from '@/features/workspace-settings/workspace-queries';
 import { makeQueryClient } from '@/lib/api/query-client';
 import type { LinksScope } from '@/lib/internal-links/types';
 import { MOCK_PROJECTS, MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
@@ -53,6 +54,13 @@ function render(
     initialProps: { query, enabled },
   });
 }
+
+describe('the members read', () => {
+  // `lib` may not import the feature, so the read is written twice; one cache entry only if the keys stay equal
+  it('has the key of the Members screen of the workspace settings', () => {
+    expect(membersRead(SCOPE.workspaceId).queryKey).toEqual(membersQuery(SCOPE.workspaceId).queryKey);
+  });
+});
 
 describe('useNoteSources', () => {
   it('gives the teammates, the live pages that match, the tracked keywords of the page and no issue', async () => {
@@ -115,6 +123,7 @@ describe('useNoteSources', () => {
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
     });
+    expect(result.current.failed).toBe(true);
     expect(result.current.sources.teammates).toEqual([]);
     expect(result.current.sources.pages.length).toBeGreaterThan(0);
     expect(result.current.sources.keywords).toHaveLength(3);

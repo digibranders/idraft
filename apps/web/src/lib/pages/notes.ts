@@ -53,6 +53,10 @@ export function usePageNotes(scope: LinksScope, urlId: string, enabled: boolean)
 /** What a write carries besides the body: the mentions the text still holds and the ids of the files uploaded for it. */
 export interface NoteWriteExtras {
   mentions?: readonly NoteMention[] | undefined;
+  /**
+   * WARNING: on a change, sending `[]` detaches ALL the files of the note, and that cannot be undone. Leave the key
+   * out when the files were not touched; otherwise send the full list of the files that stay.
+   */
   attachmentIds?: readonly string[] | undefined;
 }
 

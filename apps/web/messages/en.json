@@ -9242,6 +9242,9 @@
         "suggestions": {
           "label": "Suggestions",
           "count": "{count, plural, one {# suggestion} other {# suggestions}}, use the arrow keys",
+          "searching": "Searching",
+          "failed": "Could not load suggestions",
+          "tooLong": "That would make the note longer than the limit, so nothing was added",
           "teammate": "Teammate",
           "page": "Page",
           "issue": "Issue on this page",

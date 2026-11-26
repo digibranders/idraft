@@ -24,15 +24,19 @@ export interface NoteSources {
   sources: SuggestionSources;
   /** A source is still being read (nothing shows for it yet). */
   loading: boolean;
+  /** A source failed: the others still answer. */
+  failed: boolean;
+  /** Reads again the sources that failed. */
+  retry: () => void;
 }
 
 const MEMBERS = '/api/v1/workspaces/{workspace_id}/members';
 
 /**
  * The members of the workspace: the same read, and so the same cache entry, as the Members screen of the workspace
- * settings (a feature, which `lib` may not import).
+ * settings (a feature, which `lib` may not import; a test pins that the two keys are equal).
  */
-const membersRead = (workspaceId: string): ApiQueryOptions<typeof MEMBERS> =>
+export const membersRead = (workspaceId: string): ApiQueryOptions<typeof MEMBERS> =>
   apiAllPagesQuery(MEMBERS, (member) => member.user.user_id, { params: { path: { workspace_id: workspaceId } } });
 
 const NONE: SuggestionSources = { teammates: [], pages: [], issues: [], keywords: [] };
@@ -80,6 +84,14 @@ export function useNoteSources(
     }),
     [members.data, pages.data, found, detail.data],
   );
-  if (!enabled) return { sources: NONE, loading: false };
-  return { sources, loading: members.isPending || pages.isPending || detail.isPending };
+  if (!enabled) return { sources: NONE, loading: false, failed: false, retry: () => undefined };
+  const reads = [members, pages, detail];
+  return {
+    sources,
+    loading: reads.some((read) => read.isPending),
+    failed: reads.some((read) => read.isError),
+    retry: () => {
+      for (const read of reads) if (read.isError) void read.refetch();
+    },
+  };
 }

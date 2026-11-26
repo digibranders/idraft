@@ -20,6 +20,7 @@ import {
 } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
+import { axeWithNoteBox } from '@/test/axe-note-box';
 import { chartSummaryText } from '@/test/chart-summary';
 import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { mockBrowser } from '@/test/mock-api';
@@ -1235,8 +1236,8 @@ describe('the page inspector (spec 7.4)', () => {
       const panel = await panelOf('/pricing');
       await within(panel).findByRole('tab', { name: tabNamed(name) });
       await waitFor(() => expect(within(panel).getByRole('tabpanel')).not.toBeEmptyDOMElement());
-      // The note box is a combobox on a text area (ARIA 1.2), which `aria-allowed-role` does not list; the rest runs
-      expect(await axe(container, { rules: { 'aria-allowed-role': { enabled: false } } })).toHaveNoViolations();
+      // The note box is a combobox on a text area (ARIA 1.2): only that element is left out of `aria-allowed-role`
+      expect(await axeWithNoteBox(container)).toHaveNoViolations();
     });
 
     it('has no violations while the page loads', async () => {

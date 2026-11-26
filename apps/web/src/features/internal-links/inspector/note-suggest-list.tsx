@@ -2,8 +2,9 @@
 
 import { FileText, Hash, Slash, TriangleAlert, User, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import type { ReactElement, RefObject } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { POPUP_ITEM, POPUP_SURFACE } from '@/components/ui/popup-styles';
 import type { MentionType, Suggestion } from '@/lib/pages/note-mentions';
@@ -62,6 +63,42 @@ function RowText({ suggestion }: { suggestion: Suggestion }): ReactElement {
       )}
       <span className="ml-auto type-meta text-foreground-tertiary">{t(`suggestions.${TYPE_WORD[mention.type]}`)}</span>
     </>
+  );
+}
+
+export interface NoteSuggestStatusProps {
+  /** `loading`: a source is still being read; `failed`: one could not be read. */
+  kind: 'loading' | 'failed';
+  /** Reads the failed sources again; the button shows only for `failed`. */
+  onRetry: () => void;
+  /** The retry button's handle, so the box can keep its list open while the button has the focus. */
+  retryRef: RefObject<HTMLButtonElement | null>;
+  onRetryBlur: (next: EventTarget | null) => void;
+}
+
+/** One honest row under the box while the suggestions are not all in, outside the listbox, which holds options only. */
+export function NoteSuggestStatus({ kind, onRetry, retryRef, onRetryBlur }: NoteSuggestStatusProps): ReactElement {
+  const t = useTranslations('pages.drawer.notes.suggestions');
+  const common = useTranslations('common');
+  return (
+    <div
+      className={cn(POPUP_SURFACE, 'flex flex-wrap items-center gap-2 px-3 py-2 type-meta text-foreground-secondary')}
+    >
+      <span>{kind === 'failed' ? t('failed') : t('searching')}</span>
+      {kind === 'failed' ? (
+        <Button
+          ref={retryRef}
+          variant="secondary"
+          size="sm"
+          // Pressed with the pointer, the box keeps its focus and its caret, as with a row
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onRetry}
+          onBlur={(event) => onRetryBlur(event.relatedTarget)}
+        >
+          {common('retry')}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

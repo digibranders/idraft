@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 
-import { NoteSuggestList, suggestOptionId } from './note-suggest-list';
+import { NoteSuggestList, NoteSuggestStatus, suggestOptionId } from './note-suggest-list';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
@@ -77,7 +77,7 @@ export function NoteEditor({
   const found = focused ? triggerAt(value, caret) : null;
   const trigger = found !== null && found.start === dismissedAt ? null : found;
   // A slash command offers only its own names, so nothing is asked of the API for it
-  const { sources } = useNoteSources(
+  const { sources, loading, failed, retry } = useNoteSources(
     source.scope,
     source.urlId,
     trigger?.query ?? '',
@@ -87,12 +87,17 @@ export function NoteEditor({
   const rows = trigger === null ? [] : suggestionsFor(trigger, sources);
   const open = rows.length > 0;
   const activeIndex = Math.min(active, Math.max(rows.length - 1, 0));
+  // A source that is still being read or failed is said, not left as a list that is quietly short
+  const status = trigger === null ? null : failed ? 'failed' : loading ? 'loading' : null;
+  const retryButton = useRef<HTMLButtonElement | null>(null);
 
   const rowCount = rows.length;
   useEffect(() => {
-    if (rowCount > 0)
-      announce(t('suggestions.count', { count: rowCount }), { key: 'note-suggestions', debounceMs: ANNOUNCE_DELAY_MS });
-  }, [rowCount, t]);
+    const options = { key: 'note-suggestions', debounceMs: ANNOUNCE_DELAY_MS };
+    if (status === 'failed') announce(t('suggestions.failed'), options);
+    else if (status === 'loading') announce(t('suggestions.searching'), options);
+    else if (rowCount > 0) announce(t('suggestions.count', { count: rowCount }), options);
+  }, [rowCount, status, t]);
 
   // Where the caret goes once the text a pick wrote is in the box
   const pendingCaret = useRef<number | null>(null);
@@ -107,7 +112,10 @@ export function NoteEditor({
   const pick = (suggestion: Suggestion): void => {
     if (trigger === null) return;
     const next = pickInto(value, mentions, trigger, suggestion, formatTableDate(new Date(), browserTimeZone()));
-    if (next.text.length > NOTE_MAX) return;
+    if (next.text.length > NOTE_MAX) {
+      announce(t('suggestions.tooLong'), { politeness: 'assertive' });
+      return;
+    }
     pendingCaret.current = next.caret;
     onChange(next.text);
     onMentionsChange(next.mentions);
@@ -185,6 +193,7 @@ export function NoteEditor({
       <Textarea
         ref={area}
         value={value}
+        // ARIA 1.2 allows a combobox on a multi-line text box; axe's `aria-allowed-role` does not list a textarea for it
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}
@@ -207,7 +216,8 @@ export function NoteEditor({
         onClick={(event) => setCaret(event.currentTarget.selectionStart)}
         onKeyUp={(event) => setCaret(event.currentTarget.selectionStart)}
         onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        // The list stays while the focus goes to the retry button of the status row
+        onBlur={(event) => setFocused(retryButton.current !== null && event.relatedTarget === retryButton.current)}
       />
       {open ? (
         <NoteSuggestList
@@ -218,6 +228,17 @@ export function NoteEditor({
           label={t('suggestions.label')}
         />
       ) : null}
+      {status === null ? null : (
+        <NoteSuggestStatus
+          kind={status}
+          retryRef={retryButton}
+          onRetry={() => {
+            retry();
+            area.current?.focus();
+          }}
+          onRetryBlur={(next) => setFocused(next === area.current)}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" size="sm" disabled={empty || pending} onClick={onSave}>
           {saveLabel}

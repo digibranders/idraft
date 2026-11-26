@@ -18,7 +18,7 @@ import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { EVENTUS } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
-import { axe as axeWith } from '@/test/axe';
+import { axeWithNoteBox } from '@/test/axe-note-box';
 import { server } from '@/test/msw';
 import { renderWithProviders } from '@/test/render';
 
@@ -27,12 +27,8 @@ vi.mock('@/lib/a11y/announcer', async (importOriginal) => ({
   announce: vi.fn(),
 }));
 
-/**
- * The box is a combobox on a `textarea` (ARIA 1.2, spec 9.8.2), which axe's `aria-allowed-role` does not list for a
- * text area although screen readers announce it as intended; every other rule still runs.
- */
-const axe = (container: HTMLElement): ReturnType<typeof axeWith> =>
-  axeWith(container, { rules: { 'aria-allowed-role': { enabled: false } } });
+// The box is a combobox on a `textarea` (ARIA 1.2, spec 9.8.2): only that element is left out of `aria-allowed-role`
+const axe = axeWithNoteBox;
 
 const NOTES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes');
 const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
@@ -888,6 +884,69 @@ describe('mentions and commands', () => {
     await suggestions();
     expect(screen.getByRole('button', { name: 'Add note' })).toBeEnabled();
     expect(screen.getByText('Cmd or Ctrl + Enter saves')).toBeVisible();
+  });
+
+  it('keeps the picked mentions over a tab switch and sends them with the save', async () => {
+    const sent = watchWrites();
+    const { user } = renderWithProviders(<Harness />);
+    await typeAt(user, 'Ask @Priya');
+    await suggestions();
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Switch tab' }));
+    expect(screen.getByText('Another tab')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Switch tab' }));
+    expect(await box()).toHaveValue('Ask @Priya Natarajan ');
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]).toEqual({
+      body: 'Ask @Priya Natarajan',
+      mentions: [{ type: 'user', label: '@Priya Natarajan', target: PRIYA.user_id }],
+    });
+  });
+
+  it('says Searching while a source is being read, in the list and to assistive technology', async () => {
+    server.use(http.get('*/api/v1/workspaces/:w/members', () => new Promise<never>(() => undefined)));
+    const { user } = renderWithProviders(<Harness />);
+    await typeAt(user, '@Pri');
+    expect(await screen.findByText('Searching')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(announced()).toContain('Searching');
+    });
+  });
+
+  it('says when a source failed, keeps the others, and Try again reads it once more', async () => {
+    let failing = true;
+    server.use(
+      http.get('*/api/v1/workspaces/:w/members', () => (failing ? HttpResponse.json(PROBLEM, FAILED) : undefined)),
+    );
+    const { user } = renderWithProviders(<Harness />);
+    const area = await typeAt(user, '@Pri');
+    expect(await screen.findByText('Could not load suggestions')).toBeInTheDocument();
+    const list = await suggestions();
+    expect(within(list).getAllByRole('option').length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(announced()).toContain('Could not load suggestions');
+    });
+    failing = false;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => {
+      expect(screen.queryByText('Could not load suggestions')).not.toBeInTheDocument();
+    });
+    expect(area).toHaveFocus();
+    expect(within(await suggestions()).getByText('@Priya Natarajan')).toBeInTheDocument();
+  });
+
+  it('says so when a pick would pass the limit, and changes nothing', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    const area = await box();
+    await user.click(area);
+    fireEvent.change(area, { target: { value: `${'a'.repeat(1990)} @Priya` } });
+    await suggestions();
+    await user.keyboard('{Enter}');
+    expect(area).toHaveValue(`${'a'.repeat(1990)} @Priya`);
+    expect(announced()).toContain('That would make the note longer than the limit, so nothing was added');
   });
 
   it('has no violations with the list open', async () => {
