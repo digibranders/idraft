@@ -10,14 +10,17 @@ import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { crawledPages, EVENTUS, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
-import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/eventus-security/seo/internal-links',
+  useRouter: () => ({ push, replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -38,6 +41,7 @@ beforeEach(() => {
   vi.mocked(downloadApiFile).mockImplementation(() => Promise.resolve());
 });
 afterEach(() => {
+  push.mockClear();
   vi.useRealTimers();
   restoreWideScreen();
   server.events.removeAllListeners();
@@ -61,7 +65,7 @@ function pageReads(): () => URLSearchParams[] {
 
 describe('the Pages tab (spec 7.2)', () => {
   it('lists the pages with the slice 1 columns, and never an equity column, option or word', async () => {
-    const { container, user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { container, user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const table = await grid();
     for (const name of ['Page', 'Tier', 'Status', 'Depth', 'Linking pages', 'Linked from tiers', 'Outlinks', 'Flags']) {
       expect(within(table).getByRole('columnheader', { name: new RegExp(`^${name}`, 'i') })).toBeInTheDocument();
@@ -78,7 +82,7 @@ describe('the Pages tab (spec 7.2)', () => {
   });
 
   it('shows the tier, the depth, the linking pages and the flags of a page', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=%2Fblog%2Fthreat' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=%2Fblog%2Fthreat' });
     // An editor's row starts with its selection checkbox ("Select /blog/..."), so the name is matched anywhere
     const row = await within(await grid()).findByRole('row', { name: /\/blog\/threat-report-2022/ });
     expect(row).toHaveTextContent('T3');
@@ -86,7 +90,7 @@ describe('the Pages tab (spec 7.2)', () => {
   });
 
   it('narrows to a worklist from its chip and back to all pages, and counts each chip', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const orphans = await screen.findByRole('button', { name: /^Orphans 1$/ });
     await rowOf('/pricing');
     await user.click(orphans);
@@ -98,21 +102,24 @@ describe('the Pages tab (spec 7.2)', () => {
   });
 
   it('opens the Links tab for the two link worklists, which count links, in the scope of every link', async () => {
-    const writes: string[] = [];
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-      onUrlUpdate: ({ queryString }) => writes.push(queryString),
-    });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const chip = await screen.findByRole('button', { name: /^Broken and redirected links \d+ links?$/ });
     await user.click(chip);
-    await waitFor(() => expect(writes.at(-1)).toContain('tab=links'));
-    expect(writes.at(-1)).toContain('lview=broken_and_redirected');
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    const [address] = push.mock.calls.at(-1) as [string];
+    const [path, query] = address.split('?');
+    expect(path).toBe('/digibranders/eventus-security/seo/internal-links');
+    expect(query).toContain('tab=links');
+    expect(query).toContain('lview=broken_and_redirected');
     // The chip counts links of every scope, so the tab opens on all of them and lists as many rows as the chip says
-    expect(new URLSearchParams(writes.at(-1)).get('scope')).toBe('all');
+    expect(new URLSearchParams(query).get('scope')).toBe('all');
   });
 
   it('asks for the link scope the chip names and sends the explicit sort, never by equity', async () => {
     const reads = pageReads();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: 'sort=-linking_pages',
+    });
     await rowOf('/pricing');
     expect(reads()[0]?.get('sort')).toBe('-linking_pages');
     expect(reads()[0]?.get('scope')).toBe('editorial');
@@ -126,7 +133,7 @@ describe('the Pages tab (spec 7.2)', () => {
   it('sorts on the server from a header, and does not write the default sort to the address', async () => {
     const reads = pageReads();
     const writes: string[] = [];
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     const table = await grid();
@@ -137,8 +144,8 @@ describe('the Pages tab (spec 7.2)', () => {
     // The Tags column has no server sort: its header offers none; Tier sorts on the server since the sorts of plan 06
     expect(within(table).queryByRole('button', { name: 'Tags' })).toBeNull();
     expect(within(table).getByRole('button', { name: 'Tier' })).toBeInTheDocument();
-    // Linking pages is the default sort: choosing it again leaves the address without a sort
-    await user.click(within(table).getByRole('button', { name: 'Linking pages' }));
+    // The path is the default sort on All pages: choosing it again leaves the address without a sort
+    await user.click(within(table).getByRole('button', { name: 'Page' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('sort='));
     expect(writes.at(-1)).toBeDefined();
   });
@@ -146,7 +153,7 @@ describe('the Pages tab (spec 7.2)', () => {
   it('waits for the typing to pause before it asks for a search, and asks once', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const reads = pageReads();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     await user.type(screen.getByRole('searchbox', { name: 'Search in table' }), 'pri');
     // Nothing is asked while the typing goes on
@@ -161,7 +168,7 @@ describe('the Pages tab (spec 7.2)', () => {
   it('keeps the spaces typed in the search box, asks for the text as typed, and a Clear empties the box', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const reads = pageReads();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     const box = screen.getByRole('searchbox', { name: 'Search in table' });
     await user.type(box, 'a b');
@@ -192,7 +199,7 @@ describe('the Pages tab (spec 7.2)', () => {
 
   it('starts the box from the search in the address, and writes nothing on load', async () => {
     const writes: string[] = [];
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: '?q=%2Fpricing',
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
@@ -203,7 +210,7 @@ describe('the Pages tab (spec 7.2)', () => {
   });
 
   it('exports the server CSV of the current filter, scope and sort, with no page size and no equity', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: '?q=%2Fservices&scope=all&sort=path',
     });
     await rowOf('/services');
@@ -220,7 +227,7 @@ describe('the Pages tab (spec 7.2)', () => {
   it('starts no second download while one is running, and says why', async () => {
     let finish = (): void => undefined;
     vi.mocked(downloadApiFile).mockImplementation(() => new Promise<void>((resolve) => (finish = resolve)));
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     await user.click(screen.getByRole('button', { name: 'Export' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
@@ -248,7 +255,7 @@ describe('the Pages tab (spec 7.2)', () => {
         detail: 'The export could not be built for this crawl.',
       }),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     await user.click(screen.getByRole('button', { name: 'Export' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Export this tab (CSV)' }));
@@ -258,26 +265,25 @@ describe('the Pages tab (spec 7.2)', () => {
   });
 
   it('opens a page in the journey from its row, as a pushed history entry', async () => {
-    const writes: { queryString: string; history: string | undefined }[] = [];
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-      onUrlUpdate: ({ queryString, options }) => writes.push({ queryString, history: options.history }),
-    });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     await user.click(await screen.findByRole('button', { name: 'Open /pricing in journey' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=journey'));
-    expect(writes.at(-1)?.queryString).toContain('focus=108');
-    expect(writes.at(-1)?.history).toBe('push');
+    await waitFor(() => expect(push).toHaveBeenCalled());
+    const [address] = push.mock.calls.at(-1) as [string];
+    expect(address).toContain('/seo/internal-links?');
+    expect(address).toContain('tab=journey');
+    expect(address).toContain('focus=108');
   });
 });
 
 describe('the Untiered filter', () => {
   it('shows only the pages with no tier for the address the summary strip links to (the round trip)', async () => {
-    const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const href = (await screen.findByRole('link', { name: /Tiered/ })).getAttribute('href');
-    expect(href).toBe(`/digibranders/eventus-security/seo/internal-links?${UNTIERED_QUERY}`);
+    expect(href).toBe(`/digibranders/eventus-security/seo/pages/all?${UNTIERED_QUERY}`);
     first.unmount();
     // Open the address the link names: the Tier filter and the request read it as Untiered
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: new URL(href ?? '', 'http://x').search,
     });
     expect(await rowOf('/contact/thank-you')).toBeInTheDocument();
@@ -286,7 +292,7 @@ describe('the Untiered filter', () => {
 
   it('leaves out a tier, tag or status in the address that the API would refuse, instead of failing', async () => {
     const reads = pageReads();
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: '?tag=not-an-id&tier=T1&status=9xx',
     });
     expect(await rowOf('/pricing')).toBeInTheDocument();
@@ -305,7 +311,7 @@ describe('the Untiered filter', () => {
       { length: MAX_TAGS + 1 },
       (_, index) => `0192e4a0-4000-7000-8000-${String(index).padStart(12, '0')}`,
     );
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: `?tag=${tags.join(',')}`,
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
@@ -317,14 +323,14 @@ describe('the Untiered filter', () => {
   });
 
   it('says that a filter from the link was left out', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?status=9xx' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?status=9xx' });
     expect(await screen.findByText('A filter from the link was left out')).toBeInTheDocument();
     expect(screen.getByText('Status: the link holds a value this list does not have.')).toBeInTheDocument();
   });
 
   it('reads tier=none from the address into the Tier filter and the request', async () => {
     const reads = pageReads();
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?${UNTIERED_QUERY}` });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `?${UNTIERED_QUERY}` });
     expect(await rowOf('/contact/thank-you')).toBeInTheDocument();
     expect(await rowOf('/blog')).toBeInTheDocument();
     expect(within(await grid()).queryByRole('rowheader', { name: /^\/pricing/ })).toBeNull();
@@ -336,7 +342,7 @@ describe('the Untiered filter', () => {
 
 describe('the states of the tab', () => {
   it('says so when no page matches, and Clear filters brings the pages back', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=zzzz' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=zzzz' });
     expect(await screen.findByRole('heading', { name: 'No pages match' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(await rowOf('/pricing')).toBeInTheDocument();
@@ -352,7 +358,7 @@ describe('the states of the tab', () => {
         }),
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: '?view=under_linked_t1',
     });
     expect(await screen.findByRole('heading', { name: 'No under-linked T1 pages' })).toBeInTheDocument();
@@ -369,7 +375,7 @@ describe('the states of the tab', () => {
           : undefined,
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     expect(await screen.findByText('The pages could not be loaded')).toBeInTheDocument();
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -378,7 +384,7 @@ describe('the states of the tab', () => {
 
   it('shows an answer that is not a page of rows as a failed read, not as an empty table', async () => {
     server.use(http.get(PAGES, () => HttpResponse.json({ unexpected: true })));
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     expect(await screen.findByText('The pages could not be loaded')).toBeInTheDocument();
   });
 
@@ -391,7 +397,7 @@ describe('the states of the tab', () => {
         ),
       ),
     );
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     expect(await screen.findByText('The pages could not be loaded')).toBeInTheDocument();
   });
 });
@@ -430,7 +436,7 @@ describe('paging (decision W6)', () => {
 
   it('goes forward by the cursor the API gave and back to the page before, with the range named', async () => {
     const cursors = twoPages();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     expect(await screen.findByText('Showing 1 to 100 of 120')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous page' })).toHaveAttribute('aria-disabled', 'true');
     await user.click(screen.getByRole('button', { name: 'Next page' }));
@@ -444,7 +450,7 @@ describe('paging (decision W6)', () => {
   it('does not take the cursor of the page on screen for the page that is loading', async () => {
     let release = (): void => undefined;
     const cursors = twoPages(new Promise<void>((resolve) => (release = resolve)));
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await screen.findByText('Showing 1 to 100 of 120');
     const next = screen.getByRole('button', { name: 'Next page' });
     await user.click(next);
@@ -459,7 +465,7 @@ describe('paging (decision W6)', () => {
 
   it('starts again at the first page when the worklist changes', async () => {
     const cursors = twoPages();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await screen.findByText('Showing 1 to 100 of 120');
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await screen.findByText('Showing 101 to 120 of 120');
@@ -503,7 +509,7 @@ describe('a crawl that ends while a later page is open', () => {
 
   it('goes back to the first page of the new crawl when the old cursor is refused, and Next then uses the new one', async () => {
     const { live, cursors } = crawlPages();
-    const { user, queryClient } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user, queryClient } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await screen.findByText('Showing 1 to 100 of 120');
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await screen.findByText('Showing 101 to 120 of 120');
@@ -522,7 +528,7 @@ describe('a crawl that ends while a later page is open', () => {
   it('goes back to the first page when a page of another crawl arrives, even if it was not refused', async () => {
     const { live } = crawlPages();
     live.lenient = true;
-    const { user, queryClient } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user, queryClient } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await screen.findByText('Showing 1 to 100 of 120');
     await user.click(screen.getByRole('button', { name: 'Next page' }));
     await screen.findByText('Showing 101 to 120 of 120');
@@ -537,7 +543,7 @@ describe('a crawl that ends while a later page is open', () => {
 describe('accessibility of the tab', () => {
   it.each(['light', 'dark'])('has no axe violations in the %s theme', async (theme) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     expect(await axe(container)).toHaveNoViolations();
   });

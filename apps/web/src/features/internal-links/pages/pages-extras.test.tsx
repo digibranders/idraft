@@ -4,14 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { HISTORY_RUN_IDS, setLinksScenario } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
-import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/eventus-security/seo/internal-links',
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -43,7 +44,7 @@ const cols = (...ids: string[]): string => `?cols=${['page', ...ids].join(',')}`
 describe('the columns that read the extras of a row', () => {
   it('asks for the changes with the default columns, and for more parts as the chooser turns columns on', async () => {
     const reads = pageReads();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
     expect(reads()[0]?.get('include')).toBe('changes');
     await user.click(screen.getByRole('button', { name: 'Columns' }));
@@ -59,7 +60,7 @@ describe('the columns that read the extras of a row', () => {
 
   it('shows the change of a page, and sorts by it on the server', async () => {
     const reads = pageReads();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: '?q=services%2Fvapt',
     });
     const row = await rowOf('/services/vapt');
@@ -71,7 +72,7 @@ describe('the columns that read the extras of a row', () => {
   });
 
   it('shows rank, citations and anchors for a page, and Search Console clicks', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: `${cols('keywords', 'rank', 'citations', 'anchors', 'matches', 'clicks')}&q=soc-vs-mdr`,
     });
     const row = await rowOf('/blog/soc-vs-mdr');
@@ -82,30 +83,30 @@ describe('the columns that read the extras of a row', () => {
 
   it('says there is no earlier crawl for a first crawl, and Updating while the comparison is worked out', async () => {
     setLinksScenario({ firstCrawl: true });
-    const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=pricing' });
     const row = await rowOf('/pricing');
     await waitFor(() => expect(row).toHaveTextContent('n/a'));
     expect(row).not.toHaveTextContent(/unchanged/i);
     first.unmount();
     setLinksScenario({ firstCrawl: false, enrich: 'running' });
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=pricing' });
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('Updating'));
   });
 
   it('says Syncing while Search Console is pending and Not connected without it', async () => {
     setLinksScenario({ gsc: 'pending' });
-    const pending = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const pending = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: `${cols('clicks')}&q=pricing`,
     });
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('Syncing'));
     pending.unmount();
     setLinksScenario({ gsc: 'not_connected' });
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `${cols('clicks')}&q=pricing` });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `${cols('clicks')}&q=pricing` });
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('Not connected'));
   });
 
   it('shows Not stored for the anchors of a crawl whose links were dropped', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: `${cols('anchors', 'matches')}&run=${DROPPED}&q=pricing`,
     });
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('Not stored'));
@@ -115,14 +116,14 @@ describe('the columns that read the extras of a row', () => {
 describe('the flag and the worklists of slice 2', () => {
   it('sends the generic anchors flag from the flag filter', async () => {
     const reads = pageReads();
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?flag=generic_anchors' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?flag=generic_anchors' });
     await grid();
     await waitFor(() => expect(reads().some((read) => read.get('filter[flags]') === 'generic_anchors')).toBe(true));
   });
 
   it('shows the two new chips with their counts, and sets the view from them', async () => {
     const reads = pageReads();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const lost = await screen.findByRole('button', { name: /^Lost links to T1 and T2 \d+$/ });
     expect(await screen.findByRole('button', { name: /^T1 pages linking out to weak pages \d+$/ })).toBeInTheDocument();
     await user.click(lost);
@@ -144,7 +145,7 @@ describe('the flag and the worklists of slice 2', () => {
       for (const button of screen.queryAllByRole('button', { name: /^Lost links/ })) names.push(button.textContent);
     });
     watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await screen.findByRole('button', { name: /^T1 pages linking out to weak pages/ });
     expect(screen.queryByRole('button', { name: /^Lost links/ })).toBeNull();
     release();
@@ -155,7 +156,7 @@ describe('the flag and the worklists of slice 2', () => {
 
   it('shows the no earlier crawl tip on a first crawl, and never Updating once the summary has answered', async () => {
     setLinksScenario({ firstCrawl: true });
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=pricing' });
     const row = await rowOf('/pricing');
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('n/a'));
     const cell = within(await rowOf('/pricing'))
@@ -166,7 +167,7 @@ describe('the flag and the worklists of slice 2', () => {
   });
 
   it('shows the dropped links message and a disabled Export for a typed weak outlinks view of a dropped crawl', async () => {
-    const { user: userEvent } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user: userEvent } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: `?view=weak_outlinks&run=${DROPPED}`,
     });
     expect(await screen.findByText(/This crawl’s links are no longer stored/)).toBeInTheDocument();
@@ -179,13 +180,13 @@ describe('the flag and the worklists of slice 2', () => {
 
   it('opens on the worklist named in the address', async () => {
     const reads = pageReads();
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?view=weak_outlinks' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?view=weak_outlinks' });
     await grid();
     await waitFor(() => expect(reads().some((read) => read.get('filter[worklist]') === 'weak_outlinks')).toBe(true));
   });
 
   it('offers no weak outlinks chip for a crawl whose links were dropped', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${DROPPED}` });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `?run=${DROPPED}` });
     await screen.findByRole('button', { name: /^Lost links to T1 and T2 \d+$/ });
     expect(screen.queryByRole('button', { name: /weak pages/ })).toBeNull();
   });
@@ -195,7 +196,7 @@ describe('accessibility of the new columns', () => {
   it.each(['light', 'dark'])('has no axe violations with every column on, in the %s theme', async (theme) => {
     const { axe } = await import('@/test/axe');
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: cols('change', 'keywords', 'rank', 'citations', 'anchors', 'matches', 'clicks', 'impressions'),
     });
     try {

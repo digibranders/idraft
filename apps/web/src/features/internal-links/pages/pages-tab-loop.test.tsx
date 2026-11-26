@@ -3,14 +3,15 @@ import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { mswPath } from '@/mocks/respond';
-import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/eventus-security/seo/internal-links',
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -23,7 +24,7 @@ afterEach(restoreWideScreen);
 async function renderDefaultPages(): Promise<void> {
   const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   try {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     expect(await screen.findByRole('grid', { name: 'Pages' })).toBeInTheDocument();
     expect(errors.mock.calls.flat().join(' ')).not.toMatch(/Maximum update depth/);
   } finally {

@@ -15,15 +15,16 @@ import {
 } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
-import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { mockBrowser } from '@/test/mock-api';
 import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/eventus-security/seo/internal-links',
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -74,7 +75,7 @@ function writes(): () => string[] {
 
 describe('the page inspector (spec 7.4)', () => {
   it('shows the tier with its source, the strip, the linking pages and the flags, and no equity', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     expect(await within(panel).findByText(/^Manual, set by .+ on /)).toBeInTheDocument();
     expect(within(panel).getByRole('group', { name: 'Page summary' })).toHaveTextContent(/Depth\s*1/);
@@ -90,7 +91,7 @@ describe('the page inspector (spec 7.4)', () => {
   });
 
   it('lists the linking pages and the outlinks from the neighbors read, and opens one', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     const heading = await within(panel).findByRole('heading', { name: /^Linking pages \(\d+\)$/ });
     const section = heading.closest('section') as HTMLElement;
@@ -150,7 +151,7 @@ describe('the page inspector (spec 7.4)', () => {
         });
       }),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     expect(
       await within(panel).findByRole('button', { name: `/generated-${String(READ_LIMIT - 1)}` }),
@@ -169,7 +170,7 @@ describe('the page inspector (spec 7.4)', () => {
   it('says the first read of the neighbors failed and reads again on Try again', async () => {
     let fail = true;
     server.use(http.get(NEIGHBORS, () => (fail ? HttpResponse.json(SERVER_ERROR, { status: 500 }) : undefined)));
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     expect((await within(panel).findAllByText('These pages could not be loaded')).length).toBeGreaterThan(0);
     expect(within(panel).queryByText('More pages could not be loaded')).toBeNull();
@@ -182,7 +183,7 @@ describe('the page inspector (spec 7.4)', () => {
   });
 
   it('resets a manual tier to its rule and shows that it changed', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     await user.click(await within(panel).findByRole('button', { name: 'Reset to rule' }));
     expect((await screen.findAllByText('1 page went back to the tier their rule gives.')).length).toBeGreaterThan(0);
@@ -192,7 +193,7 @@ describe('the page inspector (spec 7.4)', () => {
 
   it('toasts a failed reset, and a later Add tag dialog does not show its error', async () => {
     server.use(http.post(RESET, () => HttpResponse.json(SERVER_ERROR, { status: 500 })));
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     await user.click(await within(panel).findByRole('button', { name: 'Reset to rule' }));
     expect((await screen.findAllByText('The change could not be saved')).length).toBeGreaterThan(0);
@@ -203,7 +204,7 @@ describe('the page inspector (spec 7.4)', () => {
 
   it('adds a tag, removes it, and toasts a failed removal without a stale error in a later dialog', async () => {
     await makeTag();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     await user.click(await within(panel).findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
@@ -231,7 +232,7 @@ describe('the page inspector (spec 7.4)', () => {
   });
 
   it('sets the tier from the select', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     await user.click(await within(panel).findByRole('combobox', { name: 'Tier of this page' }));
     await user.click(await screen.findByRole('option', { name: /^T2/ }));
@@ -240,7 +241,7 @@ describe('the page inspector (spec 7.4)', () => {
 
   it('is read only for a viewer: no edits, neighbors listed, stepping writes nothing', async () => {
     const seen = writes();
-    const { user } = renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS), OPEN);
+    const { user } = renderWithProviders(pagesAs('viewer', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');
     await within(panel).findByText(/^Manual, set by/);
     expect(within(panel).getByRole('combobox', { name: 'Tier of this page' })).toBeDisabled();
@@ -260,7 +261,7 @@ describe('the page inspector (spec 7.4)', () => {
     ['the latest crawl', OPEN, ''],
     ['an older crawl', { searchParams: `inspect=page:108&run=${HISTORY_RUN_IDS[1]}` }, `&run=${HISTORY_RUN_IDS[1]}`],
   ])('links Open in journey to the journey on the page, for %s', async (_name, search, run) => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), search);
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), search);
     const panel = await panelOf('/pricing');
     const link = await within(panel).findByRole('link', { name: 'Open in journey' });
     expect(link).toHaveAttribute('href', `${BASE}?tab=journey&focus=108${run}`);
@@ -270,7 +271,7 @@ describe('the page inspector (spec 7.4)', () => {
     ['the latest crawl', OPEN, ''],
     ['an older crawl', { searchParams: `inspect=page:108&run=${HISTORY_RUN_IDS[1]}` }, `&run=${HISTORY_RUN_IDS[1]}`],
   ])('links View all in Links to the links into the page, for %s', async (_name, search, run) => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), search);
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), search);
     const panel = await panelOf('/pricing');
     const heading = await within(panel).findByRole('heading', { name: /^Linking pages \(\d+\)$/ });
     const link = within(heading.closest('section') as HTMLElement).getByRole('link', { name: 'View all in Links' });
@@ -279,7 +280,7 @@ describe('the page inspector (spec 7.4)', () => {
 
   it('closes with Close: the address loses the inspector', async () => {
     const onUrlUpdate = vi.fn();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
     const panel = await panelOf('/pricing');
     await user.click(within(panel).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary', { name: '/pricing' })).toBeNull());
@@ -294,7 +295,7 @@ describe('the page inspector (spec 7.4)', () => {
 
     it('steps to the next row in the table order, and says where it is', async () => {
       const onUrlUpdate = vi.fn();
-      const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
       const panel = await panelOf('/pricing');
       const paths = await rowPaths();
       const at = paths.indexOf('/pricing');
@@ -311,7 +312,7 @@ describe('the page inspector (spec 7.4)', () => {
     });
 
     it('steps with J and K, and says so at the first row', async () => {
-      const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       await panelOf('/pricing');
       const paths = await rowPaths();
       await user.keyboard('j');
@@ -334,13 +335,13 @@ describe('the page inspector (spec 7.4)', () => {
   });
 
   it('says a hand-edited id is not a page, without throwing', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'inspect=page:abc' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'inspect=page:abc' });
     const panel = await panelOf('Page');
     expect(await within(panel).findByText('Page not found')).toBeInTheDocument();
   });
 
   it('says a page that is not in the crawl is not in it', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'inspect=page:999999' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'inspect=page:999999' });
     const panel = await panelOf('Page');
     expect(await within(panel).findByText('This page is not in the latest crawl.')).toBeInTheDocument();
   });
@@ -352,7 +353,7 @@ describe('the page inspector (spec 7.4)', () => {
     };
 
     it('shows the new sections after the by tier card and before the linking pages, with no equity or strength', async () => {
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const panel = await panelOf('/pricing');
       await within(panel).findByRole('heading', { name: 'Google Search Console' });
       const order = [
@@ -379,7 +380,7 @@ describe('the page inspector (spec 7.4)', () => {
     });
 
     it('shows the Google data of the page and the citation counts', async () => {
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       expect(await section('Google Search Console')).toHaveTextContent(
         '960 clicks, 12,000 impressions, last 28 days (Google data)',
       );
@@ -388,26 +389,26 @@ describe('the page inspector (spec 7.4)', () => {
 
     it('says Search Console is syncing, or not connected', async () => {
       setLinksScenario({ gsc: 'pending' });
-      const pending = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const pending = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       expect(await section('Google Search Console')).toHaveTextContent('Search Console is syncing.');
       pending.unmount();
       setLinksScenario({ gsc: 'not_connected' });
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       expect(await section('Google Search Console')).toHaveTextContent('Search Console is not connected.');
     });
 
     it('has no changes section on a first crawl, and says Updating or Not available while the comparison is not ready', async () => {
       setLinksScenario({ firstCrawl: true });
-      const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       await section('Tracked keywords');
       expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
       first.unmount();
       setLinksScenario({ firstCrawl: false, enrich: 'running' });
-      const running = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const running = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       expect(await section('Changes since the last crawl')).toHaveTextContent('Updating');
       running.unmount();
       setLinksScenario({ enrich: 'failed' });
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       await waitFor(async () =>
         expect(await section('Changes since the last crawl')).toHaveTextContent('Not available'),
       );
@@ -422,7 +423,7 @@ describe('the page inspector (spec 7.4)', () => {
           return undefined;
         }),
       );
-      const pending = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const pending = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       await section('Tracked keywords');
       expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
       release();
@@ -430,17 +431,17 @@ describe('the page inspector (spec 7.4)', () => {
       server.resetHandlers();
       server.use(http.get(SUMMARY, () => HttpResponse.json(SERVER_ERROR, { status: 500 })));
       setLinksScenario({ firstCrawl: true });
-      const failed = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const failed = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       await section('Tracked keywords');
       await waitFor(() => expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull());
       failed.unmount();
       server.resetHandlers();
-      const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       await section('Tracked keywords');
       expect(screen.queryByRole('heading', { name: 'Changes since the last crawl' })).toBeNull();
       first.unmount();
       setLinksScenario({ firstCrawl: false });
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       expect(await section('Changes since the last crawl')).toBeInTheDocument();
     });
 
@@ -470,7 +471,7 @@ describe('the page inspector (spec 7.4)', () => {
           });
         }),
       );
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const anchors = await section('Anchor text pointing here');
       expect(anchors).toHaveTextContent('Not stored');
       expect(within(anchors).queryByRole('table')).toBeNull();
@@ -478,7 +479,7 @@ describe('the page inspector (spec 7.4)', () => {
     });
 
     it('says Not stored for the anchors of a crawl whose links were dropped', async () => {
-      renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
         searchParams: `inspect=page:108&run=${HISTORY_RUN_IDS[4] ?? ''}`,
       });
       expect(await section('Anchor text pointing here')).toHaveTextContent('Not stored');
@@ -489,7 +490,7 @@ describe('the page inspector (spec 7.4)', () => {
     beforeEach(() => document.documentElement.classList.toggle('dark', theme === 'dark'));
 
     it('has no violations for a page', async () => {
-      const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const { container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const panel = await panelOf('/pricing');
       await within(panel).findByText(/^Manual, set by/);
       await within(panel).findAllByRole('button', { name: /^\// });
@@ -498,14 +499,14 @@ describe('the page inspector (spec 7.4)', () => {
 
     it('has no violations while the page loads', async () => {
       server.use(http.get(DETAIL, () => new Promise<never>(() => undefined)));
-      const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+      const { container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const panel = await panelOf('Page');
       expect(within(panel).getByRole('heading', { level: 2 })).toHaveTextContent('Page');
       expect(await axe(container)).toHaveNoViolations();
     });
 
     it('has no violations for a page that is not found', async () => {
-      const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      const { container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
         searchParams: 'inspect=page:abc',
       });
       const panel = await panelOf('Page');

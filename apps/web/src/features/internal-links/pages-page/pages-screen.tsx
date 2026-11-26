@@ -136,8 +136,19 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
     openPage: pagesContext.inspect.open,
     hrefs: {
       journey: (urlId) => withRun(linksBase, { tab: 'journey', focus: urlId }),
-      linksFrom: (urlId) => withRun(linksBase, { tab: 'links', src: urlId, scope: state.scope }),
-      linksTo: (urlId) => withRun(linksBase, { tab: 'links', tgt: urlId, scope: state.scope }),
+      // The scope travels only when it is not the default, as the address of Internal links reads it
+      linksFrom: (urlId) =>
+        withRun(linksBase, {
+          tab: 'links',
+          src: urlId,
+          ...(state.scope === 'editorial' ? {} : { scope: state.scope }),
+        }),
+      linksTo: (urlId) =>
+        withRun(linksBase, {
+          tab: 'links',
+          tgt: urlId,
+          ...(state.scope === 'editorial' ? {} : { scope: state.scope }),
+        }),
       issueCheck: () => null,
       taxonomy: pagesContext.taxonomyHref,
     },

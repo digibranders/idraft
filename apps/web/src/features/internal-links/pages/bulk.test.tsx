@@ -7,14 +7,15 @@ import { MOCK_WORKSPACE } from '@/mocks/fixtures';
 import { crawledPages, EVENTUS, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
-import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRender } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/eventus-security/seo/internal-links',
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -84,7 +85,7 @@ function bodiesOf(path: RegExp | string, method: 'put' | 'post'): unknown[] {
 describe('bulk tiers (spec 5.2)', () => {
   it('sets a tier on the selection from the bulk bar, with the url ids as strings', async () => {
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Set tier' }));
     const dialog = await screen.findByRole('dialog', { name: 'Set the tier of 1 page' });
@@ -99,7 +100,7 @@ describe('bulk tiers (spec 5.2)', () => {
 
   it('sets Untiered by hand and gives pages back to their rule', async () => {
     const reset = bodiesOf(RESET, 'post');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Set tier' }));
     let dialog = await screen.findByRole('dialog', { name: 'Set the tier of 1 page' });
@@ -118,7 +119,7 @@ describe('bulk tiers (spec 5.2)', () => {
   });
 
   it('sets a tier with keys 1 to 8 and Untiered with 0 while rows are selected, focus left on the row', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     // The focus stays on the row's checkbox, as it does after a click: the keys must work from there
     await user.click(await checkbox('/about'));
     await user.keyboard('2');
@@ -130,7 +131,7 @@ describe('bulk tiers (spec 5.2)', () => {
 
   it('does nothing for a key with no tier at that position, or with nothing selected', async () => {
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await rowOf('/about');
     await user.keyboard('2');
     await user.click(await checkbox('/about'));
@@ -143,7 +144,7 @@ describe('bulk tiers (spec 5.2)', () => {
   });
 
   it('says a change that changed nothing in words that read true', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     // /about is T4 already
     await user.keyboard('4');
@@ -159,7 +160,7 @@ describe('bulk tiers (spec 5.2)', () => {
     );
     // Added last, so it sees each request first and lets the failing handler answer it
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     for (let repeat = 0; repeat < 3; repeat += 1) fireEvent.keyDown(document.body, { key: '2', repeat: true });
     await settle();
@@ -173,7 +174,7 @@ describe('bulk tiers (spec 5.2)', () => {
 
   it('does not take a digit typed in a text field', async () => {
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     const field = document.createElement('input');
     document.body.append(field);
@@ -189,7 +190,7 @@ describe('bulk tiers (spec 5.2)', () => {
 
   it('does not take the keys while a dialog is open', async () => {
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Set tier' }));
     await screen.findByRole('dialog', { name: 'Set the tier of 1 page' });
@@ -205,7 +206,7 @@ describe('bulk tiers (spec 5.2)', () => {
 
   it('offers no selection and no keys to a viewer', async () => {
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('viewer', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await rowOf('/about');
     expect(screen.queryByRole('checkbox')).toBeNull();
     await user.keyboard('2');
@@ -217,7 +218,7 @@ describe('bulk tiers (spec 5.2)', () => {
   it('sends the filter when every matching page is chosen, and names the count the API answers', async () => {
     stubManyPages();
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'status=2xx' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'status=2xx' });
     await chooseAllMatching(user);
     await user.keyboard('1');
     await waitFor(() => expect(bodies).toHaveLength(1));
@@ -228,7 +229,7 @@ describe('bulk tiers (spec 5.2)', () => {
   it('sends the whole filter: the search, the worklist and the Untiered choice', async () => {
     stubManyPages();
     const bodies = bodiesOf(TIERS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: 'q=%2Fblog&view=orphans&tier=none',
     });
     await chooseAllMatching(user);
@@ -242,7 +243,7 @@ describe('bulk tiers (spec 5.2)', () => {
 
   it('forgets the selection when the filters change, and does not bring it back with them', async () => {
     stubManyPages();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await chooseAllMatching(user);
     expect(await screen.findByRole('group', { name: /250/ })).toBeInTheDocument();
     // The worklist chips live outside the bar: another worklist is another query, and so is "All pages" again
@@ -265,7 +266,7 @@ describe('bulk tiers (spec 5.2)', () => {
           : undefined,
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Set tier' }));
     const dialog = await screen.findByRole('dialog', { name: 'Set the tier of 1 page' });
@@ -290,7 +291,7 @@ describe('bulk tiers (spec 5.2)', () => {
         ),
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.keyboard('1');
     expect(
@@ -305,7 +306,7 @@ describe('bulk tiers (spec 5.2)', () => {
         HttpResponse.json({ type: 'about:blank', title: 'Server error', status: 500 }, { status: 500 }),
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.keyboard('1');
     expect((await screen.findAllByText('The change could not be saved')).length).toBeGreaterThan(0);
@@ -313,7 +314,7 @@ describe('bulk tiers (spec 5.2)', () => {
   });
 
   it('opens the journey of one chosen page only, and shows no equity anywhere', async () => {
-    const { user, container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+    const { user, container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
       searchParams: 'q=%2Fabout',
     });
     await user.click(await checkbox('/about'));
@@ -328,7 +329,7 @@ describe('bulk tags (spec 5.3)', () => {
 
   it('says the tags are loading, not that there are none, while the vocabularies are read', async () => {
     server.use(http.get(VOCABULARIES, () => new Promise<never>(() => undefined)));
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
@@ -346,7 +347,7 @@ describe('bulk tags (spec 5.3)', () => {
           : undefined,
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
@@ -358,7 +359,7 @@ describe('bulk tags (spec 5.3)', () => {
   });
 
   it('says so, with a way to the taxonomy, when the project has no tags', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });
@@ -388,7 +389,7 @@ describe('bulk tags (spec 5.3)', () => {
     for (const [name, value] of jar) document.cookie = `${name}=${value}; Path=/; Secure`;
 
     const bodies = bodiesOf(TAGS, 'put');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'q=%2Fabout' });
     await user.click(await checkbox('/about'));
     await user.click(await screen.findByRole('button', { name: 'Add tag' }));
     let dialog = await screen.findByRole('dialog', { name: 'Add a tag to 1 page' });

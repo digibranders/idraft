@@ -5,14 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLinksScenario } from '@/mocks/internal-links-world';
 import { mswPath, problem } from '@/mocks/respond';
 import { axe } from '@/test/axe';
-import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/digibranders/eventus-security/seo/internal-links',
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -58,7 +59,7 @@ const chip = (): Promise<HTMLElement> => screen.findByRole('button', { name: /^S
 
 describe('the Suggested tiers chip and popover', () => {
   it('lists each page with its tier now, the suggested tier and the reasons in words', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     const table = await screen.findByRole('table', { name: 'Suggested tiers' });
     for (const name of ['Page', 'Tier']) {
@@ -71,7 +72,7 @@ describe('the Suggested tiers chip and popover', () => {
   });
 
   it('names the page: its address links to it in a new tab, the title and the reason sit under it, and the tiers read from to', async () => {
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     const row = await rowOf('/blog/what-is-a-soc');
     const link = within(row).getByRole('link', { name: /what-is-a-soc/ });
@@ -88,7 +89,7 @@ describe('the Suggested tiers chip and popover', () => {
 
   it('accepts one page, says how many moved, and the row leaves the list', async () => {
     const sent = posts();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     await user.click(await actionOf('/blog/soc-vs-mdr', 'Accept suggestion'));
     expect(await screen.findByText('1 page moved')).toBeInTheDocument();
@@ -101,7 +102,7 @@ describe('the Suggested tiers chip and popover', () => {
 
   it('dismisses one page and accepts all the rest', async () => {
     const sent = posts();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     await user.click(await actionOf('/blog', 'Dismiss suggestion'));
     expect(await screen.findByText('1 suggestion dismissed')).toBeInTheDocument();
@@ -121,7 +122,7 @@ describe('the Suggested tiers chip and popover', () => {
       http.post(ACCEPT, () => HttpResponse.json({ data: { matched: 3, changed: 1 } })),
       http.post(DISMISS, () => HttpResponse.json({ data: { matched: 1, changed: 0 } })),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     await user.click(await screen.findByRole('button', { name: 'Accept all' }));
     expect(await screen.findByText('1 page moved')).toBeInTheDocument();
@@ -131,7 +132,7 @@ describe('the Suggested tiers chip and popover', () => {
 
   it('says none moved when the answer changed no page', async () => {
     server.use(http.post(ACCEPT, () => HttpResponse.json({ data: { matched: 1, changed: 0 } })));
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     await user.click(await actionOf('/blog', 'Accept suggestion'));
     expect(await screen.findByText('No pages moved')).toBeInTheDocument();
@@ -143,7 +144,7 @@ describe('the Suggested tiers chip and popover', () => {
         problem(request, 'invalid_state_transition', { detail: 'The crawl moved on.' }),
       ),
     );
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     const accept = await actionOf('/blog', 'Accept suggestion');
     await user.click(accept);
@@ -161,14 +162,14 @@ describe('the Suggested tiers chip and popover', () => {
 
   it('shows no chip when there is nothing to suggest', async () => {
     setLinksScenario({ noSuggestions: true });
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await screen.findByRole('button', { name: 'All pages' });
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Suggested tiers/ })).toBeNull());
   });
 
   it('says only ranks are used when Search Console is not connected', async () => {
     setLinksScenario({ gsc: 'not_connected' });
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     expect(
       await screen.findByText('Search Console is not connected, so only tracked keyword ranks are used.'),
@@ -176,7 +177,7 @@ describe('the Suggested tiers chip and popover', () => {
   });
 
   it('shows a viewer the rows without Accept, Dismiss or Accept all', async () => {
-    const { user } = renderWithProviders(internalLinksAs('viewer', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('viewer', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     const table = await screen.findByRole('table', { name: 'Suggested tiers' });
     expect(within(table).getByText('/blog/what-is-a-soc')).toBeInTheDocument();
@@ -186,7 +187,7 @@ describe('the Suggested tiers chip and popover', () => {
 
   it.each(['light', 'dark'])('has no axe violations with the popover open, in the %s theme', async (theme) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await user.click(await chip());
     const table = await screen.findByRole('table', { name: 'Suggested tiers' });
     expect(await axe(table.closest('[data-slot="popover"]') ?? table)).toHaveNoViolations();
