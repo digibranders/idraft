@@ -22,7 +22,7 @@ const view = ui.$('[data-view="ai"]');
 // -------------------------------------------------------------------------------------------------
 // Static parts: header, scope bar, the grid
 
-const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
+const grid = el('div', 'grid grid-cols-1 @2xl:grid-cols-12 gap-4');
 const custom = createCustomizer({ grid, onChange: () => render() });
 
 // As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
@@ -102,7 +102,7 @@ function render() {
   grid.replaceChildren();
   if (model.prompts.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'No prompts in this scope', body: emptyBody('Nothing to show', 'No prompts match this group and branded setting. Reset the scope.') });
-    empty.className += ' md:col-span-12';
+    empty.className += ' @2xl:col-span-12';
     grid.append(empty);
     return;
   }
@@ -117,7 +117,7 @@ function render() {
   if (custom.customizing()) grid.append(custom.addSlot());
   else if (items.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'This page has no cards', body: emptyBody('Nothing on the page', 'Choose Customize, then Start from a preset or Add card.') });
-    empty.className += ' md:col-span-12';
+    empty.className += ' @2xl:col-span-12';
     grid.append(empty);
   }
 }

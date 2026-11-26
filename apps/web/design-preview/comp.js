@@ -50,10 +50,10 @@ const changeCell = (value) => {
 };
 
 function strip(items, label) {
-  const dl = el('dl', 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-px overflow-hidden rounded-lg border border-border bg-border');
+  const dl = el('dl', 'grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-5 gap-px overflow-hidden rounded-lg border border-border bg-border');
   dl.setAttribute('aria-label', label);
   items.forEach(({ label: name, value, context }) => {
-    const item = el('div', 'flex min-h-metric-strip min-w-0 flex-col justify-center gap-0.5 bg-surface px-4 py-2 [&:last-child:nth-child(odd)]:sm:col-span-2 xl:[&:last-child:nth-child(odd)]:col-span-1');
+    const item = el('div', 'flex min-h-metric-strip min-w-0 flex-col justify-center gap-0.5 bg-surface px-4 py-2 @xl:[&:last-child:nth-child(odd)]:col-span-2 @4xl:[&:last-child:nth-child(odd)]:col-span-1');
     item.append(el('dt', 'type-meta text-foreground-secondary truncate', name), el('dd', 'num type-metric text-foreground', value));
     if (context) item.append(el('span', 'type-meta truncate', context));
     dl.append(item);
@@ -112,7 +112,7 @@ const panel = (...nodes) => {
   return grid;
 };
 const grid3 = (...cards) => {
-  const g = el('div', 'grid grid-cols-1 gap-3 xl:grid-cols-3');
+  const g = el('div', 'grid grid-cols-1 gap-3 @4xl:grid-cols-3');
   g.append(...cards);
   return g;
 };
