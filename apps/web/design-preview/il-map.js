@@ -146,7 +146,8 @@ function option(data) {
   });
   // The block of pages with no drawn link: a title, then one line per tier. Text only, nothing to hover or drag.
   const first = layout.groups[0];
-  const headers = first ? [{ key: 'title', x: first.x, y: first.y - 30, text: `No ${linkWord()} in or out`, strong: true }, ...layout.groups.map((group) => ({ key: group.key, x: group.x, y: group.y, text: `${tierLabel(tiers[group.key - 1]?.id ?? null)}: ${plural(group.count, 'page')}` }))] : [];
+  // The last one is empty: it keeps room for the lines of text when the block is only a few pages wide
+  const headers = first ? [{ key: 'title', x: first.x, y: first.y - 30, text: `No ${linkWord()} in or out`, strong: true }, { key: 'room', x: first.x + 300, y: first.y, text: '' }, ...layout.groups.map((group) => ({ key: group.key, x: group.x, y: group.y, text: `${tierLabel(tiers[group.key - 1]?.id ?? null)}: ${plural(group.count, 'page')}` }))] : [];
   headers.forEach((header) => nodes.push({
     name: `${HEADER}${header.key}`,
     x: header.x - 5,
@@ -208,7 +209,7 @@ function toolbar(data) {
     onPick: (id) => {
       const spot = moved.get(id) ?? data.layout.positions.get(id);
       // A redirect or a page that is not live has no dot of its own: the inspector still opens
-      if (spot) view = { zoom: 5, center: spot };
+      if (spot) view = { zoom: 3, center: spot };
       state.open = id;
       refresh();
     },
