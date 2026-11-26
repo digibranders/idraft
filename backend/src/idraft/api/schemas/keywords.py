@@ -242,6 +242,7 @@ TrackedInclude = Literal[
     "gsc",
     "features",
     "aio",
+    "counts",
 ]
 RankCellState = Literal["ranked", "beyond_depth", "not_checked", "failed"]
 RankChangeLabel = Literal[
@@ -536,8 +537,25 @@ class TrackedKeywordList(BaseModel):
     data: list[TrackedKeyword]
 
 
+class TrackedKeywordCounts(BaseModel):
+    """The strip counts of the list, over the keywords its filters match (`include=counts`)."""
+
+    total: int
+    ranked: int = Field(description="Ranked at the latest check.")
+    beyond: int = Field(
+        description="Checked and not found within the depth. A keyword never checked is in "
+        "`total` only."
+    )
+    top3: int
+    top10: int
+    top20: int
+
+
 class TrackedKeywordPageInfo(CursorPageInfo):
     total: int
+    counts: TrackedKeywordCounts | None = Field(
+        default=None, description="Present only when `include` asks for `counts`."
+    )
 
 
 class TrackedKeywordPage(BaseModel):

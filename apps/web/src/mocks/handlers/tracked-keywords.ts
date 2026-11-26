@@ -18,6 +18,7 @@ import {
   queryFilter,
   quotaProblem,
   rankContext,
+  rankCounts,
   rankReader,
   savedKeywords,
   selectedRows,
@@ -138,7 +139,11 @@ export const trackedKeywordHandlers: HttpHandler[] = [
     if (page === null) return problem(request, 'invalid_cursor');
     return HttpResponse.json({
       data: page.data.map((row) => trackedKeywordRowView(caller.keywords, caller.world, row, include, rank)),
-      page: { ...page.page, total: rows.length },
+      page: {
+        ...page.page,
+        total: rows.length,
+        ...(include.has('counts') ? { counts: rankCounts(rows, ranks) } : {}),
+      },
     });
   }),
 

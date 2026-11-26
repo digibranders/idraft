@@ -76,6 +76,7 @@ from idraft.api.schemas.keywords import (
     TrackedKeywordBulkUpdate,
     TrackedKeywordCountries,
     TrackedKeywordCountry,
+    TrackedKeywordCounts,
     TrackedKeywordCreate,
     TrackedKeywordDetail,
     TrackedKeywordDetailResponse,
@@ -261,8 +262,9 @@ Include = Annotated[
     "count a keyword with no rows as 0 (every row is 0 while the project is `pending` or "
     "`not_connected`). Every row carries its "
     "rank `state`; `include` adds `sparkline`, `competitor_ranks`, `ranking_urls`, `gsc`, "
-    "`features` and `aio`. "
-    "`page.total` counts every match. A cursor is bound to its filters and sort "
+    "`features` and `aio`; `counts` adds `page.counts`, the six strip counts over the keywords "
+    "the filters match (`total`, `ranked`, `beyond`, `top3`, `top10` and `top20`), in one "
+    "statement. `page.total` counts every match. A cursor is bound to its filters and sort "
     "(`400 invalid_cursor` otherwise).",
 )
 async def list_tracked_keywords(
@@ -427,6 +429,7 @@ async def list_tracked_keywords(
             next_cursor=result.next_cursor,
             has_more=result.next_cursor is not None,
             total=result.total,
+            counts=None if result.counts is None else TrackedKeywordCounts(**result.counts),
         ),
     )
 

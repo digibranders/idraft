@@ -1,4 +1,15 @@
-import { ChevronRight, FolderOpen, Globe, ListChecks, Plus, Tag, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronRight,
+  Clock,
+  FolderOpen,
+  Globe,
+  ListChecks,
+  MapPin,
+  Plus,
+  Tag,
+  type LucideIcon,
+} from 'lucide-react';
 import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -11,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { LinkButton } from '@/components/ui/link-button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { timeZoneAbbreviation } from '@/lib/format/date';
+import { formatTableDate, timeZoneAbbreviation } from '@/lib/format/date';
 import { projectPath } from '@/lib/routes/paths';
 import { cn } from '@/lib/utils';
 
@@ -21,8 +32,12 @@ export interface ListedProject {
   name: string;
   /** The primary domain's host, or `null` until the project has one. */
   domain: string | null;
+  /** The default location's name ("India"), or `null` when none is set. */
+  location: string | null;
   /** IANA name, shown as its abbreviation today ("CEST"). */
   timeZone: string;
+  /** When the project was created, an ISO instant. */
+  createdAt: string;
   /** Paused: open as usual, but no checks run until someone resumes it. */
   paused: boolean;
 }
@@ -41,7 +56,8 @@ export interface ProjectListProps {
 }
 
 export const PROJECT_LIST_FRAME = 'flex w-full flex-col gap-3 px-3 pt-3 pb-8 md:px-4 lg:px-5';
-const LIST = 'flex flex-col divide-y divide-border-subtle overflow-hidden rounded-lg border border-border bg-surface';
+const GRID = 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3';
+const CARD = 'rounded-lg border border-border bg-surface';
 
 /**
  * The workspace root: the projects the member can open, each a link to its project, under the page
@@ -96,7 +112,7 @@ export function ProjectList({
           {emptyReason === 'creator' ? <SetupSteps /> : null}
         </div>
       ) : (
-        <ul role="list" className={LIST}>
+        <ul role="list" className={GRID}>
           {projects.map((project) => {
             const nameId = idBase + project.id;
             return (
@@ -105,22 +121,31 @@ export function ProjectList({
                   href={projectPath(workspace, project.slug)}
                   prefetch={false}
                   aria-labelledby={nameId}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-surface-hover focus-visible:focus-ring focus-visible:-outline-offset-2"
+                  className={cn(
+                    CARD,
+                    'flex h-full flex-col gap-4 p-4 hover:bg-surface-hover focus-visible:focus-ring focus-visible:-outline-offset-2',
+                  )}
                 >
-                  <ProjectMark name={project.name} domain={project.domain} />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span id={nameId} className="truncate type-body-strong text-foreground">
-                        {project.name}
+                  <span className="flex items-center gap-3">
+                    <ProjectMark name={project.name} domain={project.domain} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span id={nameId} className="truncate type-body-strong text-foreground">
+                          {project.name}
+                        </span>
+                        {project.paused ? <Badge>{t('paused')}</Badge> : null}
                       </span>
-                      {project.paused ? <Badge>{t('paused')}</Badge> : null}
+                      <span className="truncate type-meta">{project.domain ?? t('noDomain')}</span>
                     </span>
-                    <span className="truncate type-meta">{project.domain ?? t('noDomain')}</span>
+                    <Icon icon={ChevronRight} size="sm" className="shrink-0 text-foreground-muted" />
                   </span>
-                  <span className="hidden shrink-0 type-meta sm:block">
-                    {t('timeZone', { timeZone: timeZoneAbbreviation(now, project.timeZone) })}
+                  <span className="mt-auto flex flex-col gap-1.5 border-t border-border-subtle pt-3 type-meta">
+                    {project.location === null ? null : <Fact icon={MapPin}>{project.location}</Fact>}
+                    <Fact icon={Clock}>{t('timeZone', { timeZone: timeZoneAbbreviation(now, project.timeZone) })}</Fact>
+                    <Fact icon={CalendarDays}>
+                      {t('added', { date: formatTableDate(project.createdAt, project.timeZone, now) })}
+                    </Fact>
                   </span>
-                  <Icon icon={ChevronRight} size="sm" className="shrink-0 text-foreground-muted" />
                 </Link>
               </li>
             );
@@ -128,6 +153,16 @@ export function ProjectList({
         </ul>
       )}
     </div>
+  );
+}
+
+/** One detail on a card: a small icon, then its text. */
+function Fact({ icon, children }: { icon: LucideIcon; children: ReactNode }): ReactNode {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <Icon icon={icon} size="sm" className="shrink-0 text-foreground-muted" />
+      <span className="truncate">{children}</span>
+    </span>
   );
 }
 
@@ -170,13 +205,19 @@ export function ProjectListSkeleton(): ReactNode {
   return (
     <div className={PROJECT_LIST_FRAME}>
       <PageHeader title={t('title')} />
-      <div aria-hidden="true" className={LIST}>
-        {Array.from({ length: SKELETON_ROWS }, (_, row) => (
-          <div key={row} className="flex items-center gap-3 px-4 py-3">
-            <Skeleton shape="block" className="size-7 shrink-0 rounded-md" />
-            <div className="flex w-60 flex-col gap-2">
-              <Skeleton shape="text-14" widthPct={64} />
+      <div aria-hidden="true" className={GRID}>
+        {Array.from({ length: SKELETON_ROWS }, (_, card) => (
+          <div key={card} className={cn(CARD, 'flex flex-col gap-4 p-4')}>
+            <div className="flex items-center gap-3">
+              <Skeleton shape="block" className="size-7 shrink-0 rounded-md" />
+              <div className="flex w-60 flex-col gap-2">
+                <Skeleton shape="text-14" widthPct={64} />
+                <Skeleton shape="text-12" widthPct={48} />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-border-subtle pt-3">
               <Skeleton shape="text-12" widthPct={48} />
+              <Skeleton shape="text-12" widthPct={56} />
             </div>
           </div>
         ))}

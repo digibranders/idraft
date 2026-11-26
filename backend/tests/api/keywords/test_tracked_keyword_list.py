@@ -79,7 +79,14 @@ async def test_the_list_is_active_keywords_by_text_with_a_total(
     assert first.json()["page"]["total"] == 3
     assert first.json()["page"]["has_more"] is True
     assert _texts(second) == ["hr software"]
-    assert second.json()["page"] == {"limit": 2, "next_cursor": None, "has_more": False, "total": 3}
+    # `counts` is a block like the rows': `null` unless `include=counts` asks for it
+    assert second.json()["page"] == {
+        "limit": 2,
+        "next_cursor": None,
+        "has_more": False,
+        "total": 3,
+        "counts": None,
+    }
     assert _texts(inactive) == ["archived"]
     row = first.json()["data"][0]
     assert (row["metrics"], row["groups"], row["terms"], row["competitors"]) == (

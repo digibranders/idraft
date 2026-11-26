@@ -46,7 +46,7 @@ describe('RankStrip', () => {
     expect(screen.getAllByText('of 55 checked')).toHaveLength(3);
   });
 
-  it('knows Top 3 is 0 without a request under rank=top10 filter', async () => {
+  it('reads the six counts in one request, and a count the filters rule out is 0', async () => {
     const asked: string[] = [];
     server.events.on('request:start', ({ request }) => {
       const url = new URL(request.url);
@@ -64,32 +64,10 @@ describe('RankStrip', () => {
 
     expect(await screen.findByText('Keywords')).toBeInTheDocument();
     expect(await screen.findByText('Top 3')).toBeInTheDocument();
-    expect(screen.getByText('0')).toBeInTheDocument();
-    expect(asked.some((query) => query.includes('rank_lte=3'))).toBe(false);
-  });
-
-  it('does not blank other items when only one read fails', async () => {
-    server.use(
-      http.get(TRACKED_PATH, ({ request }) => {
-        const url = new URL(request.url);
-        if (url.searchParams.get('filter[rank_lte]') === '3') {
-          return HttpResponse.json({ title: 'Server error' }, { status: 500 });
-        }
-        return undefined;
-      }),
-    );
-
-    renderWithProviders(<RankStrip scope={SCOPE} filters={{ 'filter[is_active]': true }} total={59} />);
-
-    expect(await screen.findByText('Keywords')).toBeInTheDocument();
-    expect(await screen.findByText('59')).toBeInTheDocument();
-    expect(screen.getByText('Top 3')).toBeInTheDocument();
-    expect(screen.getByText('n/a')).toBeInTheDocument();
-    expect(screen.getByText('Top 10')).toBeInTheDocument();
-    expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText('Top 20')).toBeInTheDocument();
-    expect(screen.getByText('26')).toBeInTheDocument();
-    expect(screen.getByText('The summary did not load.')).toBeInTheDocument();
+    // No keyword of the 4 to 10 bucket ranks in the top 3
+    expect(await screen.findByText('0')).toBeInTheDocument();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain('include=counts');
   });
 
   it('shows error banner with Try again on failure', async () => {

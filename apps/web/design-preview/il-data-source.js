@@ -1,7 +1,8 @@
 /* global window, URLSearchParams */
 /**
  * Internal links mock: where its data comes from. By default the real crawl of eventussecurity.com
- * (`il-data-real.js`, built by tools/build-il-data-real.mjs from a DataForSEO crawl). Add `?data=sample` to the
+ * (`il-data-real.js`, built by tools/build-il-data-real.mjs from a DataForSEO crawl) with the tiers production
+ * has (`il-tiers-real.js`, built by tools/build-il-tiers-real.mjs). Add `?data=sample` to the
  * address to get the illustrative set of `il-data.js` instead, which also shows crawl history, rank, citations and
  * mentions (a real set has one crawl and no rank data).
  */
@@ -13,7 +14,13 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const pad = (n) => String(n).padStart(2, '0');
 
 async function realSet() {
-  const { REAL } = await import('./il-data-real.js');
+  const [{ REAL }, { REAL_TIERS }] = await Promise.all([import('./il-data-real.js'), import('./il-tiers-real.js')]);
+  // The tiers production has (the SEO team's import), as manual tiers. A redirect shares its path with the page it
+  // leads to and has no tier of its own.
+  const pages = REAL.pages.map((page) => {
+    const position = page.status === 200 && !page.redirect ? REAL_TIERS[page.path] : undefined;
+    return position && REAL.tiers[position - 1] ? { ...page, manualTier: REAL.tiers[position - 1].id, setBy: 'the tier import', setOn: '25 Nov' } : page;
+  });
   const day = new Date(REAL.crawledOn);
   const short = `${day.getDate()} ${MONTHS[day.getMonth()]}`;
   const rank = { content: 0, auto_generated: 1 };
@@ -24,7 +31,7 @@ async function realSet() {
   return {
     HOST: REAL.host,
     tiers: REAL.tiers,
-    pages: REAL.pages,
+    pages,
     rules: [],
     tagNames: [],
     links,

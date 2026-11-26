@@ -237,6 +237,23 @@ describe('the Journey tab (spec 7.5)', () => {
     expect(histories.at(-1)).toBe('push');
   });
 
+  it('marks a redirect page in the picker as a Redirect that says where it leads, after the real pages', async () => {
+    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
+      searchParams: 'tab=journey&focus=103',
+    });
+    await canvas();
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Focus page: /services/soc-as-a-service. Change it.' }),
+    );
+    await user.type(await screen.findByRole('combobox', { name: 'Search pages' }), '/services/');
+    const redirect = await screen.findByRole('option', { name: /penetration-testing/ });
+    expect(redirect).toHaveTextContent('Redirects to /services/vapt');
+    expect(within(redirect).getByText('Redirect')).toBeInTheDocument();
+    expect(within(redirect).queryByText('Untiered')).toBeNull();
+    const options = screen.getAllByRole('option');
+    expect(options.at(-1)).toBe(redirect);
+  });
+
   it('says so when no page matches the picker search', async () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       searchParams: 'tab=journey&focus=103',

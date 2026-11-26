@@ -1199,9 +1199,10 @@ describe('Rankings summary strip', () => {
     renderWithProviders(as('viewer'), { searchParams: '?dev=mobile' });
     await loadedGrid();
 
+    // One read carries the list's filters (the device shown) and asks for the six counts
     await waitFor(() => {
       expect(
-        stripAsked.some((query) => query.get('filter[device]') === 'mobile' && query.get('filter[rank_lte]') === '10'),
+        stripAsked.some((query) => query.get('filter[device]') === 'mobile' && query.get('include') === 'counts'),
       ).toBe(true);
     });
   });
@@ -1221,7 +1222,7 @@ describe('Rankings summary strip', () => {
     renderWithProviders(as('viewer'), { searchParams: '?dev=mobile' });
     await loadedGrid();
 
-    await waitFor(() => expect(stripAsked.length).toBeGreaterThanOrEqual(6));
+    await waitFor(() => expect(stripAsked.length).toBeGreaterThanOrEqual(1));
     expect(stripAsked.every((query) => query.get('filter[device]') === 'mobile')).toBe(true);
     expect(listAsked.length).toBeGreaterThan(0);
     expect(listAsked.every((query) => !query.has('filter[device]'))).toBe(true);

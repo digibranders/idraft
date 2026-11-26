@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactElement } from 'react';
 
 import { readPageRows } from './page-reads';
 import { TierBadge } from '@/components/app/tier/tier-badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Icon } from '@/components/ui/icon';
@@ -21,6 +22,19 @@ const SEARCH_DELAY_MS = 250;
 const MIN_CHARACTERS = 2;
 /** The loading text shows once a request has run this long. */
 const LOADING_DELAY_MS = 300;
+
+const isRedirect = (row: PageRow): boolean => row.resource_type === 'redirect';
+
+/** Where a redirect leads, as a path: the address itself when it cannot be read as one, "?" when it is not known. */
+function targetPath(url: string | null): string {
+  if (url === null) return '?';
+  try {
+    const target = new URL(url);
+    return `${target.pathname}${target.search}`;
+  } catch {
+    return url;
+  }
+}
 
 /**
  * The focus page control (mock `pagePicker`): a search over crawled pages by path or title, each with its tier
@@ -77,7 +91,8 @@ export function FocusPicker({
       setSlow(false);
     };
   }, [busy]);
-  const items = busy ? [] : (read.data?.data ?? []);
+  // Redirect pages come after the real pages; the sort is stable, so each group keeps its order by path
+  const items = busy ? [] : [...(read.data?.data ?? [])].sort((a, b) => Number(isRedirect(a)) - Number(isRedirect(b)));
   return (
     <Combobox<PageRow>
       value={null}
@@ -87,12 +102,25 @@ export function FocusPicker({
       items={items}
       itemToString={(row) => row.path}
       itemKey={(row) => row.url_id}
-      renderItem={(row) => (
-        <span className="flex w-full items-center gap-2">
-          <span className="min-w-0 flex-1 truncate type-table">{row.path}</span>
-          <TierBadge tier={row.tier} />
-        </span>
-      )}
+      renderItem={(row) =>
+        row.resource_type === 'redirect' ? (
+          // A redirect page shares its path with the page it leads to, so it says where it points
+          <span className="flex w-full items-center gap-2">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate type-table">{row.path}</span>
+              <span className="truncate type-meta text-foreground-secondary">
+                {t('redirectsTo', { path: targetPath(row.redirect_url) })}
+              </span>
+            </span>
+            <Badge>{t('redirectBadge')}</Badge>
+          </span>
+        ) : (
+          <span className="flex w-full items-center gap-2">
+            <span className="min-w-0 flex-1 truncate type-table">{row.path}</span>
+            <TierBadge tier={row.tier} />
+          </span>
+        )
+      }
       onQueryChange={setTyped}
       loading={slow}
       loadingText={t('loadingPages')}

@@ -49,7 +49,8 @@ export type Include =
   | 'ranking_urls'
   | 'gsc'
   | 'features'
-  | 'aio';
+  | 'aio'
+  | 'counts';
 
 /** A keyword added in a browser gets Labs metrics this long after it was added (backend plan D8). */
 export const METRICS_DELAY_MS = 2 * 60 * 1000;

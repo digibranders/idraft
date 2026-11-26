@@ -569,6 +569,34 @@ async def count_tracked(
     return count
 
 
+async def count_buckets(
+    db: AsyncSession, workspace_id: UUID, conditions: Sequence[ColumnElement[bool]]
+) -> dict[str, int]:
+    """The strip counts of a filtered list in one statement: the keywords the filters match,
+    and how many of them ranked at the latest check, were checked and not found, or rank in the
+    top 3, 10 and 20. "Beyond" is what the filter `rank_is_null=true` matches (checked, no rank),
+    so a keyword never checked is in the total and in no other count."""
+    state = tracked_keyword_state.c
+    row = (
+        await db.execute(
+            _listed(workspace_id)
+            .with_only_columns(
+                func.count().label("total"),
+                func.count().filter(state.current_rank.is_not(None)).label("ranked"),
+                func.count()
+                .filter(and_(state.last_observed_at.is_not(None), state.current_rank.is_(None)))
+                .label("beyond"),
+                func.count().filter(state.current_rank <= 3).label("top3"),
+                func.count().filter(state.current_rank <= 10).label("top10"),
+                func.count().filter(state.current_rank <= 20).label("top20"),
+                maintain_column_froms=False,
+            )
+            .where(*conditions)
+        )
+    ).one()
+    return {name: int(value) for name, value in row._mapping.items()}
+
+
 async def countries_in_use(
     db: AsyncSession, workspace_id: UUID, project_id: UUID
 ) -> list[CountryRecord]:

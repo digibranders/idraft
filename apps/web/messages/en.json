@@ -526,6 +526,7 @@
     "count": "{count, plural, one {# project} other {# projects}}",
     "noDomain": "No domain yet",
     "timeZone": "Times in {timeZone}",
+    "added": "Added {date}",
     "paused": "Paused",
     "empty": {
       "steps": {
@@ -9558,6 +9559,8 @@
       "searchPages": "Search pages",
       "noPageMatch": "No crawled page matches “{query}”. Check the spelling or search for part of the path.",
       "loadingPages": "Loading pages",
+      "redirectBadge": "Redirect",
+      "redirectsTo": "Redirects to {path}",
       "clear": "Clear",
       "openList": "Show pages",
       "follow": "Follow",
