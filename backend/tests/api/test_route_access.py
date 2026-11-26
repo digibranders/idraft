@@ -707,6 +707,24 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"): (
         "data:read"
     ),
+    # Page search detail and Monitoring: tracked pages.
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/ids"): (
+        "data:read"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages"): (
+        "projects:write"
+    ),
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/remove",
+    ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/suggestions",
+    ): "data:read",
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview"): (

@@ -105,6 +105,8 @@ AuditAction = Literal[
     "ai_report_schedule.updated",
     "ai_report_schedule.deleted",
     "tier_suggestion.dismissed",
+    "tracked_page.add",
+    "tracked_page.remove",
 ]
 
 

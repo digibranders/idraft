@@ -324,6 +324,13 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    # Page search detail and Monitoring: a url id of the tenant's own, so the writes would do
+    # something if they were let through.
+    ("POST", _W + "/projects/{project_id}/fp/tracked-pages"): {
+        "urls": ["{page_url}"],
+        "url_ids": ["{url_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/fp/tracked-pages/remove"): {"url_ids": ["{url_id}"]},
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     # Internal links tracker (plan 02): tiers, rules, tiers and tags on pages. The tier is the
