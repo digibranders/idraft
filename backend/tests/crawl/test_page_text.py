@@ -118,3 +118,37 @@ def test_content_hash_normalises_whitespace() -> None:
     assert content_hash("a  b\n c") == content_hash("a b c")
     assert content_hash("a b") != content_hash("a c")
     assert len(content_hash("x")) == 16
+
+
+def test_empty_main_falls_through_to_article() -> None:
+    html = _page("<main></main><article><p>real text</p></article>")
+    assert read_page_text(html, URL, NONE).main_text == "real text"
+    assert (
+        read_page_text(_page("<main> </main><p>body text</p>"), URL, NONE).main_text == "body text"
+    )
+
+
+def test_base_href_is_honoured_for_link_pairs() -> None:
+    html = _page(
+        '<main><p>Story</p><a href="other">Related</a></main>', head='<base href="/blog/">'
+    )
+    skip = frozenset({("https://example.com/blog/other", "Related")})
+    assert read_page_text(html, URL, skip).main_text == "Story"
+    links = noncontent_links_of(
+        classify(html.replace("<main>", "<nav>").replace("</main>", "</nav>"), URL)
+    )
+    assert ("https://example.com/blog/other", "Related") in links
+
+
+def test_anchor_text_precedence_matches_classifier() -> None:
+    cases = [
+        '<a href="/x" aria-label="Label"><img alt="Alt">Words</a>',
+        '<a href="/x"><img alt="Alt">Words</a>',
+        '<a href="/x"><img alt=" The  Alt "></a>',
+    ]
+    for anchor in cases:
+        html = _page(f"<nav>{anchor}</nav><main><p>Body</p>{anchor}</main>")
+        skip = noncontent_links_of(classify(html, URL))
+        assert skip, anchor
+        # the nav copies are template; the copy in main has the same pair and must be dropped
+        assert read_page_text(html, URL, skip).main_text == "Body", anchor

@@ -36,7 +36,10 @@ class Declared:
 
 def _plausible(value: datetime, now: datetime) -> datetime | None:
     """`value` in UTC (no zone is read as UTC), or None when it is before 1995 or too far ahead."""
-    aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    try:
+        aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    except OverflowError:  # a zone offset pushes it past year 1 or 9999
+        return None
     return aware if EARLIEST <= aware <= now + FUTURE_SLACK else None
 
 
@@ -45,7 +48,7 @@ def _parse(raw: object, now: datetime) -> datetime | None:
         return None
     try:
         return _plausible(datetime.fromisoformat(raw.strip()[:DATE_CHARS_MAX]), now)
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
 
 
@@ -72,7 +75,8 @@ class _Head(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         found = dict(attrs)
-        if tag == "script" and (found.get("type") or "").strip().lower() == "application/ld+json":
+        kind = (found.get("type") or "").split(";")[0].strip().lower()  # drop `; charset=...`
+        if tag == "script" and kind == "application/ld+json":
             self._ld = ""
         elif tag == "meta":
             key = (found.get("property") or found.get("name") or "").strip().lower()

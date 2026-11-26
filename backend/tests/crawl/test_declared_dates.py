@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 from idraft.crawl.declared_dates import Declared, declared_of
 
@@ -86,3 +86,20 @@ def test_naive_sitemap_value_is_read_as_utc() -> None:
     got = declared_of("", naive)
     assert got is not None
     assert got.at == SITEMAP
+
+
+def test_extreme_dates_never_raise() -> None:
+    for value in ("0001-01-01T00:00:00+05:00", "9999-12-31T23:59:59-05:00"):
+        assert declared_of(_meta("article:modified_time", value), None) is None
+        assert declared_of(_ld(f'{{"dateModified":"{value}"}}'), None) is None
+    low = datetime(1, 1, 1, tzinfo=timezone(timedelta(hours=5)))
+    assert declared_of("", low) is None
+
+
+def test_json_ld_type_with_parameters() -> None:
+    html = (
+        '<script type="application/ld+json; charset=utf-8">{"dateModified":"2026-03-04"}</script>'
+    )
+    got = declared_of(html, None)
+    assert got is not None
+    assert got.source == "json_ld"

@@ -19,7 +19,7 @@ from html.parser import HTMLParser
 from typing import Final
 from urllib.parse import urldefrag, urljoin
 
-from idraft.crawl.placement import FoundLink, Placement, without_empty_comments
+from idraft.crawl.placement import FoundLink, Placement, _base_url, without_empty_comments
 
 HTML_CHARS_MAX: Final = 2_000_000
 HEADINGS_MAX: Final = 60
@@ -78,6 +78,7 @@ class _Reader(HTMLParser):
     def __init__(self, page_url: str, skip: frozenset[tuple[str, str]]) -> None:
         super().__init__(convert_charrefs=True)
         self._url = page_url
+        self._base_seen = False
         self._skip = skip
         self._hidden = 0
         self._template = 0
@@ -96,6 +97,8 @@ class _Reader(HTMLParser):
         self._href: str | None = None  # the open anchor's resolved address
         self._anchor: list[_Piece] = []
         self._anchor_text = ""
+        self._anchor_label = ""
+        self._anchor_alts: list[str] = []
 
     def _break(self) -> None:
         self.pieces.append(_Piece("\n", self._template > 0, self._main > 0, self._article > 0))
@@ -118,7 +121,12 @@ class _Reader(HTMLParser):
         elif tag == "article" and not self._article_done:
             self._article += 1
         elif tag == "a":
-            self._open_anchor(dict(attrs).get("href"))
+            self._open_anchor(dict(attrs))
+        elif tag == "img" and self._href is not None:
+            self._anchor_alts.append(dict(attrs).get("alt") or "")
+        elif tag == "base" and not self._base_seen and (dict(attrs).get("href") or "").strip():
+            self._base_seen = True
+            self._url = _base_url(self._url, dict(attrs)["href"])
         elif tag == "title" and self.title is None:
             self._in_title, self._title = True, ""
         elif tag == "meta":
@@ -167,23 +175,30 @@ class _Reader(HTMLParser):
             self._anchor.append(piece)
             self._anchor_text += data[: ANCHOR_TEXT_MAX + 1]
 
-    def _open_anchor(self, href: str | None) -> None:
+    def _open_anchor(self, attrs: dict[str, str | None]) -> None:
         self.finish_anchor()
         try:
-            self._href = urldefrag(urljoin(self._url, (href or "").strip())).url
+            self._href = urldefrag(urljoin(self._url, (attrs.get("href") or "").strip())).url
         except ValueError:
             self._href = None
         else:
-            self._anchor, self._anchor_text = [], ""
+            self._anchor, self._anchor_text, self._anchor_alts = [], "", []
+            self._anchor_label = (attrs.get("aria-label") or "")[:ANCHOR_TEXT_MAX]
 
     def finish_anchor(self) -> None:
         if self._href is None:
             return
-        text = _squash(self._anchor_text)[:ANCHOR_TEXT_MAX]
+        # the classifier's order: aria-label, visible words, then the alt of the images
+        text = (
+            _squash(self._anchor_label)
+            or _squash(self._anchor_text)
+            or _squash(" ".join(self._anchor_alts))
+        )[:ANCHOR_TEXT_MAX]
         if (self._href, text) in self._skip:
             for piece in self._anchor:
                 piece.dropped = True
         self._href, self._anchor, self._anchor_text = None, [], ""
+        self._anchor_label, self._anchor_alts = "", []
 
     def finish_heading(self) -> None:
         if self._level and (text := _squash(self._heading)) and len(self.headings) < HEADINGS_MAX:
@@ -211,9 +226,10 @@ def read_page_text(
     reader.finish_anchor()
     reader.finish_heading()
     pieces = reader.pieces
-    if any(p.in_main for p in pieces):
+    # an empty <main> must not win over the article or body that holds the text
+    if any(p.in_main and p.text.strip() for p in pieces):
         scope = [p for p in pieces if p.in_main]
-    elif any(p.in_article for p in pieces):
+    elif any(p.in_article and p.text.strip() for p in pieces):
         scope = [p for p in pieces if p.in_article]
     else:
         scope = pieces
