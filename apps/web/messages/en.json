@@ -9310,7 +9310,8 @@
           "emptyText": "No text",
           "showAll": "Show all {count} headings",
           "showFewer": "Show fewer headings",
-          "capped": "The first {shown} of {total} headings"
+          "capped": "The first {shown} of {total} headings",
+          "withoutText": "{count, plural, one {# heading has} other {# headings have}} no text, so no row"
         },
         "finding": {
           "titleMissing": "The page has no title, so Google writes one from the page.",

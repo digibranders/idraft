@@ -37,9 +37,15 @@ export interface OutlineModel {
     first: PageOutlineBody['headings'];
     rest: PageOutlineBody['headings'];
     h1Text: string | null;
+    /** Set only when the backend list hit its cap, so headings with text are missing from it. */
     capped: { shown: number; total: number } | null;
+    /** Headings that are counted but have no text, so they have no row (0 when the list is capped). */
+    withoutText: number;
   };
 }
+
+/** `HEADINGS_MAX` of `backend/src/idraft/crawl/outline.py`: the longest list the API sends. */
+export const HEADINGS_LISTED_MAX = 200;
 
 const finding = (id: string, checkId: string | null, values: Record<string, string | number> = {}): OutlineFinding => ({
   id,
@@ -114,6 +120,11 @@ function headingFindings(outline: PageOutlineBody): OutlineFinding[] {
 export function outlineModel(outline: PageOutlineBody, issues: readonly PageIssue[] | null): OutlineModel {
   const listing = listingFindings(outline, issues);
   const headings = headingFindings(outline);
+  // `headings_total` and `level_counts` count a heading with no text (an empty H1 is in the strip) but the list
+  // leaves it out, so only a full list means rows are missing; otherwise the gap is the headings without text.
+  const listed = outline.headings.length;
+  const gap = Math.max(0, outline.headings_total - listed);
+  const capped = listed >= HEADINGS_LISTED_MAX && gap > 0;
   return {
     strip: stripOf(outline),
     listing: { tone: toneOf(listing), findings: listing },
@@ -123,10 +134,8 @@ export function outlineModel(outline: PageOutlineBody, issues: readonly PageIssu
       first: outline.headings.slice(0, HEADINGS_FOLDED),
       rest: outline.headings.slice(HEADINGS_FOLDED),
       h1Text: outline.headings.find((item) => item.level === 1)?.text ?? null,
-      capped:
-        outline.headings_total > outline.headings.length
-          ? { shown: outline.headings.length, total: outline.headings_total }
-          : null,
+      capped: capped ? { shown: listed, total: outline.headings_total } : null,
+      withoutText: capped ? 0 : gap,
     },
   };
 }

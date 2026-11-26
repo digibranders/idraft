@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PageIssue } from './issue-source';
-import { HEADINGS_FOLDED, outlineModel } from './outline-model';
+import { HEADINGS_FOLDED, HEADINGS_LISTED_MAX, outlineModel } from './outline-model';
 import type { PageOutlineBody } from '@/lib/internal-links/types';
 
 type Heading = PageOutlineBody['headings'][number];
@@ -119,9 +119,49 @@ describe('the headings', () => {
     expect(headings.capped).toBeNull();
   });
 
-  it('says when the list is capped', () => {
-    const { headings } = outlineModel(outline({ headings_total: 1240 }), null);
-    expect(headings.capped).toEqual({ shown: 4, total: 1240 });
+  const listOf = (count: number): Heading[] =>
+    Array.from({ length: count }, (_, index) => heading(2, `Heading ${String(index)}`));
+
+  it('says the list is capped only when the backend list hit its 200', () => {
+    const full = listOf(HEADINGS_LISTED_MAX);
+    const { headings } = outlineModel(
+      outline({ headings: full, headings_total: 1240, level_counts: counts(full) }),
+      null,
+    );
+    expect(headings.capped).toEqual({ shown: 200, total: 1240 });
+    expect(headings.withoutText).toBe(0);
+  });
+
+  it('counts headings without text apart, and does not call a 13 with 1 empty a cap', () => {
+    const twelve = listOf(12);
+    const { headings } = outlineModel(
+      outline({ headings: twelve, headings_total: 13, level_counts: [0, 13, 0, 0, 0, 0] }),
+      null,
+    );
+    expect(headings.first).toHaveLength(12);
+    expect(headings.rest).toHaveLength(0);
+    expect(headings.capped).toBeNull();
+    expect(headings.withoutText).toBe(1);
+  });
+
+  it('lists 14 with 2 empty as 12 listed, 2 more to show later and no cap', () => {
+    const listed = listOf(14);
+    const { headings } = outlineModel(
+      outline({ headings: listed, headings_total: 16, level_counts: [0, 16, 0, 0, 0, 0] }),
+      null,
+    );
+    expect(headings.first).toHaveLength(12);
+    expect(headings.rest).toHaveLength(2);
+    expect(headings.capped).toBeNull();
+    expect(headings.withoutText).toBe(2);
+  });
+
+  it('finds no skipped level when skipped_at is past the list or at the first row', () => {
+    const past = outlineModel(outline({ skipped_at: 9 }), null).headings.findings;
+    expect(past.map((item) => item.id)).toEqual([]);
+    // Nothing is before the first row, so there is no level to name
+    const first = outlineModel(outline({ skipped_at: 0 }), null).headings.findings;
+    expect(first.map((item) => item.id)).toEqual([]);
   });
 
   it('finds no H1, several H1 and a skipped level', () => {
@@ -145,6 +185,6 @@ describe('the headings', () => {
       if (typeof value === 'string') strings.push(value);
       return value;
     });
-    for (const text of strings) expect(text).toMatch(/^[A-Za-z0-9-]+$|Who we are|Deep one|One|Two|ok|warning/);
+    for (const text of strings) expect(text).toMatch(/^(?:[A-Za-z0-9-]+|Who we are|Deep one)$/);
   });
 });

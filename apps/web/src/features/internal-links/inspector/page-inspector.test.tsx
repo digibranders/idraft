@@ -41,6 +41,21 @@ vi.mock('@/lib/pages/issue-source', async (importOriginal) => ({
   usePageIssues: (): Seam<readonly PageIssue[]> => seam.current,
 }));
 
+/** The daily read answers `unavailable` only once the Search Console session's seam says so: a test forces it. */
+const daily = vi.hoisted(() => ({ unavailable: false }));
+vi.mock('@/lib/pages/search-daily', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/pages/search-daily')>();
+  return {
+    ...original,
+    usePageSearchDaily: (
+      ...args: Parameters<typeof original.usePageSearchDaily>
+    ): ReturnType<typeof original.usePageSearchDaily> => {
+      const read = original.usePageSearchDaily(...args);
+      return daily.unavailable ? { state: 'unavailable' } : read;
+    },
+  };
+});
+
 /** The Search Console session's slot: a test turns its marker on to see where the tab draws it. */
 const slot = vi.hoisted(() => ({ marker: false, props: [] as unknown[] }));
 vi.mock('@/lib/pages/search-detail-slot', () => ({
@@ -62,6 +77,7 @@ const SERVER_ERROR = { type: 'about:blank', title: 'Server error', status: 500 }
 beforeEach(() => {
   stubWideScreen();
   seam.current = { state: 'unavailable' };
+  daily.unavailable = false;
   slot.marker = false;
   slot.props.length = 0;
 });
@@ -993,6 +1009,28 @@ describe('the page inspector (spec 7.4)', () => {
       expect(within(table).getAllByRole('row')).toHaveLength(29);
     });
 
+    it('draws a marker shape in the legend of each line, not only a colour', async () => {
+      serveSearch(ok(okDays, 406, 4060));
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      const region = await section(panel);
+      const legend = within(region).getByRole('list', { name: /^Series in / });
+      for (const name of ['Clicks', 'Impressions']) {
+        const item = within(legend).getByText(name).closest('li') as HTMLElement;
+        expect(item.querySelector('svg[aria-hidden="true"] path')).not.toBeNull();
+      }
+    });
+
+    it('says the numbers are not available yet while the seam is unavailable, never a skeleton for ever', async () => {
+      daily.unavailable = true;
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      expect(
+        await within(panel).findByText('The Search Console numbers of this page are not available yet.'),
+      ).toBeInTheDocument();
+      expect(within(panel).queryByRole('group', { name: 'Search Console totals' })).toBeNull();
+    });
+
     it('reads 0 and says Google reported nothing, instead of drawing a flat chart', async () => {
       serveSearch(
         ok(
@@ -1109,7 +1147,10 @@ describe('the page inspector (spec 7.4)', () => {
       expect(items[0]).toHaveTextContent('Error');
       expect(items[1]).toHaveTextContent('Warning');
       expect(items[1]).toHaveTextContent('Two H1 headings');
-      expect(screen.getAllByRole('link', { name: /^See all pages with this issue: / })).toHaveLength(2);
+      expect(screen.getAllByRole('link', { name: /^See all pages with this issue/ })).toHaveLength(2);
+      // An issue with neither a label nor a detail is not named by its raw check id
+      expect(screen.getByRole('link', { name: 'See all pages with this issue' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /: b$/ })).toBeNull();
       expect(screen.getByRole('link', { name: 'See all pages with this issue: Two H1 headings' })).toBeInTheDocument();
       rerender(
         <DrawerIssuesTab

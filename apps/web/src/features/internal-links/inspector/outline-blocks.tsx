@@ -88,11 +88,13 @@ export function ListingBlock({
 }: BlockProps & { part: OutlineModel['listing'] }): ReactElement {
   const t = useTranslations('pages.drawer.outline');
   const { title, description, canonical, robots } = outline;
+  // Characters, not UTF-16 units, so the cut agrees with the backend's counts
+  const titleChars = title.text === null ? [] : Array.from(title.text);
   const shownTitle =
     title.text === null
       ? t('listing.noTitle')
-      : title.text.length > PREVIEW_TITLE_CHARS
-        ? `${title.text.slice(0, PREVIEW_TITLE_CHARS)}...`
+      : titleChars.length > PREVIEW_TITLE_CHARS
+        ? `${titleChars.slice(0, PREVIEW_TITLE_CHARS).join('')}...`
         : title.text;
   return (
     <OutlineBlock
@@ -222,9 +224,14 @@ export function HeadingsBlock({
       {part.rest.length === 0 ? null : (
         <div>
           <Button variant="link" size="sm" onClick={onToggleAll}>
-            {showAll ? t('headings.showFewer') : t('headings.showAll', { count: formatInteger(total) })}
+            {showAll
+              ? t('headings.showFewer')
+              : t('headings.showAll', { count: formatInteger(part.first.length + part.rest.length) })}
           </Button>
         </div>
+      )}
+      {part.withoutText === 0 ? null : (
+        <p className="type-meta text-foreground-secondary">{t('headings.withoutText', { count: part.withoutText })}</p>
       )}
       {part.capped === null ? null : (
         <p className="type-meta text-foreground-secondary">

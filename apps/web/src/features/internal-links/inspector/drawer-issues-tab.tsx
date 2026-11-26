@@ -72,6 +72,8 @@ export function DrawerIssuesTab({ issues, detail, linkScope, issueHref }: Drawer
         <ul className="flex flex-col gap-3">
           {found.map((issue) => {
             const href = issueHref(issue.checkId);
+            // A raw check id is not a name: without a label or a detail the link keeps its plain words
+            const named = checkLabel(issue.checkId) ?? issue.detail;
             return (
               <li key={issue.checkId} className="flex flex-col items-start gap-1">
                 <Badge tone={SEVERITY_TONE[issue.severity]}>{t(`severity.${issue.severity}`)}</Badge>
@@ -83,9 +85,7 @@ export function DrawerIssuesTab({ issues, detail, linkScope, issueHref }: Drawer
                     render={
                       <Link
                         href={href}
-                        aria-label={t('seeAllNamed', {
-                          issue: checkLabel(issue.checkId) ?? issue.detail ?? issue.checkId,
-                        })}
+                        aria-label={named === null ? t('seeAll') : t('seeAllNamed', { issue: named })}
                       />
                     }
                   >

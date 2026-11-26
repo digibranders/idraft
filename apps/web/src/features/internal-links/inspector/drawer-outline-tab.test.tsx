@@ -177,6 +177,61 @@ describe('the headings list', () => {
   });
 });
 
+describe('headings without text', () => {
+  const serveHeadings = (listed: number, total: number): void =>
+    server.use(
+      http.get(OUTLINE, () =>
+        HttpResponse.json(
+          outlineWith(OUTLINE_LONG_PAGE, (body) => {
+            body.headings = Array.from({ length: listed }, (_, index) => ({ level: 2, text: `Heading ${index}` }));
+            body.headings_total = total;
+            body.level_counts = [0, total, 0, 0, 0, 0];
+          }),
+        ),
+      ),
+    );
+
+  it('13 headings with 1 empty list 12, offer no Show all and say one has no text', async () => {
+    serveHeadings(12, 13);
+    renderWithProviders(<Harness urlId={OUTLINE_LONG_PAGE} />);
+    const list = await screen.findByRole('list', { name: 'Headings in page order' });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(12);
+    expect(screen.queryByRole('button', { name: /^Show all/ })).toBeNull();
+    expect(screen.queryByText(/^The first /)).toBeNull();
+    expect(screen.getByText('1 heading has no text, so no row')).toBeInTheDocument();
+  });
+
+  it('14 listed of 16 offers Show all 14, shows 14 and says 2 have no text', async () => {
+    serveHeadings(14, 16);
+    const { user } = renderWithProviders(<Harness urlId={OUTLINE_LONG_PAGE} />);
+    await user.click(await screen.findByRole('button', { name: 'Show all 14 headings' }));
+    expect(within(screen.getByRole('list', { name: 'Headings in page order' })).getAllByRole('listitem')).toHaveLength(
+      14,
+    );
+    expect(screen.getByText('2 headings have no text, so no row')).toBeInTheDocument();
+  });
+
+  it('says the first 200 of 1,240 only when the list hit its cap', async () => {
+    serveHeadings(200, 1240);
+    renderWithProviders(<Harness urlId={OUTLINE_LONG_PAGE} />);
+    expect(await screen.findByText('The first 200 of 1,240 headings')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show all 200 headings' })).toBeInTheDocument();
+  });
+});
+
+describe('the title in the preview', () => {
+  it('cuts at 60 characters, not 60 UTF-16 units, so an emoji is never split', async () => {
+    const title = '\u{1F600}'.repeat(61);
+    server.use(
+      http.get(OUTLINE, () =>
+        HttpResponse.json(outlineWith(HEALTHY, (body) => (body.title = { text: title, chars: 61, state: 'long' }))),
+      ),
+    );
+    renderWithProviders(<Harness urlId={HEALTHY} />);
+    expect(await screen.findByText(`${'\u{1F600}'.repeat(60)}...`)).toBeInTheDocument();
+  });
+});
+
 describe('a page with problems', () => {
   it('says To fix, counts the findings and draws the meter as text', async () => {
     renderWithProviders(<Harness urlId={OUTLINE_PROBLEM_PAGE} />);
