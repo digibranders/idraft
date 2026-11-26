@@ -74,6 +74,8 @@ from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
 from idraft.api.internal_links.crawls import CrawlService
 from idraft.api.internal_links.opportunities import OpportunityService
 from idraft.api.internal_links.opportunity_routes import router as opportunity_routes_router
+from idraft.api.internal_links.page_note_routes import router as page_note_routes_router
+from idraft.api.internal_links.page_notes import PageNoteService
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.path_routes import router as path_routes_router
@@ -321,6 +323,7 @@ def create_app(
                 ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
+                page_notes=PageNoteService(sessions=sessions),
                 link_reads=link_reads,
                 link_changes=link_changes,
                 public_summary=PublicSummaryService(
@@ -425,6 +428,7 @@ def create_app(
     app.include_router(prompt_routes_router)
     app.include_router(tier_level_routes_router)
     app.include_router(page_tier_routes_router)
+    app.include_router(page_note_routes_router)
     app.include_router(read_routes_router)
     app.include_router(change_routes_router)
     app.include_router(opportunity_routes_router)

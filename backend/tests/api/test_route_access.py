@@ -529,6 +529,26 @@ EXPECTED: dict[tuple[str, str], str] = {
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/outline",
     ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes",
+    ): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes",
+    ): "notes:write",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}",
+    ): "notes:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}",
+    ): "notes:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore",
+    ): "notes:write",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
         "data:read"
     ),

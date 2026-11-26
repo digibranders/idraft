@@ -583,6 +583,10 @@ class PageDetail(BaseModel):
         "counts are then empty, not zero."
     )
     extras: PageDetailExtras
+    notes_count: int = Field(
+        default=0,
+        description="Notes on this address that are not deleted (they stay across crawls)",
+    )
 
 
 class PageDetailResponse(BaseModel):

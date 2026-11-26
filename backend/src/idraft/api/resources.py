@@ -26,6 +26,7 @@ from idraft.api.integrations.service import IntegrationService
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawls import CrawlService
 from idraft.api.internal_links.opportunities import OpportunityService
+from idraft.api.internal_links.page_notes import PageNoteService
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.public_summary import PublicSummaryService
 from idraft.api.internal_links.reads import LinkReadService
@@ -94,6 +95,7 @@ class Resources:
     ai_citation_board: CitationBoardService
     tier_levels: TierLevelService
     page_tiers: PageTierService
+    page_notes: PageNoteService
     link_reads: LinkReadService
     link_changes: ChangeService
     link_opportunities: OpportunityService

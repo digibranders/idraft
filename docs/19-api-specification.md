@@ -1559,7 +1559,9 @@ interface PromptExplorerDetail {
 `GET {P}/ai/collection/daily`, `GET {P}/ai/sources/changes`, `GET {P}/ai/annotations` (all `data:read`),
 `GET` and `POST {P}/notes` and `DELETE {P}/notes/{note_id}` (`data:read`, then `notes:write`), `GET
 {W}/layouts/{screen}` and `PUT` and `DELETE {W}/me/layouts/{screen}` (any member), `PUT` and `DELETE
-{W}/layouts/{screen}/default` (`layouts:manage`). 11 built operations gained optional additions that
+{W}/layouts/{screen}/default` (`layouts:manage`). The same `notes:write` guards the notes of a page,
+which are built and live under `{P}/internal-links/pages/{url_id}/notes`
+(`backend/src/idraft/api/internal_links/page_note_routes.py`). 11 built operations gained optional additions that
 answer `501` when used and change nothing when left out (the prompts summary additions were built by WP-12, see its As built paragraph above): the prompt list (`filter[prompt_type_in]`,
 `filter[funnel_stage_in]`, `filter[importance_in]`, `filter[is_branded]`, `filter[is_active]=any`,
 `sort`); the create members `is_branded`, `source`, `creation_method` and `generated_from` (also on the

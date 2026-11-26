@@ -72,6 +72,7 @@ from idraft.api.internal_links.inventory import (
 )
 from idraft.api.internal_links.outline import OutlineRow, outline_body, row_state, stored_html
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
+from idraft.api.internal_links.page_notes import notes_count
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.internal_links.status_filter import status_classes
@@ -1178,6 +1179,7 @@ class LinkReadService:
                     anchors=anchor_detail or empty_anchors(kw),
                     gsc=(await gsc_of(db, scope, [url]))[url],
                 ),
+                notes_count=await notes_count(db, scope.workspace_id, project_id, url_id),
             )
 
     async def tier_flow(
