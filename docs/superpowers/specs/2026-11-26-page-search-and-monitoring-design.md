@@ -49,6 +49,9 @@ Each row has its reason. "Doc 32" marks where the 2026-10-27 draft is superseded
 | D14 | The Monitoring list has no location, device, search type or query filter. Search type is Web. | Task scope: tier filter and search. These filters are what would force D3 the expensive way. |
 | D15 | Routes live under the existing first-party prefix `{P}/fp/`: `tracked-pages` and `page-search`. | The pattern of `fp/ai-referrals`. Doc 32 section 8 `{P}/page-performance/*` is superseded. |
 | D16 | `PageSearchPanel` is a component of the feature `features/page-search`. The route file composes it into the drawer shell through a slot. | A feature may not import another feature (lint boundary); a route may import several. |
+| D18 | Numbers in these responses are plain values with `null` for not collected, not the `MetricValue` object of doc 19 section 2.6. | Every value here is the same kind (Search Console, first party, final, a census count), so the wrapper would repeat five constant fields on up to 1,600 numbers of a list. `fp/ai-referrals` made the same choice. Doc 19 section 3.10 gets a note. |
+| D19 | A page's numbers and verdict are shown only once its history marker exists. Before that they are `null`. | Without the history the stored rows cover about 35 days, and a total or a verdict over part of a period would be wrong, not incomplete. |
+| D20 | The period, the comparison, the ticked metrics and the open breakdown tab have their own address keys (`sp_win`, `sp_from`, `sp_to`, `sp_cmp`, `sp_m`, `sp_tab`), not the shared `win`, `from`, `to`. | The shared keys are the project's own period (project days, ending today). This period is in Search Console days and ends on the last final day; sharing the keys would make one control change the other. |
 | D17 | Words follow the glossary: Tracked (never Monitored or Watched), Location (never Country), Period, Compare with, Not enough data, Not collected yet, Search Console (never GSC), Average position. "Monitoring" is only the tab's name. | `docs/glossary/final-list.md`. The mock and doc 32 still say "Low data", "No data", "Watch" and "Country" in places. |
 
 ## 4. Requirements
@@ -71,7 +74,7 @@ Each row has its reason. "Doc 32" marks where the 2026-10-27 draft is superseded
 | Page breakdown (new) | `query`, then `country`, then `device` (three calls) | page (D4) | the period asked for | 100, 50, 25 | Worker: last full month of each tracked page. API: any page and period on demand | `fp.gsc_page_breakdown` |
 | Probe (exists) | `date` | none | 16 months | none | Each pass | none |
 
-All with `dataState: final`, search type `web`.
+All with `dataState: final`, search type `web`. The filtered reads use `aggregationType: auto`: Google refuses aggregation by property when a call groups or filters by page (to be confirmed against the first real call, section 15 R6).
 
 A history row never replaces a bulk row: the insert skips days that exist, and only fills a missing `position_sum`. Google sorts a call's rows by clicks, so a row limit of 100 is the top 100 by clicks.
 
@@ -82,9 +85,9 @@ A history row never replaces a bulk row: the insert skips days that exist, and o
 | Daily pull, totals of all pages | 0 more than today: 1 call per newly final day (2 when more than 25,000 pages had impressions that day) |
 | A page's history | 1, once |
 | A page's breakdown for one period | 3; with a compared period 6 |
-| Opening the Search tab of a page never fetched (history, period and compared period) | 7, in three requests |
+| Opening the Search tab of a page never fetched | 3: the history, and the open breakdown tab for the period and the compared period. Each other tab opened: 2 more (7 in all) |
 | Opening it again, or another person opening it | 0 |
-| Tracking one page (history, last full month and the month before) | 7, by the worker |
+| Tracking one page (history, and all three dimensions of the last full month and the month before) | 7, by the worker |
 | Each month, per tracked page (the month that just became final) | 3 |
 
 | Site | One-off | Each month | Each day |
@@ -94,7 +97,7 @@ A history row never replaces a bulk row: the insert skips days that exist, and o
 
 A pass has 5 minutes and 300 calls a minute, so at most 1,500 calls. The tracked-page work is resumable: each finished fetch writes its marker, and the next pass does what has no marker.
 
-The API's own budget of 60 calls a minute per property allows 8 never-fetched pages to be opened per minute per API process. Past that the panel shows "Google is busy" and retries.
+The API's own budget of 60 calls a minute per property allows 20 never-fetched pages to be opened per minute per API process (8 if every tab of each is opened). Past that the panel shows "Google is busy" and retries.
 
 ### 5.3 Rows and bytes
 
@@ -261,7 +264,7 @@ Every route answers `404 not_found` for a project outside the workspace. The two
 }
 ```
 
-`history` is `ready` once the page's history marker exists, else `loading` (the worker fetches it within about a minute). `trend` is the clicks of each day of the period. `title` is the page's title in the latest finished crawl, or `null`. `tier_id` is `null` for Untiered. Rows come ordered by path; the web sorts, filters by tier, health and search text itself (at most 200 rows).
+`history` is `ready` once the page's history marker exists, else `loading` (the worker fetches it within about a minute). A `loading` row has `current`, `previous`, `health` and `trend` as `null` (D19). `trend` is the clicks of each day of the period. `title` is the page's title in the latest finished crawl, or `null`. `tier_id` is `null` for Untiered. Rows come ordered by path; the web sorts, filters by tier, health and search text itself (at most 200 rows).
 
 **`POST {P}/fp/tracked-pages`**
 
@@ -308,7 +311,7 @@ Outcomes: `added` (with `dry_run`: `ok`), `already_tracked`, `invalid_url`, `wro
 }
 ```
 
-The series has one point for every day of the period. A day without a row has clicks 0, impressions 0 and position `null`. `history_from` is the first day the page's history covers, `null` before the history was fetched. With `state: ok` and no history marker, this request makes the history call first (D2). If that call cannot be made (`429`, `503` below), the response is still `200` with what is stored and `history_from: null`.
+The series has one point for every day of the period. A day without a row has clicks 0, impressions 0 and position `null`. `history_from` is the first day the page's history covers, `null` before the history was fetched. With `state: ok` and no history marker, this request makes the history call first (D2). If that call cannot be made (our budget is spent, Google is busy or does not answer, or the state is not `ok`), the response is still `200`, with `history_from: null`, `current`, `previous` and `health` as `null` and both series empty (D19), and `meta.retry_after` in seconds when trying again can help. The panel shows "Google is busy" with Retry.
 
 **`GET {P}/fp/page-search/{url_id}/breakdown?dimension=query|country|device&from&to&compare`**
 
@@ -332,13 +335,15 @@ Errors of the two live paths: `429 gsc_busy` with `retry_after` (seconds; our bu
 
 ## 8. Worker
 
-In each pass of a property (`gsc_sync._Pass.run`), after the page totals of the window and before the query history sweep:
+In each pass of a property (`gsc_sync._Pass.run`), as its last step:
+
+The step runs after the query history sweep of the pass, so a failing page can never hold the property's own pull back.
 
 1. For each tracked page of the project without a `history` marker: the history call, then the marker.
 2. For each tracked page: the breakdown of the last full calendar month and of the month before, where a marker is missing.
 3. Prune (section 5.5).
 
-Each step checks the pass budget between pages and stops cleanly. The planner (`gsc_plan._send_unfinished`) also sends a property that has a tracked page without a history marker, so a page added now is fetched at the next tick, not the next morning. A Google error ends the pass the way it does today (backoff through `PullState.failed`).
+Each step checks the pass budget between pages and stops cleanly. An answer Google gives for one page that cannot be used, or no answer, is logged and that page is skipped; the other pages go on, and the pass then ends as failed, so the planner waits (15, 30, 60 minutes) before it tries the skipped page again. A quota error, a refused token or a refused property ends the pass at once, as today. The planner (`gsc_plan._send_unfinished`) also sends a property that has a tracked page without a history marker, so a page added now is fetched at the next tick, not the next morning. A Google error ends the pass the way it does today (backoff through `PullState.failed`).
 
 ## 9. Freshness and states
 
@@ -349,7 +354,7 @@ Each step checks the pass budget between pages and stops cleanly. The planner (`
 | `reauth_required` | Warning banner "Search Console needs a new sign-in. The numbers below stop at {date}." with a link to Integrations. Stored numbers shown. | The same banner in the panel. Stored numbers and stored breakdowns shown; a breakdown never fetched reads "Not collected yet". |
 | `no_access` | Warning banner "This Google account can no longer read the property." Stored numbers shown. | Same. |
 | No tracked pages | Empty state "Add the pages that matter", the limit of 200, and the Add pages button (with `projects:write`). | Does not apply. |
-| A row's history is `loading` | Skeleton cells in that row; the list refetches every 10 seconds while any row is loading. | Does not apply (the panel's own request fetches it). |
+| A row's history is `loading` | Skeleton cells in that row; it is left out of the Health counts and sorts last; the list refetches every 10 seconds while any row is loading. | Does not apply (the panel's own request fetches it). |
 | Page has no impressions in the period | Health "Not collected yet"; numbers 0; position and CTR "n/a" with the reason in a tooltip. | Sentence "Google reported no impressions for this page in this period." |
 | `429 gsc_busy` | Does not happen (no live call). | Inline "Google is busy. Trying again in {seconds} s." with a Retry button, in the section that failed. Other sections stay. |
 | `503 google_unavailable` | Does not happen. | Inline error with Retry in the section that failed. |
@@ -376,11 +381,11 @@ Route `/[workspace]/[project]/seo/pages/monitoring`. A fixed-height page (templa
 Pixel budget at 1280 by 720: top bar 52, page padding 12, row 1 36, gap 12, row 2 32, gap 12, table header 40. The first row starts at 196 px, 27% of 720. Nothing else may sit above the table: the mock's summary line is folded into row 2 as the Health group with counts, and its sentence about the ranges is the tooltip of the Period control. A banner (section 9) is the one thing that may add a row, and only in its state. The bulk bar replaces row 2 while rows are selected (the `DataTable` bulk bar).
 
 - Row 1: the tab strip is a slot the route fills (section 11); the context line (property and freshness); Export CSV (the rows as shown); Add pages (primary).
-- Row 2: `DateRangePicker`, the Compare with select, the Tier select (All tiers, each tier, Untiered), the Health `PressedGroup` with counts (only verdicts that occur), the search box (path or title, not in the address).
+- Row 2: the period scope (`DateRangePicker` and the Compare with select), then the shared `FilterBar` with two fields, Tier (All tiers, each tier, Untiered) and Health (each verdict that occurs, with its count), then the search box (path or title, not in the address). The period sits in the page, not in the top bar, as on Citations and the AI visibility overview: it is not the project's period (D20). This is the recorded exception to UI rule 8.
 - Columns: select, Page (path, the title under it, the full address in the tooltip), Tier (`TierBadge`), Health (badge), Clicks, Impressions, CTR, Average position (each: value and change; position says "improved" or "slipped"), Trend (sparkline of daily clicks, from 1440 px). There is no Indexing column (section 13).
 - Default sort: attention first (Lost traffic, Sharp drop, Declining by clicks lost, Stable, Growing, New, Not collected yet, Not enough data). Any column sorts; the address keeps it.
 - Row click or Enter opens the page's search detail in the inspector (section 10.3). Bulk: Stop tracking, Export selection.
-- Address state: `from`, `to` (or `win`), `cmp`, `tier`, `health`, `sort`, `inspect`.
+- Address state: `sp_win` or `sp_from` and `sp_to`, `sp_cmp`, the `FilterBar` keys of Tier and Health, `sort`, `inspect`.
 
 ### 10.2 Add pages
 
@@ -415,6 +420,7 @@ The Pages session owns the Pages tabs (Overview, All pages), the page drawer she
 | The drawer itself | The shared-drawer session | `Inspector`, `InspectorLayout`, `useInspector` (`?inspect=type:id`) and `useInspectorStepping` (`src/lib/inspector`). Used as they are; their files are never edited, and no drawer or width is added here. |
 | Opening a page from Monitoring | This build now, the shell later | Until the shell exists, Monitoring opens the shared `Inspector` through `useInspector` (`?inspect=page:<url id>`) with `PageSearchPanel` as its content, and steps through the rows with `useInspectorStepping`. `MonitoringScreen` takes `onOpenPage?: (urlId: string) => void`; when given, a row calls it instead, so the route can open the shell's drawer on its Search tab. |
 | Tracked column and "Track in Monitoring" on All pages | The Pages session, with this build's API | `GET {P}/fp/tracked-pages/ids` and `POST {P}/fp/tracked-pages` with `url_ids`. The feature exports `useTrackedIds(scope)` and `useTrackPages(scope)` for it. |
+| Address keys of the panel | This build | `sp_win`, `sp_from`, `sp_to`, `sp_cmp`, `sp_m`, `sp_tab`, exported as `PAGE_SEARCH_KEYS`. None is used by another screen today (checked against `use-date-range-params.ts`, `use-inspector.ts` and the internal links address state). The shell passes them to `useInspector({ entryKeys })`, so closing the drawer removes them. On Monitoring the four period keys belong to the page and stay. |
 | Sidebar | Issues and Pages sessions | Not touched here. |
 
 ## 12. Words (i18n)
@@ -468,6 +474,8 @@ Country names come from the existing locations formatter; a code it does not kno
 | R2 | Google's load quota (10 minute and daily) can refuse filtered calls before the per-minute budget is reached. | The quota error slows the property's bucket for 30 minutes (existing) and the panel shows "Google is busy"; stored sections keep working. |
 | R3 | Several API processes each have the 60 a minute budget. | 4 processes plus the worker is 540 a minute against Google's 1,200. Move the buckets to Redis before a second worker (the limiter's own note). |
 | R4 | 16 months of daily totals for a 5,000 page site is up to 511 MB. | Section 5.5 can change to 190 days for untracked pages (about 200 MB at most) with one constant and one clause. |
+| R6 | Whether Google accepts `byProperty` with a page filter was read from memory of its reference, not checked today. | The filtered reads always send `auto`; the fake refuses `byProperty` with a filter; the first real pass on staging confirms. |
+| R7 | The number of API processes on the server, and the next free migration number, were not checked. | R3 covers the first; plan 01 task 2 step 1 reads the second when it is built. |
 | R5 | `schema.ts`, `backend/openapi/v1.json`, `en.json` and the glossary files will conflict with the Issues and Pages branches. | Regenerate the two generated files after a merge, never merge them by hand; keep both sides in the word files. |
 
 | ID | Question for the owner or the main session |

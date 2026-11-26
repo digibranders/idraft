@@ -159,6 +159,9 @@ In `_analytics`, right after `start, end = ...`:
                     if start <= date.fromisoformat(row["keys"][at]) <= end
                     and date.fromisoformat(row["keys"][at]) <= self.final_through
                 ]
+            if body["aggregationType"] == "byProperty":
+                # Google refuses property aggregation for a call that filters by page.
+                return httpx.Response(400, json={"error": {"message": "invalid aggregation"}})
             found = found[body["startRow"] : body["startRow"] + body["rowLimit"]]
             return httpx.Response(200, json={"rows": [{"ctr": 0.1, **row} for row in found]} if found else {})
 ```
@@ -447,10 +450,14 @@ def test_without_a_compared_period_a_page_is_stable_or_has_no_data() -> None:
     assert health_of(totals(0, 0), None, 30, 30).verdict == "no_data"
 
 
-def test_thresholds_are_inclusive() -> None:
-    assert health_of(totals(60, 5000), totals(100, 5000), 30, 30).verdict == "sharp_drop"
+def test_the_thresholds_sit_where_the_document_puts_them() -> None:
+    # Values just off each boundary: a boundary itself would rest on float rounding.
+    assert health_of(totals(59, 5000), totals(100, 5000), 30, 30).verdict == "sharp_drop"
+    assert health_of(totals(61, 5000), totals(100, 5000), 30, 30).verdict == "declining"
     assert health_of(totals(250, 5000), totals(275, 5000), 30, 30).verdict == "stable"
-    assert health_of(totals(225, 5000), totals(250, 5000), 30, 30).verdict == "declining"
+    assert health_of(totals(220, 5000), totals(250, 5000), 30, 30).verdict == "declining"
+    # 20% down on 24 clicks of difference is under the minimum of 25: small numbers.
+    assert health_of(totals(96, 5000), totals(120, 5000), 30, 30).small is True
 
 
 def test_flags_say_when_position_moved_and_when_fewer_people_clicked() -> None:
@@ -783,7 +790,7 @@ def page_pattern(canonical_url: str, forms: Sequence[str]) -> str:
 - `fetched`: the kinds among `DIMENSIONS` that have a marker for exactly `(url_id, start, end)`.
 - `history_from`: `date_from` of the `history` marker, or None.
 - `store_history`: rows have keys `(date,)`. Insert into `fp.gsc_page_daily` with `position_sum = Decimal(str(position)) * impressions` quantized to 0.01, `ON CONFLICT (integration_id, metric_date, url_id) DO UPDATE SET position_sum = excluded.position_sum WHERE fp.gsc_page_daily.position_sum IS NULL` (SQLAlchemy: `on_conflict_do_update(index_elements=[...], set_={...}, where=gsc_page_daily.c.position_sum.is_(None))`). Then upsert the marker `(kind='history', date_from=start, date_to=end, row_count=len(rows))` with `on_conflict_do_nothing`. A row whose date is not a date raises `GoogleResponseError`. Returns the number of rows given.
-- `store_breakdown`: delete the rows of `(integration, url_id, start, end, dimension)`; insert the new ones (key: the query as returned; the country upper-cased and kept only when 3 characters long; the device upper-cased and kept only when in `gsc_store.DEVICES`; repeated keys summed); delete and insert the marker with `truncated = len(rows) >= ROW_LIMITS[dimension]`. Every statement names `workspace_id`.
+- `store_breakdown`: delete the rows of `(integration, url_id, start, end, dimension)`; insert the new ones with `on_conflict_do_update` on the primary key (two first opens of one page at the same moment must not fail on each other) (key: the query as returned; the country upper-cased and kept only when 3 characters long; the device upper-cased and kept only when in `gsc_store.DEVICES`; repeated keys summed); upsert the marker (`on_conflict_do_update`: `row_count`, `truncated`, `fetched_at`) with `truncated = len(rows) >= ROW_LIMITS[dimension]`. Every statement names `workspace_id`.
 - `ensure_history`: in one `workspace_transaction` read `history_from` and, when None, `page_filter`; when a marker exists return False. Else call `query(start=history_start(today), end=final_through, dimensions=("date",), filters=(filter,), row_limit=SEARCH_ANALYTICS_ROW_LIMIT)`, then in a new transaction `store_history`. Return True.
 - `ensure_breakdown`: read `fetched` and the filter in one transaction; for each dimension of `only` without a marker, in order: call `query(start=start, end=end, dimensions=(dimension,), filters=(filter,), row_limit=ROW_LIMITS[dimension])`, then store in its own transaction. Returns the number of calls made. An exception of a call leaves the dimensions already stored in place.
 - `prune`: delete breakdown rows and markers of kind in `DIMENSIONS` whose marker has `fetched_at < now - KEEP_FETCH_DAYS days`, unless the page is tracked in `facts.project_id` and `(date_from, date_to)` is a whole calendar month. Do it as two deletes that share one subquery of the marker keys to drop; breakdown rows first. Write the calendar month test in SQL: `date_from = date_trunc('month', date_from)::date AND date_to = (date_trunc('month', date_from) + interval '1 month - 1 day')::date`.
@@ -809,13 +816,16 @@ def page_pattern(canonical_url: str, forms: Sequence[str]) -> str:
 3. `test_a_page_that_is_not_tracked_is_not_fetched`: no filtered request at all.
 4. `test_the_step_stops_on_the_budget_and_the_next_pass_goes_on`: three tracked pages and a `SyncContext.monotonic` that passes the deadline after the first page's fetches; the first pass reports `more=True` and the markers of one page; a second pass (fresh clock) completes the other two.
 5. `test_a_quota_error_in_the_step_fails_the_pass_and_keeps_what_was_stored`: `quota_after` set so the second filtered call fails; outcome `FAILED`, the first marker stays.
+5a. `test_filtered_calls_never_ask_for_property_aggregation`: every body of `fake.filtered_requests()` has `aggregationType == "auto"` (the fake answers 400 otherwise, so the history test above also fails without the fix).
+5b. `test_one_page_google_cannot_answer_for_does_not_stop_the_others`: three tracked pages; make the fake answer the second page's history call with a malformed body (add `fake.malformed_patterns: set[str]`: a filtered request whose page expression is in the set gets the malformed answer). The first and third pages have their markers, the outcome is `FAILED`, and the integration's `backfill_state` has `failures == 1` with a `retry_after`.
+5c. `test_the_step_runs_after_the_history_sweep`: a property whose sweep is not complete and a budget that ends inside the sweep: no filtered request was made in that pass.
 6. In `test_gsc_plan.py`: `test_a_property_with_a_tracked_page_that_has_no_history_is_sent`: a property whose pull is complete (`complete: true`, current version) and whose schedule is not due is not sent; add a `core.tracked_pages` row and it is sent; add the `history` marker row and it is not sent again.
 
 Run the two files. Expected: FAIL.
 
 - [ ] **Step 2: Implement in `gsc_sync.py`.**
 
-`_Pass._query` gains two keyword parameters, passed through to `google.search_analytics`: `filters: Sequence[DimensionFilter] = ()` and `row_limit: int | None = None` (None keeps `self._ctx.page_size`).
+`_Pass._query` gains two keyword parameters, passed through to `google.search_analytics`: `filters: Sequence[DimensionFilter] = ()` and `row_limit: int | None = None` (None keeps `self._ctx.page_size`). The aggregation line becomes `aggregation="byProperty" if tuple(dimensions) == ("date",) and not filters else "auto"`: Google refuses property aggregation for a call that filters by page, and the page history call is exactly `("date",)` with a page filter.
 
 Add to `_Pass`:
 
@@ -841,30 +851,45 @@ Add to `_Pass`:
         today = pacific_today(self._ctx.now())
         month = last_full_month(latest)
         before = compare_window(*month, "previous_period")
+        first_error: GoogleError | None = None
         for page in pages:
             if self._out_of_time():
                 return True
             sessions, facts = self._ctx.sessions, self._facts
-            await gsc_page_detail.ensure_history(
-                sessions, self._page_query, facts, page, today=today, final_through=latest
-            )
-            for window in (month, before):
-                if window is not None:
-                    await gsc_page_detail.ensure_breakdown(
-                        sessions, self._page_query, facts, page, *window
-                    )
+            try:
+                await gsc_page_detail.ensure_history(
+                    sessions, self._page_query, facts, page, today=today, final_through=latest
+                )
+                for window in (month, before):
+                    if window is not None:
+                        await gsc_page_detail.ensure_breakdown(
+                            sessions, self._page_query, facts, page, *window
+                        )
+            except (GoogleResponseError, GoogleUnavailableError) as error:
+                # One page Google cannot answer for must not stop the others. The pass still
+                # ends as failed, so the planner waits before this page is tried again.
+                _log.warning(
+                    "gsc tracked page skipped",
+                    integration_id=str(facts.integration_id),
+                    url_id=page.url_id,
+                    reason=error.reason,
+                )
+                first_error = first_error or error
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             await gsc_page_detail.prune(db, self._facts, now=self._ctx.now())
+        if first_error is not None:
+            raise first_error
         return False
 ```
 
+Import `GoogleUnavailableError` beside the other Google errors.
+
 Add `tracked_refs(db, facts) -> list[PageRef]` to `gsc_page_detail.py`: the tracked pages of `facts.project_id` joined to `core.urls` (`urls.c.canonical_url`), ordered by `url_id`, every statement naming the workspace.
 
-In `run`, right after the `_checkpoint(...recent_done=True...)` line and before the history sweep's `if`, add:
+In `run`, the step goes after the history sweep, so a failing page never holds the property's own pull back. Today `run` ends with an early `return False` when the sweep is complete or has no ends, then the sweep loop, the final checkpoint and `return False`. Restructure the tail so that all three ways out of the sweep (already complete, nothing to sweep, just completed) reach one last statement, and a sweep that stops on the budget still returns True before it:
 
 ```python
-        if self._ctx.page_totals and await self._tracked_pages(latest):
-            return True
+        return self._ctx.page_totals and await self._tracked_pages(latest)
 ```
 
 `self.calls` already counts every `_query`, so the report shows these calls.
@@ -996,7 +1021,7 @@ def live_google(resources: Resources, facts: IntegrationFacts) -> LiveGoogle | N
 
 - [ ] **Step 2: Write the failing tests** (`test_tracked_pages.py`; `FINAL = date(2026, 11, 22)`):
 
-1. `test_the_list_gives_each_tracked_page_its_numbers_health_and_trend`: `/pricing` with 31 October days summing to 317 clicks and 41,200 impressions and 30 September days summing to 412 and 39,600, with position sums that give 5.9 and 3.8. `GET .../fp/tracked-pages` with no query: `meta.window` is October, `meta.compare_window` September, the row has `current.clicks == 317`, `current.ctr == pytest.approx(317 / 41200)`, `current.position == pytest.approx(5.9)`, `health.verdict == "declining"`, `health.flags == ["position_slipped"]`, `len(trend) == 31`, `history == "loading"`, and `title`, `tier_id`, `path` as seeded. With a `history` marker: `history == "ready"`.
+1. `test_the_list_gives_each_tracked_page_its_numbers_health_and_trend`: `/pricing` with 31 October days summing to 317 clicks and 41,200 impressions and 30 September days summing to 412 and 39,600, with position sums that give 5.9 and 3.8. `GET .../fp/tracked-pages` with no query: `meta.window` is October, `meta.compare_window` September, the row has `current.clicks == 317`, `current.ctr == pytest.approx(317 / 41200)`, `current.position == pytest.approx(5.9)`, `health.verdict == "declining"`, `health.flags == ["position_slipped"]`, `len(trend) == 31`, `history == "ready"` (seed the `history` marker), and `title`, `tier_id`, `path` as seeded. Without the marker: `history == "loading"` and `current`, `previous`, `health` and `trend` are all None, although the daily rows exist.
 2. `test_compare_none_gives_no_previous`: `previous is None`, `compare_window is None`, verdict `stable`.
 3. `test_a_period_before_the_first_stored_day_has_no_previous`: a `history` marker with `date_from` after the compared window's start gives `previous is None`.
 4. `test_states`: no integration gives `meta.state == "not_connected"` with every number None and the rows still listed; an integration without `recent_done` gives `pending`; status `reauth_required` gives that state with numbers; status `error` gives `no_access` with numbers.
@@ -1040,7 +1065,7 @@ async def suggestions(db, scope, workspace_id, project_id, window, limit) -> lis
 
 - [ ] **Step 5: Service and routes.** `TrackedPagesService(sessions)` in `tracked.py` with `list`, `ids`, `add`, `remove`, `suggestions`; a project outside the workspace is `NotFoundError`, checked as `FpService` checks it. `TRACKED_PAGES_LIMIT: Final = 200`.
 
-- `list`: scope; with no `final_through` every number is None. Else `first, last = window_of(start, end, final_through)` (map `WindowTooLargeError` to the `422 window_too_large` problem that `fp/ai-referrals` raises, and the `ValueError` to the validation error that route gives for a start after an end); `compared = compare_window(first, last, compare)`; totals for both windows in two queries; `previous` is None when `compared` is None, or when the page's `history_starts` is None or later than `compared[0]` and the page has no row in the compared window; `health_of(current, previous, days, compared days)`; `trend` from `clicks_by_day`, one value per day of the window, 0 for a day without a row.
+- `list`: scope; with no `final_through` every number is None. Else `first, last = window_of(start, end, final_through)` (map `WindowTooLargeError` to the `422 window_too_large` problem that `fp/ai-referrals` raises, and the `ValueError` to the validation error that route gives for a start after an end); `compared = compare_window(first, last, compare)`; totals for both windows in two queries; a page with no `history` marker gets `current`, `previous`, `health` and `trend` as None (spec D19) and `history: "loading"`; for the others `previous` is None when `compared` is None, or when (the page's history starts later than `compared[0]`) and (the page has no row in the compared window); `health_of(current, previous, days, compared days)`; `trend` from `clicks_by_day`, one value per day of the window, 0 for a day without a row.
 - `add`: per input, in order: a path (starts with `/`) is joined to `https://<primary host>`; `canonicalize` (failure: `invalid_url`); host not one of the project's hosts: `wrong_host`; no `core.urls` row by `url_hash` joined to `core.project_pages` of the project: `not_crawled`; already tracked or repeated in this request: `already_tracked`; room left: `added` (insert) or `ok` (dry run); else `over_limit`. `url_ids` follow the same checks from `not_crawled` on. One transaction; lock the count with `SELECT ... FOR UPDATE` on the project row (or an advisory lock keyed by the project) so two requests cannot pass 200 together. One audit row when anything was added.
 - Routes in `page_routes.py`: `router = APIRouter(prefix=f"{PROJECT}/fp", tags=["first-party"])` with the five routes of the spec; `ReadData` and a `WriteProject` dependency declared as `page_tier_routes.py` declares its own; summaries and descriptions in plain sentences that state the rules of spec section 7.2. Include the router in `main.py` next to `fp_router`.
 
@@ -1064,7 +1089,7 @@ async def suggestions(db, scope, workspace_id, project_id, window, limit) -> lis
 1. `test_a_page_with_stored_history_answers_without_asking_google`: a `history` marker and rows; the detail has totals, health and a point per day of the window; `fake.requests` is empty.
 2. `test_a_day_without_a_row_is_zero_with_no_position`.
 3. `test_the_first_open_fetches_the_history_then_answers_from_it`: no marker; `set_filtered(site, ("date",), rows)`; the response's `series` holds those rows, `meta.history_from` is set, one filtered request was made; a second request makes none.
-4. `test_a_busy_budget_still_answers_stored_rows`: the service given a limiter with a spent bucket; `200`, `meta.history_from is None`, no request reached the fake.
+4. `test_a_first_open_that_cannot_reach_google_answers_200_with_no_numbers`: the service given a limiter with a spent bucket, stored daily rows but no marker; `200`, `meta.history_from is None`, `meta.retry_after >= 1`, `current`, `previous` and `health` None, both series empty, no request reached the fake.
 5. `test_a_page_outside_the_project_is_not_found`: a url id with no `core.project_pages` row for this project: `404 not_found`. Same for another workspace's project.
 6. `test_not_connected_and_pending_answer_200_with_no_numbers`.
 7. `test_a_breakdown_is_fetched_once_and_served_from_the_store`: `dimension=country` with compare: two filtered `("country",)` requests (window and compared window), rows merged by key, ordered by current clicks, `previous` None for a key only in the current period and `current` None for one only in the previous; `ctr` and `position` computed from the sums; the second request reaches Google with nothing.
@@ -1084,7 +1109,7 @@ class PageSearchService:
     async def breakdown(self, access, project_id, url_id, dimension, query: PageQuery) -> PageBreakdownResponse: ...
 ```
 
-`detail`: project check, `page_row` (None: `NotFoundError`), `search_scope`. With `state == "ok"` and no history marker: load the `IntegrationFacts` (`gsc_store.load_integration`), build the live caller, `ensure_history(...)`; catch `GscBusyError` and the `503` problem and go on with stored rows; catch `LiveStateError` and answer with its state. Then totals, compared totals, health and both series exactly as task 8 computes them for one page (share the helper, do not copy it). `previous_series` is aligned to the compared window's own days.
+`detail`: project check, `page_row` (None: `NotFoundError`), `search_scope`. With `state == "ok"` and no history marker: load the `IntegrationFacts` (`gsc_store.load_integration`), build the live caller, `ensure_history(...)`; catch `GscBusyError` (keep its `retry_after` for `meta.retry_after`) and the `503` problem; catch `LiveStateError` and answer with its state. A page that still has no history marker after this answers with `current`, `previous` and `health` None and both series empty (spec D19). Otherwise totals, compared totals, health and both series exactly as task 8 computes them for one page (share the helper, do not copy it). `previous_series` is aligned to the compared window's own days.
 
 `breakdown`: the same checks. For each of the window and the compared window: if `state == "ok"` and the dimension has no marker, `ensure_breakdown(..., only=(dimension,))`; here `GscBusyError` and the `503` problem are raised to the client, and `LiveStateError` answers stored rows with its state. Read the stored rows of both windows (add `breakdown_rows(db, scope, url_id, window, dimension) -> dict[str, Totals]` and `fetch_marker(...)` to the repository), merge keys, order by current clicks descending, then previous clicks descending, then key. `coverage`: sum of current rows' clicks over the page's clicks of the window, None when the page's clicks are 0, capped at 1.0. `row_limit` from `ROW_LIMITS`; `truncated` and `fetched_at` from the current window's marker (None before a fetch).
 
@@ -1110,5 +1135,6 @@ If this branch is merged with another branch that changed `backend/openapi/v1.js
 
 ## Self-review
 
+- Spec D18 (plain numbers) and D19 (no numbers before the history marker): tasks 8 and 9. The aggregation rule of the filtered reads: tasks 1 and 6.
 - Spec D1: task 3. D2: tasks 5, 6, 9. D3: tasks 5, 6, 9. D4: tasks 3, 5. D5: task 7. D6, D7, D12, D13: task 4. D8, D9, D10, D11: tasks 2, 8. D15: tasks 8, 9. Section 5.5 retention: tasks 3, 5, 6. Section 8: task 6. Section 14: tasks 2, 8, 9 (access and cross-tenant rows).
 - Not in this plan by design (spec section 13): URL Inspection, shape D, search appearance, sitemap import, export route.
