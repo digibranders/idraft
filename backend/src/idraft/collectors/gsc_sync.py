@@ -340,7 +340,7 @@ async def sync_integration(
     """One pass over one property. Every error of Google or of the stored credential ends in a
     recorded outcome; an error of this code or of the database is raised."""
     async with workspace_transaction(ctx.sessions, workspace_id) as db:
-        facts = await gsc_store.load_integration(db, workspace_id, integration_id)
+        facts = await gsc_store.load_integration(db, workspace_id, integration_id, "gsc")
         if facts is None or not facts.runnable or facts.credential_ref is None:
             return SyncReport(Outcome.SKIPPED)
         try:

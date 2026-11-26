@@ -28,7 +28,6 @@ const SLOTS: ReadonlyArray<readonly [slug: string, name: string, load: ModuleLoa
   ['sources', 'sourceHandlers', () => import('./sources')],
   ['cross-channel', 'crossChannelHandlers', () => import('./cross-channel')],
   ['llm-diagnostics', 'llmDiagnosticHandlers', () => import('./llm-diagnostics')],
-  ['first-party', 'firstPartyHandlers', () => import('./first-party')],
   ['geo-readiness', 'geoReadinessHandlers', () => import('./geo-readiness')],
   ['prompt-import', 'promptImportHandlers', () => import('./prompt-import')],
   ['project-overview-ai', 'projectOverviewAiHandlers', () => import('./project-overview-ai')],

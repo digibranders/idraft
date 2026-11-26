@@ -131,7 +131,7 @@ async def test_a_disabled_property_gets_no_schedule(
 async def test_a_ga4_property_is_never_planned_and_does_not_get_a_schedule(
     worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
 ) -> None:
-    """GA4 properties are only chosen and stored for now: there is no GA4 pull to plan."""
+    """GA4 properties are planned by `ga4_plan`: this planner never sends them or schedules them."""
     ga4 = await make_property(migrated, fake)
     await execute(
         migrated,

@@ -701,6 +701,9 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"): (
+        "data:read"
+    ),
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview"): (
