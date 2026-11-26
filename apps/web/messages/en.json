@@ -9217,6 +9217,74 @@
     "overview": {
       "loadFailed": "The page counts could not be loaded",
       "loadFailedReason": "Try again. If it keeps failing, the crawl may still be saving."
+    },
+    "cards": {
+      "status": {
+        "title": "Addresses by status",
+        "info": "Every address the crawl read, by what it answered. Shares are of every address.",
+        "center": "{count} live",
+        "rows": {
+          "live": "Live pages",
+          "variant": "Parameter variants",
+          "redirected": "Redirects",
+          "clientError": "Client errors",
+          "serverError": "Server errors",
+          "blocked": "Blocked",
+          "other": "Other"
+        }
+      },
+      "funnel": {
+        "title": "From crawled to indexable",
+        "info": "How many addresses are live pages, how many of those Google may index, and how many of those the sitemap lists.",
+        "rows": {
+          "addresses": "Addresses crawled",
+          "live": "Live pages",
+          "indexable": "Indexable",
+          "inSitemapIndexable": "Indexable and in the sitemap"
+        }
+      },
+      "sections": {
+        "title": "Pages by section",
+        "info": "Live pages by the first folder of their address. Shares are of live pages.",
+        "other": "{count, plural, one {Other sections (#)} other {Other sections (#)}}"
+      },
+      "tiers": {
+        "title": "Pages by tier",
+        "info": "Live pages by their tier today. Shares are of live pages."
+      },
+      "depth": {
+        "title": "Click depth",
+        "info": "How many clicks from the home page each live page is. Shares are of live pages.",
+        "row": "{depth, plural, =0 {Home page} =6 {6 clicks and more} one {# click} other {# clicks}}",
+        "unreachable": "Not reachable by links"
+      },
+      "sitemap": {
+        "title": "Sitemap coverage",
+        "info": "Indexable pages the sitemap lists and misses, and addresses it lists that are not live or not indexable.",
+        "rows": {
+          "inSitemapIndexable": "In the sitemap and indexable",
+          "notInSitemap": "Indexable, missing from the sitemap",
+          "sitemapNotLive": "In the sitemap, not live",
+          "sitemapNotIndexable": "In the sitemap, not indexable"
+        },
+        "emptyTitle": "The crawl found no sitemap",
+        "emptyReason": "Add a sitemap to the website, then crawl again.",
+        "bases": "Shares are of live pages, except addresses in the sitemap that are not live, which are of every address."
+      },
+      "bases": {
+        "addresses": "Every address the crawl read, parameter variants included.",
+        "live": "Pages that answered 200 with HTML.",
+        "mixed": "Addresses and live pages, as each row says."
+      },
+      "table": {
+        "row": "Group",
+        "pages": "Pages",
+        "share": "Share"
+      },
+      "shareOfAddresses": "{share} of every address",
+      "shareOfLive": "{share} of live pages",
+      "opens": "{label}, {count}. Opens All pages",
+      "summary": "{title}: {rows}"
     }
   },
   "internalLinks": {

@@ -28,7 +28,9 @@ export type BarScaleColor =
   | 'rank-band-none'
   | `seq-${1 | 2 | 3 | 4 | 5 | 6 | 7}`
   | 'chart-other'
-  | 'insufficient';
+  | 'insufficient'
+  /** A bar that is a problem to fix (`--warning-solid` is for meter fills and bars). */
+  | 'warning';
 
 interface BarListRowBase {
   id: string;
@@ -113,6 +115,7 @@ const SCALE_FILL: Record<BarScaleColor, string> = {
   'seq-7': cn('bg-seq-7'),
   'chart-other': cn('bg-chart-other'),
   insufficient: cn('bg-insufficient'),
+  warning: cn('bg-warning-solid'),
 };
 
 interface BarItem {

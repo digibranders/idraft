@@ -98,10 +98,10 @@ describe('the Pages screen, Overview', () => {
   it('carries the crawl in view to All pages, and nothing else', async () => {
     const run = HISTORY_RUN_IDS[1] ?? '';
     renderWithProviders(pagesAs('viewer', 'overview'), { searchParams: `?run=${run}&sort=-pages&q=pricing` });
-    await strip();
+    const group = await strip();
     const nav = screen.getByRole('navigation', { name: 'Pages views' });
     expect(within(nav).getByRole('link', { name: 'All pages' })).toHaveAttribute('href', `${ALL}?run=${run}`);
-    expect(await screen.findByRole('link', { name: /Live pages/ })).toHaveAttribute(
+    expect(await within(group).findByRole('link', { name: /Live pages/ })).toHaveAttribute(
       'href',
       `${ALL}?view=live&run=${run}`,
     );

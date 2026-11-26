@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactElement } from 'react';
 
+import { OverviewCards } from './overview-cards';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import { InlineError } from '@/components/app/status/inline-error';
 import { formatInteger } from '@/lib/format';
@@ -26,7 +27,7 @@ export interface OverviewTabProps {
   allPages: (query: Record<string, string>) => Route;
 }
 
-/** The Overview (spec 6.4): the strip of page counts; the cards come under it in later tasks. */
+/** The Overview (spec 6.4): the strip of page counts and, under it, the first six cards. */
 export function OverviewTab({ scope, run, workspaceSlug, projectSlug, allPages }: OverviewTabProps): ReactElement {
   const t = useTranslations('pages');
   const common = useTranslations('common');
@@ -96,6 +97,7 @@ export function OverviewTab({ scope, run, workspaceSlug, projectSlug, allPages }
         groups={[{ id: GROUP_ID, items }]}
         status={model === null ? 'loading' : read.isFetching ? 'refetching' : 'ready'}
       />
+      <OverviewCards model={model} refetching={read.isFetching} />
     </div>
   );
 }
