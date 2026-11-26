@@ -493,6 +493,11 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT, DELETE", UPDATE=("tier_id", "tier_source", "rule_id", "set_at")),
     ),
     "core.page_terms": (access("SELECT, INSERT, DELETE"), NONE),
+    # Migration 0042: the API adds a note, changes its body and marks it deleted; nobody deletes.
+    "core.page_notes": (
+        access("SELECT, INSERT", UPDATE=("body", "edited_at", "deleted_at", "deleted_by")),
+        NONE,
+    ),
     "seo.crawl_runs": (
         access(
             "SELECT, INSERT",

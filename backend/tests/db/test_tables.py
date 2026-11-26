@@ -97,6 +97,7 @@ DECLARED = {
     "core.tier_rules",
     "core.project_pages",
     "core.page_terms",
+    "core.page_notes",
     "seo.crawl_runs",
     "seo.crawl_pages",
     "seo.crawl_links",

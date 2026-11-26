@@ -1832,6 +1832,25 @@ page_terms = Table(
     schema="core",
 )
 
+page_notes = Table(
+    "page_notes",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), nullable=False),
+    Column("author_id", Uuid, ForeignKey(users.c.id), nullable=False),
+    Column("body", Text, nullable=False),
+    _created_at(),
+    Column("edited_at", DateTime(timezone=True)),
+    Column("deleted_at", DateTime(timezone=True)),
+    Column("deleted_by", Uuid, ForeignKey(users.c.id)),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
 crawl_runs = Table(
     "crawl_runs",
     metadata,

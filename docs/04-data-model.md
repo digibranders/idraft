@@ -412,6 +412,29 @@ Topic, cluster, product, service, market, campaign, persona and tags are terms. 
 
 **As built (migration 0025, internal links).** Page tags are `core.page_terms` rows of `tag` vocabularies. Tiers: `core.page_tier_levels` (workspace, positions 1 to 8), `core.tier_rules`, `core.project_pages`. Crawls live in `seo.crawl_runs`, `seo.crawl_pages`, `seo.crawl_links` (partitioned by crawl, made and dropped by `seo.add_crawl_links_partition` and `seo.drop_crawl_links_partition`), `seo.crawl_tier_flow` and `seo.crawl_tier_stats`. Plan: docs/superpowers/plans/2026-11-16-internal-links-02-backend-slice-1.md.
 
+### 5.4 Page notes
+
+```sql
+CREATE TABLE core.page_notes (
+    id           uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id uuid NOT NULL,
+    project_id   uuid NOT NULL,
+    url_id       bigint NOT NULL REFERENCES core.urls(id),
+    author_id    uuid NOT NULL REFERENCES auth.users(id),
+    body         text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000 AND body = btrim(body)),
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    edited_at    timestamptz,
+    deleted_at   timestamptz,
+    deleted_by   uuid REFERENCES auth.users(id),
+    CHECK ((deleted_at IS NULL) = (deleted_by IS NULL)),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
+);
+CREATE INDEX page_notes_page ON core.page_notes (project_id, url_id, created_at DESC, id DESC)
+    WHERE deleted_at IS NULL;
+```
+
+A note is what the team wrote about one page of a project, shown newest first on the page's Notes tab. It is keyed by the address (`core.urls.id`), not by a crawl's page row, so it stays on the page in every crawl, old and new, and on an address that now redirects or errors. A delete is soft: the API sets `deleted_at` and `deleted_by`, and no role has `DELETE`, so Undo is one update and a row leaves only with its project. Only the API reads and writes the table (migration 0042): it may insert, and update `body`, `edited_at`, `deleted_at` and `deleted_by`; the worker has no access.
+
 ## 6. Entities: brands, aliases, competitors
 
 A competitor is an entity with a project role, not a separate table. This keeps SEO competitor tracking (by domain) and AI competitor tracking (by name and domain) on the same object.

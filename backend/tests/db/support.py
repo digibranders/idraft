@@ -72,6 +72,7 @@ TENANT_TABLES: dict[str, str] = {
     "core.tier_rules": "workspace_id",
     "core.project_pages": "workspace_id",
     "core.page_terms": "workspace_id",
+    "core.page_notes": "workspace_id",
     "seo.crawl_runs": "workspace_id",
     "seo.crawl_pages": "workspace_id",
     "seo.crawl_links": "workspace_id",
@@ -683,6 +684,14 @@ async def seed_internal_links(
         url_id,
         term_id,
         workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO core.page_notes (workspace_id, project_id, url_id, author_id, body) "
+        "VALUES ($1, $2, $3, $4, 'Rewrite the intro before the launch.')",
+        workspace_id,
+        project_id,
+        url_id,
+        owner_id,
     )
     run_id: uuid.UUID = await db.fetchval(
         "INSERT INTO seo.crawl_runs (workspace_id, project_id, trigger, state, target_host, "

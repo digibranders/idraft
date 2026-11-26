@@ -1281,6 +1281,15 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         tag_term["id"],
         workspace.id,
     )
+    await execute(
+        pg,
+        "INSERT INTO core.page_notes (workspace_id, project_id, url_id, author_id, body) "
+        "VALUES ($1, $2, $3, $4, 'Rewrite the intro before the launch.')",
+        workspace.id,
+        project_id,
+        crawl_ids[pricing],
+        owner.id,
+    )
     async with workspace_transaction(resources.sessions, workspace.id) as flow_db:
         await recompute_tier_flow(flow_db, workspace_id=workspace.id, run_id=crawl_run)
     # A crawl waiting for the worker (cancelling it would succeed; Crawl now is refused while it
@@ -1571,6 +1580,7 @@ _TENANT_ROWS = {
     "core.tier_rules": "workspace_id",
     "core.project_pages": "workspace_id",
     "core.page_terms": "workspace_id",
+    "core.page_notes": "workspace_id",
     "seo.crawl_runs": "workspace_id",
     "seo.crawl_pages": "workspace_id",
     "seo.crawl_links": "workspace_id",
