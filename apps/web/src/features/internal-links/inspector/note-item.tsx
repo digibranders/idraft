@@ -68,6 +68,8 @@ export function NoteItem({
 }: NoteItemProps): ReactElement {
   const t = useTranslations('pages.drawer.notes');
   const timeZone = browserTimeZone();
+  const editedAt =
+    note.edited_at === null ? '' : t('editedAt', { when: formatDetailDateTime(note.edited_at, timeZone) });
   return (
     <li data-note-id={note.id} tabIndex={-1} className="flex flex-col gap-2 py-3 outline-none">
       <div className="flex items-center gap-2">
@@ -78,9 +80,15 @@ export function NoteItem({
             {formatDetailDateTime(note.created_at, timeZone)}
           </time>
           {note.edited_at === null ? null : (
-            <Tooltip content={t('editedAt', { when: formatDetailDateTime(note.edited_at, timeZone) })}>
-              <span className="type-meta text-foreground-tertiary">{t('edited')}</span>
-            </Tooltip>
+            // The time is read from the hidden text in the flow of the page; the tooltip is for the pointer only
+            <>
+              <Tooltip content={editedAt} purpose="label">
+                <span aria-hidden="true" className="type-meta text-foreground-tertiary">
+                  {t('edited')}
+                </span>
+              </Tooltip>
+              <span className="sr-only">{editedAt}</span>
+            </>
           )}
         </div>
         {editing ? null : (

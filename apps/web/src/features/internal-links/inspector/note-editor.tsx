@@ -81,6 +81,7 @@ export function NoteEditor({
       <Textarea
         ref={area}
         value={value}
+        // The box counts UTF-16 units, so it is stricter than the server's code point count (an emoji takes two here)
         maxLength={NOTE_MAX}
         placeholder={t('placeholder')}
         counter={

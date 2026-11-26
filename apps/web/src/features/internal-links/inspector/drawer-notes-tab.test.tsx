@@ -272,8 +272,10 @@ describe('the list', () => {
 
   it('gives the time of an edit to assistive technology, beside the word edited', async () => {
     renderWithProviders(<Harness />);
-    const word = await screen.findByText('edited');
-    expect(word).toHaveAccessibleDescription(`Edited ${detailTime('2026-11-24T15:40:00Z')}`);
+    await screen.findByText('edited');
+    // Hidden text in the flow of the page, so a screen reader and a keyboard user reach it without a tooltip
+    const time = screen.getByText(`Edited ${detailTime('2026-11-24T15:40:00Z')}`, { selector: '.sr-only' });
+    expect(time).toBeInTheDocument();
     expect(screen.getAllByText('edited')).toHaveLength(1);
   });
 
@@ -510,6 +512,39 @@ describe('deleting', () => {
     expect(items()[1]).toHaveTextContent(PRIYA_NOTE);
     expect(items()[1]).toHaveTextContent(detailTime('2026-11-20T09:30:00Z'));
     expect(announced()).toContain('Note restored');
+  });
+
+  it('keeps the focus in the tab when a delete leaves no box to take it', async () => {
+    const { user } = renderWithProviders(<Harness canNote={false} />);
+    await screen.findByRole('list', { name: 'Notes, newest first' });
+    await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Delete note' }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(2);
+    });
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByText(/Everyone in this workspace can read/).parentElement).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+  });
+
+  it('ignores a second press of Undo while the first is on its way, and says it is restoring', async () => {
+    let posts = 0;
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST' && request.url.endsWith('/restore')) posts += 1;
+    });
+    const { user } = renderWithProviders(<Harness />);
+    await loaded();
+    await user.click(within(itemOf(PRIYA_NOTE)).getByRole('button', { name: 'Delete note' }));
+    const undo = await screen.findByRole('button', { name: 'Undo' });
+    fireEvent.click(undo);
+    fireEvent.click(undo);
+    await waitFor(() => {
+      expect(items()).toHaveLength(3);
+    });
+    expect(posts).toBe(1);
+    expect(announced()).toEqual(expect.arrayContaining(['Restoring note', 'Note restored']));
+    expect(announced().filter((text) => text === 'Restoring note')).toHaveLength(1);
   });
 
   it('says so when the delete is refused, and the note stays', async () => {

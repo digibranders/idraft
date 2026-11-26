@@ -45,6 +45,8 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
   const [editing, setEditing] = useState<string | null>(null);
   const focusEdit = useRef<string | null>(null);
   const box = useRef<HTMLTextAreaElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const restoring = useRef(new Set<string>());
   const list = useRef<HTMLOListElement | null>(null);
   const editButtons = useRef(new Map<string, HTMLButtonElement>());
   const olderButton = useRef<HTMLButtonElement | null>(null);
@@ -116,19 +118,25 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
   };
 
   const undo = async (noteId: string): Promise<void> => {
+    // The put-back is not optimistic: a second press while one is on its way is ignored
+    if (restoring.current.has(noteId)) return;
+    restoring.current.add(noteId);
+    announce(t('restoring'));
     try {
       await writes.restore(noteId);
     } catch {
       toast({ type: 'error', title: t('restoreFailed') });
       return;
+    } finally {
+      restoring.current.delete(noteId);
     }
     announce(t('restored'));
   };
 
   const remove = async (noteId: string): Promise<void> => {
     const done = writes.remove(noteId);
-    // The note's own button goes with it, so the focus moves to the box at once
-    box.current?.focus();
+    // The note's own button goes with it, so the focus moves to the box at once, or to the tab when there is no box
+    (box.current ?? panel.current)?.focus();
     try {
       await done;
     } catch {
@@ -207,7 +215,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={panel} tabIndex={-1} className="flex flex-col gap-3 outline-none">
       {canNote ? (
         <NoteEditor
           label={t('addLabel', { path })}
