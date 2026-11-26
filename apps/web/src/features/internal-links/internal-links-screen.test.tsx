@@ -826,12 +826,13 @@ describe('the page drawer opened from the Pages table', () => {
 
   it('returns focus to the row when the drawer closes', async () => {
     registry.real = true;
-    // Opened by the link: the test URL cannot go "back", so Close replaces the URL, as it does for a shared link
+    // Another page is open already: the test URL cannot go "back", so Close replaces the URL, as for a shared link.
+    // Clicking the row is what makes the screen remember its opener.
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-      searchParams: '?inspect=page:108',
+      searchParams: 'inspect=page%3A109',
     });
+    await user.click(await rowHeader('/pricing'));
     await screen.findByRole('complementary', { name: '/pricing' });
-    await rowHeader('/pricing');
     await waitFor(() => expect(title()).toHaveFocus());
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
