@@ -248,7 +248,11 @@ export interface ExtrasSectionsProps {
   linksAvailable: boolean;
   /** False when the link changes were not worked out (`ChangesSummary.links_compared`). */
   linksCompared: boolean;
+  /** The cards to draw, in the fixed order below (absent: all of them). A tab asks for the ones that belong to it. */
+  parts?: readonly ExtrasPart[] | undefined;
 }
+
+export type ExtrasPart = 'changes' | 'keywords' | 'citations' | 'anchors' | 'google';
 
 /**
  * The inspector's sections that read the page's `extras` (spec 7.4, mock `il-drawer.js`): changes since the last
@@ -259,27 +263,37 @@ export function ExtrasSections({
   comparison,
   linksAvailable,
   linksCompared,
+  parts,
 }: ExtrasSectionsProps): ReactElement {
   const t = useTranslations('internalLinks.inspectorExtras');
+  const drawn = (part: ExtrasPart): boolean => parts === undefined || parts.includes(part);
   return (
     <>
-      {comparison === null || comparison === 'first_crawl' ? null : (
+      {!drawn('changes') || comparison === null || comparison === 'first_crawl' ? null : (
         <InspectorSection title={t('changes')} icon={History} status="ready">
           <ChangesBody t={t} extras={extras} comparison={comparison} linksCompared={linksCompared} />
         </InspectorSection>
       )}
-      <InspectorSection title={t('keywords')} icon={Search} status="ready">
-        <KeywordsBody t={t} rows={extras.keywords} />
-      </InspectorSection>
-      <InspectorSection title={t('citations')} icon={Sparkles} status="ready">
-        <CitationsBody t={t} counts={extras.citations} />
-      </InspectorSection>
-      <InspectorSection title={t('anchors')} icon={Anchor} status="ready">
-        <AnchorsBody t={t} anchors={extras.anchors} linksAvailable={linksAvailable} />
-      </InspectorSection>
-      <InspectorSection title={t('google')} icon={Globe} status="ready">
-        <GoogleBody t={t} gsc={extras.gsc} />
-      </InspectorSection>
+      {drawn('keywords') ? (
+        <InspectorSection title={t('keywords')} icon={Search} status="ready">
+          <KeywordsBody t={t} rows={extras.keywords} />
+        </InspectorSection>
+      ) : null}
+      {drawn('citations') ? (
+        <InspectorSection title={t('citations')} icon={Sparkles} status="ready">
+          <CitationsBody t={t} counts={extras.citations} />
+        </InspectorSection>
+      ) : null}
+      {drawn('anchors') ? (
+        <InspectorSection title={t('anchors')} icon={Anchor} status="ready">
+          <AnchorsBody t={t} anchors={extras.anchors} linksAvailable={linksAvailable} />
+        </InspectorSection>
+      ) : null}
+      {drawn('google') ? (
+        <InspectorSection title={t('google')} icon={Globe} status="ready">
+          <GoogleBody t={t} gsc={extras.gsc} />
+        </InspectorSection>
+      ) : null}
     </>
   );
 }

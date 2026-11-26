@@ -9137,6 +9137,28 @@
   },
   "pages": {
     "title": "Pages",
+    "drawer": {
+      "tabsLabel": "Page sections",
+      "tabsMore": "More sections",
+      "tabs": {
+        "overview": "Overview",
+        "search": "Search",
+        "outline": "Outline",
+        "issues": "Issues",
+        "ai": "AI",
+        "links": "Links",
+        "notes": "Notes"
+      },
+      "notes": {
+        "pending": "The notes of this page appear here"
+      },
+      "ai": {
+        "none": "No AI answer cited this page in the last 28 days"
+      },
+      "outline": {
+        "pending": "The outline of this page appears here"
+      }
+    },
     "tabs": {
       "label": "Pages views",
       "overview": "Overview",

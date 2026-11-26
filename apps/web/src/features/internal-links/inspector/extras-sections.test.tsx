@@ -215,6 +215,29 @@ describe('Google Search Console', () => {
   });
 });
 
+describe('the parts a tab asks for', () => {
+  const headings = (): (string | null)[] => screen.getAllByRole('heading').map((node) => node.textContent);
+
+  it('draws only the tracked keywords card for parts keywords', () => {
+    renderWithProviders(
+      <ExtrasSections extras={BASE} comparison="ready" linksAvailable linksCompared parts={['keywords']} />,
+    );
+    expect(headings()).toEqual(['Tracked keywords']);
+  });
+
+  it('draws the cards asked for, in the usual order', () => {
+    renderWithProviders(
+      <ExtrasSections extras={BASE} comparison="ready" linksAvailable linksCompared parts={['anchors', 'changes']} />,
+    );
+    expect(headings()).toEqual(['Changes since the last crawl', 'Anchor text pointing here']);
+  });
+
+  it('draws every card without parts', () => {
+    show();
+    expect(headings()).toHaveLength(5);
+  });
+});
+
 describe('what the sections never show', () => {
   it('has no equity or strength in text, names or titles', () => {
     const { container } = show();

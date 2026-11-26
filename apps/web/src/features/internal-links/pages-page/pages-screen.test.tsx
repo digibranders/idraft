@@ -182,7 +182,7 @@ describe('the page drawer of the Pages screen', () => {
   });
 
   it('keeps a non-default scope on the View all in Links addresses', async () => {
-    renderWithProviders(pagesAs('editor', 'all'), { searchParams: '?inspect=page:108&scope=all' });
+    renderWithProviders(pagesAs('editor', 'all'), { searchParams: '?inspect=page:108&itab=links&scope=all' });
     const panel = await screen.findByRole('complementary', { name: '/pricing' });
     const hrefOf = async (title: RegExp): Promise<string | null> => {
       const heading = await within(panel).findByRole('heading', { name: title });

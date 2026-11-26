@@ -104,7 +104,7 @@ describe('a crawl whose links are gone', () => {
     });
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       // The Tier flow reads no links, so only the inspector's two sections carry the message
-      searchParams: `?tab=flow&run=${DROPPED}&inspect=page:108`,
+      searchParams: `?tab=flow&run=${DROPPED}&inspect=page:108&itab=links`,
     });
     expect((await screen.findAllByText(DROPPED_TEXT)).length).toBe(2);
     expect(seen.some((path) => path.endsWith('/internal-links/neighbors'))).toBe(false);
