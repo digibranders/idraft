@@ -93,11 +93,12 @@ def sniff(data: bytes, name: str) -> str:
 def display_name(name: str | None) -> str:
     """The name to show: no path parts or control characters, 255 characters at most."""
     last = (name or "").replace("\\", "/").rsplit("/", 1)[-1]
-    # Cf covers zero-width characters, the byte order mark, the soft hyphen and the bidi controls.
+    # Cf covers zero-width characters, the byte order mark, the soft hyphen and the bidi controls;
+    # Cs is a lone surrogate, which neither the database nor a UTF-8 header can hold.
     kept = "".join(
         c
         for c in last
-        if c not in _BIDI and unicodedata.category(c) not in {"Cc", "Cf", "Zl", "Zp"}
+        if c not in _BIDI and unicodedata.category(c) not in {"Cc", "Cf", "Cs", "Zl", "Zp"}
     )
     cleaned = kept.strip()[:DISPLAY_NAME_MAX].strip()
     return cleaned if cleaned.strip(".") else _FALLBACK_NAME

@@ -204,6 +204,11 @@ def test_display_name_drops_invisible_format_characters() -> None:
     assert display_name("\u200b\ufeff\u202e") == "file"
 
 
+def test_display_name_drops_surrogates_so_the_name_can_be_stored_and_encoded() -> None:
+    assert display_name("a\ud800b.txt") == "ab.txt"
+    assert display_name("\udc00\udfff") == "file"
+
+
 def test_markup_after_a_byte_order_mark_or_leading_whitespace_is_refused() -> None:
     assert refusal(b"\xef\xbb\xbf" + HTML, "a.txt") == "markup"
     assert refusal(b"\n\t" + b"<svg onload=x>", "a.txt") == "markup"
