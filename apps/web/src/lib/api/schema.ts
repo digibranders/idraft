@@ -4592,15 +4592,21 @@ export interface components {
          * @description The three numbers of one classifier and key over one window.
          */
         AiReferralCounts: {
-            /** Engaged Sessions */
-            engaged_sessions: number;
+            /**
+             * Engaged Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            engaged_sessions: number | null;
             /**
              * Key Events
              * @description The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.
              */
             key_events: string | null;
-            /** Sessions */
-            sessions: number;
+            /**
+             * Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            sessions: number | null;
         };
         /** AiReferralRow */
         AiReferralRow: {
@@ -4621,8 +4627,11 @@ export interface components {
         };
         /** AiReferralValue */
         AiReferralValue: {
-            /** Engaged Sessions */
-            engaged_sessions: number;
+            /**
+             * Engaged Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            engaged_sessions: number | null;
             /**
              * Key Events
              * @description The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.
@@ -4630,11 +4639,19 @@ export interface components {
             key_events: string | null;
             /** @description The same numbers over the compared window. Null when nothing is compared, when the compared window is not fully collected, or when the key has no row in it. */
             previous: components["schemas"]["AiReferralCounts"] | null;
-            /** Sessions */
-            sessions: number;
+            /**
+             * Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            sessions: number | null;
         };
         /** AiReferralsMeta */
         AiReferralsMeta: {
+            /**
+             * Collected Since
+             * @description The first day the first finished sync run stored; null when the sync never finished, or when the state predates this field.
+             */
+            collected_since: string | null;
             /**
              * Collected Through
              * @description The last day a finished sync run stored; null when the sync never finished or nothing is connected.
@@ -4664,12 +4681,17 @@ export interface components {
              */
             rules_version: number | null;
             window: components["schemas"]["MetricWindow"];
+            /**
+             * Window Collected
+             * @description True when `collected_since` is at or before the first day of the window and `collected_through` covers its last day (a window that ends today needs yesterday). Empty `data` with true is zero AI sessions; with false it is not (fully) collected.
+             */
+            window_collected: boolean;
         };
         /** AiReferralsResponse */
         AiReferralsResponse: {
             /**
              * Data
-             * @description One row per assistant (or origin) with a row in the window. An absent key is no row, and is read as zero only when `meta.collected_through` is at or after `to`.
+             * @description One row per assistant (or origin) with a row in the window. An absent key is no row, and is read as zero only when `meta.window_collected` is true.
              */
             data: components["schemas"]["AiReferralRow"][];
             meta: components["schemas"]["AiReferralsMeta"];
