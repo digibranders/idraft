@@ -10359,6 +10359,7 @@
       "gscNotConnected": "Search Console is not connected",
       "gscPending": "Search Console has no page numbers yet",
       "checkNotRun": "The check did not run",
+      "noPage": "No page to show",
       "loadFailed": "The issues could not be loaded",
       "loadFailedReason": "The server returned an error. Nothing on this page changed.",
       "crawlsFailed": "The crawl list could not be loaded",

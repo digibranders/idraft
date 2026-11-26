@@ -70,17 +70,19 @@ describe('the list of checks', () => {
     const headers = categoryHeaders().map((header) => header.textContent);
     expect(headers).toEqual(['Status', 'Pages that earn visits', 'Redirects', 'Sitemap', 'Links']);
     const status = screen.getByRole('rowheader', { name: 'Status' });
-    expect(status).toHaveClass('type-body-strong', 'text-foreground', 'bg-surface-subtle', 'border-t');
+    expect(status).toHaveClass('type-subsection-title', 'text-foreground', 'bg-surface-subtle', 'border-t');
+    expect(status).not.toHaveClass('type-body-strong');
     // The band stands apart by its ground and the border above it, not by size: the compact row height
     expect(status.closest('tr')).toHaveClass('h-row-compact');
   });
 
-  it('gives a passed check the same name as one that found pages: bold and in the main text colour', () => {
+  it('gives a passed check the same name as one that found pages: weight 600 and in the main text colour', () => {
     renderWithProviders(<ChecksTable {...props()} />);
     const found = screen.getByText('Pages that return a 4xx error');
     const passed = screen.getByText('Pages that return a 5xx error');
     expect(passed.className).toBe(found.className);
-    expect(passed).toHaveClass('type-body-strong', 'text-foreground');
+    expect(passed).toHaveClass('type-subsection-title', 'text-foreground');
+    expect(passed).not.toHaveClass('type-body-strong');
     expect(passed).not.toHaveClass('text-foreground-secondary', 'text-foreground-tertiary');
     // A check that did not run keeps the same name too
     expect(screen.getByText('Broken or redirected pages with Google clicks').className).toBe(found.className);
@@ -132,8 +134,23 @@ describe('the list of checks', () => {
     const name = screen.getByRole('rowheader', { name: /^Pages that return a 4xx error$/ });
     expect(name).toHaveAttribute('scope', 'row');
     expect(name).toHaveClass('text-left');
-    expect(within(name).getByText('Pages that return a 4xx error')).toHaveClass('type-body-strong', 'text-foreground');
+    // The browser's bold on a th is reset, so the visible weight is the name's own 600 and not 700
+    expect(name).toHaveClass('font-normal');
+    expect(within(name).getByText('Pages that return a 4xx error')).toHaveClass(
+      'type-subsection-title',
+      'text-foreground',
+    );
     expect(within(found).getAllByRole('cell')).toHaveLength(6);
+  });
+
+  it('says in a tooltip why a row has no example: no page to show for a passed check, not run for the rest', () => {
+    renderWithProviders(<ChecksTable {...props()} />);
+    const passed = within(within(row('Pages that return a 5xx error')).getAllByRole('cell')[EXAMPLE] as HTMLElement);
+    expect(passed.getByText('n/a')).toHaveAccessibleDescription('No page to show');
+    const notRun = within(
+      within(row('Sitemap lists an address that does not return 200')).getAllByRole('cell')[EXAMPLE] as HTMLElement,
+    );
+    expect(notRun.getByText('n/a')).toHaveAccessibleDescription('The check did not run');
   });
 
   it('writes the example path in the mono face of URLs', () => {

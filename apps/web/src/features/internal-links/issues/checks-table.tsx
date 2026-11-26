@@ -26,8 +26,8 @@ const COLUMN_COUNT = 7;
 const TAB_STOP = { tabIndex: 0 };
 const CELL = 'border-t border-border-subtle px-3 first:px-4 last:px-4';
 const HEAD = 'h-row-header px-3 text-left type-table-header whitespace-nowrap first:px-4 last:px-4';
-/** The names of the checks are the main thing on the page: bold and in the main text colour on every row. */
-const NAME = 'block truncate type-body-strong text-foreground';
+/** The names of the checks are the main thing on the page: weight 600 and the main text colour on every row. */
+const NAME = 'block truncate type-subsection-title text-foreground';
 
 export interface ChecksTableProps {
   /** The checks to draw, filtered and in order (`visibleChecks`). */
@@ -81,7 +81,7 @@ export function ChecksTable({
               <th
                 scope="rowgroup"
                 colSpan={COLUMN_COUNT}
-                className="border-t border-border-subtle bg-surface-subtle px-4 text-left align-middle type-body-strong text-foreground"
+                className="border-t border-border-subtle bg-surface-subtle px-4 text-left align-middle type-subsection-title text-foreground"
               >
                 {words.categoryOf(group.category)}
               </th>
@@ -165,7 +165,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
           : undefined
       }
     >
-      <th scope="row" className={cn(CELL, 'text-left')}>
+      <th scope="row" className={cn(CELL, 'text-left font-normal')}>
         {opens ? (
           <button
             type="button"
@@ -199,7 +199,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
         {found && check.example_path !== null ? (
           <Truncate text={check.example_path} className="block max-w-xs font-mono" />
         ) : (
-          <NotApplicable />
+          <NotApplicable reason={t(opens ? 'states.noPage' : 'states.checkNotRun')} />
         )}
       </td>
       <td className={cn(CELL, 'text-foreground-tertiary')}>{opens ? <Icon icon={ChevronRight} size="sm" /> : null}</td>
