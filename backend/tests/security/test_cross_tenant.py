@@ -418,8 +418,14 @@ SCREENSHOT_ROUTES = {
     ),
 }
 # What a member inside their own scope is answered for the seeded page note, which another user
-# wrote and nobody deleted: only its author changes it, and only a deleted note is restored.
+# wrote and nobody deleted: only its author changes it, and only a deleted note is restored. Its
+# file has a row and no stored object in this suite, so a read of it is not found.
 NOTE_ROUTES = {
+    (
+        "GET",
+        _W
+        + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}",
+    ): (404, "not_found"),
     ("PATCH", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}"): (
         403,
         "forbidden",
@@ -1316,15 +1322,17 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     )
     more_ids["note_id"] = str(page_note["id"])
     attachment_id = uuid.uuid4()
+    more_ids["attachment_id"] = str(attachment_id)
     await execute(
         pg,
-        "INSERT INTO core.page_note_attachments (id, workspace_id, project_id, url_id, "
+        "INSERT INTO core.page_note_attachments (id, workspace_id, project_id, url_id, note_id, "
         "uploaded_by, storage_key, original_name, size_bytes, content_type) "
-        "VALUES ($1, $2, $3, $4, $5, $6, 'brief.pdf', 1024, 'application/pdf')",
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, 'brief.pdf', 1024, 'application/pdf')",
         attachment_id,
         workspace.id,
         project_id,
         crawl_ids[pricing],
+        page_note["id"],
         owner.id,
         f"notes/v1/{workspace.id}/{project_id}/{attachment_id}.zst",
     )

@@ -399,11 +399,11 @@ async def test_every_write_is_audited_with_its_bodies(
     assert snapshots == {
         "page_note.created": {
             "before": None,
-            "after": {"url_id": url_id, "body": "first", "mentions": []},
+            "after": {"url_id": url_id, "body": "first", "mentions": [], "attachment_ids": []},
         },
         "page_note.updated": {
-            "before": {"body": "first", "mentions": []},
-            "after": {"body": "second", "mentions": []},
+            "before": {"body": "first", "mentions": [], "attachment_ids": []},
+            "after": {"body": "second", "mentions": [], "attachment_ids": []},
         },
         "page_note.deleted": {
             "before": {"url_id": url_id, "body": "second", "author_id": str(editor.user_id)},
@@ -411,3 +411,23 @@ async def test_every_write_is_audited_with_its_bodies(
         },
         "page_note.restored": {"before": None, "after": None},
     }
+
+
+async def test_every_note_answer_carries_its_mentions_and_attachments(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    site = await _site(migrated)
+    editor = await member(resources, migrated, site.workspace, "editor")
+
+    created = await api.post(site.notes(), json={"body": "Plain"}, headers=editor.headers)
+    note_id = created.json()["data"]["id"]
+    changed = await api.patch(site.notes(note_id), json={"body": "Plain 2"}, headers=editor.headers)
+    await api.delete(site.notes(note_id), headers=editor.headers)
+    restored = await api.post(site.notes(note_id, "restore"), headers=editor.headers)
+
+    answers = [created.json()["data"], changed.json()["data"], restored.json()["data"]]
+    answers += await _listed(api, site, editor)
+    assert len(answers) == 4
+    for note in answers:
+        assert note["mentions"] == []
+        assert note["attachments"] == []

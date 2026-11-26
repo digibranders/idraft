@@ -144,6 +144,8 @@ Official API benchmarks via LLM Responses cost roughly 5x to 50x per observation
 
 Storage and bandwidth are negligible compared with collection costs at every scale we model.
 
+Files on page notes (the Notes tab) sit in the same fixed R2 line and write nothing to `ops.provider_cost_events` or `ops.cost_daily`: at the cap of 1 GiB per workspace they cost at most 1 GiB times $0.015 per GB-month, about $0.016 a month, and R2 egress is free.
+
 ## 8. Combined monthly scenarios
 
 `H` is idraft's half of the Hostinger invoice (section 2); `H16` and `H32` are the invoices of a dedicated 16 GB or 32 GB VPS. The owner enters them. Every total is "fixed host cost + variable costs" so no price is invented. Variable costs are SEO collection + AI collection + research + optional API validation + storage (R2).

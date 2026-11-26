@@ -16298,6 +16298,14 @@
       },
       "PageNote": {
         "properties": {
+          "attachments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PageNoteFile"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
           "author": {
             "$ref": "#/components/schemas/PageNoteAuthor"
           },
@@ -16576,8 +16584,25 @@
       },
       "PageNoteWrite": {
         "additionalProperties": false,
-        "description": "The body of a create and of a change. Trimmed, 1 to 2,000 characters, no null character.\n`mentions` omitted on a change: the stored ones whose label is still in the text stay.",
+        "description": "The body of a create and of a change. Trimmed, at most 2,000 characters, no null character.\nIt may be empty only when the note holds a file: the service refuses a note with neither.\n`mentions` omitted on a change: the stored ones whose label is still in the text stay.\n`attachment_ids` omitted on a change: the files are unchanged; given, it is the exact list of\nthe note's files afterwards. More than `FILES_MAX` is refused by the service, with its code.",
         "properties": {
+          "attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Files uploaded for this page and not yet attached, at most 5.",
+            "maxItems": 5,
+            "title": "Attachment Ids"
+          },
           "body": {
             "title": "Body",
             "type": "string"
@@ -43861,6 +43886,81 @@
           }
         },
         "summary": "Upload a file for a note",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}": {
+      "get": {
+        "description": "`data:read`. The file as it was stored, through the API so that the permission and the workspace are checked on every read. `404 not_found` for a file that is not attached to a note, was removed from its note, belongs to a deleted note, or is of another page, project or workspace; the file of a note comes back when the note is restored. The `Content-Type` is the one stored from the content, `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy` are always sent, and `Content-Disposition` is `inline` for PNG, JPEG, GIF and WebP images and `attachment` for every other type.",
+        "operationId": "download_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments__attachment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "image/gif": {},
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {},
+              "text/csv": {},
+              "text/plain": {}
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The bytes of a note's file",
         "tags": [
           "internal-links"
         ]

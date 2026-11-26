@@ -553,6 +553,10 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments",
     ): "notes:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}",
+    ): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
         "data:read"
     ),
@@ -853,6 +857,8 @@ PATH_PARAMETERS = {
     "screen",
     # Inside one project, after `{project_id}`: the service reads the note within it.
     "note_id",
+    # A file of a page note, after `{project_id}` and the page: found within that page's notes.
+    "attachment_id",
     # WP-11 layouts-api
     # WP-12 summary-lane
     # WP-13 prompts-lane

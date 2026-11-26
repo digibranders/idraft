@@ -13,6 +13,7 @@ from idraft.api.schemas.common import Body
 
 NOTE_MAX: Final = 2000
 MENTIONS_MAX: Final = 20
+FILES_MAX: Final = 5
 MentionType = Literal["page", "user", "issue", "keyword"]
 
 
@@ -71,6 +72,7 @@ class PageNote(BaseModel):
     author: PageNoteAuthor
     body: str
     mentions: list[PageNoteMention] = []
+    attachments: list[PageNoteFile] = []
     created_at: datetime
     edited_at: datetime | None
     can_edit: bool
@@ -78,19 +80,25 @@ class PageNote(BaseModel):
 
 
 class PageNoteWrite(Body):
-    """The body of a create and of a change. Trimmed, 1 to 2,000 characters, no null character.
-    `mentions` omitted on a change: the stored ones whose label is still in the text stay."""
+    """The body of a create and of a change. Trimmed, at most 2,000 characters, no null character.
+    It may be empty only when the note holds a file: the service refuses a note with neither.
+    `mentions` omitted on a change: the stored ones whose label is still in the text stay.
+    `attachment_ids` omitted on a change: the files are unchanged; given, it is the exact list of
+    the note's files afterwards. More than `FILES_MAX` is refused by the service, with its code."""
 
     body: str
     mentions: list[PageNoteMentionIn] | None = Field(default=None, max_length=MENTIONS_MAX)
+    attachment_ids: list[UUID] | None = Field(
+        default=None,
+        description="Files uploaded for this page and not yet attached, at most 5.",
+        json_schema_extra={"maxItems": FILES_MAX},
+    )
 
     @field_validator("body")
     @classmethod
     def _plain(cls, value: str) -> str:
         # Every kind of white space goes from the ends: the table's check knows only spaces.
         text = value.replace("\r\n", "\n").strip()
-        if not text:
-            raise ValueError("Write something first.")
         if len(text) > NOTE_MAX:
             raise ValueError("A note is at most 2,000 characters.")
         if "\x00" in text:

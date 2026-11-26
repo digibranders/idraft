@@ -445,6 +445,11 @@ async def test_the_audit_entries_hold_the_mentions(
         "url_id": str(site.ids["/pricing"]),
         "body": "See @/blog/a",
         "mentions": [page],
+        "attachment_ids": [],
     }
-    assert updated["before"] == {"body": "See @/blog/a", "mentions": [page]}
-    assert updated["after"] == {"body": "See @/blog/a and @Jane Doe", "mentions": [page, user]}
+    assert updated["before"] == {"body": "See @/blog/a", "mentions": [page], "attachment_ids": []}
+    assert updated["after"] == {
+        "body": "See @/blog/a and @Jane Doe",
+        "mentions": [page, user],
+        "attachment_ids": [],
+    }

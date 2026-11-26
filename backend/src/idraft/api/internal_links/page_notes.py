@@ -14,8 +14,8 @@ from sqlalchemy import Row, Select, func, insert, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
-from idraft.api.ai.engine_service import live_project
 from idraft.api.internal_links.mention_sources import IssueChecks, NoIssueChecks
+from idraft.api.internal_links.page_note_files import attach, attachments_of, require_page
 from idraft.api.internal_links.page_note_mentions import (
     StoredMention,
     as_snapshot,
@@ -26,7 +26,7 @@ from idraft.api.internal_links.page_note_mentions import (
 )
 from idraft.api.pagination import cursor_instant, decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.permissions import Permission, Role
-from idraft.api.problems import ForbiddenError, NotFoundError
+from idraft.api.problems import FieldError, ForbiddenError, NotFoundError, invalid_fields
 from idraft.api.request_info import RequestInfo
 from idraft.api.schemas.page_notes import (
     PageNote,
@@ -38,7 +38,7 @@ from idraft.api.schemas.page_notes import (
 )
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
-from idraft.db.tables import crawl_pages, crawl_runs, page_notes, users
+from idraft.db.tables import page_notes, users
 
 
 def _of_page(workspace_id: UUID, project_id: UUID, url_id: int) -> tuple[Any, ...]:
@@ -88,9 +88,11 @@ async def _views(
     db: AsyncSession, access: WorkspaceAccess, rows: Sequence[Row[Any]]
 ) -> list[PageNote]:
     """The notes as the API shows them. A page chip shows the address's current path, read once
-    for the whole list and never taken from what the client sent."""
+    for the whole list and never taken from what the client sent; so are the files, in one
+    statement."""
     stored = [of_row(row.mentions) for row in rows]
     paths = await paths_of(db, [mention for mentions in stored for mention in mentions])
+    files = await attachments_of(db, access.workspace_id, [row.id for row in rows])
     writes = access.holds(Permission.NOTES_WRITE)
     return [
         PageNote(
@@ -104,6 +106,7 @@ async def _views(
                 )
                 for mention in mentions
             ],
+            attachments=files.get(row.id, []),
             created_at=row.created_at,
             edited_at=row.edited_at,
             can_edit=writes and row.author_id == access.user_id,
@@ -123,29 +126,12 @@ def _after(cursor: str, scope: dict[str, object]) -> tuple[datetime, UUID]:
         raise invalid_cursor() from None
 
 
-async def _require_page(
-    db: AsyncSession, access: WorkspaceAccess, project_id: UUID, url_id: int
-) -> None:
-    """The project is live and one of its crawls, any of them, holds the address."""
-    await live_project(db, access, project_id)
-    found = (
-        await db.execute(
-            select(crawl_pages.c.url_id)
-            .join(
-                crawl_runs,
-                (crawl_runs.c.id == crawl_pages.c.run_id)
-                & (crawl_runs.c.workspace_id == crawl_pages.c.workspace_id),
-            )
-            .where(
-                crawl_pages.c.workspace_id == access.workspace_id,
-                crawl_pages.c.url_id == url_id,
-                crawl_runs.c.project_id == project_id,
-            )
-            .limit(1)
+def _require_content(body: str, live_files: int) -> None:
+    """A note has text or at least one file: an empty note is never stored."""
+    if not body and not live_files:
+        raise invalid_fields(
+            [FieldError("body", "body_required", "A note has text or at least one file.")]
         )
-    ).first()
-    if found is None:
-        raise NotFoundError
 
 
 async def _locked(
@@ -255,7 +241,7 @@ class PageNoteService:
             "url_id": url_id,
         }
         async with self._transaction(access) as db:
-            await _require_page(db, access, project_id, url_id)
+            await require_page(db, access, project_id, url_id)
             statement = _notes(access, project_id, url_id)
             if cursor is not None:
                 created, note_id = _after(cursor, scope)
@@ -293,10 +279,11 @@ class PageNoteService:
         info: RequestInfo,
     ) -> PageNote:
         async with self._transaction(access) as db:
-            await _require_page(db, access, project_id, url_id)
+            await require_page(db, access, project_id, url_id)
             mentions = await check_mentions(
                 db, access, project_id, body.body, body.mentions or [], self._issues
             )
+            _require_content(body.body, len(body.attachment_ids or []))
             note_id: UUID = (
                 await db.execute(
                     insert(page_notes)
@@ -311,6 +298,9 @@ class PageNoteService:
                     .returning(page_notes.c.id)
                 )
             ).scalar_one()
+            files = await attach(
+                db, access, project_id, url_id, note_id, body.attachment_ids or [], replace=False
+            )
             await self._audit(
                 db,
                 access,
@@ -321,6 +311,7 @@ class PageNoteService:
                     "url_id": str(url_id),
                     "body": body.body,
                     "mentions": as_snapshot(mentions),
+                    "attachment_ids": files.after,
                 },
             )
             return await self._one(db, access, project_id, url_id, note_id)
@@ -335,7 +326,7 @@ class PageNoteService:
         info: RequestInfo,
     ) -> PageNote:
         async with self._transaction(access) as db:
-            await _require_page(db, access, project_id, url_id)
+            await require_page(db, access, project_id, url_id)
             note = await _locked(db, access, project_id, url_id, note_id, deleted=False)
             if note.author_id != access.user_id:
                 raise ForbiddenError("Only the one who wrote a note can change it.")
@@ -347,7 +338,11 @@ class PageNoteService:
                     db, access, project_id, body.body, body.mentions, self._issues
                 )
             )
-            if note.body != body.body or kept != before:
+            files = await attach(
+                db, access, project_id, url_id, note_id, body.attachment_ids, replace=True
+            )
+            _require_content(body.body, len(files.after))
+            if note.body != body.body or kept != before or files.changed:
                 await _change(
                     db,
                     access,
@@ -363,8 +358,16 @@ class PageNoteService:
                     "page_note.updated",
                     note_id,
                     info,
-                    before={"body": note.body, "mentions": as_snapshot(before)},
-                    after={"body": body.body, "mentions": as_snapshot(kept)},
+                    before={
+                        "body": note.body,
+                        "mentions": as_snapshot(before),
+                        "attachment_ids": files.before,
+                    },
+                    after={
+                        "body": body.body,
+                        "mentions": as_snapshot(kept),
+                        "attachment_ids": files.after,
+                    },
                 )
             return await self._one(db, access, project_id, url_id, note_id)
 
@@ -378,7 +381,7 @@ class PageNoteService:
     ) -> None:
         """Soft: the row stays, so the one who deleted can bring the note back."""
         async with self._transaction(access) as db:
-            await _require_page(db, access, project_id, url_id)
+            await require_page(db, access, project_id, url_id)
             note = await _locked(db, access, project_id, url_id, note_id, deleted=False)
             if not _may_delete(access, note.author_id):
                 raise ForbiddenError(
@@ -414,7 +417,7 @@ class PageNoteService:
         info: RequestInfo,
     ) -> PageNote:
         async with self._transaction(access) as db:
-            await _require_page(db, access, project_id, url_id)
+            await require_page(db, access, project_id, url_id)
             note = await _locked(db, access, project_id, url_id, note_id, deleted=True)
             if note.deleted_by != access.user_id:
                 raise ForbiddenError("Only the one who deleted a note can bring it back.")
