@@ -58,6 +58,11 @@ def test_an_address_with_a_query_is_matched_as_it_is() -> None:
     assert page_pattern("https://acme.example/p?id=7", []) == r"^https?://acme\.example/p\?id=7$"
 
 
+def test_a_canonical_address_without_a_scheme_is_refused() -> None:
+    with pytest.raises(ValueError, match="://"):
+        page_pattern("acme.example/pricing", [])
+
+
 def test_at_most_eight_forms_are_named() -> None:
     forms = [f"https://acme.example/p?x={n}" for n in range(12)]
     assert page_pattern("https://acme.example/p", forms).count("|") == MAX_FORMS - 1

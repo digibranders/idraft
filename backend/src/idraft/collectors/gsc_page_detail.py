@@ -94,7 +94,11 @@ def page_pattern(canonical_url: str, forms: Sequence[str]) -> str:
     stored, the canonical address under either scheme, with or without its trailing slash."""
     if forms:
         return "^(" + "|".join(re.escape(form) for form in forms[:MAX_FORMS]) + ")$"
-    rest = canonical_url.split("://", 1)[1]
+    scheme, separator, rest = canonical_url.partition("://")
+    if not scheme or not separator:
+        raise ValueError(
+            f"the canonical address has no scheme (expected https://...): {canonical_url!r}"
+        )
     if "?" in rest:
         return "^https?://" + re.escape(rest) + "$"
     return "^https?://" + re.escape(rest.rstrip("/")) + "/?$"

@@ -12,6 +12,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from fractions import Fraction
 from typing import Final, Literal
 
 MAX_DAYS: Final = 92
@@ -23,10 +24,10 @@ LOW_CLICKS: Final = 30
 LOW_IMPRESSIONS: Final = 300
 MIN_CLICKS: Final = 25
 MIN_IMPRESSIONS: Final = 500
-SHARP_DROP: Final = -0.40
-MOVE: Final = 0.10
-CTR_FALL: Final = -0.15
-POSITION_SHIFT: Final = 1.5
+SHARP_DROP: Final = Fraction(-2, 5)
+MOVE: Final = Fraction(1, 10)
+CTR_FALL: Final = Fraction(-3, 20)
+POSITION_SHIFT: Final = Fraction(3, 2)
 POSITION_MIN_IMPRESSIONS: Final = 100
 
 type Compare = Literal["none", "previous_period", "previous_year"]
@@ -142,14 +143,15 @@ def _flags(cur: Totals, prev: Totals, cur_days: int, prev_days: int) -> tuple[st
         return ()
     flags: list[str] = []
     if prev.clicks:
-        ctr = (cur.clicks / cur.impressions) / (prev.clicks / prev.impressions) - 1
-        shown = (cur.impressions / cur_days) / (prev.impressions / prev_days) - 1
+        ctr = Fraction(cur.clicks * prev.impressions, cur.impressions * prev.clicks) - 1
+        shown = Fraction(cur.impressions * prev_days, prev.impressions * cur_days) - 1
         if ctr <= CTR_FALL and shown >= MOVE:
             flags.append("ctr_fell_impressions_rose")
-    now, before = cur.position, prev.position
-    enough = min(cur.impressions, prev.impressions) >= POSITION_MIN_IMPRESSIONS
-    if now is not None and before is not None and enough and abs(now - before) >= POSITION_SHIFT:
-        flags.append("position_slipped" if now > before else "position_improved")
+    if min(cur.position_impressions, prev.position_impressions) >= POSITION_MIN_IMPRESSIONS:
+        now = Fraction(cur.position_sum) / cur.position_impressions
+        before = Fraction(prev.position_sum) / prev.position_impressions
+        if abs(now - before) >= POSITION_SHIFT:
+            flags.append("position_slipped" if now > before else "position_improved")
     return tuple(flags)
 
 
@@ -161,22 +163,29 @@ def health_of(cur: Totals, prev: Totals | None, cur_days: int, prev_days: int) -
         return Health("no_data")
     if not prev.impressions:
         return Health("new", absolute=float(cur.clicks))
-    flags = _flags(cur, prev, cur_days, prev_days)
+    # The no-false-alarm rule: a page on too few numbers carries no flag either.
     if prev.clicks >= LOST_MIN_CLICKS and not cur.clicks:
-        return Health("lost", change=-1.0, absolute=-float(prev.clicks), flags=flags)
+        return Health("lost", change=-1.0, absolute=-float(prev.clicks))
     clicks = cur.clicks + prev.clicks
     if clicks < LOW_CLICKS and cur.impressions + prev.impressions < LOW_IMPRESSIONS:
-        return Health("low_data", flags=flags)
+        return Health("low_data")
 
     basis: Basis = "clicks" if clicks >= LOW_CLICKS else "impressions"
     minimum = MIN_CLICKS if basis == "clicks" else MIN_IMPRESSIONS
     now = cur.clicks if basis == "clicks" else cur.impressions
     before = prev.clicks if basis == "clicks" else prev.impressions
-    change = (now / cur_days) / (before / prev_days) - 1 if before else 0.0
-    absolute = now - before * cur_days / prev_days
+    # Exact arithmetic: a change of exactly -40% or +10% must meet "at or below" and "at or above".
+    expected = Fraction(before * cur_days, prev_days)
+    absolute = now - expected
     material = abs(absolute) >= minimum
+    flags = _flags(cur, prev, cur_days, prev_days)
+    if not before:
+        # Nothing to compare with: a change cannot be stated, only that there is something now.
+        if not material:
+            return Health("low_data", basis, None, float(absolute), small=True)
+        return Health("growing", basis, None, float(absolute), flags=flags)
+    change = now / expected - 1
     verdict: Verdict = "stable"
-    small = False
     if material and change <= SHARP_DROP:
         verdict = "sharp_drop"
     elif material and change <= -MOVE:
@@ -184,5 +193,5 @@ def health_of(cur: Totals, prev: Totals | None, cur_days: int, prev_days: int) -
     elif material and change >= MOVE:
         verdict = "growing"
     elif not material and abs(change) >= MOVE:
-        verdict, small = "low_data", True
-    return Health(verdict, basis, change, absolute, small, flags)
+        return Health("low_data", basis, float(change), float(absolute), small=True)
+    return Health(verdict, basis, float(change), float(absolute), flags=flags)

@@ -120,7 +120,6 @@ def test_without_a_compared_period_a_page_is_stable_or_has_no_data() -> None:
 
 
 def test_the_thresholds_sit_where_the_document_puts_them() -> None:
-    # Values just off each boundary: a boundary itself would rest on float rounding.
     assert health_of(totals(59, 5000), totals(100, 5000), 30, 30).verdict == "sharp_drop"
     assert health_of(totals(61, 5000), totals(100, 5000), 30, 30).verdict == "declining"
     assert health_of(totals(250, 5000), totals(275, 5000), 30, 30).verdict == "stable"
@@ -129,11 +128,71 @@ def test_the_thresholds_sit_where_the_document_puts_them() -> None:
     assert health_of(totals(96, 5000), totals(120, 5000), 30, 30).small is True
 
 
+@pytest.mark.parametrize(
+    ("current", "previous", "days", "verdict"),
+    [
+        # exactly -40% (80 to 48): "at or below" is a sharp drop
+        (totals(48, 5000), totals(80, 5000), (30, 30), "sharp_drop"),
+        # exactly +10% on exactly 25 clicks of difference (250 to 275)
+        (totals(275, 5000), totals(250, 5000), (30, 30), "growing"),
+        # exactly -10% per day (300 over 30 days to 279 over 31 days)
+        (totals(279, 5000), totals(300, 5000), (31, 30), "declining"),
+        # exactly -10% (300 to 270)
+        (totals(270, 5000), totals(300, 5000), (30, 30), "declining"),
+        # exactly 25 clicks of difference is enough, 24 is not (small numbers)
+        (totals(75, 5000), totals(100, 5000), (30, 30), "declining"),
+        (totals(76, 5000), totals(100, 5000), (30, 30), "low_data"),
+    ],
+)
+def test_a_threshold_met_exactly_counts(
+    current: Totals, previous: Totals, days: tuple[int, int], verdict: str
+) -> None:
+    assert health_of(current, previous, *days).verdict == verdict
+
+
+def test_a_page_with_no_clicks_before_is_not_stable_after_clicks_arrive() -> None:
+    health = health_of(totals(500, 10000), totals(0, 5000), 30, 30)
+    assert (health.verdict, health.basis, health.change, health.absolute, health.small) == (
+        "growing",
+        "clicks",
+        None,
+        500.0,
+        False,
+    )
+    assert health_of(totals(30, 1000), totals(0, 500), 30, 30).verdict == "growing"
+
+
 def test_flags_say_when_position_moved_and_when_fewer_people_clicked() -> None:
     slipped = health_of(totals(100, 1000, 5.9), totals(100, 1000, 3.8), 30, 30)
     assert slipped.flags == ("position_slipped",)
     improved = health_of(totals(100, 1000, 3.0), totals(100, 1000, 4.5), 30, 30)
     assert improved.flags == ("position_improved",)
-    fewer = health_of(totals(50, 2000), totals(60, 1000), 30, 30)
+    fewer = health_of(totals(150, 2400), totals(200, 2000), 30, 30)
     assert fewer.flags == ("ctr_fell_impressions_rose",)
     assert health_of(totals(100, 90, 9.0), totals(100, 90, 3.0), 30, 30).flags == ()
+
+
+def test_a_click_rate_down_exactly_15_percent_with_impressions_up_exactly_10_is_flagged() -> None:
+    # 200 of 2000 (10%) to 187 of 2200 (8.5%)
+    health = health_of(totals(187, 2200), totals(200, 2000), 30, 30)
+    assert health.flags == ("ctr_fell_impressions_rose",)
+
+
+def test_a_position_shift_of_exactly_one_and_a_half_places_is_flagged() -> None:
+    health = health_of(totals(100, 1000, 5.5), totals(100, 1000, 4.0), 30, 30)
+    assert health.flags == ("position_slipped",)
+
+
+def test_the_position_flag_needs_100_impressions_that_carried_a_position() -> None:
+    few = Totals(100, 1000, Decimal("5.9") * 50, 50)
+    assert health_of(few, totals(100, 1000, 3.8), 30, 30).flags == ()
+    assert health_of(totals(100, 1000, 5.9), few, 30, 30).flags == ()
+
+
+def test_no_flag_is_raised_on_a_verdict_of_low_data_or_lost() -> None:
+    thin = health_of(totals(5, 100, 6.0), totals(5, 100, 3.0), 30, 30)
+    assert (thin.verdict, thin.flags) == ("low_data", ())
+    small = health_of(totals(4, 400, 6.0), totals(27, 400, 3.0), 30, 30)
+    assert (small.verdict, small.small, small.flags) == ("low_data", True, ())
+    lost = health_of(totals(0, 500, 6.0), totals(25, 900, 3.0), 30, 30)
+    assert (lost.verdict, lost.flags) == ("lost", ())
