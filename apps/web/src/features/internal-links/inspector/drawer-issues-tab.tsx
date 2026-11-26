@@ -14,7 +14,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import type { LinkScope } from '@/lib/internal-links/scopes';
 import type { PageDetail } from '@/lib/internal-links/types';
 import { sortIssues } from '@/lib/pages/drawer-tiles';
-import type { PageIssue, Seam } from '@/lib/pages/issue-source';
+import { checkLabel, type PageIssue, type Seam } from '@/lib/pages/issue-source';
 
 export interface DrawerIssuesTabProps {
   issues: Seam<readonly PageIssue[]>;
@@ -77,7 +77,18 @@ export function DrawerIssuesTab({ issues, detail, linkScope, issueHref }: Drawer
                 <Badge tone={SEVERITY_TONE[issue.severity]}>{t(`severity.${issue.severity}`)}</Badge>
                 <IssueText issue={issue} />
                 {href === null ? null : (
-                  <LinkButton variant="link" size="sm" render={<Link href={href} />}>
+                  <LinkButton
+                    variant="link"
+                    size="sm"
+                    render={
+                      <Link
+                        href={href}
+                        aria-label={t('seeAllNamed', {
+                          issue: checkLabel(issue.checkId) ?? issue.detail ?? issue.checkId,
+                        })}
+                      />
+                    }
+                  >
                     {t('seeAll')}
                   </LinkButton>
                 )}

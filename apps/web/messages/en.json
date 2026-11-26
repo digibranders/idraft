@@ -9219,12 +9219,14 @@
         "pendingTitle": "Not collected yet",
         "pendingReason": "The page numbers arrive after the next Search Console update.",
         "none": "Google reported no clicks or impressions for this page in these 28 days",
-        "loadFailed": "The Search Console numbers could not be loaded"
+        "loadFailed": "The Search Console numbers could not be loaded",
+        "unavailable": "The Search Console numbers of this page are not available yet."
       },
       "issues": {
         "pending": "Checks from the Issues page appear here once they are available",
         "none": "No issues found on this page",
         "seeAll": "See all pages with this issue",
+        "seeAllNamed": "See all pages with this issue: {issue}",
         "loadFailed": "The issues of this page could not be loaded",
         "title": "Issues",
         "flags": "Flags",
@@ -9685,11 +9687,7 @@
       "notStored": "Not stored",
       "notStoredReason": "This crawl no longer holds its links.",
       "matches": "An anchor contains a tracked keyword",
-      "noMatch": "No anchor contains a tracked keyword",
-      "google": "Google Search Console",
-      "gscOk": "{clicks} clicks, {impressions} impressions, last 28 days (Google data)",
-      "gscOff": "Search Console is not connected.",
-      "gscPending": "Search Console is syncing."
+      "noMatch": "No anchor contains a tracked keyword"
     },
     "pages": {
       "caption": "Pages",

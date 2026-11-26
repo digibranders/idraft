@@ -196,25 +196,6 @@ describe('anchor text pointing here', () => {
   });
 });
 
-describe('Google Search Console', () => {
-  it('shows clicks and impressions for the last 28 days', () => {
-    show();
-    expect(card('Google Search Console')).toHaveTextContent(
-      '1,320 clicks, 28,400 impressions, last 28 days (Google data)',
-    );
-  });
-
-  it('says it is syncing, or not connected', () => {
-    const pending = show({
-      gsc: { state: 'pending', clicks: null, impressions: null, window_start: null, window_end: null },
-    });
-    expect(card('Google Search Console')).toHaveTextContent('Search Console is syncing.');
-    pending.unmount();
-    show({ gsc: { state: 'not_connected', clicks: null, impressions: null, window_start: null, window_end: null } });
-    expect(card('Google Search Console')).toHaveTextContent('Search Console is not connected.');
-  });
-});
-
 describe('the parts a tab asks for', () => {
   const headings = (): (string | null)[] => screen.getAllByRole('heading').map((node) => node.textContent);
 
@@ -234,7 +215,7 @@ describe('the parts a tab asks for', () => {
 
   it('draws every card without parts', () => {
     show();
-    expect(headings()).toHaveLength(5);
+    expect(headings()).toHaveLength(4);
   });
 });
 

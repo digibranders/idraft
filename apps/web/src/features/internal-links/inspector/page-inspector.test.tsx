@@ -940,7 +940,19 @@ describe('the page inspector (spec 7.4)', () => {
       for (const name of TAB_NAMES) {
         await user.click(within(panel).getByRole('tab', { name }));
         expect(within(panel).queryByRole('heading', { name: 'Google' })).toBeNull();
+        expect(within(panel).queryByRole('heading', { name: 'Google Search Console' })).toBeNull();
       }
+    });
+
+    it('gives the slot the scope and the time zone of the drawer', async () => {
+      serveSearch(ok(okDays, 406, 4060));
+      renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('search'));
+      const panel = await panelOf('/pricing');
+      await section(panel);
+      expect(slot.props.at(-1)).toMatchObject({
+        scope: expect.objectContaining({ workspaceId: expect.any(String), projectId: expect.any(String) }),
+        timeZone: expect.any(String),
+      });
     });
 
     it('shows the two totals and a chart of the 28 days with a Table view of 28 rows', async () => {
@@ -1082,7 +1094,8 @@ describe('the page inspector (spec 7.4)', () => {
       expect(items[0]).toHaveTextContent('Error');
       expect(items[1]).toHaveTextContent('Warning');
       expect(items[1]).toHaveTextContent('Two H1 headings');
-      expect(screen.getAllByRole('link', { name: 'See all pages with this issue' })).toHaveLength(2);
+      expect(screen.getAllByRole('link', { name: /^See all pages with this issue: / })).toHaveLength(2);
+      expect(screen.getByRole('link', { name: 'See all pages with this issue: Two H1 headings' })).toBeInTheDocument();
       rerender(
         <DrawerIssuesTab
           issues={{ state: 'ready', data: issues }}
@@ -1091,7 +1104,7 @@ describe('the page inspector (spec 7.4)', () => {
           issueHref={() => null}
         />,
       );
-      expect(screen.queryByRole('link', { name: 'See all pages with this issue' })).toBeNull();
+      expect(screen.queryByRole('link', { name: /See all pages with this issue/ })).toBeNull();
     });
 
     it('says no issues were found for a page with none', () => {

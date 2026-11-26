@@ -56,9 +56,17 @@ function SearchConsole({
   const inspector = useTranslations('internalLinks.inspector');
   const membership = useMembership();
   const title = t('title');
-  // A read that is not here yet, or an unavailable seam, draws the card's skeleton
-  if (read.state === 'loading' || read.state === 'unavailable') {
-    return <InspectorSection title={title} icon={Globe} status="loading" />;
+  if (read.state === 'loading') return <InspectorSection title={title} icon={Globe} status="loading" />;
+  // An unavailable seam never answers, so it says so instead of drawing the skeleton for ever
+  if (read.state === 'unavailable') {
+    return (
+      <InspectorSection
+        title={title}
+        icon={Globe}
+        status="empty"
+        empty={<p className="type-body text-foreground-secondary">{t('unavailable')}</p>}
+      />
+    );
   }
   if (read.state === 'error') {
     return (
@@ -168,6 +176,7 @@ function Days({ data }: { data: PageSearchDaily }): ReactElement {
           categoryHeader={t('day')}
           series={series}
           formatValue={formatValue}
+          legendMarkers
           height={180}
           summary={t('summary', {
             clicks: formatInteger(clicks),

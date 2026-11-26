@@ -1,6 +1,6 @@
 'use client';
 
-import { Anchor, Globe, History, Search, Sparkles } from 'lucide-react';
+import { Anchor, History, Search, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -227,16 +227,6 @@ function AnchorsBody({
   );
 }
 
-function GoogleBody({ t, gsc }: { t: Translate; gsc: PageDetailExtras['gsc'] }): ReactElement {
-  if (gsc.state === 'pending') return muted(t('gscPending'));
-  if (gsc.state === 'not_connected') return muted(t('gscOff'));
-  return (
-    <p className="num type-body text-foreground">
-      {t('gscOk', { clicks: formatInteger(gsc.clicks), impressions: formatInteger(gsc.impressions) })}
-    </p>
-  );
-}
-
 export interface ExtrasSectionsProps {
   extras: PageDetailExtras;
   /**
@@ -252,11 +242,11 @@ export interface ExtrasSectionsProps {
   parts?: readonly ExtrasPart[] | undefined;
 }
 
-export type ExtrasPart = 'changes' | 'keywords' | 'citations' | 'anchors' | 'google';
+export type ExtrasPart = 'changes' | 'keywords' | 'citations' | 'anchors';
 
 /**
  * The inspector's sections that read the page's `extras` (spec 7.4, mock `il-drawer.js`): changes since the last
- * crawl, tracked keywords, AI citations, anchor text and Google data. No section shows link strength or equity.
+ * crawl, tracked keywords, AI citations and anchor text. No section shows link strength or equity.
  */
 export function ExtrasSections({
   extras,
@@ -287,11 +277,6 @@ export function ExtrasSections({
       {drawn('anchors') ? (
         <InspectorSection title={t('anchors')} icon={Anchor} status="ready">
           <AnchorsBody t={t} anchors={extras.anchors} linksAvailable={linksAvailable} />
-        </InspectorSection>
-      ) : null}
-      {drawn('google') ? (
-        <InspectorSection title={t('google')} icon={Globe} status="ready">
-          <GoogleBody t={t} gsc={extras.gsc} />
         </InspectorSection>
       ) : null}
     </>
