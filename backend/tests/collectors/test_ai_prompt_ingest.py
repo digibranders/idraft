@@ -12,7 +12,8 @@ import pytest
 from sqlalchemy.exc import DBAPIError
 
 from idraft.collectors import ai_prompt_ingest
-from idraft.collectors.ai_prompt_ingest import current_derivation, ingest
+from idraft.collectors.ai_answer_rows import current_derivation
+from idraft.collectors.ai_prompt_ingest import ingest
 from idraft.collectors.ingest_waits import IngestReport
 from idraft.collectors.seo_rank_ingest import NOT_READ, NOT_STORABLE
 from idraft.extraction import aliases
@@ -272,7 +273,7 @@ async def test_an_answer_that_fails_half_way_leaves_nothing_and_waits(
     async def refuse(*_: object, **__: object) -> None:
         raise RuntimeError("the fact row cannot be written now")
 
-    monkeypatch.setattr(ai_prompt_ingest, "_insert_fact", refuse)
+    monkeypatch.setattr(ai_prompt_ingest, "insert_fact", refuse)
     store = MemoryStore()
     _, task_id = await _gemini(worker_db, migrated, world, store)
 
@@ -459,7 +460,7 @@ async def test_an_answer_the_database_will_always_refuse_fails_instead_of_waitin
     async def refuse(*_: object, **__: object) -> None:
         raise DBAPIError("insert", {}, _OrigError("22003"))
 
-    monkeypatch.setattr(ai_prompt_ingest, "_insert_fact", refuse)
+    monkeypatch.setattr(ai_prompt_ingest, "insert_fact", refuse)
     store = MemoryStore()
     _, task_id = await _gemini(worker_db, migrated, world, store)
 

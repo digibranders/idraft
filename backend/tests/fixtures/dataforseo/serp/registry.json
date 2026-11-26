@@ -7,8 +7,8 @@
       "provider": "dataforseo",
       "captured_at": null,
       "source": "synthetic",
-      "sha256": "15be6783b767f447d8d85105269e6234b0f0f256a29c0156f305ae5c0b18a05f",
-      "schema_hash": "4e429bce26899b2f65bf3c0597f9d3a600c69e36421810d85b26e551cf95f642",
+      "sha256": "95fd42ddbb1a313acaba0e553c63a257fb5721cee1519bac7f81b2de432c177c",
+      "schema_hash": "609d1e710268aa1191aacf6221d13de86a0eee2a871c35ba01e6b36efc0776b2",
       "tags": ["ads", "ai_overview:cached", "featured_snippet", "people_also_ask", "sitelinks", "related_result", "right_column"]
     },
     {

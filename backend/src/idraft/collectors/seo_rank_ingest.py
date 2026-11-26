@@ -22,6 +22,8 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.collectors import ledger
+from idraft.collectors.ai_context import AiContextCache
+from idraft.collectors.ai_overview_ingest import write_observation
 from idraft.collectors.ingest_waits import IngestReport, not_now
 from idraft.collectors.ledger import FetchedTask
 from idraft.collectors.raw_payloads import load_raw_payload
@@ -108,6 +110,7 @@ async def ingest(
         now = await ledger.transaction_time(db)
         fetched = await ledger.fetched_tasks(db, workload=WORKLOAD, limit=limit, now=now)
     ingested = failed = waiting = 0
+    contexts = AiContextCache()
     # The tasks come ordered by payload, so tasks sharing one are next to each other and only the
     # last body needs to be held.
     last_id: int | None = None
@@ -140,7 +143,7 @@ async def ingest(
         try:
             async with sessions() as db, db.begin():
                 now = await ledger.transaction_time(db)
-                await _keep(db, task, serp)
+                await _keep(db, task, serp, contexts)
                 ingested += await ledger.mark_ingested(db, task.ref, now=now)
         except UnusableCheckError as error:
             failed += await _fail(sessions, task, UNREADABLE, str(error))
@@ -177,7 +180,9 @@ async def _fail(
         return int(await ledger.ingest_failed(db, task.ref, code=code, message=message, now=now))
 
 
-async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> None:
+async def _keep(
+    db: AsyncSession, task: FetchedTask, serp: NormalizedSerp, contexts: AiContextCache
+) -> None:
     """One task's rows. A keyword deleted since, or a task that names none, gets nothing."""
     parsed = parse_subject(task.subject_id)
     if parsed is None:
@@ -226,7 +231,7 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
         # Nothing is being looked for: the project has no own entity that tracks SEO, so every
         # keyword would read as unranked. The answer is kept; no rank, state or event follows.
         _log.warning("rank check has no own entity to look for", task=task.ref.id)
-        await _insert_snapshot(db, mark_inconclusive(rows, reason="no_own_entity"))
+        await _store_snapshot(db, mark_inconclusive(rows, reason="no_own_entity"), serp, contexts)
         return
     if side.inconclusive:
         # The answer hides where some results come from and the site is not among the rest, so
@@ -237,10 +242,12 @@ async def _keep(db: AsyncSession, task: FetchedTask, serp: NormalizedSerp) -> No
             task=task.ref.id,
             unattributed=side.unattributed,
         )
-        await _insert_snapshot(db, mark_inconclusive(rows, unattributed=side.unattributed))
+        await _store_snapshot(
+            db, mark_inconclusive(rows, unattributed=side.unattributed), serp, contexts
+        )
         return
     await _ensure_feature_types(db, rows.feature_codes)
-    snapshot_id = await _insert_snapshot(db, rows)
+    snapshot_id = await _store_snapshot(db, rows, serp, contexts)
     if snapshot_id is None:
         return  # this task has its snapshot already
     feature_rows, observation_rows = rows.children(snapshot_id)
@@ -356,6 +363,19 @@ async def _insert_snapshot(db: AsyncSession, rows: SerpRows) -> int | None:
         .returning(serp_snapshots.c.id)
     )
     snapshot_id: int | None = inserted.scalar_one_or_none()
+    return snapshot_id
+
+
+async def _store_snapshot(
+    db: AsyncSession, rows: SerpRows, serp: NormalizedSerp, contexts: AiContextCache
+) -> int | None:
+    """The snapshot, and, when it is new, the AI Overview it shows as an observation (in the same
+    transaction, so a failed write leaves neither)."""
+    snapshot_id = await _insert_snapshot(db, rows)
+    if snapshot_id is not None:
+        await write_observation(
+            db, contexts, snapshot=rows.snapshot, snapshot_id=snapshot_id, overview=serp.ai_overview
+        )
     return snapshot_id
 
 
