@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { delay, getResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { InspectorWidthUserContext, writeInspectorWidth } from '@/lib/inspector/width-store';
 import { handlers } from '@/mocks/handlers';
 import { MOCK_GROUP_IDS } from '@/mocks/keyword-fixtures';
 import { mockId } from '@/mocks/mock-ids';
@@ -108,4 +109,68 @@ describe('The group drawer', () => {
     expect(await within(drawer).findByText('No keywords of this group in view')).toBeInTheDocument();
     expect(within(drawer).getByText('0 keywords')).toBeInTheDocument();
   });
+});
+
+describe('The group drawer header', () => {
+  it('keeps its More menu with the group’s own actions only', async () => {
+    const { user } = renderWithProviders(byGroup(), { searchParams: `?inspect=group:${MOCK_GROUP_IDS.local}` });
+    const drawer = await screen.findByRole('complementary', { name: 'Local' });
+    await waitFor(() => expect(within(drawer).getByText('10 keywords')).toBeInTheDocument());
+    await user.click(within(drawer).getByRole('button', { name: 'More actions for Local' }));
+    const items = within(await screen.findByRole('menu')).getAllByRole('menuitem');
+    expect(items).toHaveLength(3);
+    expect(items.map((item) => item.textContent)).toEqual([
+      expect.stringMatching(/Add keywords/),
+      expect.stringMatching(/Rename group/),
+      expect.stringMatching(/Delete group/),
+    ]);
+    expect(items.some((item) => /width/i.test(item.textContent))).toBe(false);
+  });
+
+  it('has no Open page button, as a group has no page of its own', async () => {
+    renderWithProviders(byGroup(), { searchParams: `?inspect=group:${MOCK_GROUP_IDS.local}` });
+    const drawer = await screen.findByRole('complementary', { name: 'Local' });
+    await waitFor(() => expect(within(drawer).getByText('10 keywords')).toBeInTheDocument());
+    expect(within(drawer).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('button', { name: 'Open page' })).toBeNull();
+  });
+});
+
+const USER = 'group-drawer-width-user';
+/**
+ * The `w-`, `min-w-` and `max-w-` classes of a box that set a size. `w-full`, `min-w-0` and the like leave the box to
+ * its parent; a plain `w-1` to `w-16` (4 to 64 px) is the slot of an icon or a change figure inside a cell, never the
+ * width of a column or of the card.
+ */
+function sizingWidthClasses(node: Element): string[] {
+  const free = /^(?:min-|max-)?w-(?:0|full|none|auto|fit)$/;
+  const slot = /^w-(?:[1-9]|1[0-6])$/;
+  return (node.getAttribute('class') ?? '')
+    .split(/\s+/)
+    .filter((name) => /^(?:min-|max-)?w-/.test(name) && !free.test(name) && !slot.test(name));
+}
+
+describe.each([480, 640, 960])('The group drawer at %i px', (width) => {
+  afterEach(() => writeInspectorWidth(USER, null));
+
+  it('holds no pixel width of its own: the figures and the keyword list use the whole card', async () => {
+    writeInspectorWidth(USER, width);
+    renderWithProviders(<InspectorWidthUserContext value={USER}>{byGroup()}</InspectorWidthUserContext>, {
+      searchParams: `?inspect=group:${MOCK_GROUP_IDS.local}`,
+    });
+    const drawer = await screen.findByRole('complementary', { name: 'Local' });
+    await waitFor(() => expect(within(drawer).getAllByRole('button', { name: /^Open / })).toHaveLength(10));
+    expect(drawer.style.width).toBe(`${String(width)}px`);
+
+    // The keyword list is a table that fills its section, not a column of its own width
+    const list = within(drawer).getByRole('table', { name: 'Keywords and their rank' });
+    expect(list).toHaveClass('w-full');
+
+    // Nothing inside the card, from the figures to the last cell, fixes a width (the resize handle is the card's own)
+    for (const node of drawer.querySelectorAll<HTMLElement | SVGElement>('*')) {
+      if (node.closest('[role="separator"]') !== null) continue;
+      expect([node.style.width, node.style.minWidth, node.style.maxWidth]).toEqual(['', '', '']);
+      expect(sizingWidthClasses(node)).toEqual([]);
+    }
+  }, 30_000);
 });

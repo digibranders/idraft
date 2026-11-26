@@ -240,17 +240,18 @@ describe('Group row actions', () => {
   });
 
   it('gives a viewer a drawer without Check now and without the group writes', async () => {
-    const { user } = renderWithProviders(byGroup('viewer'), {
+    renderWithProviders(byGroup('viewer'), {
       searchParams: `?inspect=group:${MOCK_GROUP_IDS.local}`,
     });
     const drawer = await screen.findByRole('complementary', { name: 'Local' });
     await waitFor(() => expect(within(drawer).getByText('10 keywords')).toBeInTheDocument());
     expect(within(drawer).queryByRole('button', { name: 'Check now' })).toBeNull();
-    await user.click(within(drawer).getByRole('button', { name: 'More actions for Local' }));
-    const menu = await screen.findByRole('menu');
+    // With no group write to offer, the More button is not drawn at all
+    expect(within(drawer).queryByRole('button', { name: 'More actions for Local' })).toBeNull();
     for (const name of [/Add keywords/, /Rename group/, /Delete group/]) {
-      expect(within(menu).queryByRole('menuitem', { name })).toBeNull();
+      expect(within(drawer).queryByRole('button', { name })).toBeNull();
     }
+    expect(screen.queryByRole('menu')).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
