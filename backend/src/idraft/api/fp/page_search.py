@@ -9,9 +9,10 @@ cannot be fetched now answers with no numbers (the detail) or `429 gsc_busy` (a 
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from contextlib import AbstractAsyncContextManager
-from dataclasses import replace
+import asyncio
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
@@ -81,22 +82,55 @@ async def _with_numbers(
     database, workspace, project and integration the statements of the repository take."""
     url_id = int(data.url_id)
     window, compared = windows
-    now = (await repository.totals(*key, [url_id], window)).get(url_id, Totals())
-    before = {} if compared is None else await repository.totals(*key, [url_id], compared)
+    days_now = await repository.series(*key, url_id, window)
+    days_before = {} if compared is None else await repository.series(*key, url_id, compared)
+    # The totals are the sums of the stored days; a period with no stored day has no entry.
+    before = {url_id: sum(days_before.values(), Totals())} if days_before else {}
     previous = previous_totals(url_id, before, history, compared)
-    current_view, previous_view, health = period_views(now, previous, window, compared)
+    current_view, previous_view, health = period_views(
+        sum(days_now.values(), Totals()), previous, window, compared
+    )
     earlier: list[SeriesPoint] = []
     if previous is not None and compared is not None:
-        earlier = _points(compared, await repository.series(*key, url_id, compared))
+        earlier = _points(compared, days_before)
     return data.model_copy(
         update={
             "current": current_view,
             "previous": previous_view,
             "health": health,
-            "series": _points(window, await repository.series(*key, url_id, window)),
+            "series": _points(window, days_now),
             "previous_series": earlier,
         }
     )
+
+
+@dataclass(slots=True)
+class _Flight:
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    users: int = 0
+
+
+# (integration, page, "history" or a dimension, period start, period end); history has no period.
+type FlightKey = tuple[UUID, int, str, date | None, date | None]
+
+# shortcut: per process only, so two API processes may both fetch once; take a Postgres advisory
+# lock on the key instead when the API runs more than one process.
+_FLIGHTS: dict[FlightKey, _Flight] = {}
+
+
+@asynccontextmanager
+async def _single_flight(key: FlightKey) -> AsyncIterator[None]:
+    """Let one caller at a time through for `key`. Both `ensure_*` calls read their marker on
+    entry, so a caller that waited here finds the rows stored and makes no call (spec 5.2)."""
+    flight = _FLIGHTS.setdefault(key, _Flight())
+    flight.users += 1
+    try:
+        async with flight.lock:
+            yield
+    finally:
+        flight.users -= 1
+        if flight.users == 0:
+            del _FLIGHTS[key]
 
 
 def _not_available() -> ServiceUnavailableError:
@@ -194,14 +228,15 @@ class PageSearchService:
         live = self._live(facts)
         if live is None:
             raise _not_available()
-        await detail.ensure_history(
-            self._sessions,
-            live.query,
-            facts,
-            detail.PageRef(page.url_id, page.url),
-            today=pacific_today(datetime.now(UTC)),
-            final_through=final_through,
-        )
+        async with _single_flight((facts.integration_id, page.url_id, "history", None, None)):
+            await detail.ensure_history(
+                self._sessions,
+                live.query,
+                facts,
+                detail.PageRef(page.url_id, page.url),
+                today=pacific_today(datetime.now(UTC)),
+                final_through=final_through,
+            )
 
     async def breakdown(
         self,
@@ -247,6 +282,7 @@ class PageSearchService:
                 )
                 marker = await repository.fetch_marker(*key, url_id, dimension, window)
                 clicks = (await repository.totals(*key, [url_id], window)).get(url_id, Totals())
+                has_history = url_id in await repository.history_starts(*key, [url_id])
             rows = sorted(
                 (
                     BreakdownRow(
@@ -258,7 +294,8 @@ class PageSearchService:
                 ),
                 key=_row_order,
             )
-            if marker is not None and clicks.clicks:
+            # Before the history is stored the page's clicks are partial, so no share is told.
+            if marker is not None and has_history and clicks.clicks:
                 coverage = min(1.0, sum(row.clicks for row in now.values()) / clicks.clicks)
         meta = search_meta(scope, windows)
         return PageBreakdownResponse(
@@ -289,9 +326,11 @@ class PageSearchService:
         ref = detail.PageRef(page.url_id, page.url)
         try:
             for start, end in periods:
-                await detail.ensure_breakdown(
-                    self._sessions, live.query, facts, ref, start, end, only=(dimension,)
-                )
+                flight = (facts.integration_id, page.url_id, dimension, start, end)
+                async with _single_flight(flight):
+                    await detail.ensure_breakdown(
+                        self._sessions, live.query, facts, ref, start, end, only=(dimension,)
+                    )
         except LiveStateError as refused:
             return replace(scope, state=refused.state)
         return scope

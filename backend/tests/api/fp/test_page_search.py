@@ -4,6 +4,7 @@ was never fetched is fetched from a fake Search Console, once; nothing here reac
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import replace
@@ -13,7 +14,7 @@ from typing import Any
 import httpx
 import pytest
 
-from idraft.api.fp import page_routes
+from idraft.api.fp import page_routes, page_search
 from idraft.api.fp.live import LiveGoogle, live_google
 from idraft.api.resources import Resources
 from idraft.collectors.gsc_limits import GscLimiter
@@ -377,6 +378,10 @@ async def test_coverage_is_the_rows_clicks_over_the_page_s_clicks(
     ids = await seed_pages(google.pg, workspace, project, {"/busy": None, "/quiet": None})
     await days(google.pg, workspace, project, integration, ids["/busy"], OCT, [100], [1000], "5.0")
     await days(google.pg, workspace, project, integration, ids["/quiet"], OCT, [0], [10], "5.0")
+    for page in ids.values():
+        await marker(
+            google.pg, workspace, project, integration, page, "history", HISTORY_START, FINAL
+        )
     fake.set_filtered(
         SITE, ("query",), rows_of({"a": (50, 500, 4.0), "b": (30, 300, 5.0), "c": (8, 80, 6.0)})
     )
@@ -386,6 +391,48 @@ async def test_coverage_is_the_rows_clicks_over_the_page_s_clicks(
 
     assert busy.json()["meta"]["coverage"] == pytest.approx(0.88)
     assert quiet.json()["meta"]["coverage"] is None
+
+
+async def test_coverage_waits_for_the_history(google: Harness, limiter: GscLimiter) -> None:
+    """A breakdown asked before the page's history is stored has no page clicks to divide by."""
+    w = await world(google)
+    fake = w[3]
+    _, page = await pricing(google, w, ready=False)
+    fake.set_filtered(SITE, ("query",), rows_of({"a": (50, 500, 4.0)}))
+
+    response = await breakdown(google, w, page, "query", compare="none")
+
+    assert response.status_code == 200, response.text
+    assert [row["key"] for row in response.json()["data"]] == ["a"]
+    assert response.json()["meta"]["coverage"] is None
+
+
+async def test_simultaneous_first_opens_make_each_google_call_once(
+    google: Harness, limiter: GscLimiter
+) -> None:
+    """Two people (or the detail and the breakdown tab of one) opening a page never fetched cost
+    3 calls in all: the history, and the query rows of the period and of the compared period."""
+    w = await world(google)
+    workspace, project, _, fake = w
+    await connect(google.pg, workspace, project, fake=fake)
+    page = (await seed_pages(google.pg, workspace, project, {"/pricing": "Pricing"}))["/pricing"]
+    fake.set_filtered(
+        SITE,
+        ("date",),
+        [{"keys": ["2026-10-01"], "clicks": 4, "impressions": 40, "position": 2.0}],
+    )
+    fake.set_filtered(SITE, ("query",), rows_of({"a": (4, 40, 2.0)}))
+
+    answers = await asyncio.gather(
+        get(google, w, page, **OCTOBER),
+        get(google, w, page, **OCTOBER),
+        breakdown(google, w, page, "query"),
+        breakdown(google, w, page, "query"),
+    )
+
+    assert [answer.status_code for answer in answers] == [200, 200, 200, 200]
+    assert len(fake.filtered_requests(SITE)) == 3
+    assert page_search._FLIGHTS == {}
 
 
 async def test_a_breakdown_that_cannot_be_fetched_is_429_gsc_busy_with_retry_after(

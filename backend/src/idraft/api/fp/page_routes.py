@@ -5,7 +5,7 @@ docs/superpowers/specs/2026-11-26-page-search-and-monitoring-design.md section 7
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -14,6 +14,7 @@ from idraft.api.fp.live import live_google
 from idraft.api.fp.page_search import PageSearchService
 from idraft.api.fp.tracked import PeriodQuery, TrackedPagesService
 from idraft.api.permissions import Permission
+from idraft.api.problems import MEDIA_TYPE
 from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.fp_pages import (
@@ -53,6 +54,15 @@ def get_page_search(resources: Annotated[Resources, Depends(get_resources)]) -> 
     return PageSearchService(
         sessions=resources.sessions, live=lambda facts: live_google(resources, facts)
     )
+
+
+def _problem(description: str) -> dict[str, Any]:
+    """A documented error response; the document's other errors are the problem `default`. A 422
+    is not declared: the document drops it by design, and `window_too_large` is in the text."""
+    return {
+        "description": description,
+        "content": {MEDIA_TYPE: {"schema": {"$ref": "#/components/schemas/Problem"}}},
+    }
 
 
 PageSearch = Annotated[PageSearchService, Depends(get_page_search)]
@@ -191,6 +201,10 @@ async def page_search(
     "state other than `ok` only stored rows are served. `429 gsc_busy` (with `retry_after`) "
     "when this installation's budget or Google's quota is spent, `503 google_unavailable` when "
     "Google does not answer.",
+    responses={
+        429: _problem("`gsc_busy`: the budget or Google's quota is spent; `retry_after_seconds`."),
+        503: _problem("`google_unavailable`: Google does not answer."),
+    },
 )
 async def page_search_breakdown(
     project_id: UUID,

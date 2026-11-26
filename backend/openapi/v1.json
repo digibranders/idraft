@@ -41996,6 +41996,26 @@
             },
             "description": "Successful Response"
           },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`gsc_busy`: the budget or Google's quota is spent; `retry_after_seconds`."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`google_unavailable`: Google does not answer."
+          },
           "default": {
             "content": {
               "application/problem+json": {
