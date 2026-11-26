@@ -1,22 +1,26 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { FileText } from 'lucide-react';
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Inspector } from './inspector';
 import { InspectorLayout } from './inspector-layout';
 import { InspectorSection } from './inspector-section';
 import { InspectorBody, InspectorPanel, InspectorTabs } from './inspector-tabs';
+import type { InspectorType } from '@/lib/inspector/placement';
+import { InspectorWidthUserContext, writeInspectorWidth } from '@/lib/inspector/width-store';
 import { axe } from '@/test/axe';
 import { renderWithProviders } from '@/test/render';
 
-/** The width beside the sidebar that the layout measures: a 1440 px window with the 208 px sidebar. */
-let areaWidth = 1232;
-class AreaObserver {
+const WIDTH_KEY = 'idraft.pref.u1.inspector-width';
+
+/** A boxed preview that reports the width it has, as the browser's observer would. */
+let boxWidth = 800;
+class BoxObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
   observe(target: Element): void {
     this.callback(
-      [{ target, contentRect: { width: areaWidth, height: 800 } } as unknown as ResizeObserverEntry],
+      [{ target, contentRect: { width: boxWidth, height: 480 } } as unknown as ResizeObserverEntry],
       this as unknown as ResizeObserver,
     );
   }
@@ -32,13 +36,84 @@ function Harness({
   title = 'best crm for startups',
   list = <button type="button">A row of the list</button>,
   hideMoreActions = false,
+  type = 'keyword',
+  user,
+  boxed = false,
+  withStep = true,
+  moreActions,
+  extraBody,
 }: {
   atFirst?: boolean;
   hideMoreActions?: boolean;
   title?: string;
   /** What the list beside the inspector holds. */
   list?: ReactNode;
+  type?: InspectorType;
+  /** Whose saved width the drawer reads and writes; none keeps the width in memory. */
+  user?: string;
+  boxed?: boolean;
+  /** `false` leaves `onStep` out. */
+  withStep?: boolean;
+  moreActions?: readonly { id: string; label: string; onSelect: () => void }[];
+  /** More controls in the Overview panel. */
+  extraBody?: ReactNode;
 }): ReactElement {
+  return (
+    <InspectorWidthUserContext value={user ?? null}>
+      <InspectorLayout
+        boxed={boxed}
+        inspector={
+          <Inspector
+            type={type}
+            backLabel="Back to Keywords"
+            onClose={onClose}
+            onStep={withStep ? onStep : undefined}
+            hideMoreActions={hideMoreActions}
+            header={{
+              title,
+              typeLabel: 'Keyword',
+              typeNoun: 'keyword',
+              positionText: '12 of 986',
+              navigation: {
+                onPrevious: () => onStep('previous'),
+                onNext: () => onStep('next'),
+                atFirst,
+                atLast: false,
+              },
+              moreActions,
+            }}
+          >
+            <InspectorTabs
+              label="Keyword sections"
+              value="overview"
+              onValueChange={() => undefined}
+              items={[
+                { value: 'overview', label: 'Overview' },
+                { value: 'settings', label: 'Settings' },
+              ]}
+            >
+              <InspectorPanel value="overview">
+                <InspectorSection title="Demand" icon={FileText} status="ready">
+                  <p>8,100 searches a month</p>
+                </InspectorSection>
+                {extraBody}
+              </InspectorPanel>
+              <InspectorPanel value="settings">
+                <InspectorSection title="Settings" icon={FileText} status="loading" />
+              </InspectorPanel>
+            </InspectorTabs>
+          </Inspector>
+        }
+      >
+        {list}
+      </InspectorLayout>
+    </InspectorWidthUserContext>
+  );
+}
+
+/** A drawer whose body belongs to the record: a step changes the title and replaces the button. */
+function SteppingHarness(): ReactElement {
+  const [title, setTitle] = useState('first keyword');
   return (
     <InspectorLayout
       inspector={
@@ -46,50 +121,30 @@ function Harness({
           type="keyword"
           backLabel="Back to Keywords"
           onClose={onClose}
-          onStep={onStep}
-          hideMoreActions={hideMoreActions}
-          header={{
-            title,
-            typeLabel: 'Keyword',
-            typeNoun: 'keyword',
-            positionText: '12 of 986',
-            navigation: { onPrevious: () => onStep('previous'), onNext: () => onStep('next'), atFirst, atLast: false },
-          }}
+          onStep={() => setTitle('second keyword')}
+          header={{ title, typeLabel: 'Keyword', typeNoun: 'keyword', positionText: title }}
         >
-          <InspectorTabs
-            label="Keyword sections"
-            value="overview"
-            onValueChange={() => undefined}
-            items={[
-              { value: 'overview', label: 'Overview' },
-              { value: 'settings', label: 'Settings' },
-            ]}
-          >
-            <InspectorPanel value="overview">
-              <InspectorSection title="Demand" icon={FileText} status="ready">
-                <p>8,100 searches a month</p>
-              </InspectorSection>
-            </InspectorPanel>
-            <InspectorPanel value="settings">
-              <InspectorSection title="Settings" icon={FileText} status="loading" />
-            </InspectorPanel>
-          </InspectorTabs>
+          <InspectorBody>
+            <button key={title} type="button">
+              Action of {title}
+            </button>
+          </InspectorBody>
         </Inspector>
       }
     >
-      {list}
+      <p>List</p>
     </InspectorLayout>
   );
 }
 
 const inspector = (): HTMLElement => screen.getByRole('complementary', { name: 'best crm for startups' });
 const separator = (): HTMLElement => screen.getByRole('separator', { name: 'Resize inspector' });
+const title = (): HTMLElement => screen.getByRole('heading', { level: 2, name: 'best crm for startups' });
 
 beforeEach(() => {
-  areaWidth = 1232;
+  boxWidth = 800;
   onClose.mockReset();
   onStep.mockReset();
-  vi.stubGlobal('ResizeObserver', AreaObserver);
   vi.stubGlobal('innerWidth', 1440);
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
   window.localStorage.clear();
@@ -97,14 +152,19 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   Reflect.deleteProperty(Element.prototype, 'getAnimations');
+  // A width kept in the module's memory must not reach the next test
+  writeInspectorWidth('u1', null);
+  writeInspectorWidth(null, null);
 });
 
 describe('Inspector', () => {
-  it('docks beside the list as a named aside, and moves focus to its title', async () => {
+  it('lays over the list as a named aside at 640 px, and moves focus to its title', async () => {
     const { container } = renderWithProviders(<Harness />);
-    expect(inspector()).toHaveStyle({ width: '400px' });
-    expect(inspector().className).toContain('sticky');
-    expect(screen.getByRole('heading', { level: 2, name: 'best crm for startups' })).toHaveFocus();
+    expect(inspector()).toHaveStyle({ width: '640px' });
+    expect(inspector().className).toContain('fixed');
+    expect(inspector().className).not.toContain('sticky');
+    expect(inspector()).toHaveAttribute('data-inspector', 'keyword');
+    expect(title()).toHaveFocus();
     expect(screen.getByText('12 of 986')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(await axe(container)).toHaveNoViolations();
@@ -117,20 +177,28 @@ describe('Inspector', () => {
     expect(screen.getByRole('complementary', { name: 'Keyword' })).toBeInTheDocument();
   });
 
-  it('lays over the list when the main column would be narrower than 720 px', () => {
-    areaWidth = 1072;
-    vi.stubGlobal('innerWidth', 1280);
+  it('takes no room in the layout: the list keeps its width', () => {
     renderWithProviders(<Harness />);
-    expect(inspector().className).toContain('fixed');
+    expect(inspector().style.marginLeft).toBe('');
+    const main = screen.getByRole('button', { name: 'A row of the list' }).parentElement;
+    expect(main).toHaveClass('flex-1');
+    expect(main).not.toHaveAttribute('style');
   });
 
-  it('is a modal sheet with a back button below 768 px', async () => {
-    vi.stubGlobal('innerWidth', 390);
+  it('is a modal sheet with a back button below 900 px', async () => {
+    vi.stubGlobal('innerWidth', 899);
     const { user } = renderWithProviders(<Harness />);
     expect(await screen.findByRole('dialog', { name: 'best crm for startups' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary')).toBeNull();
     expect(screen.queryByRole('separator')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Back to Keywords' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('stays a card at 900 px, narrowed to 60% of the window', () => {
+    vi.stubGlobal('innerWidth', 900);
+    renderWithProviders(<Harness />);
+    expect(inspector()).toHaveStyle({ width: '536px' });
   });
 
   it('closes on Escape from inside, and steps with J and K', async () => {
@@ -195,18 +263,18 @@ describe('Inspector', () => {
     expect(onStep).toHaveBeenCalledTimes(2);
   });
 
-  it('previews a drag over the list and commits the width on release', () => {
+  it('previews a drag and saves the width once, on release, for the user', () => {
     Object.defineProperty(Element.prototype, 'setPointerCapture', { configurable: true, value: () => undefined });
-    renderWithProviders(<Harness />);
+    renderWithProviders(<Harness user="u1" />);
     fireEvent.pointerDown(separator(), { button: 0, clientX: 800, pointerId: 1 });
     fireEvent.pointerMove(separator(), { clientX: 720, pointerId: 1 });
-    // Drawn 80 px wider, while a negative margin keeps the layout at 400 px until release
-    expect(inspector()).toHaveStyle({ width: '480px', marginLeft: '-80px' });
-    expect(window.localStorage.getItem('inspector-width:keyword')).toBeNull();
-    fireEvent.pointerUp(separator(), { clientX: 720, pointerId: 1 });
-    expect(inspector()).toHaveStyle({ width: '480px' });
+    // Drawn 80 px wider, with nothing in the layout moving and nothing saved yet
+    expect(inspector()).toHaveStyle({ width: '720px' });
     expect(inspector().style.marginLeft).toBe('');
-    expect(window.localStorage.getItem('inspector-width:keyword')).toBe('480');
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBeNull();
+    fireEvent.pointerUp(separator(), { clientX: 720, pointerId: 1 });
+    expect(inspector()).toHaveStyle({ width: '720px' });
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBe('720');
     Reflect.deleteProperty(Element.prototype, 'setPointerCapture');
   });
 
@@ -216,23 +284,44 @@ describe('Inspector', () => {
     expect(screen.getByRole('button', { name: 'Next keyword' })).toBeEnabled();
   });
 
-  it('resizes from the keyboard within its limits, remembers the width, and resets with Enter', async () => {
-    const { user } = renderWithProviders(<Harness />);
+  it('resizes from the keyboard within its limits, and resets with Enter and a double click', async () => {
+    vi.stubGlobal('innerWidth', 1280);
+    const { user } = renderWithProviders(<Harness user="u1" />);
     act(() => separator().focus());
-    expect(separator()).toHaveAttribute('aria-valuenow', '400');
-    expect(separator()).toHaveAttribute('aria-valuemax', '500');
+    expect(separator()).toHaveAttribute('aria-valuenow', '640');
+    expect(separator()).toHaveAttribute('aria-valuemin', '480');
+    expect(separator()).toHaveAttribute('aria-valuemax', '768');
     await user.keyboard('{ArrowLeft}');
-    expect(separator()).toHaveAttribute('aria-valuenow', '416');
-    await user.keyboard('{Shift>}{ArrowLeft}{/Shift}');
-    expect(separator()).toHaveAttribute('aria-valuenow', '480');
+    expect(separator()).toHaveAttribute('aria-valuenow', '656');
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(separator()).toHaveAttribute('aria-valuenow', '592');
     await user.keyboard('{End}');
-    expect(separator()).toHaveAttribute('aria-valuenow', '500');
-    expect(window.localStorage.getItem('inspector-width:keyword')).toBe('500');
+    expect(separator()).toHaveAttribute('aria-valuenow', '768');
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBe('768');
     await user.keyboard('{Home}');
-    expect(inspector()).toHaveStyle({ width: '360px' });
+    expect(inspector()).toHaveStyle({ width: '480px' });
     await user.keyboard('{Enter}');
-    expect(separator()).toHaveAttribute('aria-valuenow', '400');
-    expect(window.localStorage.getItem('inspector-width:keyword')).toBeNull();
+    expect(separator()).toHaveAttribute('aria-valuenow', '640');
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBeNull();
+    await user.keyboard('{ArrowLeft}');
+    expect(separator()).toHaveAttribute('aria-valuenow', '656');
+    fireEvent.doubleClick(separator());
+    expect(separator()).toHaveAttribute('aria-valuenow', '640');
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBeNull();
+  });
+
+  it('uses one saved width for every type', () => {
+    window.localStorage.setItem(WIDTH_KEY, '720');
+    renderWithProviders(<Harness type="prompt" user="u1" />);
+    expect(inspector()).toHaveStyle({ width: '720px' });
+  });
+
+  it('narrows a saved width the window cannot hold, and leaves what is stored', () => {
+    vi.stubGlobal('innerWidth', 1280);
+    window.localStorage.setItem(WIDTH_KEY, '960');
+    renderWithProviders(<Harness user="u1" />);
+    expect(inspector()).toHaveStyle({ width: '768px' });
+    expect(window.localStorage.getItem(WIDTH_KEY)).toBe('960');
   });
 
   it('leaves the More menu out when asked, and keeps Close', () => {
@@ -241,15 +330,98 @@ describe('Inspector', () => {
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
-  it('offers the widths in its More menu', async () => {
-    const { user } = renderWithProviders(<Harness />);
+  it('offers no width items, and leaves More out when it has no actions', async () => {
+    const { user, rerender } = renderWithProviders(<Harness />);
+    expect(screen.queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
+    rerender(<Harness moreActions={[{ id: 'archive', label: 'Archive keyword', onSelect: vi.fn() }]} />);
     await user.click(screen.getByRole('button', { name: 'More actions for best crm for startups' }));
-    expect(await screen.findByRole('menuitemradio', { name: 'Default' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('menuitemradio', { name: 'Wide' })).toHaveAttribute('aria-checked', 'false');
-    await user.click(screen.getByRole('menuitemradio', { name: 'Wide' }));
-    await waitFor(() => {
-      expect(inspector()).toHaveStyle({ width: '440px' });
-    });
+    expect(await screen.findByRole('menuitem', { name: 'Archive keyword' })).toBeInTheDocument();
+    expect(screen.getAllByRole('menuitem')).toHaveLength(1);
+    expect(screen.queryByRole('menuitemradio')).toBeNull();
+    for (const name of ['Width', 'Default', 'Wide', 'Maximum', 'Reset width']) {
+      expect(screen.queryByText(name)).toBeNull();
+    }
+  });
+
+  it('steps with ArrowDown and ArrowUp from inside the card', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await user.keyboard('{ArrowDown}');
+    expect(onStep).toHaveBeenLastCalledWith('next');
+    await user.keyboard('{ArrowUp}');
+    expect(onStep).toHaveBeenLastCalledWith('previous');
+    onStep.mockReset();
+    act(() => screen.getByRole('button', { name: 'Close' }).focus());
+    await user.keyboard('{ArrowDown}');
+    expect(onStep).toHaveBeenLastCalledWith('next');
+    await user.keyboard('{ArrowUp}');
+    expect(onStep).toHaveBeenLastCalledWith('previous');
+  });
+
+  it('leaves the arrows to a tab list, a text field, a scroll region and the resize handle', async () => {
+    const { user } = renderWithProviders(
+      <Harness
+        extraBody={
+          <>
+            <input aria-label="Notes" />
+            <InspectorBody label="Details">
+              <p>Long text</p>
+            </InspectorBody>
+          </>
+        }
+      />,
+    );
+    for (const element of [
+      screen.getByRole('tab', { name: 'Overview' }),
+      screen.getByRole('textbox', { name: 'Notes' }),
+      screen.getByRole('region', { name: 'Details' }),
+      separator(),
+    ]) {
+      act(() => element.focus());
+      await user.keyboard('{ArrowDown}{ArrowUp}');
+    }
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('does not step with a modifier, on a held key, or from the list', async () => {
+    const { user } = renderWithProviders(<Harness />);
+    await user.keyboard('{Shift>}{ArrowDown}{/Shift}');
+    fireEvent.keyDown(title(), { key: 'ArrowDown', repeat: true });
+    act(() => screen.getByRole('button', { name: 'A row of the list' }).focus());
+    await user.keyboard('{ArrowDown}');
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('does not step while a menu opened from the card is open', async () => {
+    const { user } = renderWithProviders(
+      <Harness moreActions={[{ id: 'archive', label: 'Archive keyword', onSelect: vi.fn() }]} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'More actions for best crm for startups' }));
+    await screen.findByRole('menuitem', { name: 'Archive keyword' });
+    await user.keyboard('{ArrowDown}');
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('does not step with the arrows when the drawer has no onStep', () => {
+    renderWithProviders(<Harness withStep={false} />);
+    // fireEvent returns false when a handler prevented the default
+    expect(fireEvent.keyDown(title(), { key: 'ArrowDown' })).toBe(true);
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it('returns focus to the title when a step removes the focused control', async () => {
+    const { user } = renderWithProviders(<SteppingHarness />);
+    act(() => screen.getByRole('button', { name: 'Action of first keyword' }).focus());
+    await user.keyboard('{ArrowDown}');
+    expect(screen.queryByRole('button', { name: 'Action of first keyword' })).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'second keyword' })).toHaveFocus();
+  });
+
+  it('sits inside a boxed layout, sized by the box', () => {
+    vi.stubGlobal('ResizeObserver', BoxObserver);
+    renderWithProviders(<Harness boxed />);
+    expect(inspector().className).toContain('absolute');
+    expect(inspector().className).not.toContain('fixed');
+    expect(inspector()).toHaveStyle({ width: '480px' });
   });
 });
 

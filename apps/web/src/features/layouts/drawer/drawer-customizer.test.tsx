@@ -17,19 +17,6 @@ import { renderWithProviders } from '@/test/render';
 // The screen's leave guard reads the router and the address
 vi.mock('next/navigation', async () => (await import('@/test/next-navigation')).navigationModule);
 
-/** The width beside the sidebar that the layout measures: wide enough for the inspector to dock, never a sheet. */
-class AreaObserver {
-  constructor(private readonly callback: ResizeObserverCallback) {}
-  observe(target: Element): void {
-    this.callback(
-      [{ target, contentRect: { width: 1232, height: 800 } } as unknown as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
-    );
-  }
-  unobserve(): void {}
-  disconnect(): void {}
-}
-
 const onClose = vi.fn();
 /** The `menuItem` each render of the drawer was given. */
 const menuItems: (MenuItemDef | null)[] = [];
@@ -40,7 +27,6 @@ beforeEach(() => {
   menuItems.length = 0;
   serveLayouts();
   viewport = stubViewport();
-  vi.stubGlobal('ResizeObserver', AreaObserver);
   vi.stubGlobal('innerWidth', 1440);
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
   window.localStorage.clear();
@@ -164,7 +150,7 @@ describe('DrawerCustomizer', () => {
     expect(bar).not.toHaveClass('sticky');
   });
 
-  it('keeps its own box out of the layout, so a docked Inspector stays sticky in its row', () => {
+  it('keeps its own box out of the layout, so the wrapper adds no box to the page', () => {
     renderWithProviders(<Page />);
     expect(document.querySelector('[data-customize-root]')).toHaveClass('contents');
   });

@@ -12,15 +12,15 @@ const LARGE_STEP = 64;
 
 export interface InspectorResizeHandleProps {
   width: number;
-  /** The effective maximum of 16 section 2.6. */
+  /** The effective maximum of 16 section 2.6: 60% of the viewport, 960 px at most. */
   max: number;
   /** The inspector it resizes. */
   controlsId: string;
   /** A new width, on 8 px steps: once per key press, and once when a drag ends. */
   onResize: (width: number) => void;
-  /** Back to the type's default width: Enter or a double click. */
+  /** Back to the default width: Enter or a double click. */
   onReset: () => void;
-  /** The width while dragging, so the card follows the pointer while the page reflows only on release. */
+  /** The width while dragging, so the card follows the pointer and the width is saved only on release. */
   onPreview: (width: number | null) => void;
 }
 

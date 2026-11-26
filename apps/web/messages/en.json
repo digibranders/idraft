@@ -2071,11 +2071,6 @@
     "firstInList": "First {type} in this list",
     "lastInList": "Last {type} in this list",
     "separator": "·",
-    "width": "Width",
-    "widthDefault": "Default",
-    "widthWide": "Wide",
-    "widthMaximum": "Maximum",
-    "resetWidth": "Reset width",
     "notFound": "This {type} does not exist or you do not have access to it.",
     "sectionError": "This section did not load"
   },

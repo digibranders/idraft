@@ -51,7 +51,7 @@ export interface InspectorHeaderProps {
   /** The More button, for a dialog that opens from its menu to give focus back to. */
   moreButtonRef?: Ref<HTMLButtonElement> | undefined;
   onClose: () => void;
-  /** The sheet below 768 px goes back to the list instead of closing: "Back to Rankings". */
+  /** The sheet below 900 px goes back to the list instead of closing: "Back to Rankings". */
   backLabel?: string | null | undefined;
 }
 
