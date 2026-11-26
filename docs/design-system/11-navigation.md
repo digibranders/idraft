@@ -69,7 +69,7 @@ Last run 06:12 · 1,284 keywords   <- collection status line
 | Matrix | `/matrix` | Keywords, Clusters, Pages |
 | SEO > Rankings | `/seo/rankings` | none (saved views instead) |
 | SEO > Keywords | `/seo/keywords` | Inventory, Groups, Metrics history, Imports |
-| SEO > Pages | `/seo/pages` | Landing pages, Cannibalization |
+| SEO > Pages | `/seo/pages` | Overview, All pages, Monitoring (Monitoring is listed once it exists) |
 | SEO > Internal links | `/seo/internal-links` | Pages, Links, Journey, Tier flow (the tab list shows only once a crawl can be read; [the internal link tracker spec](../superpowers/specs/2026-11-16-internal-link-tracker-design.md) section 7) |
 | AI Visibility > Overview | `/ai` | none |
 | AI Visibility > Topics & Prompts | `/ai/prompts` | Topics, Prompts, Panels, Versions ([ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)) |
