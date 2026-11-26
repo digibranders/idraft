@@ -140,7 +140,7 @@ describe('overviewModel status', () => {
 });
 
 describe('overviewModel funnel', () => {
-  it('has four rows, shares of live pages except the addresses', () => {
+  it('has four rows: live is a share of the addresses, the rest shares of live pages', () => {
     const { funnel } = model();
     expect(funnel.map((row) => [row.id, row.count])).toEqual([
       ['addresses', 420],
@@ -148,6 +148,8 @@ describe('overviewModel funnel', () => {
       ['indexable', 372],
       ['in_sitemap_indexable', 330],
     ]);
+    expect(byId(funnel, 'live').base).toBe('addresses');
+    expect(byId(funnel, 'live').share).toBeCloseTo(389 / 420);
     expect(byId(funnel, 'indexable').base).toBe('live');
     expect(byId(funnel, 'indexable').share).toBeCloseTo(372 / 389);
     expect(byId(funnel, 'in_sitemap_indexable').href).toBe('/w/p/seo/pages/all?view=in_sitemap_indexable');
@@ -234,6 +236,46 @@ describe('overviewModel sitemap', () => {
       ['sitemap_not_live', 4, '/w/p/seo/pages/all?view=sitemap_not_live'],
       ['sitemap_not_indexable', 9, '/w/p/seo/pages/all?view=sitemap_not_indexable'],
     ]);
+  });
+
+  it('pins the bases: sitemap_not_live is a share of the addresses, the other three of live pages', () => {
+    const sitemap = model().sitemap ?? [];
+    expect(sitemap.map((row) => [row.id, row.base])).toEqual([
+      ['in_sitemap_indexable', 'live'],
+      ['not_in_sitemap', 'live'],
+      ['sitemap_not_live', 'addresses'],
+      ['sitemap_not_indexable', 'live'],
+    ]);
+    expect(byId(sitemap, 'sitemap_not_live').share).toBeCloseTo(4 / 420);
+  });
+
+  it('has null shares on live bases and no division by zero when live is 0 but addresses are not', () => {
+    const noLive: PagesOverview = {
+      ...OVERVIEW,
+      status: { ...OVERVIEW.status, live: 0 },
+      indexable: 0,
+      orphans: 0,
+      unreachable: 0,
+      sections: [],
+      sections_total: 0,
+      tiers: [{ tier: null, pages: 0 }],
+    };
+    const data = model(null, noLive);
+    const rows = [
+      ...data.strip,
+      ...data.status,
+      ...data.funnel,
+      ...(data.sitemap ?? []),
+      ...data.sections,
+      ...data.tiers,
+      ...data.depth,
+    ];
+    const liveBased = rows.filter((row) => row.base === 'live');
+    expect(liveBased.length).toBeGreaterThan(10);
+    expect(liveBased.every((row) => row.share === null)).toBe(true);
+    expect(rows.every((row) => row.share === null || Number.isFinite(row.share))).toBe(true);
+    expect(byId(data.funnel, 'live').share).toBe(0);
+    expect(byId(data.sitemap ?? [], 'sitemap_not_live').share).toBeCloseTo(4 / 420);
   });
 
   it('is null when the crawl found no sitemap', () => {

@@ -56,7 +56,7 @@ export function overviewModel(data: PagesOverview, allPages: (query: Record<stri
       ? [
           row('in_sitemap_indexable', sitemap.indexable_in_sitemap ?? 0, 'live', view('in_sitemap_indexable')),
           row('not_in_sitemap', sitemap.indexable_missing ?? 0, 'live', view('not_in_sitemap')),
-          row('sitemap_not_live', sitemap.listed_not_live ?? 0, 'live', view('sitemap_not_live')),
+          row('sitemap_not_live', sitemap.listed_not_live ?? 0, 'addresses', view('sitemap_not_live')),
           row('sitemap_not_indexable', sitemap.listed_not_indexable ?? 0, 'live', view('sitemap_not_indexable')),
         ]
       : null;
@@ -87,7 +87,7 @@ export function overviewModel(data: PagesOverview, allPages: (query: Record<stri
     ],
     funnel: [
       row('addresses', data.addresses, 'addresses', { variants: '1' }),
-      row('live', live, 'live', view('live')),
+      row('live', live, 'addresses', view('live')),
       row('indexable', data.indexable, 'live', view('indexable')),
       ...(sitemapRows === null ? [] : sitemapRows.slice(0, 1)),
     ],
