@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 
-const TILES = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'runs'] as const;
+const TILES = ['mention', 'sov', 'citation', 'position', 'recommendation', 'sentiment', 'prompts', 'traffic'] as const;
 
 /** The stand-in of the headline while it loads: the hero and the eight tiles at their final places, so nothing moves. */
 export function HeadlineSkeleton(): ReactElement {

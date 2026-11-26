@@ -7,7 +7,7 @@ import type { CardInfo } from '@/components/app/chart/card-info';
 
 /** The info texts of the headline: the hero's and each tile's, what it shows and then how it is counted. */
 export type InfoKey =
-  'hero' | 'mention' | 'sov' | 'citation' | 'position' | 'recommendation' | 'sentiment' | 'prompts' | 'runs';
+  'hero' | 'mention' | 'sov' | 'citation' | 'position' | 'recommendation' | 'sentiment' | 'prompts' | 'traffic';
 
 export function useInfoOf(): (key: InfoKey) => CardInfo {
   const t = useTranslations('aiOverview.headline.info');

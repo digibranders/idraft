@@ -157,9 +157,9 @@ export const MEASURE_INFO = {
     what: 'How many prompts are tracked in this view.',
     how: 'Each prompt is counted once, however many platforms answer it.',
   },
-  runs: {
-    what: 'How many weekly runs are behind these numbers.',
-    how: 'Prompts are asked on their schedule, so a run may hold only some of them.',
+  traffic: {
+    what: 'Visits to your site that came from AI platforms.',
+    how: 'Sessions with an AI platform as the referrer, from Google Analytics. Visits from Google AI Mode and Google AI Overview cannot be told apart from Google organic, so they are not counted.',
   },
 };
 
