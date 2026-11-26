@@ -636,7 +636,10 @@ async def _search_bodies(**changes: object) -> list[dict[str, object]]:
 
 async def test_search_analytics_sends_a_filter_group_only_when_filters_are_given() -> None:
     (filtered,) = await _search_bodies(
-        filters=(DimensionFilter("page", "includingRegex", "^https://a\\.example/x$"),)
+        filters=(
+            DimensionFilter("page", "includingRegex", "^https://a\\.example/x$"),
+            DimensionFilter("query", "contains", "crm"),
+        )
     )
     assert filtered["dimensionFilterGroups"] == [
         {
@@ -646,10 +649,13 @@ async def test_search_analytics_sends_a_filter_group_only_when_filters_are_given
                     "dimension": "page",
                     "operator": "includingRegex",
                     "expression": "^https://a\\.example/x$",
-                }
+                },
+                {"dimension": "query", "operator": "contains", "expression": "crm"},
             ],
         }
     ]
+    assert filtered["aggregationType"] == "auto"
 
     (plain,) = await _search_bodies()
     assert "dimensionFilterGroups" not in plain
+    assert plain["aggregationType"] == "auto"

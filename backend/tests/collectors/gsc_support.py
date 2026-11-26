@@ -149,6 +149,13 @@ class FakeSearchConsole(FakeGoogle):
             return httpx.Response(200, json={"rows": [{"keys": ["x"], "clicks": 1}]})
         start, end = date.fromisoformat(body["startDate"]), date.fromisoformat(body["endDate"])
         if "dimensionFilterGroups" in body:
+            if body["aggregationType"] == "byProperty" and any(
+                item["dimension"] == "page"
+                for group in body["dimensionFilterGroups"]
+                for item in group["filters"]
+            ):
+                # Google refuses property aggregation for a call that filters by page.
+                return httpx.Response(400, json={"error": {"message": "invalid aggregation"}})
             dimensions = tuple(body["dimensions"])
             found = self.filtered.get((site, dimensions), [])
             if "date" in dimensions:
@@ -157,11 +164,11 @@ class FakeSearchConsole(FakeGoogle):
                     row
                     for row in found
                     if start <= date.fromisoformat(row["keys"][at]) <= end
-                    and date.fromisoformat(row["keys"][at]) <= self.final_through
+                    and (
+                        body["dataState"] == "all"
+                        or date.fromisoformat(row["keys"][at]) <= self.final_through
+                    )
                 ]
-            if body["aggregationType"] == "byProperty":
-                # Google refuses property aggregation for a call that filters by page.
-                return httpx.Response(400, json={"error": {"message": "invalid aggregation"}})
             found = found[body["startRow"] : body["startRow"] + body["rowLimit"]]
             return httpx.Response(
                 200, json={"rows": [{"ctr": 0.1, **row} for row in found]} if found else {}
