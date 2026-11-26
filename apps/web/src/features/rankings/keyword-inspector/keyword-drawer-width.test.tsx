@@ -6,9 +6,10 @@ import { loadedGrid, rankingsAs as as, restoreWideScreen, stubWideScreen } from 
 import { renderWithProviders } from '@/test/render';
 
 /**
- * The keyword drawer is 640 px by default and can be dragged to 960 px. jsdom has no layout, so these tests read what
- * decides the width in code: nothing inside the card holds a pixel width of its own, the metric strip shares the row,
- * and each chart follows its element through the browser's resize observer, the way a drag of the handle moves it.
+ * The keyword drawer is 640 px by default and can be dragged from 480 px (the least) to 960 px. jsdom has no layout, so
+ * these tests read what decides the width in code: nothing inside the card holds a pixel width of its own, from the
+ * metric strip to the last section, and each chart follows its element through the browser's resize observer, the way a
+ * drag of the handle moves it.
  */
 
 interface FakeChart {
@@ -51,8 +52,18 @@ class RecordingResizeObserver {
 }
 
 const USER = 'drawer-width-user';
-/** A `w-`, `min-w-` or `max-w-` class that sets a size; `w-full`, `min-w-0` and the like leave the box to its parent. */
-const FIXED_WIDTH_CLASS = /(^|\s)(?:min-|max-)?w-(?!(?:0|full|none|auto|fit)(?:\s|$))/;
+/**
+ * The `w-`, `min-w-` and `max-w-` classes of a box that set a size. `w-full`, `min-w-0` and the like leave the box to
+ * its parent; a plain `w-1` to `w-16` (4 to 64 px) is the slot of an icon or a figure inside a cell, never the width of
+ * a column or of the card. The tab underline takes the width of the tab it sits under, which the tab list measures.
+ */
+function sizingWidthClasses(node: Element): string[] {
+  const free = /^(?:(?:min-|max-)?w-(?:0|full|none|auto|fit)|w-\(--active-tab-width\))$/;
+  const slot = /^w-(?:[1-9]|1[0-6])$/;
+  return (node.getAttribute('class') ?? '')
+    .split(/\s+/)
+    .filter((name) => /^(?:min-|max-)?w-/.test(name) && !free.test(name) && !slot.test(name));
+}
 
 beforeEach(() => {
   stubWideScreen();
@@ -71,8 +82,8 @@ async function chartsIn(drawer: HTMLElement): Promise<HTMLElement[]> {
   return [...charts.byNode.keys()].filter((node) => drawer.contains(node));
 }
 
-describe.each([640, 960])('The keyword drawer at %i px', (width) => {
-  it('holds no pixel width of its own: the strip shares the row and the charts follow the card', async () => {
+describe.each([480, 640, 960])('The keyword drawer at %i px', (width) => {
+  it('holds no pixel width of its own: no section fixes one and the charts follow the card', async () => {
     writeInspectorWidth(USER, width);
     const { user } = renderWithProviders(
       <InspectorWidthUserContext value={USER}>{as('viewer')}</InspectorWidthUserContext>,
@@ -86,21 +97,24 @@ describe.each([640, 960])('The keyword drawer at %i px', (width) => {
     const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
     expect(drawer.style.width).toBe(`${String(width)}px`);
 
-    // Volume, difficulty and CPC share the whole row, however wide the card is
+    // Volume, difficulty and CPC are three equal columns of the card's width (the small strip never reads the width)
     const strip = within(drawer).getByRole('group', { name: 'Metrics for this keyword' });
     expect(strip.querySelector('dl')?.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
 
-    for (const canvas of await chartsIn(drawer)) {
+    const canvases = await chartsIn(drawer);
+    // Every section has drawn its content, so the scan below reads Links, Tracking, Competitors and History too
+    await waitFor(() => expect(drawer.querySelector('[aria-busy="true"]')).toBeNull(), { timeout: 5000 });
+    // Nothing inside the card fixes a width: the strip and its cells, every section, the charts and what is between
+    // them (the card itself and its resize handle are the drawer's own)
+    for (const node of drawer.querySelectorAll<HTMLElement | SVGElement>('*')) {
+      if (node.closest('[role="separator"]') !== null) continue;
+      expect([node.style.width, node.style.minWidth, node.style.maxWidth]).toEqual(['', '', '']);
+      expect(sizingWidthClasses(node)).toEqual([]);
+    }
+
+    for (const canvas of canvases) {
       // The canvas takes its width from its box and only its height is set
       expect(canvas).toHaveClass('w-full');
-      expect(canvas.style.width).toBe('');
-      expect(canvas.style.minWidth).toBe('');
-      expect(canvas.style.maxWidth).toBe('');
-      // Nothing between the canvas and the card fixes a width either
-      for (let node = canvas.parentElement; node !== null && node !== drawer; node = node.parentElement) {
-        expect([node.style.width, node.style.minWidth, node.style.maxWidth]).toEqual(['', '', '']);
-        expect(node.className).not.toMatch(FIXED_WIDTH_CLASS);
-      }
       // A drag of the handle changes the card's width: the chart reads its box again
       const chart = charts.byNode.get(canvas);
       const watch = watches.find((entry) => entry.target === canvas);
