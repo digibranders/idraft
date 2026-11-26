@@ -113,29 +113,39 @@ export function summarise(graph) {
   };
 }
 
-const SPRING = 46;
-const ITERATIONS = 320;
+const ITERATIONS = 400;
+// A page pushes others away in proportion to its links, so a hub keeps room for the pages around it
+const REPULSION = 6.5;
+const ATTRACTION = 0.05;
 // Strong enough to keep groups that do not link to each other in one picture, not far apart
-const GRAVITY = 2;
-const CELL = 22;
-const COLUMNS = 22;
-const GROUP_GAP = 56;
-const BLOCK_GAP = 110;
+const GRAVITY = 0.03;
+// No two pages closer than this, plus room for the bigger dot of a page with many links
+const SPACE = 26;
+const SEPARATION_ROUNDS = 80;
+const STRETCH = 1.45;
+const CELL = 18;
+const COLUMNS = 14;
+const GROUP_GAP = 44;
+const BLOCK_GAP = 90;
 
 /**
- * Linked pages are placed by their links (a force layout: linked pages pull together, all pages push apart).
- * Pages with no drawn link sit in a block of their own to the right, one grid per group in `groupOf` order.
+ * Linked pages are placed by their links (a force layout: linked pages pull together, all pages push apart, more
+ * so around a page with many links), then moved apart until no two overlap. Pages with no drawn link sit in a
+ * block of their own, one grid per group in `groupOf` order: to the right, or below when `below` is set (a canvas
+ * taller than wide).
  *
  * @param {{ nodes: Array<{id: string, in: number, out: number}>, edges: Array<{from: string, to: string}> }} graph
  * @param {(id: string) => number} groupOf the order of the group a page belongs to (its tier position)
+ * @param {{ below?: boolean }} [options]
  * @returns {{ positions: Map<string, [number, number]>, groups: Array<{ key: number, count: number, x: number, y: number }> }}
  */
-export function layoutGraph(graph, groupOf) {
+export function layoutGraph(graph, groupOf, { below = false } = {}) {
   const linked = graph.nodes.filter((node) => node.in + node.out > 0).sort((a, b) => a.id.localeCompare(b.id));
   const index = new Map(linked.map((node, i) => [node.id, i]));
+  const weight = linked.map((node) => node.in + node.out + 1);
   // A sunflower spiral: every page starts apart from the others, in the same place on every run
-  const x = linked.map((_, i) => 14 * Math.sqrt(i + 1) * Math.cos(i * 2.399963));
-  const y = linked.map((_, i) => 14 * Math.sqrt(i + 1) * Math.sin(i * 2.399963));
+  const x = linked.map((_, i) => 30 * Math.sqrt(i + 1) * Math.cos(i * 2.399963));
+  const y = linked.map((_, i) => 30 * Math.sqrt(i + 1) * Math.sin(i * 2.399963));
   const pairs = graph.edges.map((edge) => [index.get(edge.from), index.get(edge.to)]);
 
   for (let step = 0; step < ITERATIONS; step += 1) {
@@ -146,26 +156,25 @@ export function layoutGraph(graph, groupOf) {
         const ox = x[a] - x[b];
         const oy = y[a] - y[b];
         const distance = Math.max(0.01, Math.hypot(ox, oy));
-        const push = (SPRING * SPRING) / distance / distance;
+        const push = (REPULSION * weight[a] * weight[b]) / distance / distance;
         dx[a] += ox * push;
         dy[a] += oy * push;
         dx[b] -= ox * push;
         dy[b] -= oy * push;
       }
-      dx[a] -= x[a] * GRAVITY;
-      dy[a] -= y[a] * GRAVITY;
+      dx[a] -= x[a] * GRAVITY * weight[a];
+      dy[a] -= y[a] * GRAVITY * weight[a];
     }
     pairs.forEach(([a, b]) => {
-      const ox = x[a] - x[b];
-      const oy = y[a] - y[b];
-      const pull = Math.hypot(ox, oy) / SPRING;
-      dx[a] -= ox * pull;
-      dy[a] -= oy * pull;
-      dx[b] += ox * pull;
-      dy[b] += oy * pull;
+      const ox = (x[a] - x[b]) * ATTRACTION;
+      const oy = (y[a] - y[b]) * ATTRACTION;
+      dx[a] -= ox;
+      dy[a] -= oy;
+      dx[b] += ox;
+      dy[b] += oy;
     });
     // The step a page may move shrinks every round, so the picture settles
-    const limit = 60 * (1 - step / ITERATIONS) + 0.5;
+    const limit = 40 * (1 - step / ITERATIONS) + 0.3;
     for (let a = 0; a < linked.length; a += 1) {
       const length = Math.max(0.01, Math.hypot(dx[a], dy[a]));
       const move = Math.min(limit, length);
@@ -173,10 +182,38 @@ export function layoutGraph(graph, groupOf) {
       y[a] += (dy[a] / length) * move;
     }
   }
+  // A wide canvas gets a wide map: names read left to right, so the room is worth more sideways
+  if (!below) x.forEach((value, i) => {
+    x[i] = value * STRETCH;
+  });
+  for (let round = 0; round < SEPARATION_ROUNDS; round += 1) {
+    for (let a = 0; a < linked.length; a += 1) {
+      for (let b = a + 1; b < linked.length; b += 1) {
+        const need = SPACE + 1.6 * (Math.sqrt(weight[a]) + Math.sqrt(weight[b]));
+        let ox = x[a] - x[b];
+        let oy = y[a] - y[b];
+        let distance = Math.hypot(ox, oy);
+        if (distance >= need) continue;
+        if (distance < 0.01) {
+          // Two pages on one spot part in a direction their order gives, never a random one
+          ox = Math.cos(a + b);
+          oy = Math.sin(a + b);
+          distance = 1;
+        }
+        const shift = (need - distance) / 2 / distance;
+        x[a] += ox * shift;
+        y[a] += oy * shift;
+        x[b] -= ox * shift;
+        y[b] -= oy * shift;
+      }
+    }
+  }
 
   const positions = new Map(linked.map((node, i) => [node.id, [x[i], y[i]]]));
-  const right = linked.length > 0 ? Math.max(...x) : 0;
-  const top = linked.length > 0 ? Math.min(...y) : 0;
+  const edge = (pick, list, fallback) => (linked.length > 0 ? pick(...list) : fallback);
+  const left = below ? edge(Math.min, x, 0) : edge(Math.max, x, 0) + BLOCK_GAP;
+  const top = below ? edge(Math.max, y, 0) + BLOCK_GAP : edge(Math.min, y, 0);
+  const columns = below ? Math.max(COLUMNS, Math.floor((edge(Math.max, x, 0) - edge(Math.min, x, 0)) / CELL)) : COLUMNS;
   const byGroup = new Map();
   graph.nodes
     .filter((node) => node.in + node.out === 0)
@@ -189,9 +226,9 @@ export function layoutGraph(graph, groupOf) {
   const groups = [];
   let rowTop = top;
   [...byGroup.entries()].sort((a, b) => a[0] - b[0]).forEach(([key, ids]) => {
-    groups.push({ key, count: ids.length, x: right + BLOCK_GAP, y: rowTop });
-    ids.forEach((id, i) => positions.set(id, [right + BLOCK_GAP + (i % COLUMNS) * CELL, rowTop + CELL * 1.5 + Math.floor(i / COLUMNS) * CELL]));
-    rowTop += CELL * 1.5 + Math.ceil(ids.length / COLUMNS) * CELL + GROUP_GAP;
+    groups.push({ key, count: ids.length, x: left, y: rowTop });
+    ids.forEach((id, i) => positions.set(id, [left + (i % columns) * CELL, rowTop + CELL * 1.5 + Math.floor(i / columns) * CELL]));
+    rowTop += CELL * 1.5 + Math.ceil(ids.length / columns) * CELL + GROUP_GAP;
   });
   return { positions, groups };
 }
