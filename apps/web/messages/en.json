@@ -10360,6 +10360,7 @@
       "gscPending": "Search Console has no page numbers yet",
       "checkNotRun": "The check did not run",
       "noPage": "No page to show",
+      "noDetail": "No detail for this page",
       "loadFailed": "The issues could not be loaded",
       "loadFailedReason": "The server returned an error. Nothing on this page changed.",
       "crawlsFailed": "The crawl list could not be loaded",
@@ -10396,8 +10397,14 @@
       "fix": "How to fix it",
       "searchPages": "Search pages",
       "export": "Export",
-      "footer": "{count, plural, one {# page} other {# pages}}",
+      "labelled": "{label}:",
+      "openPage": "Open {path}",
+      "footer": "{count, plural, one {# page} other {# pages}} of {total}",
       "crawlOf": "Crawl of {date}",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "loadFailed": "The pages could not be loaded",
+      "loadFailedReason": "The server returned an error. Nothing on this page changed.",
       "noPages": {
         "title": "No pages have this issue",
         "hint": "The check ran on this crawl and passed."

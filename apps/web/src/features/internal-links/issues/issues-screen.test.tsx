@@ -371,10 +371,11 @@ describe('the list view', () => {
     expect(screen.queryByRole('group', { name: 'Measures' })).toBeNull();
     expect(screen.queryByRole('combobox', { name: /Found by/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Crawl now' })).toBeNull();
-    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Technical checks' })).toBeNull();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
 
-    await user.click(screen.getByRole('button', { name: 'All issues' }));
+    // The bar's button comes first; a check with no pages has a second one in its empty state
+    await user.click(screen.getAllByRole('button', { name: 'All issues' })[0] as HTMLElement);
     await waitFor(() => expect(writes.at(-1)?.queryString).toBe(''));
     expect(await technical()).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Measures' })).toBeInTheDocument();
@@ -383,7 +384,7 @@ describe('the list view', () => {
   it('opens the check the address names, in its own tab', async () => {
     const { user } = renderWithProviders(issuesAs('editor'), { searchParams: '?tab=technical&check=title-long' });
     expect(await screen.findByRole('heading', { level: 2, name: 'Titles over 60 characters' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'All issues' }));
+    await user.click(screen.getAllByRole('button', { name: 'All issues' })[0] as HTMLElement);
     expect(await screen.findByRole('table', { name: 'On-page checks' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /^On-page/ })).toHaveAttribute('aria-selected', 'true');
   });

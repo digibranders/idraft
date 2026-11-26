@@ -1,8 +1,45 @@
 import type { CheckId, IssueDetail } from './types';
 
+/**
+ * The keys under `issues.found`, so a screen can pass one to its typed translator without a cast: a key the catalog
+ * lacks fails to compile there, and `detail.test.ts` fails when a key of the catalog is listed in no case.
+ */
+export type FoundKey =
+  | 'returns'
+  | 'returnsLinked'
+  | 'redirectsTo'
+  | 'redirectsToStatus'
+  | 'redirectsAgain'
+  | 'linksToRedirects'
+  | 'canonical'
+  | 'canonicalStatus'
+  | 'noindexTag'
+  | 'noindexHeader'
+  | 'notIndexableCanonical'
+  | 'notIndexableNoindex'
+  | 'notIndexableRobots'
+  | 'notIndexable'
+  | 'notInSitemap'
+  | 'linksToBroken'
+  | 'noLinksIn'
+  | 'noneEditorial'
+  | 'linksToNonIndexable'
+  | 'clicksDeep'
+  | 'nofollowLinks'
+  | 'noTitle'
+  | 'sameTitle'
+  | 'sameTitleMore'
+  | 'characters'
+  | 'capitals'
+  | 'underscores'
+  | 'capitalsAndUnderscores'
+  | 'rankBroken'
+  | 'citedBroken'
+  | 'offTarget';
+
 /** A message under `issues.found` and the values it needs. */
 export interface DetailMessage {
-  key: string;
+  key: FoundKey;
   values: Record<string, string | number>;
 }
 
@@ -13,7 +50,7 @@ interface DetailRow {
   issue: IssueDetail | null;
 }
 
-const say = (key: string, values: Record<string, string | number> = {}): DetailMessage => ({ key, values });
+const say = (key: FoundKey, values: Record<string, string | number> = {}): DetailMessage => ({ key, values });
 
 /** `noindex` and `sitemap-nonindexable` say why a page is left out of Google's index with the reason code of the API. */
 function noindexMessage(reason: string | null | undefined): DetailMessage | null {

@@ -326,7 +326,7 @@ describe('the sentences of "What was found", as the reader sees them', () => {
   });
 
   it('covers every key of issues.found', () => {
-    const used = new Set(TEXTS.flatMap(({ check, row: given }) => detailMessage(check, given)?.key ?? []));
+    const used = new Set<string>(TEXTS.flatMap(({ check, row: given }) => detailMessage(check, given)?.key ?? []));
     expect(Object.keys(messages.issues.found).filter((key) => !used.has(key))).toEqual([]);
   });
 });
@@ -343,7 +343,7 @@ describe('detailMessage', () => {
   });
 
   it('has a case for every key of issues.found', () => {
-    const used = new Set(CASES.flatMap(({ check, row: given }) => detailMessage(check, given)?.key ?? []));
+    const used = new Set<string>(CASES.flatMap(({ check, row: given }) => detailMessage(check, given)?.key ?? []));
     expect(Object.keys(messages.issues.found).filter((key) => !used.has(key))).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Ban, Download, RefreshCw, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
@@ -9,13 +10,19 @@ import { CheckView } from './check-view';
 import { useCheckWords } from './check-words';
 import { ChecksTable } from './checks-table';
 import { IssuesStrip } from './issues-strip';
+import { useFileExport } from './use-file-export';
 import { useIssuesState } from './use-issues-state';
 import { CrawlButton } from '../crawl-button';
-import { crawlView, useCrawlNow, useCrawls } from '../crawl-reads';
+import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from '../crawl-reads';
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from '../crawl-states';
+import { PageInspector, PageNotFoundInspector } from '../inspector/page-inspector';
 import type { InternalLinksScreenProps } from '../internal-links-screen';
 import { TabBadge } from '../tab-badge';
+import type { LinksTabContext } from '../tabs';
+import { inspectedPage, parseLinksSearch, type SetLinksSearch } from '../url-state';
 import { PressedGroup } from '@/components/app/filters/pressed-group';
+import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
@@ -26,19 +33,19 @@ import { Input } from '@/components/ui/input';
 import { InputGroup } from '@/components/ui/input-group';
 import { Select } from '@/components/ui/select';
 import { Tabs, TabsPanel, type TabItem } from '@/components/ui/tabs';
-import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
-import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatRelative, formatTableDate } from '@/lib/format';
+import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
+import { crawlInView } from '@/lib/internal-links/crawl-choice';
 import { failedText } from '@/lib/internal-links/crawl-failure';
-import type { CrawlRun, LinksScope } from '@/lib/internal-links/types';
+import type { CrawlRun, LinksScope, PageTier } from '@/lib/internal-links/types';
 import { isIssueListResponse, issuesCsv, issuesQuery } from '@/lib/issues/queries';
 import { tabCounts, visibleChecks } from '@/lib/issues/rows';
 import type { CheckId, IssueCheck, IssueListResponse } from '@/lib/issues/types';
 import { tabOfApi, type IssuesFoundBy, type IssuesSeverity, type IssuesTab } from '@/lib/issues/url-state';
 import { useCan } from '@/lib/permissions';
-import { integrationsPath, projectPath } from '@/lib/routes/paths';
+import { integrationsPath, projectPath, withQuery } from '@/lib/routes/paths';
 
 const HEADING_ID = 'issues-heading';
 const EXPORT_NAME = 'issues.csv';
@@ -53,6 +60,10 @@ const NO_CHECKS: readonly IssueCheck[] = [];
 const TABS: readonly IssuesTab[] = ['technical', 'on-page'];
 const FOUND_BY: readonly IssuesFoundBy[] = ['all', 'crawl', 'ranks', 'gsc', 'ai'];
 const SEVERITIES: readonly IssuesSeverity[] = ['all', 'error', 'warning', 'notice'];
+/** One empty list for every render: a new one each time would re-run the effects that depend on the tiers. */
+const NO_TIERS: readonly PageTier[] = [];
+/** The page inspector reads the Internal links state for its scope; this page keeps none of it, so it is the default. */
+const LINKS_STATE = parseLinksSearch({});
 
 /** The answer as the list of checks (its generated type is `unknown`, see `isIssueListResponse`). */
 function readList(data: unknown): IssueListResponse {
@@ -111,6 +122,22 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   const checks = issues.data?.data ?? NO_CHECKS;
   const { state, setSearch } = useIssuesState(checks);
   const words = useCheckWords();
+  const router = useRouter();
+  const tiers = useWorkspaceTiers(workspaceId);
+  const canWrite = useCan('projects:write');
+  const inView = useMemo(() => crawlInView(crawls.data?.data ?? [], null), [crawls.data]);
+  // The page inspector is the one of Internal links: `?inspect=page:<id>`, stepping through the rows of the open check
+  const inspector = useInspector();
+  const inspected = inspectedPage(inspector.target);
+  const [order, setOrder] = useState<readonly string[]>([]);
+  const inspectorWords = useTranslations('internalLinks.inspector');
+  const stepping = useInspectorStepping({
+    inspector,
+    type: 'page',
+    order,
+    typeLabel: inspectorWords('typeLabel'),
+    typeNoun: inspectorWords('typeNoun'),
+  });
 
   // The one place that decides what the page shows: with a check open (task 3) the toolbar and the strip are
   // hidden. An address that names a check that did not run, or none, shows the list.
@@ -165,28 +192,10 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
     );
   const clearFilters = (): void => setSearch({ severity: null, by: null, q: null, passed: null });
 
-  const [exporting, setExporting] = useState(false);
-  const exportingNow = useRef(false);
-  // One download at a time: a second press while the file is being made would start the same file again
+  const file = useFileExport();
   const onExport = (): void => {
-    if (exportingNow.current) return;
-    exportingNow.current = true;
-    setExporting(true);
     const { path, query } = issuesCsv(scope, null);
-    downloadApiFile(path, query, EXPORT_NAME)
-      .catch((error: unknown) => {
-        // What the API said, when it said something (a problem's detail, else its title)
-        const reason = isApiProblem(error) ? (error.detail ?? error.string('title')) : null;
-        toast({
-          type: 'error',
-          title: t('list.exportFailed'),
-          ...(reason === null ? {} : { description: reason }),
-        });
-      })
-      .finally(() => {
-        exportingNow.current = false;
-        setExporting(false);
-      });
+    file.start(() => downloadApiFile(path, query, EXPORT_NAME));
   };
 
   const settingsHref = projectPath(workspaceSlug, project.slug, '/settings/links');
@@ -205,6 +214,51 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
       onClick={() => crawl.start()}
     />
   );
+
+  // When the crawl in view was made: the list's meta says, else the crawl list does
+  const crawledAt = issues.data?.meta.crawled_at ?? (view.kind === 'ready' ? view.latest.created_at : null);
+  // What the page inspector is handed. Its links to other parts of Internal links (all linking pages, the journey) leave
+  // this page for that one, with the same address keys
+  const linksBase = projectPath(workspaceSlug, project.slug, '/seo/internal-links');
+  const goToLinks: SetLinksSearch = (values) => {
+    const next = new URLSearchParams();
+    for (const [key, value] of Object.entries(values)) if (value !== null && value !== undefined) next.set(key, value);
+    router.push(withQuery(linksBase, next.toString()));
+  };
+  const inspectorContext: LinksTabContext = {
+    scope,
+    workspaceSlug,
+    projectSlug: project.slug,
+    timeZone: project.timeZone,
+    host,
+    state: LINKS_STATE,
+    crawl: inView,
+    setSearch: goToLinks,
+    tiers: tiers.data?.data ?? NO_TIERS,
+    inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), setOrder, ...inspected },
+    openJourney: (urlId) => goToLinks({ tab: 'journey', focus: urlId }),
+    registerExport: () => undefined,
+    openAlertSettings: null,
+    hrefOf: (path) => projectPath(workspaceSlug, project.slug, path),
+  };
+  let inspectorHost: ReactElement | null = null;
+  if (inspector.target?.type === 'page' && ready) {
+    inspectorHost =
+      inspected.urlId === null ? (
+        <PageNotFoundInspector key={inspector.target.id} onClose={inspector.close} />
+      ) : (
+        <PageInspector
+          key={inspected.urlId}
+          context={inspectorContext}
+          urlId={inspected.urlId}
+          canWrite={canWrite}
+          positionText={stepping.positionText}
+          navigation={stepping.navigation}
+          onStep={stepping.onStep}
+          onClose={inspector.close}
+        />
+      );
+  }
 
   const foundBy = (
     <Select<IssuesFoundBy>
@@ -226,10 +280,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
       <p className="min-w-0 truncate type-meta text-foreground-secondary">
         {t('toolbar.crawlLine', {
           host,
-          date: formatTableDate(
-            issues.data.meta.crawled_at ?? (view.kind === 'ready' ? view.latest.created_at : ''),
-            project.timeZone,
-          ),
+          date: formatTableDate(crawledAt ?? '', project.timeZone),
           count: issues.data.summary.pages_crawled,
         })}
       </p>
@@ -238,7 +289,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
     <>
       {crawlButton(running === null ? t('toolbar.crawlNow') : t('toolbar.crawling'), RefreshCw)}
       {listFailed ? null : (
-        <Button variant="secondary" size="sm" icon={Download} loading={exporting} onClick={onExport}>
+        <Button variant="secondary" size="sm" icon={Download} loading={file.exporting} onClick={onExport}>
           {t('list.export')}
         </Button>
       )}
@@ -417,20 +468,38 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
               status={issues.data === undefined ? 'loading' : issues.isFetching ? 'refetching' : 'ready'}
             />
           ) : null}
-          {openCheck === undefined ? panel() : <CheckView check={openCheck} onBack={() => back(openCheck)} />}
+          {openCheck === undefined ? (
+            panel()
+          ) : (
+            <CheckView
+              check={openCheck}
+              scope={scope}
+              state={state}
+              setSearch={setSearch}
+              gsc={issues.data?.meta.gsc.state ?? 'not_connected'}
+              crawledAt={crawledAt}
+              timeZone={project.timeZone}
+              activeUrlId={inspected.urlId}
+              onBack={() => back(openCheck)}
+              onOpenPage={inspectorContext.inspect.open}
+              onOrderChange={setOrder}
+            />
+          )}
         </>
       );
       break;
   }
 
   return (
-    <div className={PAGE_CLASS}>
-      <PageToolbar
-        title={t('title')}
-        headingId={HEADING_ID}
-        {...(chrome ? { ...(listFailed ? {} : { filters: foundBy }), status: crawlLine, actions } : {})}
-      />
-      {body}
-    </div>
+    <InspectorLayout inspector={inspectorHost}>
+      <div className={PAGE_CLASS}>
+        <PageToolbar
+          title={t('title')}
+          headingId={HEADING_ID}
+          {...(chrome ? { ...(listFailed ? {} : { filters: foundBy }), status: crawlLine, actions } : {})}
+        />
+        {body}
+      </div>
+    </InspectorLayout>
   );
 }

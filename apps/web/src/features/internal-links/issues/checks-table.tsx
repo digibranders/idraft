@@ -17,14 +17,14 @@ import { groupByCategory } from '@/lib/issues/rows';
 import type { CheckId, IssueCheck, IssueGsc, Severity } from '@/lib/issues/types';
 import { cn } from '@/lib/utils';
 
-const SEVERITY_TONE = { error: 'negative', warning: 'warning', notice: 'neutral' } as const satisfies Record<
+export const SEVERITY_TONE = { error: 'negative', warning: 'warning', notice: 'neutral' } as const satisfies Record<
   Severity,
   'negative' | 'warning' | 'neutral'
 >;
 
 const COLUMN_COUNT = 7;
 const TAB_STOP = { tabIndex: 0 };
-const CELL = 'border-t border-border-subtle px-3 first:px-4 last:px-4';
+export const CELL = 'border-t border-border-subtle px-3 first:px-4 last:px-4';
 const HEAD = 'h-row-header px-3 text-left type-table-header whitespace-nowrap first:px-4 last:px-4';
 /** The names of the checks are the main thing on the page: weight 600 and the main text colour on every row. */
 const NAME = 'block truncate type-subsection-title text-foreground';
@@ -108,7 +108,7 @@ export function ChecksTable({
  * A column header. Its definition is the header's description and its tooltip: the hidden text sits inside the
  * cell, because the tooltip's own hidden description would land directly under the row (invalid markup).
  */
-function HeaderCell({
+export function HeaderCell({
   label,
   tip,
   className,
@@ -208,7 +208,7 @@ function CheckRow({ check, name, pagesCrawled, gsc, integrationsHref, onOpen }: 
 }
 
 /** n/a in the tertiary colour; with a reason it is a tab stop, so the keyboard reads the reason too. */
-function NotApplicable({ reason }: { reason?: string | undefined }): ReactElement {
+export function NotApplicable({ reason }: { reason?: string | undefined }): ReactElement {
   const t = useTranslations('issues.states');
   const text = <span className="num type-table text-foreground-tertiary">{t('na')}</span>;
   if (reason === undefined) return text;
