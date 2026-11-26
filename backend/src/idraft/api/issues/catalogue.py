@@ -7,6 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final, Literal
 
+from idraft.api.schemas.issues import CheckId
+
 Tab = Literal["technical", "on_page"]
 Severity = Literal["error", "warning", "notice"]
 FoundBy = Literal["crawl", "ranks", "gsc", "ga4", "ai"]
@@ -21,7 +23,7 @@ DEPTH_MAX: Final = 3
 
 @dataclass(frozen=True, slots=True)
 class Check:
-    id: str
+    id: CheckId
     tab: Tab
     category: str
     severity: Severity
@@ -60,4 +62,4 @@ CHECKS: Final[tuple[Check, ...]] = (
     Check("url-long", "on_page", "addresses", "notice"),
     Check("off-target", "on_page", "keywords", "warning", "ranks", "ranks"),
 )
-BY_ID: Final = {check.id: check for check in CHECKS}
+BY_ID: Final[dict[str, Check]] = {check.id: check for check in CHECKS}

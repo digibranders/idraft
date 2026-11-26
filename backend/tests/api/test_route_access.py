@@ -517,6 +517,7 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues"): "data:read",
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}",
