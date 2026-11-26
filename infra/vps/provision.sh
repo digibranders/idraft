@@ -109,6 +109,7 @@ PROCESS_ROLE=api
 APP_ENV=production
 APP_ORIGIN=https://$domain
 LOG_LEVEL=info
+DB_POOL_SIZE=15
 DATABASE_URL=postgresql://app_api:$p_api@$db
 REDIS_URL=$redis
 TOTP_ENCRYPTION_KEY=$totp
@@ -224,6 +225,10 @@ setup_units() {
   for unit in api worker web; do
     install -m 0644 "$here/systemd/idraft-$unit.service" "/etc/systemd/system/idraft-$unit.service"
   done
+  # OS updates at 02:00 IST: a library update can restart PostgreSQL, and one did at midday.
+  install -d -m 0755 /etc/systemd/system/apt-daily-upgrade.timer.d
+  install -m 0644 "$here/systemd/apt-daily-upgrade.timer.d/idraft-window.conf" \
+    /etc/systemd/system/apt-daily-upgrade.timer.d/idraft-window.conf
   local part
   for part in backend web; do
     install -d -m 0755 "/srv/idraft/releases/$part" "/srv/idraft/releases/$part/bootstrap"
@@ -233,6 +238,7 @@ setup_units() {
   chown -R idraft:idraft /srv/idraft/releases
   install -m 0755 "$here/activate.sh" /usr/local/sbin/idraft-activate
   systemctl daemon-reload
+  systemctl restart apt-daily-upgrade.timer
   # Not started: there is no code yet. The first `infra/ship.sh` run starts them.
   systemctl enable idraft-api idraft-worker idraft-web >/dev/null 2>&1
 }

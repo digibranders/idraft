@@ -126,6 +126,21 @@ Redis of its own, the three units, the nginx site, the release folders); the fil
 adds to a host other projects use. `infra/vps/setup-releases.sh` is how the old Hostinger VPS was converted to the
 release layout on 2026-11-05 and is not needed on a new one.
 
+**Not yet applied on the server (written 2026-11-26): the live API still runs one worker with a pool of 10, and OS
+updates still run around 12:00 IST.** The repository files below are ready; the server changes wait for the owner's
+go-ahead.
+
+The API will run two uvicorn workers, each with a pool of `DB_POOL_SIZE` connections (15, in `/etc/idraft/api.env`).
+Workers x pool + the worker's 10 must stay under PostgreSQL's `max_connections` (80). `infra/ship.sh` does not
+install unit files or env lines: after `infra/vps/systemd/idraft-api.service` or `DB_POOL_SIZE` changes, the ops
+session applies them on the server (copy the unit to `/etc/systemd/system/`, then `systemctl daemon-reload &&
+systemctl restart idraft-api`). The workers are children of the main PID (`pgrep -P <MainPID>`), not extra
+`uvicorn` processes.
+
+OS updates will run at 02:00 IST (20:30 UTC plus up to 30 minutes), set by the drop-in
+`infra/vps/systemd/apt-daily-upgrade.timer.d/idraft-window.conf`. A library update can restart PostgreSQL, so they
+must not run in working hours (on 2026-11-26 one did, at 12:06 IST). The host is shared with OyeChats and Social Auto.
+
 Moving to a new VPS, in order: `provision.sh install`; point `app.idraft.ai` at it in Cloudflare (proxied); `provision.sh
 tls`; set `SHIP_HOST` (or the default in `infra/ship.sh`); `infra/ship.sh` (the first release has `bootstrap` as its
 `previous`, so there is nothing to roll back to until the second one). Then, on the VPS as `idraft` with the worker's
