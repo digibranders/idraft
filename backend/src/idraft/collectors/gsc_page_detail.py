@@ -39,6 +39,7 @@ from idraft.db.tables import (
     gsc_page_fetches,
     gsc_page_forms,
     tracked_pages,
+    urls,
 )
 from idraft.domain.gsc_pull import history_start
 from idraft.providers.google.client import (
@@ -87,6 +88,20 @@ class PageQuery(Protocol):
 class PageRef:
     url_id: int
     canonical_url: str
+
+
+async def tracked_refs(db: AsyncSession, facts: IntegrationFacts) -> list[PageRef]:
+    """The pages the integration's project tracks, in `url_id` order."""
+    found = await db.execute(
+        select(tracked_pages.c.url_id, urls.c.canonical_url)
+        .join(urls, urls.c.id == tracked_pages.c.url_id)
+        .where(
+            tracked_pages.c.workspace_id == facts.workspace_id,
+            tracked_pages.c.project_id == facts.project_id,
+        )
+        .order_by(tracked_pages.c.url_id)
+    )
+    return [PageRef(row.url_id, row.canonical_url) for row in found]
 
 
 def page_pattern(canonical_url: str, forms: Sequence[str]) -> str:

@@ -18,6 +18,7 @@ from idraft.collectors.gsc_plan import (
 )
 from idraft.domain.gsc_pull import PullState
 from tests.api.auth.support import execute, fetch, fetchrow, make_workspace
+from tests.api.internal_links.support import url_id
 from tests.collectors.gsc_support import (
     SITE,
     FakeSearchConsole,
@@ -212,6 +213,43 @@ async def test_a_pass_that_failed_is_not_sent_again_before_its_wait_is_over(
 
     assert waiting.integration_id not in sent.integrations
     assert ready.integration_id in sent.integrations
+
+
+async def test_a_property_with_a_tracked_page_that_has_no_history_is_sent(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeSearchConsole
+) -> None:
+    prop = await make_property(migrated, fake)
+    await _state(migrated, prop, PullState(recent_done=True, complete=True))
+    now = datetime.now(UTC)
+    quiet = Sent()
+    await plan_syncs(worker_db, quiet, now=now)
+    assert prop.integration_id not in quiet.integrations
+
+    page = await url_id(migrated, "https://example.com/pricing")
+    await execute(
+        migrated,
+        "INSERT INTO core.tracked_pages (project_id, url_id, workspace_id) VALUES ($1, $2, $3)",
+        prop.project_id,
+        page,
+        prop.workspace_id,
+    )
+    waiting = Sent()
+    await plan_syncs(worker_db, waiting, now=now)
+    assert prop.integration_id in waiting.integrations
+
+    await execute(
+        migrated,
+        "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
+        "workspace_id, project_id, row_count) VALUES ($1, $2, 'history', $3, $3, $4, $5, 0)",
+        prop.integration_id,
+        page,
+        now.date(),
+        prop.workspace_id,
+        prop.project_id,
+    )
+    done = Sent()
+    await plan_syncs(worker_db, done, now=now)
+    assert prop.integration_id not in done.integrations
 
 
 async def test_a_property_that_cannot_be_read_is_not_sent(

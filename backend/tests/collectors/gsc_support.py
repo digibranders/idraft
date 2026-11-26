@@ -85,11 +85,25 @@ class FakeSearchConsole(FakeGoogle):
         self.filtered: dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]] = {}
         # A position per page of the `[date, page]` read; pages not named answer 3.0.
         self.page_positions: dict[str, float] = {}
+        # Rows of a filtered read for exactly one period; they win over `filtered`.
+        self.filtered_periods: dict[
+            tuple[str, tuple[str, ...], date, date], list[dict[str, Any]]
+        ] = {}
+        # A filtered read whose page expression is in this set gets a malformed answer.
+        self.malformed_patterns: set[str] = set()
 
     def set_filtered(
-        self, site: str, dimensions: tuple[str, ...], rows: list[dict[str, Any]]
+        self,
+        site: str,
+        dimensions: tuple[str, ...],
+        rows: list[dict[str, Any]],
+        *,
+        period: tuple[date, date] | None = None,
     ) -> None:
-        self.filtered[(site, dimensions)] = rows
+        if period is None:
+            self.filtered[(site, dimensions)] = rows
+        else:
+            self.filtered_periods[(site, dimensions, *period)] = rows
 
     def filtered_requests(self, site: str | None = None) -> list[dict[str, Any]]:
         return [
@@ -156,8 +170,16 @@ class FakeSearchConsole(FakeGoogle):
             ):
                 # Google refuses property aggregation for a call that filters by page.
                 return httpx.Response(400, json={"error": {"message": "invalid aggregation"}})
+            if any(
+                item["expression"] in self.malformed_patterns
+                for group in body["dimensionFilterGroups"]
+                for item in group["filters"]
+            ):
+                return httpx.Response(200, json={"rows": [{"keys": ["x"], "clicks": 1}]})
             dimensions = tuple(body["dimensions"])
-            found = self.filtered.get((site, dimensions), [])
+            found = self.filtered_periods.get(
+                (site, dimensions, start, end), self.filtered.get((site, dimensions), [])
+            )
             if "date" in dimensions:
                 at = dimensions.index("date")
                 found = [

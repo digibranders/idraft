@@ -6,6 +6,7 @@ sends one `gsc_sync` message and moves on to its next window; windows missed whi
 down are not caught up. A property whose first pass or backfill is not finished is sent again as
 soon as its last message is done, and after a wait that grows when its last pass failed
 (`PullState.retry_due`), so a backfill that needs many passes keeps going without waiting a day.
+A property with a tracked page whose history is not fetched yet is sent again in the same way.
 
 `ops.schedules` is the clock only: the ledger planner skips workloads it has no plan for, and this
 one has no tasks, no provider and no cost to hold against a budget.
@@ -25,7 +26,16 @@ from pydantic import BaseModel
 from sqlalchemy import Join, and_, exists, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from idraft.db.tables import connections, integrations, projects, schedules, workspaces
+from idraft.collectors.gsc_page_detail import HISTORY
+from idraft.db.tables import (
+    connections,
+    gsc_page_fetches,
+    integrations,
+    projects,
+    schedules,
+    tracked_pages,
+    workspaces,
+)
 from idraft.domain.gsc_pull import VERSION, PullState
 from idraft.domain.schedules import Cadence, ScheduleRule, next_occurrence
 
@@ -211,12 +221,23 @@ async def _send_unfinished(db: AsyncSession, send: Send, now: datetime) -> int:
         .where(
             _healthy,
             _collecting,
-            # A state of another version is a pull not begun (`PullState.read`), finished or not
+            # A state of another version is a pull not begun (`PullState.read`), finished or not;
+            # a tracked page whose history was not fetched yet is work left too
             or_(
                 func.coalesce(integrations.c.backfill_state["gsc"]["version"].astext, "0")
                 != str(VERSION),
                 func.coalesce(integrations.c.backfill_state["gsc"]["complete"].astext, "false")
                 != "true",
+                exists().where(
+                    tracked_pages.c.workspace_id == integrations.c.workspace_id,
+                    tracked_pages.c.project_id == integrations.c.project_id,
+                    ~exists().where(
+                        gsc_page_fetches.c.workspace_id == integrations.c.workspace_id,
+                        gsc_page_fetches.c.integration_id == integrations.c.id,
+                        gsc_page_fetches.c.url_id == tracked_pages.c.url_id,
+                        gsc_page_fetches.c.kind == HISTORY,
+                    ),
+                ),
             ),
         )
         .order_by(integrations.c.created_at, integrations.c.id)
