@@ -156,6 +156,8 @@ class PageFilter(Body):
     )
     worklist: PageWorklist | None = None
     view: PageView | None = None
+    folder: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    depth: Annotated[int, Field(ge=0, le=6)] | None = None
     q: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
 
     @model_validator(mode="after")

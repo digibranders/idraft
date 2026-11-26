@@ -118,6 +118,10 @@ async def list_pages(
     include_variants: Annotated[bool, Query(alias="filter[include_variants]")] = False,
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
     view: Annotated[PageView | None, Query(alias="filter[view]")] = None,
+    folder: Annotated[str | None, Query(alias="filter[folder]", min_length=1, max_length=200)] = (
+        None
+    ),
+    depth: Annotated[int | None, Query(alias="filter[depth]", ge=0, le=6)] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
@@ -147,6 +151,8 @@ async def list_pages(
         include_variants=include_variants,
         worklist=worklist,
         view=view,
+        folder=folder,
+        depth=depth,
         q=q,
     )
     link_scope = LinkScope(scope)

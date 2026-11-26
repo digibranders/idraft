@@ -14,7 +14,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Join, and_, distinct, exists, false, func, or_, select
 from sqlalchemy.orm import aliased
 
-from idraft.api.internal_links.inventory import view_condition
+from idraft.api.internal_links.inventory import depth_bucket, section_of, view_condition
 from idraft.api.internal_links.problems import LinksDroppedError
 from idraft.api.internal_links.status_filter import status_classes
 from idraft.api.schemas.internal_links import PageFilter
@@ -132,6 +132,10 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
         conditions.append(_FLAGS[flag])
     if found.view is not None:
         conditions.append(view_condition(found.view))
+    if found.folder is not None:
+        conditions.append(section_of() == found.folder)
+    if found.depth is not None:
+        conditions += [view_condition("reachable"), depth_bucket() == found.depth]
     # A variant is the same page under another address (plan 09): it does not count unless asked.
     if not (found.include_variants or "variant" in (found.flags or ()) or found.view == "variants"):
         conditions.append(crawl_pages.c.variant_of_url_id.is_(None))

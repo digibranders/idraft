@@ -9,11 +9,15 @@ from typing import get_args
 
 import httpx
 import pytest
+from sqlalchemy import select
 
+from idraft.api.internal_links.inventory import section_of
 from idraft.api.resources import Resources
 from idraft.api.schemas.internal_links import PageView
-from tests.api.auth.support import make_workspace
+from idraft.db.tables import urls
+from tests.api.auth.support import fetchrow, make_workspace
 from tests.api.entities.support import member, problem
+from tests.api.internal_links.support import url_id
 from tests.api.internal_links.support_inventory import EXPECTED, inventory_site
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
@@ -144,3 +148,100 @@ async def test_a_member_of_another_workspace_cannot_list_the_views(
     )
 
     assert problem(response) == (404, "not_found")
+
+
+async def _paths(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    **params: str,
+) -> list[str]:
+    url, headers, _ = await _site(resources, migrated)
+    response = await api.get(url, params={"scope": "all", "limit": "50", **params}, headers=headers)
+    assert response.status_code == 200, response.text
+    return sorted(row["path"] for row in response.json()["data"])
+
+
+async def test_a_folder_lists_the_pages_of_its_section(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    paths = await _paths(api, resources, migrated, **{"filter[folder]": "/blog/"})
+
+    assert paths == ["/blog/a", "/blog/b", "/blog/deep"]
+
+
+async def test_the_root_section_holds_top_level_pages_and_a_folders_own_index(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    paths = await _paths(api, resources, migrated, **{"filter[folder]": "/"})
+
+    assert paths == sorted(
+        ["/", "/pricing", "/blog/", "/old", "/gone", "/down", "/private", "/file.pdf", "/unknown"]
+    )
+
+
+async def test_a_view_and_a_folder_narrow_together(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    url, headers, _ = await _site(resources, migrated)
+
+    response = await api.get(
+        url,
+        params={"filter[view]": "live", "filter[folder]": "/blog/", "scope": "all"},
+        headers=headers,
+    )
+
+    assert response.json()["meta"]["total"] == 3
+
+
+@pytest.mark.parametrize(
+    ("depth", "expected"), [("2", ["/blog/a", "/blog/b"]), ("6", ["/blog/deep"])]
+)
+async def test_a_depth_lists_the_live_pages_that_many_clicks_away(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    depth: str,
+    expected: list[str],
+) -> None:
+    paths = await _paths(api, resources, migrated, **{"filter[depth]": depth})
+
+    assert paths == expected
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"filter[depth]": "7"},
+        {"filter[depth]": "-1"},
+        {"filter[folder]": "/" + "a" * 200},
+    ],
+)
+async def test_a_depth_or_folder_out_of_range_is_refused(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer, params: dict[str, str]
+) -> None:
+    url, headers, _ = await _site(resources, migrated)
+
+    response = await api.get(url, params=params, headers=headers)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("path", "section"),
+    [
+        ("/", "/"),
+        ("/pricing", "/"),
+        ("/blog/", "/"),
+        ("/blog/post", "/blog/"),
+        ("/blog/2026/post", "/blog/"),
+    ],
+)
+async def test_the_section_of_a_path(migrated: PostgresServer, path: str, section: str) -> None:
+    row_id = await url_id(migrated, f"https://example.com{path}")
+    statement = select(section_of()).where(urls.c.id == row_id)
+    sql = str(statement.compile(compile_kwargs={"literal_binds": True}))
+
+    row = await fetchrow(migrated, sql)
+
+    assert row[0] == section

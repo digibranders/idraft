@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Final
 
-from sqlalchemy import ColumnElement, and_, false, func, not_, or_, true
+from sqlalchemy import ColumnElement, and_, case, false, func, not_, or_, true
 
 from idraft.api.schemas.internal_links import PageView
 from idraft.crawl.status import BLOCKED_STATUSES
-from idraft.db.tables import crawl_pages
+from idraft.db.tables import crawl_pages, urls
 
 _STATUS: Final = crawl_pages.c.status_code
 
@@ -60,6 +60,19 @@ def _indexable() -> ColumnElement[bool]:
 
 def _reachable() -> ColumnElement[bool]:
     return and_(_live(), crawl_pages.c.click_depth.is_not(None))
+
+
+def section_of() -> ColumnElement[str]:
+    """The first folder of the path (C3 of the plan, spec section 4): `/blog/` for `/blog/post`,
+    `/` for a page with one segment or none."""
+    first = func.split_part(urls.c.path, "/", 2)
+    deeper = func.split_part(urls.c.path, "/", 3) != ""
+    return case((deeper, "/" + first + "/"), else_="/")
+
+
+def depth_bucket() -> ColumnElement[int]:
+    """`least(click_depth, 6)`: the row 6 is 6 clicks and more."""
+    return func.least(crawl_pages.c.click_depth, 6)
 
 
 def view_condition(view: PageView) -> ColumnElement[bool]:

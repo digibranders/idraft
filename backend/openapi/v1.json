@@ -15638,6 +15638,19 @@
         "additionalProperties": false,
         "description": "The Pages list's filters as a bulk body (`run` is always the latest crawl).",
         "properties": {
+          "depth": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
           "flags": {
             "anyOf": [
               {
@@ -15661,6 +15674,19 @@
               }
             ],
             "title": "Flags"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
           },
           "include_variants": {
             "default": false,
@@ -42232,6 +42258,42 @@
                 }
               ],
               "title": "Filter[View]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[folder]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Folder]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[depth]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Depth]"
             }
           },
           {
