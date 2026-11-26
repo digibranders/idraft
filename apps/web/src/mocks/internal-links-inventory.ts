@@ -3,8 +3,8 @@ import type { PageRow, PageView, PagesOverview, TierRef } from '@/lib/internal-l
 
 /**
  * The words of the Pages screens as the mock counts them (contract C1 and C2): one predicate per view, so the
- * Overview's numbers and the list's `meta.total` for the same view cannot differ (decision D8). A `PageRow` has no
- * `resource_type` that tells a 200 HTML page from another 200, so a live page here is a counted row with status 200.
+ * Overview's numbers and the list's `meta.total` for the same view cannot differ (decision D8). A live page is an
+ * HTML page with status 200, as the backend counts it (a `PageRow` carries both `resource_type` and `status_code`).
  * The fixture crawl has no variants: no row is one.
  */
 
@@ -39,7 +39,7 @@ export function sectionOfPath(path: string): string {
   return (parts[2] ?? '') === '' ? '/' : `/${first}/`;
 }
 
-const isLive = (row: PageRow): boolean => row.status_code === 200;
+const isLive = (row: PageRow): boolean => row.status_code === 200 && row.resource_type === 'html';
 const isRedirected = (row: PageRow): boolean =>
   row.status_code !== null && row.status_code >= 300 && row.status_code < 400;
 const isBlocked = (row: PageRow): boolean => row.status_code !== null && BLOCKED.has(row.status_code);
