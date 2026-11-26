@@ -90,9 +90,8 @@ export function CompareSelect({ scope, onCompareChange }: CompareSelectProps): R
         <Button
           variant="secondary"
           aria-label={tShell('compareLabel', { value: label })}
-          className="w-full justify-start type-body sm:w-80"
+          className="w-full justify-start type-body sm:w-52"
         >
-          <span className="shrink-0 text-foreground-secondary">{tShell('compare')}:</span>
           <span className="min-w-0 flex-1 truncate text-left">{label}</span>
           <Icon icon={ChevronDown} size="sm" className="shrink-0 text-foreground-muted" />
         </Button>

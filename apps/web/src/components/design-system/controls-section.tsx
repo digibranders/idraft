@@ -991,11 +991,13 @@ export function ScopeSelectGroup(): ReactNode {
   const [platform, setPlatform] = useState('gemini_web');
   const [runs, setRuns] = useState('4');
   return (
-    <SpecimenGroup title="Scope select" note="WP-77. A prefix names the control; a note gives each choice its dates.">
+    <SpecimenGroup
+      title="Scope select"
+      note="WP-77. The trigger shows the choice alone and the aria-label names the control; a note gives each choice its dates."
+    >
       <div className="flex flex-wrap items-center gap-2">
         <Select<string>
           aria-label="Platform"
-          prefix="Platform:"
           placeholder="All platforms"
           value={platform}
           onValueChange={setPlatform}
@@ -1005,7 +1007,6 @@ export function ScopeSelectGroup(): ReactNode {
         />
         <Select<string>
           aria-label="Runs"
-          prefix="Runs:"
           placeholder="Runs"
           value={runs}
           onValueChange={setRuns}

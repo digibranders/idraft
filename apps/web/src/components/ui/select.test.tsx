@@ -194,30 +194,17 @@ describe('Select', () => {
     expect(within(await screen.findByRole('option', { name: 'AI visibility' })).queryByTestId('rank-logo')).toBeNull();
   });
 
-  it('shows a prefix before the value in the trigger', () => {
+  it('shows the chosen value alone in the trigger, named by its aria-label', () => {
     renderWithProviders(
       <Select
-        value="ai"
-        placeholder="Pick"
-        triggerPrefix="Job type:"
-        options={[{ value: 'ai', label: 'AI visibility' }]}
-        onValueChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole('combobox')).toHaveTextContent('Job type:AI visibility');
-    expect(screen.getByText('Job type:')).toHaveClass('text-foreground-secondary');
-  });
-
-  it('shows no prefix unless one is given', () => {
-    renderWithProviders(
-      <Select
+        aria-label="Job type: AI visibility"
         value="ai"
         placeholder="Pick"
         options={[{ value: 'ai', label: 'AI visibility' }]}
         onValueChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole('combobox')).toHaveTextContent(/^AI visibility$/);
+    expect(screen.getByRole('combobox', { name: 'Job type: AI visibility' })).toHaveTextContent(/^AI visibility$/);
   });
 
   it('shows no icon in the trigger when the chosen option has none', () => {
@@ -243,11 +230,10 @@ describe('Select', () => {
 });
 
 describe('Select as a scope control (WP-77)', () => {
-  it('names the choice after a prefix and draws an option with its own content and a note', async () => {
+  it('names the choice in its aria-label and draws an option with its own content and a note', async () => {
     const { user } = renderWithProviders(
       <Select<string>
         aria-label="Runs: Last 4 runs"
-        triggerPrefix="Runs:"
         value="4"
         onValueChange={() => undefined}
         placeholder="Runs"
@@ -259,7 +245,7 @@ describe('Select as a scope control (WP-77)', () => {
       />,
     );
     const trigger = screen.getByRole('combobox', { name: 'Runs: Last 4 runs' });
-    expect(trigger).toHaveTextContent('Runs:Last 4 runs');
+    expect(trigger).toHaveTextContent(/^Last 4 runs/);
     await user.click(trigger);
     expect(await screen.findByRole('option', { name: /Last run/ })).toHaveTextContent('Sep 28');
   });

@@ -38,11 +38,6 @@ export interface SelectProps<TValue extends string> extends Omit<
   /** Sent with a native form submit. A react-hook-form field does not need it. */
   name?: string | undefined;
   required?: boolean | undefined;
-  /**
-   * A label before the chosen value in the trigger, in the secondary colour ("Platform:"). A combobox is not named by
-   * its content, so give the trigger an `aria-label` that says both ("Platform: ChatGPT").
-   */
-  triggerPrefix?: ReactNode | undefined;
   /** The name of the list of options, which the trigger's `aria-label` does not give it ("Platform in view"). */
   listLabel?: string | undefined;
   /** Layout of the popup only, its width: `min-w-52` (C 114). */
@@ -108,7 +103,6 @@ export function Select<TValue extends string>({
   name,
   required,
   disabled,
-  triggerPrefix,
   listLabel,
   popupClassName,
   className,
@@ -138,9 +132,6 @@ export function Select<TValue extends string>({
         )}
       >
         <span className="flex min-w-0 items-center gap-2">
-          {triggerPrefix === undefined ? null : (
-            <span className="shrink-0 text-foreground-secondary">{triggerPrefix}</span>
-          )}
           {selectedIcon === undefined ? null : (
             <span aria-hidden="true" className="flex shrink-0 items-center">
               {selectedIcon}

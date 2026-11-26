@@ -1521,7 +1521,7 @@ interface SelectProps<TValue extends string> {
 - **Use:** workload, language, engine, page size, column mapping.
 - **Not for:** 2 to 4 options worth seeing (`SegmentedControl` or `RadioGroup`), more than 15 or server-loaded options (`Combobox`), commands (`Menu`); native `<select>` is not used.
 
-> As built (WP-77): `prefix` (text before the value, secondary), `SelectOption.display` (a node in place of the label, such as `EngineLogo`), `SelectOption.note` (a meta fact at the row's end) and `popupClassName` (the popup's width). The Citations page's Platform and Runs selects use them (preview `aiov-controls.js` `createSelect`).
+> As built (WP-77): `SelectOption.display` (a node in place of the label, such as `EngineLogo`), `SelectOption.note` (a meta fact at the row's end) and `popupClassName` (the popup's width). A scope select shows the choice alone, with no "Platform:" before it; its `aria-label` carries the name ("Platform: ChatGPT"). The Citations page's Platform and Runs selects use them (preview `aiov-controls.js` `createSelect`).
 
 ### 4.8 Combobox
 `ui/combobox.tsx` · V1 · [10 §6.3](10-forms.md)

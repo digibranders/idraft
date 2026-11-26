@@ -7888,7 +7888,6 @@
     "toolbar": {
       "label": "Scope and actions",
       "scope": "Scope",
-      "prefix": "{name}:",
       "trigger": "{name}: {value}",
       "platform": "Platform",
       "allPlatforms": "All platforms",

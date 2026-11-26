@@ -51,7 +51,7 @@ const RUNS_POPUP = cn('min-w-56');
 
 // The preview's TRIGGER states (aiov-controls.js), shared by the Select and Combobox triggers
 const TRIGGER_STATES = cn('whitespace-nowrap hover:bg-surface-hover aria-expanded:bg-surface-hover');
-const PLATFORM_TRIGGER = cn(TRIGGER_STATES, 'w-full min-w-0 sm:w-56');
+const PLATFORM_TRIGGER = cn(TRIGGER_STATES, 'w-full min-w-0 sm:w-36');
 const RUNS_TRIGGER = cn(TRIGGER_STATES, 'w-full min-w-0 sm:w-44');
 
 const TRIGGER = cn(
@@ -110,7 +110,6 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
         <Select<Platform>
           ref={platform}
           aria-label={t('toolbar.trigger', { name: t('toolbar.platform'), value: platformLabel })}
-          triggerPrefix={t('toolbar.prefix', { name: t('toolbar.platform') })}
           placeholder={t('toolbar.allPlatforms')}
           value={state.platform}
           onValueChange={(platform) => onChange({ platform })}
@@ -131,8 +130,7 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
           clearLabel={t('toolbar.groupClear')}
           openLabel={t('toolbar.groupOpen')}
           trigger={
-            <button type="button" className={cn(TRIGGER, 'sm:w-52')}>
-              <span className="text-foreground-secondary">{t('toolbar.prefix', { name: t('toolbar.group') })}</span>
+            <button type="button" className={cn(TRIGGER, 'sm:w-44')}>
               <span className="truncate">{group.name}</span>
               <Icon icon={ChevronDown} size="sm" className="ml-auto shrink-0 text-foreground-tertiary" />
             </button>
@@ -141,7 +139,6 @@ export function ScopeToolbar(props: ScopeToolbarProps): ReactElement {
         />
         <Select<string>
           aria-label={t('toolbar.trigger', { name: t('toolbar.runs'), value: runsLabel(state.runs, t) })}
-          triggerPrefix={t('toolbar.prefix', { name: t('toolbar.runs') })}
           placeholder={t('toolbar.runs')}
           value={String(state.runs)}
           onValueChange={(value) => {

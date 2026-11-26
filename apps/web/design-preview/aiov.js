@@ -41,8 +41,8 @@ actions.append(custom.presetsButton, custom.toggle, exportButton);
 
 const scopeBar = el('div', 'grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:flex-wrap sm:items-center');
 scopeBar.setAttribute('aria-label', 'Scope');
-const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-60' });
-const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-60' });
+const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-48' });
+const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-48' });
 const compareSelect = createSelect({
   name: 'Compare with',
   options: [
@@ -53,7 +53,7 @@ const compareSelect = createSelect({
   get: () => (!state.compare ? 'off' : state.compareKind === 'year' ? 'year' : 'prev'),
   set: (id) => setScope({ compare: id !== 'off', compareKind: id === 'year' ? 'year' : 'previous' }),
   width: 'min-w-52',
-  triggerWidth: 'sm:w-60',
+  triggerWidth: 'sm:w-52',
 });
 // Icon only and always in its place (invisible, not removed, while the scope is the default), so it never moves the row
 const reset = el('button', 'size-control shrink-0 rounded-md flex items-center justify-center text-foreground-secondary hover:bg-surface-hover hover:text-foreground');

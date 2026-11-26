@@ -101,7 +101,7 @@ export function ScopeBar(): ReactElement {
         platforms={choices}
         selected={scope.engines?.[0] ?? null}
         onChange={(code) => setScope({ engines: code === null ? null : [code] })}
-        className="w-full sm:w-60"
+        className="w-full sm:w-48"
       />
       <GroupSelect
         tree={tree}
@@ -109,7 +109,7 @@ export function ScopeBar(): ReactElement {
         pending={pending}
         selected={scope.topic}
         onChange={(topicId) => setScope({ topic: topicId })}
-        className="w-full sm:w-60"
+        className="w-full sm:w-48"
       />
       <CompareSelect scope={scope} onCompareChange={setScope} />
       {/* Always in its place, invisible (and out of the tab order) while the scope is the default, so it never moves the row */}

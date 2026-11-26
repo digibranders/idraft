@@ -67,11 +67,15 @@ describe('the scope bar', () => {
   it('gives the selects one fixed width from 640 px, so a longer choice moves nothing', async () => {
     await page();
     for (const name of ['Platform: All platforms', 'Group: All groups']) {
-      expect(screen.getByRole('combobox', { name })).toHaveClass('w-full', 'sm:w-60');
+      expect(screen.getByRole('combobox', { name })).toHaveClass('w-full', 'sm:w-48');
     }
     const compare = screen.getByRole('button', { name: 'Compare with: vs previous period' });
-    // Wider than the other two: "Compare with: vs same period last year" has to show whole
-    expect(compare).toHaveClass('type-body', 'w-full', 'sm:w-80');
+    // Wider than the other two: "vs same period last year" has to show whole
+    expect(compare).toHaveClass('type-body', 'w-full', 'sm:w-52');
+    // The trigger shows the choice alone; the name of the control is its accessible name
+    expect(compare).toHaveTextContent(/^vs previous period$/);
+    expect(screen.getByRole('combobox', { name: 'Platform: All platforms' })).toHaveTextContent(/^All platforms$/);
+    expect(screen.getByRole('combobox', { name: 'Group: All groups' })).toHaveTextContent(/^All groups$/);
     expect(compare).not.toHaveClass('type-body-strong');
   });
 
