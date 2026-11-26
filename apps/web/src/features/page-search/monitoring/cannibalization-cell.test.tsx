@@ -69,10 +69,14 @@ describe('CannibalizationCell', () => {
     expect(onRow).not.toHaveBeenCalled();
   });
 
-  it('is the badge alone, as text, when there is no page to go to', () => {
+  it('is a tab stop with the split in its tooltip, and no button, when there is no page to go to', () => {
     renderWithProviders(<CannibalizationCell value={filled(3, 1, 1, 1)} path="/pricing" href={null} />);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
-    expect(screen.getByText('3 keywords')).toBeInTheDocument();
+    const stop = screen.getByText('3 keywords').closest('[tabindex="0"]');
+    expect(stop).not.toBeNull();
+    expect(stop).toHaveAccessibleDescription(
+      'Competes with another of your pages on 3 tracked keywords: 1 likely, 1 co-ranking, 1 unstable.',
+    );
   });
 
   it('has no accessibility violations', async () => {

@@ -45,6 +45,15 @@ const changeOf = (input: MetricDeltaInput, tip: string | undefined): MetricChang
   return { text, tone, tip };
 };
 
+/** The sort number of a tier; a code the API never sends sorts last instead of throwing inside the render. */
+function tierNumber(tier: PageTier | null): number | null {
+  try {
+    return tierPosition(tier);
+  } catch {
+    return null;
+  }
+}
+
 export interface MonitoringColumnContext {
   /** `null` while the tiers load. */
   tiers: readonly PageTier[] | null;
@@ -197,7 +206,7 @@ export function useMonitoringColumns({
         t('columns.tier'),
         (row) =>
           row.tier_id !== null && tiers === null ? <Skeleton shape="badge" /> : <TierBadge tier={tierOf(row)} />,
-        { width: 96, priority: 2, sortValue: (row) => tierPosition(tierOf(row)) },
+        { width: 96, priority: 2, sortValue: (row) => tierNumber(tierOf(row)) },
       ),
       custom(
         'health',

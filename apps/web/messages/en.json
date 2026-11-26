@@ -10359,6 +10359,7 @@
       "none": "None",
       "keywords": "{count, plural, one {# keyword} other {# keywords}}",
       "tip": "Competes with another of your pages on {count, plural, one {# tracked keyword} other {# tracked keywords}}: {parts}. Opens Cannibalization.",
+      "tipPlain": "Competes with another of your pages on {count, plural, one {# tracked keyword} other {# tracked keywords}}: {parts}.",
       "likely": "{count} likely",
       "coRanking": "{count} co-ranking",
       "unstable": "{count} unstable",
