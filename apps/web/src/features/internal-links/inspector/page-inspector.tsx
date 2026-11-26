@@ -1,12 +1,13 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Copy, ExternalLink, Layers, Search, Sparkles, Workflow, type LucideIcon } from 'lucide-react';
+import { Copy, ExternalLink, Layers, Search, Sparkles, StickyNote, Workflow, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
 import { DrawerLinksTab } from './drawer-links-tab';
+import { DrawerNotesTab } from './drawer-notes-tab';
 import { DrawerIssuesTab } from './drawer-issues-tab';
 import { DrawerOutlineTab } from './drawer-outline-tab';
 import { DrawerOverviewTab } from './drawer-overview-tab';
@@ -31,7 +32,7 @@ import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { copyText } from '@/lib/dom/clipboard';
-import { EMPTY_VALUE, formatTableDate } from '@/lib/format';
+import { EMPTY_VALUE, formatInteger, formatTableDate } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { comparisonOf } from '@/lib/internal-links/page-extras';
 import { changesSummaryQuery, DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuery } from '@/lib/internal-links/queries';
@@ -74,7 +75,7 @@ export interface PageInspectorProps {
  * tags and Needs attention; Search the 28 days of Search Console and the tracked keywords; Issues the page's issues
  * or, until they exist, its flags; AI the citations; Links
  * the strip, the linking pages by tier and placement, the changes and anchors cards and the neighbors; Outline
- * holds the page's numbers, search listing and headings, and Notes a line until its tab lands. Equity share is never shown (decision W4).
+ * holds the page's numbers, search listing and headings, and Notes what the team wrote about the page. Equity share is never shown (decision W4).
  */
 export function PageInspector({
   context,
@@ -301,14 +302,24 @@ export function PageInspector({
           linksCompared={linksCompared}
         />
       ),
-      notes: <p className="type-body text-foreground-tertiary">{drawer('notes.pending')}</p>,
+      notes:
+        page === null ? (
+          loadingSection(drawer('tabs.notes'), StickyNote)
+        ) : (
+          <DrawerNotesTab context={context} urlId={urlId} path={page.path} active={tab === 'notes'} />
+        ),
     };
+    const notesCount = detail?.notes_count ?? 0;
     body = (
       <InspectorTabs<PageDrawerTab>
         label={drawer('tabsLabel')}
         value={tab}
         onValueChange={inspector.setTab}
-        items={PAGE_DRAWER_TABS.map((id) => ({ value: id, label: drawer(TAB_KEY[id]) }))}
+        items={PAGE_DRAWER_TABS.map((id) => ({
+          value: id,
+          label: drawer(TAB_KEY[id]),
+          ...(id === 'notes' && notesCount > 0 ? { count: formatInteger(notesCount) } : {}),
+        }))}
         overflowLabel={drawer('tabsMore')}
       >
         {PAGE_DRAWER_TABS.map((id) => (

@@ -9237,7 +9237,33 @@
         }
       },
       "notes": {
-        "pending": "The notes of this page appear here"
+        "addLabel": "Add a note to {path}",
+        "placeholder": "What changed on this page, what is planned, what to check later",
+        "add": "Add note",
+        "save": "Save",
+        "cancel": "Cancel",
+        "hint": "Cmd or Ctrl + Enter saves",
+        "count": "{count} of {max}",
+        "listLabel": "Notes, newest first",
+        "edited": "edited",
+        "editedAt": "Edited {when}",
+        "edit": "Edit note",
+        "editLabel": "Edit your note",
+        "delete": "Delete note",
+        "showOlder": "Show older notes",
+        "empty": "No notes on this page yet.",
+        "emptyWhy": "Write down what you changed and when, so the next drop or rise in its numbers has a reason beside it.",
+        "footer": "Everyone in this workspace can read these notes. They stay with this address when the site is crawled again.",
+        "loadFailed": "The notes of this page could not be loaded",
+        "added": "Note added",
+        "saved": "Note saved",
+        "deleted": "Note deleted",
+        "restored": "Note restored",
+        "undo": "Undo",
+        "addFailed": "The note could not be added. Your text is still in the box.",
+        "saveFailed": "The note could not be saved. Your text is still in the box.",
+        "deleteFailed": "The note could not be deleted",
+        "restoreFailed": "The note could not be restored"
       },
       "ai": {
         "none": "No AI answer cited this page in the last 28 days"

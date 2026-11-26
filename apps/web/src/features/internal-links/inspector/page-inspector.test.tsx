@@ -94,6 +94,8 @@ const openTab = (tab: string, extra = ''): { searchParams: string } => ({
   searchParams: `inspect=page:108&itab=${tab}${extra}`,
 });
 const LINKS = openTab('links');
+/** A tab by its name: the Notes tab of the fixture page carries its count after the word. */
+const tabNamed = (name: string): RegExp => new RegExp(`^${name}`);
 const TAB_NAMES = ['Overview', 'Search', 'Outline', 'Issues', 'AI', 'Links', 'Notes'] as const;
 /** The label of a tab without the unseen heavier copy that reserves its width. */
 const tabLabel = (tab: HTMLElement): string => (tab.firstElementChild?.firstElementChild?.textContent ?? '').trim();
@@ -648,7 +650,7 @@ describe('the page inspector (spec 7.4)', () => {
           within(menu)
             .getAllByRole('menuitem')
             .map((item) => item.textContent),
-        ).toEqual(['AI', 'Links', 'Notes']);
+        ).toEqual(['AI', 'Links', 'Notes3']);
         await user.click(within(menu).getByRole('menuitem', { name: 'Links' }));
         await waitFor(() => expect(lastQuery(onUrlUpdate)).toContain('itab=links'));
         expect(selectedTab(panel)).toBe('Links');
@@ -663,7 +665,7 @@ describe('the page inspector (spec 7.4)', () => {
       expect(await within(panel).findByRole('combobox', { name: 'Tier of this page' })).toBeInTheDocument();
       expect(within(panel).getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
       for (const name of TAB_NAMES) {
-        await user.click(within(panel).getByRole('tab', { name }));
+        await user.click(within(panel).getByRole('tab', { name: tabNamed(name) }));
         expect(within(panel).queryByRole('button', { name: /^Track(?!ed keywords:)/ })).toBeNull();
       }
     });
@@ -742,13 +744,40 @@ describe('the page inspector (spec 7.4)', () => {
       expect(await within(panel).findByRole('heading', { name: 'Flags' })).toBeInTheDocument();
     });
 
-    it('draws the Outline tab, and the interim line of Notes', async () => {
+    it('draws the Outline tab, and the Notes tab with its box and the seeded notes', async () => {
       const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('outline'));
       const panel = await panelOf('/pricing');
       expect(await within(panel).findByRole('group', { name: 'Outline numbers' })).toBeInTheDocument();
       expect(within(panel).queryByText('The outline of this page appears here')).toBeNull();
-      await user.click(within(panel).getByRole('tab', { name: 'Notes' }));
-      expect(await within(panel).findByText('The notes of this page appear here')).toBeInTheDocument();
+      await user.click(within(panel).getByRole('tab', { name: /^Notes/ }));
+      expect(await within(panel).findByRole('textbox', { name: 'Add a note to /pricing' })).toBeInTheDocument();
+      expect(await within(panel).findByRole('list', { name: 'Notes, newest first' })).toBeInTheDocument();
+    });
+
+    it('counts the notes on the tab from the page detail, and asks for them only once the tab is selected', async () => {
+      const asked: string[] = [];
+      server.events.on('request:start', ({ request }) => {
+        if (request.url.includes('/notes')) asked.push(request.method);
+      });
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('overview'));
+      const panel = await panelOf('/pricing');
+      const tab = await within(panel).findByRole('tab', { name: /^Notes\s*3$/ });
+      expect(asked).toEqual([]);
+      await user.click(tab);
+      await within(panel).findByRole('list', { name: 'Notes, newest first' });
+      expect(asked).toEqual(['GET']);
+    });
+
+    it('has no count on the Notes tab of a page without notes, and has the tab for a redirect and a 404 row', async () => {
+      for (const id of ['106', '107']) {
+        const { unmount } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+          searchParams: `inspect=page:${id}&itab=notes`,
+        });
+        const panel = await screen.findByRole('complementary');
+        expect(await within(panel).findByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');
+        expect(await within(panel).findByText('No notes on this page yet.')).toBeInTheDocument();
+        unmount();
+      }
     });
 
     it('asks for the outline only once the Outline tab is selected', async () => {
@@ -969,7 +998,7 @@ describe('the page inspector (spec 7.4)', () => {
       const panel = await panelOf('/pricing');
       await section(panel);
       for (const name of TAB_NAMES) {
-        await user.click(within(panel).getByRole('tab', { name }));
+        await user.click(within(panel).getByRole('tab', { name: tabNamed(name) }));
         expect(within(panel).queryByRole('heading', { name: 'Google' })).toBeNull();
         expect(within(panel).queryByRole('heading', { name: 'Google Search Console' })).toBeNull();
       }
@@ -1204,7 +1233,7 @@ describe('the page inspector (spec 7.4)', () => {
     it.each(TAB_NAMES)('has no violations for a page on the %s tab', async (name) => {
       const { container } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab(name.toLowerCase()));
       const panel = await panelOf('/pricing');
-      await within(panel).findByRole('tab', { name });
+      await within(panel).findByRole('tab', { name: tabNamed(name) });
       await waitFor(() => expect(within(panel).getByRole('tabpanel')).not.toBeEmptyDOMElement());
       expect(await axe(container)).toHaveNoViolations();
     });
