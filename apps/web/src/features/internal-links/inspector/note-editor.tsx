@@ -3,7 +3,9 @@
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 
+import { AttachButton, NoteFilesBar, useNoteDropZone } from './note-files-bar';
 import { NoteSuggestList, NoteSuggestStatus, suggestOptionId } from './note-suggest-list';
+import type { NoteFileBox } from './use-note-file-box';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,6 +32,8 @@ export interface NoteEditorProps {
   mentions: readonly NoteMention[];
   onMentionsChange: (mentions: readonly NoteMention[]) => void;
   source: NoteSuggestSource;
+  /** The files of the box: chosen, dropped or pasted into it, and the ones a note already holds. */
+  files: NoteFileBox;
   onSave: () => void;
   /** Given for an edit: Escape and a Cancel button then leave it. The box that adds a note has none. */
   onCancel?: (() => void) | undefined;
@@ -57,6 +61,7 @@ export function NoteEditor({
   mentions,
   onMentionsChange,
   source,
+  files,
   onSave,
   onCancel,
   saveLabel,
@@ -66,7 +71,10 @@ export function NoteEditor({
 }: NoteEditorProps): ReactElement {
   const t = useTranslations('pages.drawer.notes');
   const listId = useId();
-  const empty = value.trim() === '';
+  // A note needs text or a file
+  const empty = value.trim() === '' && files.pending.length + files.kept.length === 0;
+  const busy = pending || files.uploading;
+  const drop = useNoteDropZone(files);
 
   const [caret, setCaret] = useState(value.length);
   const [focused, setFocused] = useState(false);
@@ -125,9 +133,9 @@ export function NoteEditor({
   };
 
   // The key handler is bound once and reads what is current through this ref
-  const latest = useRef({ onSave, onCancel, blocked: empty || pending, rows, activeIndex, trigger, pick });
+  const latest = useRef({ onSave, onCancel, blocked: empty || busy, rows, activeIndex, trigger, pick });
   useEffect(() => {
-    latest.current = { onSave, onCancel, blocked: empty || pending, rows, activeIndex, trigger, pick };
+    latest.current = { onSave, onCancel, blocked: empty || busy, rows, activeIndex, trigger, pick };
   });
 
   // Native, not React's `onKeyDown`: the drawer closes on Escape from a native listener on its card, which runs
@@ -188,7 +196,7 @@ export function NoteEditor({
   }, [focusOnOpen, area]);
 
   return (
-    <Field>
+    <Field className="relative" {...drop.zoneProps}>
       <FieldLabel display="visually-hidden">{label}</FieldLabel>
       <Textarea
         ref={area}
@@ -212,6 +220,13 @@ export function NoteEditor({
           setCaret(event.currentTarget.selectionStart);
           setActive(0);
           setDismissedAt(null);
+        }}
+        onPaste={(event) => {
+          // A picture from the clipboard becomes a file; text that comes with it (a copied cell) is pasted as text
+          const pasted = [...event.clipboardData.files];
+          if (pasted.length === 0 || event.clipboardData.getData('text/plain') !== '') return;
+          event.preventDefault();
+          files.add(pasted);
         }}
         onClick={(event) => setCaret(event.currentTarget.selectionStart)}
         onKeyUp={(event) => setCaret(event.currentTarget.selectionStart)}
@@ -239,8 +254,15 @@ export function NoteEditor({
           onRetryBlur={(next) => setFocused(next === area.current)}
         />
       )}
+      <NoteFilesBar
+        box={files}
+        onKeptRemoved={(left) => {
+          // The last file of a note with no text: the note cannot be saved, and the box says why
+          if (left === 0 && value.trim() === '') files.setNotice(t('saveNoText'));
+        }}
+      />
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" size="sm" disabled={empty || pending} onClick={onSave}>
+        <Button variant="primary" size="sm" disabled={empty || busy} loading={files.uploading} onClick={onSave}>
           {saveLabel}
         </Button>
         {onCancel === undefined ? null : (
@@ -248,8 +270,10 @@ export function NoteEditor({
             {t('cancel')}
           </Button>
         )}
+        <AttachButton box={files} />
         <FieldDescription>{t('hint')}</FieldDescription>
       </div>
+      {drop.overlay}
     </Field>
   );
 }

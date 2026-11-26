@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { useRef, useState, type ReactElement } from 'react';
 
 import { NoteEditor, type NoteSuggestSource } from './note-editor';
+import { NoteFileList } from './note-file-list';
 import { NoteText } from './note-text';
+import { useNoteFileBox, type NoteFileBox } from './use-note-file-box';
 import { Avatar } from '@/components/ui/avatar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -22,7 +24,8 @@ export interface NoteItemProps {
   pending: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (body: string, mentions: readonly NoteMention[]) => void;
+  /** `files` is the edit's box: the tab uploads its new files, then writes the note with the files that remain. */
+  onSave: (body: string, mentions: readonly NoteMention[], files: NoteFileBox) => void;
   onDelete: () => void;
   /** Hands the Edit button to the list, which moves the focus back to it when an edit ends. */
   editButtonRef: (element: HTMLButtonElement | null) => void;
@@ -46,6 +49,8 @@ function NoteEdit({
   const [text, setText] = useState(note.body);
   // The note's own mentions: the ones whose label stays in the text are sent again
   const [mentions, setMentions] = useState<readonly NoteMention[]>(note.mentions);
+  // The files of the note are the box's kept ones; the edit may drop some and add new ones
+  const files = useNoteFileBox({ scope: source.scope, urlId: source.urlId, initialKept: note.attachments });
   const area = useRef<HTMLTextAreaElement | null>(null);
   return (
     <div className="pl-10">
@@ -56,7 +61,8 @@ function NoteEdit({
         mentions={mentions}
         onMentionsChange={setMentions}
         source={source}
-        onSave={() => onSave(text, mentions)}
+        files={files}
+        onSave={() => onSave(text, mentions, files)}
         onCancel={onCancel}
         saveLabel={t('save')}
         pending={pending}
@@ -119,7 +125,13 @@ export function NoteItem({
       {editing ? (
         <NoteEdit note={note} pending={pending} onCancel={onCancel} onSave={onSave} source={source} />
       ) : (
-        <NoteText body={note.body} mentions={note.mentions} onOpenPage={onOpenPage} issueHref={issueHref} />
+        <>
+          {/* A note of files alone has no text, and so no empty paragraph */}
+          {note.body === '' ? null : (
+            <NoteText body={note.body} mentions={note.mentions} onOpenPage={onOpenPage} issueHref={issueHref} />
+          )}
+          <NoteFileList files={note.attachments} />
+        </>
       )}
     </li>
   );

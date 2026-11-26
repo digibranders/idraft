@@ -9287,7 +9287,26 @@
         "addFailed": "The note could not be added. Your text is still in the box.",
         "saveFailed": "The note could not be saved. Your text is still in the box.",
         "deleteFailed": "The note could not be deleted",
-        "restoreFailed": "The note could not be restored"
+        "restoreFailed": "The note could not be restored",
+        "saveNoText": "A note needs text or a file.",
+        "files": {
+          "attach": "Attach files",
+          "remove": "Remove {name}",
+          "drop": "Drop files to attach",
+          "list": "Files in this note",
+          "tooMany": "At most {max} files per note.",
+          "wrongType": "{name}: only images (PNG, JPEG, GIF, WebP), PDF, text and CSV files.",
+          "tooBig": "{name}: over {max}.",
+          "empty": "{name} is empty.",
+          "duplicate": "{name} is already in this note.",
+          "quota": "Your workspace has no room left for files.",
+          "storage": "Files cannot be stored right now. Try again later.",
+          "failed": "{name} could not be uploaded.",
+          "uploading": "Uploading {done} of {total} files",
+          "progress": "Uploading {name}",
+          "open": "{name}, {size}. Opens in a new tab.",
+          "thumb": "{name}"
+        }
       },
       "ai": {
         "none": "No AI answer cited this page in the last 28 days"

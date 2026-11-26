@@ -7,9 +7,11 @@ import {
   noteDraft,
   noteDraftFiles,
   noteDraftMentions,
+  noteDraftPending,
   setNoteDraft,
   setNoteDraftFiles,
   setNoteDraftMentions,
+  setNoteDraftPending,
 } from './note-drafts';
 import type { LinksScope } from '@/lib/internal-links/types';
 
@@ -112,6 +114,19 @@ describe('the note drafts', () => {
       expect(noteDraftMentions(SCOPE, '1')).toEqual([mention]);
       clearAllNoteDrafts();
     });
+  });
+
+  it('keep the files chosen and not uploaded, per page, until a clear', () => {
+    const chosen = new File(['x'], 'a.png', { type: 'image/png' });
+    expect(noteDraftPending(SCOPE, '108')).toEqual([]);
+    setNoteDraftPending(SCOPE, '108', [chosen]);
+    expect(noteDraftPending(SCOPE, '108')).toEqual([chosen]);
+    expect(noteDraftPending(SCOPE, '109')).toEqual([]);
+    clearNoteDraft(SCOPE, '108');
+    expect(noteDraftPending(SCOPE, '108')).toEqual([]);
+    setNoteDraftPending(SCOPE, '108', [chosen]);
+    clearAllNoteDrafts();
+    expect(noteDraftPending(SCOPE, '108')).toEqual([]);
   });
 
   it('are kept in memory only', () => {

@@ -38,6 +38,14 @@ function drafts<T extends string | readonly unknown[]>(empty: T): Drafts<T> {
 const texts = drafts<string>('');
 const mentions = drafts<readonly NoteMention[]>([]);
 const files = drafts<readonly PageNoteFile[]>([]);
+const pending = drafts<readonly File[]>([]);
+
+/** The files chosen for the draft and not uploaded yet (they go up when the note is saved). Memory only. */
+export const noteDraftPending = (scope: LinksScope, urlId: string): readonly File[] => pending.get(keyOf(scope, urlId));
+
+export const setNoteDraftPending = (scope: LinksScope, urlId: string, list: readonly File[]): void => {
+  pending.set(keyOf(scope, urlId), list);
+};
 
 /** Text typed into a page's note box and not saved yet. */
 export const noteDraft = (scope: LinksScope, urlId: string): string => texts.get(keyOf(scope, urlId));
@@ -72,6 +80,7 @@ export function clearAllNoteDrafts(): void {
   texts.clearAll();
   mentions.clearAll();
   files.clearAll();
+  pending.clearAll();
 }
 
 /** After a save or a discard. */
@@ -80,4 +89,5 @@ export function clearNoteDraft(scope: LinksScope, urlId: string): void {
   texts.clear(key);
   mentions.clear(key);
   files.clear(key);
+  pending.clear(key);
 }

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { PageDrawerContext } from './page-drawer-context';
 import { NoteEditor, type NoteSuggestSource } from './note-editor';
 import { NoteItem } from './note-item';
+import { useNoteFileBox, type NoteFileBox } from './use-note-file-box';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,12 +15,16 @@ import { announce } from '@/lib/a11y/announcer';
 import {
   clearNoteDraft,
   noteDraft,
+  noteDraftFiles,
   noteDraftMentions,
+  noteDraftPending,
   setNoteDraft,
+  setNoteDraftFiles,
   setNoteDraftMentions,
+  setNoteDraftPending,
 } from '@/lib/pages/note-drafts';
 import { keptMentions, type NoteMention } from '@/lib/pages/note-mentions';
-import { usePageNoteWrites, usePageNotes } from '@/lib/pages/notes';
+import { attachmentIdsOf, usePageNoteWrites, usePageNotes } from '@/lib/pages/notes';
 
 export interface DrawerNotesTabProps {
   context: PageDrawerContext;
@@ -53,6 +58,15 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     () => ({ scope, urlId, view: { run: context.crawl.run, linkScope: context.linkScope } }),
     [scope, urlId, context.crawl.run, context.linkScope],
   );
+  // The files of the box that adds a note: the draft keeps those chosen and those already uploaded for a failed save
+  const files = useNoteFileBox({
+    scope,
+    urlId,
+    initialPending: noteDraftPending(scope, urlId),
+    initialKept: noteDraftFiles(scope, urlId),
+    onPendingChange: (list) => setNoteDraftPending(scope, urlId, list),
+    onKeptChange: (list) => setNoteDraftFiles(scope, urlId, list),
+  });
   const textNow = useRef(text);
   const [editing, setEditing] = useState<string | null>(null);
   const focusEdit = useRef<string | null>(null);
@@ -95,10 +109,13 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
 
   const add = async (): Promise<void> => {
     const body = text.trim();
-    if (body === '') return;
+    if (body === '' && files.pending.length + files.kept.length === 0) return;
+    // The files go up first, one by one; a refused one stops the save with its line under the box and loses nothing
+    const stored = await files.upload();
+    if (stored === null) return;
     try {
       // Only the entries whose label is still in the text go with the note
-      await writes.add(body, { mentions: keptMentions(body, mentions) });
+      await writes.add(body, { mentions: keptMentions(body, mentions), files: stored });
     } catch {
       toast({ type: 'error', title: t('addFailed') });
       return;
@@ -109,6 +126,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
       setMentions([]);
       clearNoteDraft(scope, urlId);
     }
+    files.reset();
     announce(t('added'));
     box.current?.focus();
   };
@@ -118,16 +136,24 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     setEditing(null);
   };
 
-  const save = async (noteId: string, raw: string, picked: readonly NoteMention[]): Promise<void> => {
+  const save = async (noteId: string, raw: string, picked: readonly NoteMention[], box: NoteFileBox): Promise<void> => {
     const body = raw.trim();
-    if (body === '') return;
+    if (body === '' && box.pending.length + box.kept.length === 0) {
+      box.setNotice(t('saveNoText'));
+      return;
+    }
     const saved = read.state === 'ready' ? read.notes.find((note) => note.id === noteId) : undefined;
-    if (saved?.body === body) {
+    // New files go up first; `next` is then the files that remain plus the new ones
+    const next = await box.upload();
+    if (next === null) return;
+    // The files the note holds now: `change` leaves `attachment_ids` out unless the set differs (`[]` detaches all)
+    const held = saved?.attachments ?? [];
+    if (saved?.body === body && attachmentIdsOf({ held, next }) === undefined) {
       endEdit(noteId);
       return;
     }
     try {
-      await writes.change(noteId, body, { mentions: keptMentions(body, picked) });
+      await writes.change(noteId, body, { mentions: keptMentions(body, picked), files: { held, next } });
     } catch {
       toast({ type: 'error', title: t('saveFailed') });
       return;
@@ -205,7 +231,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
               pending={writes.pending}
               onEdit={() => setEditing(note.id)}
               onCancel={() => endEdit(note.id)}
-              onSave={(body, picked) => void save(note.id, body, picked)}
+              onSave={(body, picked, box) => void save(note.id, body, picked, box)}
               source={source}
               onOpenPage={context.openPage}
               issueHref={context.hrefs.issueCheck}
@@ -246,6 +272,7 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
           mentions={mentions}
           onMentionsChange={changeMentions}
           source={source}
+          files={files}
           onSave={() => void add()}
           saveLabel={t('add')}
           pending={writes.pending}
