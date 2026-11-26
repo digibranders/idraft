@@ -9688,7 +9688,7 @@
     },
     "map": {
       "label": "Link map",
-      "chip": "{label}: {value}",
+      "chipLabel": "{label}:",
       "menuName": "{label}, {value}",
       "search": "Find a page",
       "searchLabel": "Find a page on the map",

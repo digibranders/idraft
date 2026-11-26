@@ -41,11 +41,15 @@ export function MapLegend({ mode, groups, hidden, tierName, onToggle }: MapLegen
           return (
             <Button
               key={group.key}
-              variant="ghost"
+              variant="secondary"
               size="sm"
               aria-pressed={!off}
               onClick={() => onToggle(group.key)}
-              className={cn(off && 'text-foreground-tertiary')}
+              // A group on is a plain chip, not a selected one: only a group off looks different
+              className={cn(
+                'aria-pressed:border-border aria-pressed:bg-surface',
+                off && 'bg-surface-subtle text-foreground-tertiary',
+              )}
             >
               <MapSwatch colour={group.colour} off={off} />
               {name(group)}

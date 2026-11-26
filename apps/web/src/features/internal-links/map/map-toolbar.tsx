@@ -55,7 +55,8 @@ function ChoiceMenu<T extends string>({ label, value, options, onChange }: Choic
     <Menu
       trigger={
         <Button variant="secondary" size="sm" aria-label={t('menuName', { label, value: current })}>
-          {t('chip', { label, value: current })}
+          <span className="text-foreground-secondary">{t('chipLabel', { label })}</span>
+          {current}
           <Icon icon={ChevronDown} size="sm" className="text-foreground-tertiary" />
         </Button>
       }
