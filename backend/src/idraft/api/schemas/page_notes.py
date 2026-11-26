@@ -51,6 +51,21 @@ class PageNoteMention(PageNoteMentionIn):
     path: str | None = None
 
 
+class PageNoteFile(BaseModel):
+    """A file sent for a note (spec 9.8.5). `url` is an API path, never a host."""
+
+    id: UUID
+    name: str
+    size: int
+    content_type: str
+    is_image: bool
+    url: str
+
+
+class PageNoteFileResponse(BaseModel):
+    data: PageNoteFile
+
+
 class PageNote(BaseModel):
     id: UUID
     author: PageNoteAuthor

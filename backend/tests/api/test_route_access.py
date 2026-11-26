@@ -549,6 +549,10 @@ EXPECTED: dict[tuple[str, str], str] = {
         "POST",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore",
     ): "notes:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments",
+    ): "notes:write",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
         "data:read"
     ),

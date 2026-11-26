@@ -98,6 +98,7 @@ DECLARED = {
     "core.project_pages",
     "core.page_terms",
     "core.page_notes",
+    "core.page_note_attachments",
     "seo.crawl_runs",
     "seo.crawl_pages",
     "seo.crawl_links",

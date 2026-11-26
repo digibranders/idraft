@@ -502,6 +502,11 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         ),
         NONE,
     ),
+    # Migration 0044: a file is added, attached once and marked removed; nobody deletes.
+    "core.page_note_attachments": (
+        access("SELECT, INSERT", UPDATE=("note_id", "removed_at")),
+        NONE,
+    ),
     "seo.crawl_runs": (
         access(
             "SELECT, INSERT",

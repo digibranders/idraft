@@ -1290,6 +1290,19 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         crawl_ids[pricing],
         owner.id,
     )
+    attachment_id = uuid.uuid4()
+    await execute(
+        pg,
+        "INSERT INTO core.page_note_attachments (id, workspace_id, project_id, url_id, "
+        "uploaded_by, storage_key, original_name, size_bytes, content_type) "
+        "VALUES ($1, $2, $3, $4, $5, $6, 'brief.pdf', 1024, 'application/pdf')",
+        attachment_id,
+        workspace.id,
+        project_id,
+        crawl_ids[pricing],
+        owner.id,
+        f"notes/v1/{workspace.id}/{project_id}/{attachment_id}.zst",
+    )
     async with workspace_transaction(resources.sessions, workspace.id) as flow_db:
         await recompute_tier_flow(flow_db, workspace_id=workspace.id, run_id=crawl_run)
     # A crawl waiting for the worker (cancelling it would succeed; Crawl now is refused while it
@@ -1581,6 +1594,7 @@ _TENANT_ROWS = {
     "core.project_pages": "workspace_id",
     "core.page_terms": "workspace_id",
     "core.page_notes": "workspace_id",
+    "core.page_note_attachments": "workspace_id",
     "seo.crawl_runs": "workspace_id",
     "seo.crawl_pages": "workspace_id",
     "seo.crawl_links": "workspace_id",

@@ -256,6 +256,7 @@ workspace_quotas = Table(
     Column("max_active_prompts", Integer, nullable=False, server_default=FetchedValue()),
     Column("max_ai_observations_per_month", Integer, nullable=False, server_default=FetchedValue()),
     Column("max_serp_checks_per_month", Integer, nullable=False, server_default=FetchedValue()),
+    Column("max_note_file_bytes", BigInteger, nullable=False, server_default=FetchedValue()),
     Column("updated_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
     schema="core",
 )
@@ -1846,6 +1847,27 @@ page_notes = Table(
     Column("edited_at", DateTime(timezone=True)),
     Column("deleted_at", DateTime(timezone=True)),
     Column("deleted_by", Uuid, ForeignKey(users.c.id)),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="core",
+)
+
+page_note_attachments = Table(
+    "page_note_attachments",
+    metadata,
+    _id(),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), nullable=False),
+    Column("note_id", Uuid, ForeignKey(page_notes.c.id)),
+    Column("uploaded_by", Uuid, ForeignKey(users.c.id), nullable=False),
+    Column("storage_key", Text, nullable=False, unique=True),
+    Column("original_name", Text, nullable=False),
+    Column("size_bytes", BigInteger, nullable=False),
+    Column("content_type", Text, nullable=False),
+    _created_at(),
+    Column("removed_at", DateTime(timezone=True)),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
     ),

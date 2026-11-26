@@ -62,10 +62,21 @@ async def test_a_body_of_1_and_of_2000_characters_is_stored(migrated: PostgresSe
     assert stored == 2
 
 
-@pytest.mark.parametrize("body", ["", "x" * 2001, " x", "x "])
-async def test_an_empty_too_long_or_untrimmed_body_is_refused(
-    migrated: PostgresServer, body: str
+async def test_an_empty_body_is_stored_because_a_note_may_hold_only_files(
+    migrated: PostgresServer,
 ) -> None:
+    tenant = await seed_tenant(migrated, "notes-empty")
+    async with connection(migrated) as db:
+        url_id = await _url_id(db)
+        await db.execute(
+            _INSERT, tenant.workspace_id, tenant.project_id, url_id, tenant.owner_id, ""
+        )
+        stored = await db.fetchval("SELECT count(*) FROM core.page_notes WHERE url_id = $1", url_id)
+    assert stored == 1
+
+
+@pytest.mark.parametrize("body", ["x" * 2001, " x", "x "])
+async def test_a_too_long_or_untrimmed_body_is_refused(migrated: PostgresServer, body: str) -> None:
     tenant = await seed_tenant(migrated, "notes-body")
     async with connection(migrated) as db:
         url_id = await _url_id(db)

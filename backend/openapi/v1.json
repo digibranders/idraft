@@ -3288,6 +3288,21 @@
         "title": "Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post",
         "type": "object"
       },
+      "Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "The file, at most 10 MB.",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post",
+        "type": "object"
+      },
       "BrandCell": {
         "properties": {
           "answers": {
@@ -16358,6 +16373,58 @@
           "name"
         ],
         "title": "PageNoteAuthor",
+        "type": "object"
+      },
+      "PageNoteFile": {
+        "description": "A file sent for a note (spec 9.8.5). `url` is an API path, never a host.",
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_image": {
+            "title": "Is Image",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "size",
+          "content_type",
+          "is_image",
+          "url"
+        ],
+        "title": "PageNoteFile",
+        "type": "object"
+      },
+      "PageNoteFileResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageNoteFile"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageNoteFileResponse",
         "type": "object"
       },
       "PageNoteList": {
@@ -43721,6 +43788,79 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments": {
+      "post": {
+        "description": "Multipart, one part `file`, one file per request. The type is decided by the content, never by the name or the type the browser sends: an image (PNG, JPEG, GIF, WebP), a PDF, a CSV or a text file. The file belongs to no note until a note is saved with its id. `413 payload_too_large` over 10 MB (`limit_bytes`), `415 unsupported_media_type` for any other kind of file (a web page, an SVG, a script, an archive), `422` for an empty file or a missing `file` part and for `quota_exceeded` (`limit`, `used`, `requested`: the workspace stores 1 GiB of note files unless its limit says otherwise), `503 storage_unavailable` when the file could not be stored, and `404 not_found` for an address no crawl of the project holds.",
+        "operationId": "upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNoteFileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Upload a file for a note",
         "tags": [
           "internal-links"
         ]

@@ -1,5 +1,5 @@
 """The request body limit (docs/19-api-specification.md section 2.7): 1 MB for a JSON body, and
-50 MB for the one route that takes a file, the keyword import upload.
+50 MB for the keyword import upload and 11 MB for a page note's file.
 
 A body announced as larger is refused before it is read. A body sent without a length (chunked)
 is counted as it arrives, and reading stops at the limit, so no route parses more than its limit.
@@ -19,6 +19,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from idraft.api.csrf import API_PREFIX
 from idraft.api.problems import PayloadTooLargeError, problem_response
+from idraft.storage.file_sniff import NOTE_FILE_MAX_BYTES
 
 JSON_BODY_MAX_BYTES: Final = 1024 * 1024
 UPLOAD_MAX_BYTES: Final = 50 * 1024 * 1024
@@ -49,8 +50,16 @@ class LargerLimit:
 # holds the file and the multipart framing around it and the options part.
 UPLOAD_PATH: Final = re.compile(r"/api/v1/workspaces/[^/]+/projects/[^/]+/keyword-imports/upload")
 UPLOAD_FRAMING_BYTES: Final = 1024 * 1024
+# A file for a page note (spec 9.8.5): the largest accepted file and the framing around it.
+NOTE_FILE_PATH: Final = re.compile(
+    r"/api/v1/workspaces/[^/]+/projects/[^/]+/internal-links/pages/[0-9]+/note-attachments"
+)
 UPLOADS: Final = (
     LargerLimit(UPLOAD_PATH, Limit(UPLOAD_MAX_BYTES + UPLOAD_FRAMING_BYTES, _UPLOAD_DETAIL)),
+    LargerLimit(
+        NOTE_FILE_PATH,
+        Limit(NOTE_FILE_MAX_BYTES + UPLOAD_FRAMING_BYTES, "A note file is at most 10 MB."),
+    ),
 )
 
 

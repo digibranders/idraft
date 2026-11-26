@@ -98,6 +98,7 @@ AuditAction = Literal[
     "page_note.updated",
     "page_note.deleted",
     "page_note.restored",
+    "page_note.file_uploaded",
     "link_crawl.requested",
     "link_crawl.cancelled",
     "link_opportunity.decided",
