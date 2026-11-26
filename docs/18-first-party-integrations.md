@@ -95,7 +95,7 @@ All calls: `POST https://www.googleapis.com/webmasters/v3/sites/{siteUrl}/search
 | B (detail) | Query analysis: the numbers of a keyword (changed 2026-11-05, was `[date, query, page, country, device]`) | `[date, query, country, device]` | `auto` (resolves to by-property) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
 | C (page totals) | Honest page totals including anonymized-query traffic | `[date, page]` | `byPage` | `startRow` until empty | `fp.gsc_page_daily` |
 
-**Watched pages.** The per-URL feature of [32-page-performance.md](32-page-performance.md) adds shape D, `[date, country, device]` filtered to one watched page (stored in `fp.gsc_watched_page_daily`), and live shapes for queries. It needs only the connection of 4.1, shape A and the freshness rules of 4.4, so it ships before the full ingest below.
+**Tracked pages.** Shape C now also stores `position_sum` (position times impressions) and the address forms Google reported, and is kept 16 months. The page search detail and Monitoring add two filtered reads, both with a page filter and no page dimension: the page history (`[date]`, once per page, 16 months) and the page breakdown (`[query]`, `[country]` and `[device]` for one page and one period, kept briefly). See section 5 of [the page search and Monitoring design](superpowers/specs/2026-11-26-page-search-and-monitoring-design.md). The earlier shape D of [32-page-performance.md](32-page-performance.md) is not built.
 
 Why three daily shapes:
 - Grouping by `page` or `query` "may drop some data"; accurate totals need a query without them (verified 2026-09-29). Shape A is the only source for site totals.

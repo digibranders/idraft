@@ -340,6 +340,8 @@ Paths are relative to `apps/web/src/`. `ui/` is `components/ui/`; `app/` is `com
 | UncertainFootnote | Data: states | `app/metric/value-states.tsx` | V1 | 17 §8.1 |
 | EventTimeline | Data: events | `app/status/event-timeline.tsx` | V1 | 18 §7, 23 §9.1 |
 | ChangeFeed | Data: events | `features/overview/components/change-feed.tsx` | V1 | 23 §9.2 |
+| PageSearchPanel | SEO | `features/page-search/panel/page-search-panel.tsx` | V1 | 14.x |
+| MonitoringScreen | SEO | `features/page-search/monitoring/monitoring-screen.tsx` | V1 | 14.y |
 | SeverityIcon (SeverityLabel) | Data: events | `app/status/severity.tsx` | V1 | 18 §2 |
 | AlertEventsTable | Data: events | `features/alerts/components/alert-events-table.tsx` | V1 | 18 §6 |
 | AnomalyHoldNotice | Data: events | `app/status/anomaly-hold-notice.tsx` | V1 | 18 §8.3 |
@@ -4260,6 +4262,31 @@ interface LinkMapChartProps {
 - **A11y:** `role="img"` with the host's label; the keyboard and the other controls are the host's buttons (search, choices, legend, zoom, fit, minimap, help, full screen) and the Pages tab is the accessible version.
 - **Use:** the Link map tab of Internal links.
 - **Not for:** the journey of one page (LinkCanvas), a category chart (EChart).
+
+### 14.x PageSearchPanel
+`features/page-search/panel/page-search-panel.tsx` · V1 · [page search and Monitoring design](../superpowers/specs/2026-11-26-page-search-and-monitoring-design.md) §10.3
+
+Purpose: the content of the Search tab of the page drawer, for any page: period and compare controls, the verdict, metric tiles, one chart per ticked metric, and what changed by query, location and device.
+
+```ts
+interface PageSearchPanelProps { workspaceId: string; projectId: string; workspaceSlug: string; projectSlug: string; urlId: string; statusCode: number | null; timeZone: string }
+```
+
+- **Composition:** only existing parts (`DateRangePicker`, `MetricStrip`, `ChartFrame`, `Tabs`, `Select`, `PressedGroup`, `Banner`, `EmptyState`). It sets no width and reads well from 480 px. Its address keys are `PAGE_SEARCH_KEYS` (`sp_win`, `sp_from`, `sp_to`, `sp_cmp`, `sp_m`, `sp_tab`).
+- **The join:** the Pages drawer shell mounts it through a `searchTab` render prop, for example `searchTab={(page) => <PageSearchPanel ... urlId={page.urlId} statusCode={page.statusCode} />}`, and passes `PAGE_SEARCH_KEYS` as the inspector's `entryKeys` so closing the drawer removes them.
+- **Adds no primitive.** **Use:** the Search tab. **Not for:** a page's tracked state (the table of Monitoring).
+
+### 14.y MonitoringScreen
+`features/page-search/monitoring/monitoring-screen.tsx` · V1 · [page search and Monitoring design](../superpowers/specs/2026-11-26-page-search-and-monitoring-design.md) §10.1, §10.2
+
+Purpose: Pages > Monitoring, the tracked pages as a table first, with the tier filter, the health filter, search, the Add pages dialog and CSV export.
+
+```ts
+interface MonitoringScreenProps { workspaceId: string; workspaceSlug: string; project: { id: string; slug: string; name: string; timeZone: string; host: string | null }; tabs?: ReactNode; onOpenPage?: (urlId: string) => void }
+```
+
+- **Composition:** `DataTable` (client mode, select and Page columns pinned), `DateRangePicker`, `Inspector` with `PageSearchPanel` until `onOpenPage` is given, `Dialog` with `Tabs` for adding pages. The Cannibalization column is drawn only when the API fills it.
+- **Adds no primitive.** **Use:** the route `seo/pages/monitoring`.
 
 ## 15. AI components
 

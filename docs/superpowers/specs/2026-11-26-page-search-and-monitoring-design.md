@@ -533,3 +533,10 @@ Country names come from the existing locations formatter; a code it does not kno
 | Q7 | The query count (D21) is stored on `fp.gsc_page_fetches`, the marker of the query read, not on `fp.gsc_page_breakdown` (one row per key). Confirm this reading of "the breakdown cache table". |
 | Q8 | Monitoring shows the Queries count only for whole calendar months of tracked pages and for periods opened in a drawer; another period reads "Not collected yet". Confirm, or ask for the count per week (an extra `[query]` read per page and week). |
 | Q9 | The Cannibalization work decides the counting window and device behind `cannibalization` and the route the badge opens. Tell that session about the reserved field (section 7.2). |
+
+## 16. As built (web, 2026-11-26)
+
+- The route `seo/pages/monitoring/page.tsx` is the only file under `seo/pages/`. The sidebar item Pages is still `planned` in `src/lib/navigation/registry.ts` (a file this build may not edit), so Monitoring is reached by its address until the Pages session makes that item live and adds its tab strip.
+- Until the Pages shell exists the route passes no `tabs` and no `onOpenPage`; a row opens the shared inspector with `PageSearchPanel`.
+- `PageSearchPanel` takes the props of section 11 and is exported from `features/page-search` with `PAGE_SEARCH_KEYS`, `MonitoringScreen`, `useTrackedIds`, `useTrackPages` and `useUntrackPages`. The shell joins it through a `searchTab` render prop (see the component inventory, 14.x).
+- The look at 1280 by 720 was not measured in a browser in this build: the embedded browser could not register the mock service worker. The first-row position (W2, about 196 px) is covered by the structure of the screen only.
