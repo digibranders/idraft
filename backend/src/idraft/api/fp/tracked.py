@@ -100,6 +100,19 @@ def health_view(health: Health) -> PageHealth:
     )
 
 
+def period_views(
+    current: Totals, previous: Totals | None, window: Window, compared: Window | None
+) -> tuple[PageNumbers, PageNumbers | None, PageHealth]:
+    """The numbers of a period, the ones it is compared with, and the verdict between them."""
+    days = days_of(*window)
+    health = health_of(current, previous, days, days if compared is None else days_of(*compared))
+    return (
+        numbers_view(current),
+        None if previous is None else numbers_view(previous),
+        health_view(health),
+    )
+
+
 def window_view(window: Window) -> SearchWindow:
     return SearchWindow(from_=window[0], to=window[1], days=days_of(*window))
 
@@ -199,20 +212,24 @@ def _page_row(
     start = stored.starts.get(page.url_id)
     if start is None:
         return base.model_copy(update={"queries": queries})
-    days = days_of(*window)
-    current = stored.now.get(page.url_id, Totals())
-    previous = previous_totals(page.url_id, stored.before, start, compared)
+    current, previous, health = period_views(
+        stored.now.get(page.url_id, Totals()),
+        previous_totals(page.url_id, stored.before, start, compared),
+        window,
+        compared,
+    )
     clicks = stored.trends.get(page.url_id, {})
     return base.model_copy(
         update={
             "history": "ready",
-            "current": numbers_view(current),
-            "previous": None if previous is None else numbers_view(previous),
-            "health": health_view(
-                health_of(current, previous, days, days if compared is None else days_of(*compared))
-            ),
+            "current": current,
+            "previous": previous,
+            "health": health,
             "queries": queries,
-            "trend": [clicks.get(window[0] + timedelta(days=offset), 0) for offset in range(days)],
+            "trend": [
+                clicks.get(window[0] + timedelta(days=offset), 0)
+                for offset in range(days_of(*window))
+            ],
         }
     )
 

@@ -22,6 +22,7 @@ from idraft.crawl.hosts import site_hosts
 from idraft.db.tables import (
     connections,
     crawl_pages,
+    gsc_page_breakdown,
     gsc_page_daily,
     gsc_page_fetches,
     integrations,
@@ -34,6 +35,7 @@ from idraft.domain.gsc_pull import PullState
 from idraft.domain.page_search import Totals
 
 _D, _F, _I, _C = gsc_page_daily.c, gsc_page_fetches.c, integrations.c, connections.c
+_B = gsc_page_breakdown.c
 _T, _P, _U = tracked_pages.c, project_pages.c, urls.c
 
 
@@ -57,6 +59,26 @@ class PageRow:
     tier_id: UUID | None
     title: str | None
     added_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PageInfo:
+    """One page of the project, tracked or not."""
+
+    url_id: int
+    url: str
+    path: str
+    tier_id: UUID | None
+    title: str | None
+    tracked: bool
+
+
+@dataclass(frozen=True, slots=True)
+class Marker:
+    """What a fetch of one breakdown left: whether Google had more rows than were kept, and when."""
+
+    truncated: bool
+    fetched_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +179,38 @@ async def tracked_rows(db: AsyncSession, workspace_id: UUID, project_id: UUID) -
     return [PageRow(*row) for row in rows]
 
 
+async def page_row(
+    db: AsyncSession, workspace_id: UUID, project_id: UUID, url_id: int
+) -> PageInfo | None:
+    """One page of the project (a row of `core.project_pages`); None for any other url id."""
+    run_id = await latest_run(db, workspace_id, project_id)
+    row = (
+        await db.execute(
+            select(
+                _U.id,
+                _U.canonical_url,
+                _U.path,
+                _P.tier_id,
+                _title(workspace_id, run_id),
+                exists()
+                .where(
+                    _T.workspace_id == workspace_id,
+                    _T.project_id == project_id,
+                    _T.url_id == _P.url_id,
+                )
+                .label("tracked"),
+            )
+            .select_from(project_pages.join(urls, urls.c.id == _P.url_id))
+            .where(
+                _P.workspace_id == workspace_id,
+                _P.project_id == project_id,
+                _P.url_id == url_id,
+            )
+        )
+    ).one_or_none()
+    return None if row is None else PageInfo(*row)
+
+
 async def tracked_ids(db: AsyncSession, workspace_id: UUID, project_id: UUID) -> list[int]:
     found = await db.execute(
         select(_T.url_id)
@@ -228,6 +282,88 @@ async def clicks_by_day(
     for url_id, day, clicks in rows:
         found.setdefault(url_id, {})[day] = clicks
     return found
+
+
+async def series(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    integration_id: UUID,
+    url_id: int,
+    window: tuple[date, date],
+) -> dict[date, Totals]:
+    """The stored numbers of one page for each day of `window`; a day without a row is absent."""
+    rows = await db.execute(
+        select(_D.metric_date, _D.clicks, _D.impressions, _D.position_sum).where(
+            _D.workspace_id == workspace_id,
+            _D.project_id == project_id,
+            _D.integration_id == integration_id,
+            _D.url_id == url_id,
+            _D.metric_date.between(*window),
+        )
+    )
+    return {
+        day: Totals(
+            clicks,
+            impressions,
+            position_sum or Decimal(0),
+            0 if position_sum is None else impressions,
+        )
+        for day, clicks, impressions, position_sum in rows
+    }
+
+
+async def breakdown_rows(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    integration_id: UUID,
+    url_id: int,
+    window: tuple[date, date],
+    dimension: str,
+) -> dict[str, Totals]:
+    """The stored rows of one page, period and dimension, by key."""
+    rows = await db.execute(
+        select(_B.key, _B.clicks, _B.impressions, _B.position_sum).where(
+            _B.workspace_id == workspace_id,
+            _B.project_id == project_id,
+            _B.integration_id == integration_id,
+            _B.url_id == url_id,
+            _B.dimension == dimension,
+            _B.date_from == window[0],
+            _B.date_to == window[1],
+        )
+    )
+    return {
+        key: Totals(clicks, impressions, position_sum, impressions)
+        for key, clicks, impressions, position_sum in rows
+    }
+
+
+async def fetch_marker(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    integration_id: UUID,
+    url_id: int,
+    kind: str,
+    window: tuple[date, date],
+) -> Marker | None:
+    """The marker of a fetch for exactly this page, kind and period; None before one."""
+    row = (
+        await db.execute(
+            select(_F.truncated, _F.fetched_at).where(
+                _F.workspace_id == workspace_id,
+                _F.project_id == project_id,
+                _F.integration_id == integration_id,
+                _F.url_id == url_id,
+                _F.kind == kind,
+                _F.date_from == window[0],
+                _F.date_to == window[1],
+            )
+        )
+    ).one_or_none()
+    return None if row is None else Marker(*row)
 
 
 async def history_starts(

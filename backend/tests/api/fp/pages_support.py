@@ -30,10 +30,14 @@ async def connect(
     recent_done: bool = True,
     status: str = "active",
     connection_status: str = "active",
+    fake: FakeGoogle | None = None,
 ) -> uuid.UUID:
     """A Search Console property of the project (an active connection with a stored secret, made
-    by the pull tests' helper) whose pull is in the given state."""
-    prop = await make_property(pg, FakeGoogle(REDIRECT), workspace=workspace, project_id=project_id)
+    by the pull tests' helper) whose pull is in the given state. With `fake`, the refresh token
+    is one that Google fake knows, for a test whose application calls it."""
+    prop = await make_property(
+        pg, fake or FakeGoogle(REDIRECT), workspace=workspace, project_id=project_id
+    )
     state = PullState(recent_done=recent_done, window_end=window_end).write({})
     await execute(
         pg,

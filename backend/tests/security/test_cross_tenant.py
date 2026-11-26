@@ -529,6 +529,10 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
         "compare": "previous_period",
         "group_by": "origin",
     },
+    # A tenant's own page: the dimension is required, and `query` is the widest read.
+    ("GET", _W + "/projects/{project_id}/fp/page-search/{url_id}/breakdown"): {
+        "dimension": "query"
+    },
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     # The gap reads take 1 to 5 competitors the project tracks (`competitor_id`).

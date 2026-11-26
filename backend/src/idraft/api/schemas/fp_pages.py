@@ -251,3 +251,93 @@ class SuggestionsMeta(BaseModel):
 class SuggestionsResponse(BaseModel):
     data: list[SuggestionRow]
     meta: SuggestionsMeta
+
+
+Day = date  # a field named `date` would hide the type in its own class body
+
+
+class SeriesPoint(BaseModel):
+    date: Day = Field(description="The day, Pacific Time.")
+    clicks: int = Field(description="Clicks that day; 0 for a day without a stored row.")
+    impressions: int = Field(description="Impressions that day; 0 for a day without a stored row.")
+    position: float | None = Field(
+        description="Average position that day; null for a day without a stored row or position."
+    )
+
+
+class PageSearchData(BaseModel):
+    url_id: UrlIdText
+    url: str = Field(description="The canonical address of the page.")
+    path: str = Field(description="The path of the page.")
+    title: str | None = Field(
+        description="The title of the page in the latest finished crawl; null when it has none."
+    )
+    tier_id: UUID | None = Field(description="The page's tier; null for Untiered.")
+    tracked: bool = Field(description="Whether the project tracks the page.")
+    current: PageNumbers | None = Field(
+        description="The numbers of the period. Null until the page's history is stored."
+    )
+    previous: PageNumbers | None = Field(
+        description="The numbers of the compared period. Null with `compare=none`, before the "
+        "history is stored, or when the compared period starts before the page's first stored day."
+    )
+    health: PageHealth | None = Field(
+        description="The health verdict of the period. Null until the page's history is stored."
+    )
+    series: list[SeriesPoint] = Field(
+        description="One point for every day of the period; empty until the history is stored."
+    )
+    previous_series: list[SeriesPoint] = Field(
+        description="One point for every day of the compared period, on its own dates; empty "
+        "when `previous` is null."
+    )
+
+
+class PageSearchMeta(SearchMeta):
+    history_from: date | None = Field(
+        description="The first day the page's history covers; null before it was fetched."
+    )
+    retry_after: int | None = Field(
+        description="Seconds to wait before asking again, when the history could not be "
+        "fetched because this installation's budget is spent. Null otherwise."
+    )
+
+
+class PageSearchResponse(BaseModel):
+    data: PageSearchData
+    meta: PageSearchMeta
+
+
+class BreakdownRow(BaseModel):
+    key: str = Field(
+        description="The query text, the three-letter country code or the device in capitals."
+    )
+    current: PageNumbers | None = Field(
+        description="The numbers of the period; null for a key outside its stored rows."
+    )
+    previous: PageNumbers | None = Field(
+        description="The numbers of the compared period; null for a key outside its stored rows."
+    )
+
+
+class PageBreakdownMeta(SearchMeta):
+    dimension: Literal["query", "country", "device"] = Field(description="What the rows are by.")
+    row_limit: int = Field(description="The most rows kept for a period: 100 queries.")
+    truncated: bool = Field(
+        description="More rows came back from Google than were kept. False before a fetch."
+    )
+    coverage: float | None = Field(
+        description="The stored rows' clicks over the page's clicks in the period, at most 1; "
+        "the rest are rows Google does not report or past the limit. Null when the page had "
+        "no clicks or nothing was fetched."
+    )
+    fetched_at: datetime | None = Field(
+        description="When the period's rows were fetched; null before a fetch."
+    )
+
+
+class PageBreakdownResponse(BaseModel):
+    data: list[BreakdownRow] = Field(
+        description="The union of both periods' keys, most clicks first."
+    )
+    meta: PageBreakdownMeta
