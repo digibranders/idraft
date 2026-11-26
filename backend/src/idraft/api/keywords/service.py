@@ -201,6 +201,7 @@ class TrackedPageResult:
     rows: list[TrackedRow]
     next_cursor: str | None
     total: int
+    counts: dict[str, int] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -736,11 +737,16 @@ class KeywordService:
             )
             shown = found[: page.limit]
             total = await repository.count_tracked(db, access.workspace_id, where)
+            counts = (
+                await repository.count_buckets(db, access.workspace_id, where)
+                if "counts" in include
+                else None
+            )
             rows = await self._blocks(db, access, project_id, [row for row, _ in shown], include)
         next_cursor = None
         if len(found) > page.limit:
             next_cursor = encode_cursor(filters.encode_key(parts, shown[-1][1]), scope=bound)
-        return TrackedPageResult(rows=rows, next_cursor=next_cursor, total=total)
+        return TrackedPageResult(rows=rows, next_cursor=next_cursor, total=total, counts=counts)
 
     async def countries_in_use(
         self, access: WorkspaceAccess, project_id: UUID

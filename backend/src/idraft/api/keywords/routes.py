@@ -76,6 +76,7 @@ from idraft.api.schemas.keywords import (
     TrackedKeywordBulkUpdate,
     TrackedKeywordCountries,
     TrackedKeywordCountry,
+    TrackedKeywordCounts,
     TrackedKeywordCreate,
     TrackedKeywordDetail,
     TrackedKeywordDetailResponse,
@@ -427,6 +428,7 @@ async def list_tracked_keywords(
             next_cursor=result.next_cursor,
             has_more=result.next_cursor is not None,
             total=result.total,
+            counts=None if result.counts is None else TrackedKeywordCounts(**result.counts),
         ),
     )
 

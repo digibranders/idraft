@@ -26095,6 +26095,47 @@
         "title": "TrackedKeywordCountry",
         "type": "object"
       },
+      "TrackedKeywordCounts": {
+        "description": "The strip counts of the list, over the keywords its filters match (`include=counts`).",
+        "properties": {
+          "beyond": {
+            "description": "Checked and not found within the depth. A keyword never checked is in `total` only.",
+            "title": "Beyond",
+            "type": "integer"
+          },
+          "ranked": {
+            "description": "Ranked at the latest check.",
+            "title": "Ranked",
+            "type": "integer"
+          },
+          "top10": {
+            "title": "Top10",
+            "type": "integer"
+          },
+          "top20": {
+            "title": "Top20",
+            "type": "integer"
+          },
+          "top3": {
+            "title": "Top3",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "ranked",
+          "beyond",
+          "top3",
+          "top10",
+          "top20"
+        ],
+        "title": "TrackedKeywordCounts",
+        "type": "object"
+      },
       "TrackedKeywordCreate": {
         "additionalProperties": false,
         "description": "Defaults come from the project: its location and language, and its settings\n(`seo.default_device`, `default_depth_profile`, `default_frequency`).",
@@ -27024,6 +27065,17 @@
       },
       "TrackedKeywordPageInfo": {
         "properties": {
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrackedKeywordCounts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only when `include` asks for `counts`."
+          },
           "has_more": {
             "title": "Has More",
             "type": "boolean"
@@ -48165,7 +48217,8 @@
                       "ranking_urls",
                       "gsc",
                       "features",
-                      "aio"
+                      "aio",
+                      "counts"
                     ],
                     "type": "string"
                   },
