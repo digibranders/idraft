@@ -13874,6 +13874,30 @@ export interface components {
             location: components["schemas"]["LocationRef"];
         };
         /**
+         * TrackedKeywordCounts
+         * @description The strip counts of the list, over the keywords its filters match (`include=counts`).
+         */
+        TrackedKeywordCounts: {
+            /**
+             * Beyond
+             * @description Checked and not found within the depth. A keyword never checked is in `total` only.
+             */
+            beyond: number;
+            /**
+             * Ranked
+             * @description Ranked at the latest check.
+             */
+            ranked: number;
+            /** Top10 */
+            top10: number;
+            /** Top20 */
+            top20: number;
+            /** Top3 */
+            top3: number;
+            /** Total */
+            total: number;
+        };
+        /**
          * TrackedKeywordCreate
          * @description Defaults come from the project: its location and language, and its settings
          *     (`seo.default_device`, `default_depth_profile`, `default_frequency`).
@@ -14114,6 +14138,8 @@ export interface components {
         };
         /** TrackedKeywordPageInfo */
         TrackedKeywordPageInfo: {
+            /** @description Present only when `include` asks for `counts`. */
+            counts?: components["schemas"]["TrackedKeywordCounts"] | null;
             /** Has More */
             has_more: boolean;
             /** Limit */
@@ -22681,7 +22707,7 @@ export interface operations {
             query?: {
                 sort?: string | null;
                 /** @description Blocks to fill: a comma list, or the parameter repeated. */
-                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "ranking_urls" | "gsc" | "features" | "aio")[] | null;
+                include?: ("metrics" | "groups" | "terms" | "competitors" | "sparkline" | "competitor_ranks" | "ranking_urls" | "gsc" | "features" | "aio" | "counts")[] | null;
                 "filter[q]"?: string | null;
                 /** @description The group or one under it. */
                 "filter[group]"?: string | null;
@@ -23721,7 +23747,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParameters
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterStatus_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[status_in]"]> = ["planned", "running", "completed", "completed_with_errors", "failed", "cancelled", "budget_blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idRunsGetParametersQueryFilterTrigger_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/runs"]["get"]["parameters"]["query"]["filter[trigger_in]"]> = ["schedule", "manual", "backfill", "retry"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idSchedulesGetParametersQueryFilterWorkloadAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/schedules"]["get"]["parameters"]["query"]["filter[workload]"]> = ["seo_rank", "ai_prompt", "ai_mode_keyword", "keyword_metrics", "discovery", "ai_benchmark", "gsc_sync", "bing_sync", "ga4_sync", "cloudflare_sync"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "ranking_urls", "gsc", "features", "aio"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["include"]> = ["metrics", "groups", "terms", "competitors", "sparkline", "competitor_ranks", "ranking_urls", "gsc", "features", "aio", "counts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterDeviceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[device]"]> = ["desktop", "mobile"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterSearch_engineAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[search_engine]"]> = ["google", "bing"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idTrackedKeywordsGetParametersQueryFilterIntent_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/tracked-keywords"]["get"]["parameters"]["query"]["filter[intent_in]"]> = ["informational", "navigational", "commercial", "transactional", "local", "unknown"];
