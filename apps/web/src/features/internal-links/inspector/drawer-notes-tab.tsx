@@ -207,6 +207,8 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
               onCancel={() => endEdit(note.id)}
               onSave={(body, picked) => void save(note.id, body, picked)}
               source={source}
+              onOpenPage={context.openPage}
+              issueHref={context.hrefs.issueCheck}
               onDelete={() => void remove(note.id)}
               editButtonRef={(element) => {
                 if (element === null) editButtons.current.delete(note.id);

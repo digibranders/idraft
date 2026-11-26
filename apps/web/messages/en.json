@@ -9250,6 +9250,12 @@
           "issue": "Issue on this page",
           "keyword": "Tracked keyword"
         },
+        "chips": {
+          "openPage": "Open {path}",
+          "openIssue": "Open this check on the Issues page",
+          "user": "Teammate {name}",
+          "keyword": "Tracked keyword {keyword}"
+        },
         "commands": {
           "page": "Link a page of the site",
           "issue": "Link an issue found on this page",

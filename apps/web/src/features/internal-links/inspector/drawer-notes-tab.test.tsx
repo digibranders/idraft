@@ -41,7 +41,7 @@ const NONE = { data: [], meta: { total: 0, limit: 50, has_more: false, next_curs
 const onClose = vi.fn();
 const onStep = vi.fn();
 
-function contextOf(canNote: boolean): PageDrawerContext {
+function contextOf(canNote: boolean, openPage: (urlId: string) => void = () => undefined): PageDrawerContext {
   const route = (path: string): Route => path as Route;
   return {
     scope: SCOPE,
@@ -51,7 +51,7 @@ function contextOf(canNote: boolean): PageDrawerContext {
     timeZone: 'UTC',
     canWrite: false,
     canNote,
-    openPage: () => undefined,
+    openPage,
     hrefs: {
       journey: () => route('/journey'),
       linksFrom: () => route('/from'),
@@ -64,7 +64,13 @@ function contextOf(canNote: boolean): PageDrawerContext {
 }
 
 /** The tab inside the real inspector, with buttons that step to another page and to another tab. */
-function Harness({ canNote = true }: { canNote?: boolean }): ReactElement {
+function Harness({
+  canNote = true,
+  openPage,
+}: {
+  canNote?: boolean;
+  openPage?: (urlId: string) => void;
+}): ReactElement {
   const [urlId, setUrlId] = useState(PRICING);
   const [onNotes, setOnNotes] = useState(true);
   const path = urlId === PRICING ? '/pricing' : '/';
@@ -80,7 +86,7 @@ function Harness({ canNote = true }: { canNote?: boolean }): ReactElement {
         >
           <InspectorBody>
             {onNotes ? (
-              <DrawerNotesTab context={contextOf(canNote)} urlId={urlId} path={path} active />
+              <DrawerNotesTab context={contextOf(canNote, openPage)} urlId={urlId} path={path} active />
             ) : (
               <p>Another tab</p>
             )}
@@ -309,6 +315,41 @@ describe('the list', () => {
     expect(list).toHaveTextContent(body);
     expect(list.querySelector('img')).toBeNull();
     expect(list.querySelector('a')).toBeNull();
+  });
+
+  it('draws the mentions of a saved note as chips: a page chip opens that page, a user chip is plain', async () => {
+    const onOpenPage = vi.fn();
+    server.use(
+      http.get(NOTES, () =>
+        HttpResponse.json({
+          data: [
+            {
+              id: 'n1',
+              author: { id: 'a', name: 'Ana' },
+              body: 'Compare @/pricing with @Tomás Rivera',
+              mentions: [
+                { type: 'page', label: '@/pricing', target: HOME, path: '/plans' },
+                { type: 'user', label: '@Tomás Rivera', target: 'u9' },
+              ],
+              attachments: [],
+              created_at: '2026-11-20T10:00:00Z',
+              edited_at: null,
+              can_edit: false,
+              can_delete: false,
+            } satisfies PageNote,
+          ],
+          meta: { total: 1, limit: 50, has_more: false, next_cursor: null },
+        }),
+      ),
+    );
+    const { user } = renderWithProviders(<Harness openPage={onOpenPage} />);
+    const chip = await screen.findByRole('button', { name: 'Open /plans' });
+    await user.click(chip);
+    expect(onOpenPage).toHaveBeenCalledExactlyOnceWith(HOME);
+    expect(within(items()[0] as HTMLElement).getByText('Teammate Tomás Rivera')).toBeInTheDocument();
+    // Only the page chip is a tab stop in the note, beside the controls the API grants
+    expect(within(items()[0] as HTMLElement).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(items()[0] as HTMLElement).getAllByRole('button')).toHaveLength(1);
   });
 
   it('shows the controls the API allows: an editor has both on her own notes only', async () => {

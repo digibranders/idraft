@@ -1,10 +1,12 @@
 'use client';
 
+import type { Route } from 'next';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRef, useState, type ReactElement } from 'react';
 
 import { NoteEditor, type NoteSuggestSource } from './note-editor';
+import { NoteText } from './note-text';
 import { Avatar } from '@/components/ui/avatar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -26,6 +28,10 @@ export interface NoteItemProps {
   editButtonRef: (element: HTMLButtonElement | null) => void;
   /** What the box of an edit offers to mention. */
   source: NoteSuggestSource;
+  /** Opens the page of a page chip in the drawer. */
+  onOpenPage: (urlId: string) => void;
+  /** The route of a check on the Issues page, `null` while that page is not there. */
+  issueHref: (checkId: string) => Route | null;
 }
 
 /** The text of a note in edit starts from the saved text each time the edit opens, so it lives in a part of its own. */
@@ -75,6 +81,8 @@ export function NoteItem({
   onDelete,
   editButtonRef,
   source,
+  onOpenPage,
+  issueHref,
 }: NoteItemProps): ReactElement {
   const t = useTranslations('pages.drawer.notes');
   const timeZone = browserTimeZone();
@@ -111,7 +119,7 @@ export function NoteItem({
       {editing ? (
         <NoteEdit note={note} pending={pending} onCancel={onCancel} onSave={onSave} source={source} />
       ) : (
-        <p className="pl-10 type-body break-words whitespace-pre-wrap text-foreground">{note.body}</p>
+        <NoteText body={note.body} mentions={note.mentions} onOpenPage={onOpenPage} issueHref={issueHref} />
       )}
     </li>
   );
