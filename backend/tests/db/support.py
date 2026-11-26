@@ -81,6 +81,10 @@ TENANT_TABLES: dict[str, str] = {
     "seo.crawl_page_changes": "workspace_id",
     "seo.crawl_alerts": "workspace_id",
     "seo.crawl_mentions": "workspace_id",
+    "seo.page_snapshots": "workspace_id",
+    "seo.page_checks": "workspace_id",
+    "seo.page_history_runs": "workspace_id",
+    "seo.page_google_crawl": "workspace_id",
     "core.link_opportunity_decisions": "workspace_id",
     "core.tier_suggestion_dismissals": "workspace_id",
     "core.client_summary_shares": "workspace_id",
@@ -793,6 +797,40 @@ async def seed_internal_links(
         workspace_id,
         project_id,
         owner_id,
+    )
+    snapshot_id: int = await db.fetchval(
+        "INSERT INTO seo.page_snapshots (workspace_id, project_id, url_id, run_id, taken_at, "
+        "words, links_all, links_editorial, main_hash, full_hash) "
+        "VALUES ($1, $2, $3, $4, now(), 300, 12, 8, $5, $5) RETURNING id",
+        workspace_id,
+        project_id,
+        url_id,
+        run_id,
+        run_id.bytes,
+    )
+    await db.execute(
+        "INSERT INTO seo.page_checks (run_id, url_id, workspace_id, project_id, main_hash, "
+        "full_hash, snapshot_id) VALUES ($1, $2, $3, $4, $5, $5, $6)",
+        run_id,
+        url_id,
+        workspace_id,
+        project_id,
+        run_id.bytes,
+        snapshot_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.page_history_runs (run_id, workspace_id, pages_checked, "
+        "pages_main_changed, pages_site_wide, site_wide, declared_unreliable) "
+        "VALUES ($1, $2, 1, 1, 0, false, false)",
+        run_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.page_google_crawl (project_id, url_id, workspace_id, inspected_at) "
+        "VALUES ($1, $2, $3, now())",
+        project_id,
+        url_id,
+        workspace_id,
     )
     await seed_alerts(db, workspace_id, project_id)
     return run_id

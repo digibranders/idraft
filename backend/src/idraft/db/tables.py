@@ -26,6 +26,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     LargeBinary,
     MetaData,
@@ -37,6 +38,7 @@ from sqlalchemy import (
     Time,
     UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET, INT4RANGE, JSONB
 
@@ -1935,6 +1937,7 @@ crawl_pages = Table(
     Column("deep_only_through_auto", Boolean, nullable=False, server_default=FetchedValue()),
     Column("editorial_anchors", Integer, nullable=False, server_default=FetchedValue()),
     Column("generic_anchors", Integer, nullable=False, server_default=FetchedValue()),
+    Column("sitemap_lastmod", DateTime(timezone=True)),
     _run_key(),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
@@ -2319,4 +2322,81 @@ alert_cursors = Table(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
     ),
     schema="ops",
+)
+
+page_snapshots = Table(
+    "page_snapshots",
+    metadata,
+    Column("id", BigInteger, primary_key=True, server_default=FetchedValue()),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), nullable=False),
+    Column("run_id", Uuid, nullable=False),
+    Column("taken_at", DateTime(timezone=True), nullable=False),
+    Column("title", Text),
+    Column("description", Text),
+    Column("headings", JSONB, nullable=False, server_default=FetchedValue()),
+    Column("words", Integer, nullable=False),
+    Column("links_all", Integer, nullable=False),
+    Column("links_editorial", Integer, nullable=False),
+    Column("canonical", Text),
+    Column("main_hash", LargeBinary, nullable=False),
+    Column("full_hash", LargeBinary, nullable=False),
+    UniqueConstraint("id", "workspace_id", name="page_snapshots_id_workspace_id_key"),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    Index("page_snapshots_page_taken", "project_id", "url_id", text("taken_at DESC")),
+    schema="seo",
+)
+
+page_checks = Table(
+    "page_checks",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("project_id", Uuid, nullable=False),
+    Column("main_hash", LargeBinary, nullable=False),
+    Column("full_hash", LargeBinary, nullable=False),
+    Column("declared_at", DateTime(timezone=True)),
+    Column("declared_source", Text),
+    Column("snapshot_id", BigInteger),
+    _run_key(),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    ForeignKeyConstraint(
+        ["snapshot_id", "workspace_id"], [page_snapshots.c.id, page_snapshots.c.workspace_id]
+    ),
+    schema="seo",
+)
+
+page_history_runs = Table(
+    "page_history_runs",
+    metadata,
+    Column("run_id", Uuid, primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("pages_checked", Integer, nullable=False),
+    Column("pages_main_changed", Integer, nullable=False),
+    Column("pages_site_wide", Integer, nullable=False),
+    Column("site_wide", Boolean, nullable=False),
+    Column("declared_unreliable", Boolean, nullable=False),
+    _run_key(),
+    schema="seo",
+)
+
+page_google_crawl = Table(
+    "page_google_crawl",
+    metadata,
+    Column("project_id", Uuid, primary_key=True),
+    Column("url_id", BigInteger, ForeignKey(urls.c.id), primary_key=True),
+    Column("workspace_id", Uuid, nullable=False),
+    Column("last_crawl_time", DateTime(timezone=True)),
+    Column("coverage_state", Text),
+    Column("inspected_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
+    ),
+    schema="seo",
 )
