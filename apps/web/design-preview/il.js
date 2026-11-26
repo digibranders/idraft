@@ -420,6 +420,7 @@ function render() {
   const host = el('div', 'flex flex-col gap-4 min-w-0');
   nodes.push(host);
   view.replaceChildren(...nodes);
+  if (state.tab !== 'map') mapTab.leave();
   TABS.find(([key]) => key === state.tab)[3].render(host);
   redrawInspector();
 }
@@ -445,6 +446,7 @@ window.addEventListener('preview-route', (event) => {
 });
 window.addEventListener('preview-leave', (event) => {
   if (event.detail.from !== 'internal-links') return;
+  mapTab.leave();
   appChrome(false);
   closeInspector();
   // writeQuery put this page's query in the address; the next page must not inherit it

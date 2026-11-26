@@ -145,9 +145,17 @@ function option(data) {
     };
   });
   // The block of pages with no drawn link: a title, then one line per tier. Text only, nothing to hover or drag.
-  const first = layout.groups[0];
-  // The last one is empty: it keeps room for the lines of text when the block is only a few pages wide
-  const headers = first ? [{ key: 'title', x: first.x, y: first.y - 30, text: `No ${linkWord()} in or out`, strong: true }, { key: 'room', x: first.x + 300, y: first.y, text: '' }, ...layout.groups.map((group) => ({ key: group.key, x: group.x, y: group.y, text: `${tierLabel(tiers[group.key - 1]?.id ?? null)}: ${plural(group.count, 'page')}` }))] : [];
+  // A line counts the pages of its tier that are on the map now, and goes with them when a legend group is off
+  const inBlock = new Map();
+  graph.nodes.forEach((node) => {
+    if (node.in + node.out > 0 || !shown.has(node.id)) return;
+    const key = tierPosition(tierIdOf(pageById(node.id))) || 99;
+    inBlock.set(key, (inBlock.get(key) ?? 0) + 1);
+  });
+  const lines = layout.groups.filter((group) => inBlock.has(group.key));
+  const first = lines[0];
+  // The second one is empty: it keeps room for the lines of text when the block is only a few pages wide
+  const headers = first ? [{ key: 'title', x: first.x, y: first.y - 30, text: `No ${linkWord()} in or out`, strong: true }, { key: 'room', x: first.x + 300, y: first.y, text: '' }, ...lines.map((group) => ({ key: group.key, x: group.x, y: group.y, text: `${tierLabel(tiers[group.key - 1]?.id ?? null)}: ${plural(inBlock.get(group.key), 'page')}` }))] : [];
   headers.forEach((header) => nodes.push({
     name: `${HEADER}${header.key}`,
     x: header.x - 5,
@@ -287,6 +295,11 @@ export function render(host) {
     viewKey = key;
   }
   const data = model();
+  if (data.graph.nodes.length === 0) {
+    maximised = false;
+    host.append(el('p', 'rounded-lg border border-border bg-surface px-4 py-10 text-center type-body text-foreground-secondary', 'This crawl found no live page, so there is nothing to map yet.'));
+    return;
+  }
   const panel = el('section', `flex flex-col overflow-hidden border-border bg-surface ${maximised ? 'fixed inset-0 z-(--z-inspector)' : 'rounded-lg border'}`);
   panel.setAttribute('aria-label', 'Link map');
   const stage = el('div', `relative isolate min-h-0 bg-surface-subtle ${maximised ? 'flex-1' : 'h-[max(30rem,calc(100dvh-21rem))]'}`);
@@ -360,14 +373,19 @@ export function render(host) {
   });
   // A drag ends in a click too: only a press and release on the same spot opens the page
   let pressed = null;
+  let held = null;
   chart.on('mousedown', (params) => {
     pressed = [params.event.offsetX, params.event.offsetY];
+    held = params.dataType === 'node' && !params.name.startsWith(HEADER) ? params.name : null;
   });
-  chart.on('mouseup', (params) => {
-    if (params.dataType !== 'node' || params.name.startsWith(HEADER)) return;
-    const [x, y] = chart.getModel().getSeriesByIndex(0).getData().getItemLayout(params.dataIndex);
-    const [startX, startY] = moved.get(params.name) ?? data.layout.positions.get(params.name);
-    if (Math.hypot(x - startX, y - startY) > 0.01) moved.set(params.name, [x, y]);
+  // On the canvas, not the dot: a fast drag is released beside the dot it moves
+  chart.getZr().on('mouseup', () => {
+    if (!held) return;
+    const points = chart.getModel().getSeriesByIndex(0).getData();
+    const [x, y] = points.getItemLayout(points.indexOfName(held));
+    const [startX, startY] = moved.get(held) ?? data.layout.positions.get(held);
+    if (Math.hypot(x - startX, y - startY) > 0.01) moved.set(held, [x, y]);
+    held = null;
   });
   chart.on('click', (params) => {
     if (params.dataType !== 'node' || params.name.startsWith(HEADER)) return;
@@ -406,6 +424,14 @@ export function render(host) {
   };
   paint();
   sync();
+}
+
+/** The page shell calls this when another tab or page takes over: the chart goes, and so does full screen. */
+export function leave() {
+  cleanup();
+  if (!maximised) return;
+  maximised = false;
+  if (document.fullscreenElement) document.exitFullscreen();
 }
 
 export function exportRows() {
