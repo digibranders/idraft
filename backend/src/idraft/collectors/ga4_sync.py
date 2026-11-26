@@ -33,7 +33,7 @@ from idraft.collectors import ga4_store, gsc_store
 from idraft.collectors.gsc_store import IntegrationFacts
 from idraft.collectors.gsc_sync import Outcome, pacific_today
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_referrals import Rule, SessionRow, classify
+from idraft.domain.ai_referrals import ReferralRow, Rule, SessionRow, classify
 from idraft.domain.ga4_pull import Ga4PullState
 from idraft.providers.google.client import (
     GA4_REPORT_ROW_LIMIT,
@@ -73,6 +73,9 @@ HOURLY_TOKENS: Final = 40_000
 QUOTA_FLOOR_TOKENS: Final = HOURLY_TOKENS * 30 // 100
 # numeric(14,2) holds less than this.
 _LIMIT: Final = Decimal(10) ** 12
+_HALF_CENT: Final = Decimal("0.005")
+# `sessions` and `engaged_sessions` are integer columns.
+_INT32_MAX: Final = 2**31 - 1
 _WHOLE = re.compile(r"[0-9]+", re.ASCII)
 _NUMBER = re.compile(r"-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?", re.ASCII)
 _log = structlog.get_logger(__name__)
@@ -110,16 +113,44 @@ def _day(value: str) -> date:
 def _count(value: str) -> int:
     if _WHOLE.fullmatch(value) is None:
         raise GoogleResponseError("a count of the report is not a whole number")
-    return int(value)
+    try:
+        count = int(value)
+    except ValueError:  # more digits than Python converts
+        count = _INT32_MAX + 1
+    if count > _INT32_MAX:
+        raise GoogleResponseError("a count of the report is out of range")
+    return count
+
+
+def _fits(number: Decimal) -> bool:
+    """Whether numeric(14,2) holds `number`, after it is rounded to two decimals."""
+    return abs(number) < _LIMIT - _HALF_CENT
 
 
 def _number(value: str) -> Decimal:
     if _NUMBER.fullmatch(value) is None:
         raise GoogleResponseError("a number of the report is not a number")
-    number = Decimal(value)
-    if abs(number) >= _LIMIT:
+    try:
+        number = Decimal(value)
+        in_range = _fits(number)
+    except ArithmeticError:  # an exponent beyond what Decimal can write
+        in_range = False
+    if not in_range:
         raise GoogleResponseError("a number of the report is out of range")
     return number
+
+
+def _check_totals(referrals: Sequence[ReferralRow]) -> None:
+    """The sums the classifier made must fit the columns too: two rows that each fit can add up
+    to more. A value the insert cannot take would end the run as a fault of ours."""
+    for row in referrals:
+        if (
+            row.sessions > _INT32_MAX
+            or row.engaged_sessions > _INT32_MAX
+            or not _fits(row.key_events)
+            or not _fits(row.total_revenue)
+        ):
+            raise GoogleResponseError("a total of the report is out of range")
 
 
 def session_rows(rows: Sequence[Ga4Row], start: date, end: date) -> list[SessionRow]:
@@ -218,6 +249,7 @@ class _Pull:
         except ValueError:
             # A number the classifier refuses (it checks what the parsing does not).
             raise GoogleResponseError("a row of the report has a number that is refused") from None
+        _check_totals(referrals)
         now = self._ctx.now()
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             replaced = await ga4_store.replace_window(db, self._facts, start, end, referrals)
@@ -265,7 +297,11 @@ async def sync_integration(ctx: Ga4Context, workspace_id: UUID, integration_id: 
         # Quota, a server that did not answer, an answer that is not what the API documents, a
         # client Google does not accept: the integration stays active and the planner tries it
         # again after a wait that grows (`Ga4PullState.failed`).
-        if isinstance(error, GoogleResponseError | GoogleClientRejectedError):
+        if isinstance(error, GoogleResponseError):
+            # The message names what was wrong, never what was received: ours and the client's
+            # are fixed strings (a model name, an HTTP status, a row shape), with no body or token.
+            _log.error("ga4 run failed", reason=error.reason, detail=str(error), **context)
+        elif isinstance(error, GoogleClientRejectedError):
             _log.error("ga4 run failed", reason=error.reason, **context)
         else:
             _log.warning("ga4 run failed", reason=error.reason, **context)

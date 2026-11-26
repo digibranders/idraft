@@ -3,6 +3,7 @@ leaves behind."""
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -10,6 +11,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from idraft.collectors import ga4_store, gsc_store
 from idraft.collectors.ga4_sync import (
@@ -22,7 +24,7 @@ from idraft.collectors.ga4_sync import (
 )
 from idraft.collectors.gsc_sync import Outcome
 from idraft.db.engine import workspace_transaction
-from idraft.domain.ai_referrals import SessionRow
+from idraft.domain.ai_referrals import ReferralRow, SessionRow
 from idraft.domain.ga4_pull import FIRST_PULL_DAYS, Ga4PullState
 from idraft.providers.google.client import TOKEN_URL, Ga4Row
 from idraft.providers.google.errors import GoogleResponseError
@@ -37,7 +39,7 @@ from tests.collectors.ga4_support import (
     stored,
     yesterday,
 )
-from tests.collectors.gsc_support import GA4_PROPERTY, integration_row, make_property
+from tests.collectors.gsc_support import GA4_PROPERTY, Property, integration_row, make_property
 from tests.conftest import PostgresServer
 from tests.providers.google.fake_google import FakeGoogle
 
@@ -417,6 +419,141 @@ async def test_a_number_that_is_not_one_stores_nothing_and_saves_a_failed_state(
     assert _state(row).failures == 1
 
 
+async def _refused(
+    worker_db: Sessions,
+    migrated: PostgresServer,
+    fake: FakeGoogle,
+    extra: list[ReportRow],
+) -> tuple[Property, list[MutableMapping[str, Any]]]:
+    """Pull a property whose report holds `extra` rows after three good days. Returns the
+    property and the log events of the run."""
+    prop = await make_property(migrated, fake, kind="ga4")
+    serve(fake, GA4_PROPERTY, 3)
+    fake.ga4_rows[GA4_PROPERTY].extend(extra)
+    with capture_logs() as events:
+        report = await _pull(worker_db, fake, prop.workspace_id, prop.integration_id)
+    assert (report.outcome, report.error) == (Outcome.FAILED, "bad_response")
+    assert await stored(migrated, prop.integration_id) == []
+    row = await integration_row(migrated, prop.integration_id)
+    assert (row["status"], row["last_error"]) == ("active", "bad_response")
+    state = _state(row)
+    assert (state.failures, state.complete) == (1, False)
+    return prop, events
+
+
+def _chatgpt(
+    sessions: str = "1",
+    engaged: str = "1",
+    key_events: str = "0",
+    revenue: str = "0",
+    medium: str = "referral",
+) -> ReportRow:
+    day = yesterday().strftime("%Y%m%d")
+    return (
+        (day, "chatgpt.com", medium, "(not set)", "AI Assistant"),
+        (sessions, engaged, key_events, revenue),
+    )
+
+
+@pytest.mark.parametrize(
+    "metrics",
+    [
+        {"key_events": "1e99999999999999999999"},
+        {"key_events": "1E+999999999"},
+        {"revenue": "-1e99999999999999999999"},
+        {"revenue": "1E+999999999"},
+        {"revenue": "1000000000000"},
+        # rounds up to a million millions at two decimals
+        {"revenue": "999999999999.996"},
+        {"sessions": "2147483648"},
+        {"engaged": "99999999999999999999"},
+        {"sessions": "9" * 5000},
+    ],
+    ids=lambda metrics: "-".join(f"{k}={v[:16]}" for k, v in metrics.items()),
+)
+async def test_a_number_the_tables_cannot_hold_stores_nothing_and_saves_a_failed_state(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeGoogle, metrics: dict[str, str]
+) -> None:
+    await _refused(worker_db, migrated, fake, [_chatgpt(**metrics)])
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ({"sessions": "2000000000"}, {"sessions": "2000000000"}),
+        ({"engaged": "2147483647"}, {"engaged": "1"}),
+        ({"key_events": "600000000000"}, {"key_events": "600000000000"}),
+        ({"revenue": "600000000000"}, {"revenue": "600000000000"}),
+        ({"revenue": "-600000000000"}, {"revenue": "-600000000000"}),
+    ],
+    ids=["sessions", "engaged", "key_events", "revenue", "negative_revenue"],
+)
+async def test_a_total_the_tables_cannot_hold_stores_nothing_and_saves_a_failed_state(
+    worker_db: Sessions,
+    migrated: PostgresServer,
+    fake: FakeGoogle,
+    first: dict[str, str],
+    second: dict[str, str],
+) -> None:
+    # each row fits; the two of one assistant and day are summed by the classifier
+    await _refused(
+        worker_db,
+        migrated,
+        fake,
+        [_chatgpt(**first), _chatgpt(**second, medium="ai-assistant")],
+    )
+
+
+async def test_the_log_says_why_a_report_was_refused_and_not_what_it_held(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeGoogle
+) -> None:
+    secret = "secret-looking-value"
+    bad_day = (
+        # sorts between the days asked for, which is all the fake looks at
+        ("2026110x", secret, "referral", "(not set)", "AI Assistant"),
+        ("1", "1", "0", "0"),
+    )
+    _, by_day = await _refused(worker_db, migrated, fake, [bad_day])
+    other = FakeGoogle(REDIRECT)
+    _, by_number = await _refused(worker_db, migrated, other, [_chatgpt(revenue="1E+999999999")])
+
+    (day_event,) = [e for e in by_day if e["event"] == "ga4 run failed"]
+    (number_event,) = [e for e in by_number if e["event"] == "ga4 run failed"]
+    assert day_event["reason"] == number_event["reason"] == "bad_response"
+    assert day_event["detail"] == "a day of the report is not a date"
+    assert number_event["detail"] == "a number of the report is out of range"
+    assert secret not in str(by_day)
+
+
+async def test_a_row_outside_the_window_is_refused_by_the_store_and_nothing_is_changed(
+    worker_db: Sessions, migrated: PostgresServer, fake: FakeGoogle
+) -> None:
+    prop = await make_property(migrated, fake, kind="ga4")
+    days = serve(fake, GA4_PROPERTY, 3)
+    await _pull(worker_db, fake, prop.workspace_id, prop.integration_id)
+    before = await stored(migrated, prop.integration_id)
+    async with workspace_transaction(worker_db, prop.workspace_id) as db:
+        facts = await gsc_store.load_integration(db, prop.workspace_id, prop.integration_id, "ga4")
+    assert facts is not None
+    outside = ReferralRow(
+        day=days[0] - timedelta(days=1),
+        classifier="own_rules",
+        rules_version=1,
+        assistant_code="chatgpt",
+        sessions=1,
+        engaged_sessions=1,
+        key_events=Decimal(0),
+        total_revenue=Decimal(0),
+    )
+
+    with pytest.raises(ValueError, match="outside the window"):
+        async with workspace_transaction(worker_db, prop.workspace_id) as db:
+            await ga4_store.replace_window(db, facts, days[0], days[-1], [outside])
+
+    # the check comes before the delete, and nothing was written either
+    assert await stored(migrated, prop.integration_id) == before
+
+
 _DAY = date(2026, 11, 20)
 _GOOD_DIMENSIONS = ("20261120", "chatgpt.com", "referral", "(not set)", "AI Assistant")
 _GOOD_METRICS = ("12", "9", "3", "19.99")
@@ -457,6 +594,11 @@ def test_a_report_row_becomes_a_session_row_with_real_numbers() -> None:
         (_GOOD_DIMENSIONS, ("12", "nine", "3", "19.99")),
         (_GOOD_DIMENSIONS, ("12", "9", "three", "19.99")),
         (_GOOD_DIMENSIONS, ("12", "9", "1e99", "19.99")),
+        (_GOOD_DIMENSIONS, ("12", "9", "1e99999999999999999999", "19.99")),
+        (_GOOD_DIMENSIONS, ("12", "9", "3", "1E+999999999")),
+        (_GOOD_DIMENSIONS, ("12", "9", "3", "999999999999.996")),
+        (_GOOD_DIMENSIONS, ("2147483648", "9", "3", "19.99")),
+        (_GOOD_DIMENSIONS, ("12", "9" * 5000, "3", "19.99")),
         (_GOOD_DIMENSIONS, ("12", "9", "3", "NaN")),
         (_GOOD_DIMENSIONS, ("12", "9", "3", "Infinity")),
         (_GOOD_DIMENSIONS, ("12", "9", "3", "")),
