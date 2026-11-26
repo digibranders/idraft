@@ -39,9 +39,23 @@ export const CATEGORY_IDS = [
   'keywords',
 ] as const;
 
+export type CategoryId = (typeof CATEGORY_IDS)[number];
+
+const CATEGORIES: ReadonlySet<string> = new Set(CATEGORY_IDS);
+
+export const isCategoryId = (value: string): value is CategoryId => CATEGORIES.has(value);
+
+/** `title-long` as the type of its message key, `titleLong`, so a key built from an id is checked against the catalog. */
+type CamelKey<Id extends string> = Id extends `${infer Head}-${infer Rest}`
+  ? `${Head}${Capitalize<CamelKey<Rest>>}`
+  : Id extends `${infer Head}_${infer Rest}`
+    ? `${Head}${Capitalize<CamelKey<Rest>>}`
+    : Id;
+
 /**
  * The key of an id in `messages/en.json`. Message keys are camelCase, and ids are not (`status-4xx`,
- * `earning_pages`), so `title-long` is `titleLong` and `earning_pages` is `earningPages`.
+ * `earning_pages`), so `title-long` is `titleLong` and `earning_pages` is `earningPages`. The type says the same, so
+ * `t(`checks.${idKey(id)}.name`)` fails to compile when a check has no words; `messages.test.ts` checks the runtime.
  */
-export const idKey = (id: string): string =>
-  id.replace(/[-_]([a-z0-9])/g, (_match, letter: string) => letter.toUpperCase());
+export const idKey = <Id extends string>(id: Id): CamelKey<Id> =>
+  id.replace(/[-_]([a-z0-9])/g, (_match, letter: string) => letter.toUpperCase()) as CamelKey<Id>;

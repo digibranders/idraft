@@ -10236,6 +10236,8 @@
   },
   "issues": {
     "title": "Issues",
+    "noAccessTitle": "You cannot see issues",
+    "noAccessReason": "Your role does not include reading this project’s data. Ask an admin of the workspace for access.",
     "tabs": {
       "technical": "Technical",
       "onPage": "On-page",
@@ -10353,12 +10355,21 @@
       "noSitemap": "The crawl found no sitemap",
       "linksDropped": "This crawl no longer holds its links",
       "gscNotConnected": "Search Console is not connected",
-      "gscPending": "Search Console has no page numbers yet"
+      "gscPending": "Search Console has no page numbers yet",
+      "loadFailed": "The issues could not be loaded",
+      "loadFailedReason": "The server returned an error. Nothing on this page changed."
+    },
+    "toolbar": {
+      "crawlNow": "Crawl now",
+      "crawling": "Crawling",
+      "crawlLine": "{host}, crawl of {date}, {count, plural, one {# page} other {# pages}}"
     },
     "list": {
       "searchChecks": "Search issues",
       "showPassed": "Show passed checks",
       "export": "Export",
+      "exportFailed": "The file could not be made. Try again in a moment.",
+      "open": "Open {name}",
       "footer": "{count, plural, one {# check} other {# checks}} of {total} on this tab",
       "noChecks": {
         "title": "No checks match",
