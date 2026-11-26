@@ -42,8 +42,7 @@ Defined in `tokens.css`. Components use tokens, never literal durations or cubic
 | Toast | 150 ms | 100 ms | standard / exit | `opacity`, `transform` (8 px); stack reflow uses `transform` |
 | Dialog and alert dialog | 200 ms | 150 ms | standard / exit | Dialog `opacity`, `transform` (8 px); scrim `opacity` |
 | Command palette | 150 ms | 100 ms | standard / exit | `opacity`, `transform` (4 px); scrim `opacity` |
-| Overlay inspector (tablet, small desktop) | 200 ms | 150 ms | standard / exit | `transform` (full width from the right edge), `opacity` |
-| Docked inspector | 200 ms (content only) | 0 ms | standard | Panel content `opacity`; the column itself appears at full width instantly |
+| Overlay inspector (900 px and wider) | none | none | n/a | The card appears and disappears at once; no enter or exit animation today (section 4.5) |
 | Sidebar navigation drawer | 200 ms | 150 ms | standard / exit | `transform` (full width from the left edge); scrim `opacity` |
 | Mobile sheets (filter, inspector, full-screen dialogs, bottom sheets) | 200 ms | 150 ms | standard / exit | `transform` (from the bottom edge), `opacity` |
 | Determinate progress bar value | 200 ms | n/a | standard | `transform: scaleX()` |
@@ -172,7 +171,7 @@ Opacity only. The 400 ms open delay ([07-icons.md](07-icons.md)) is a delay, not
 
 Dialogs never scale. Alert dialogs use the same transition. The command palette uses the popup timings (150 ms enter, 100 ms exit, 4 px) because it is opened and closed many times per hour.
 
-### 4.4 Edge-attached panels: overlay inspector, navigation drawer, sheets
+### 4.4 Edge-attached panels: navigation drawer, sheets
 
 Panels attached to a viewport edge travel their full width from that edge, because the motion shows where the panel lives and where it goes when dismissed. This is the only case where an element moves more than 8 px.
 
@@ -196,14 +195,13 @@ Panels attached to a viewport edge travel their full width from that edge, becau
 
 Base UI Drawer swipe gestures move the panel with the finger (direct manipulation, not animation); on release it settles with the same 150 ms exit or 200 ms return.
 
-### 4.5 Docked inspector
+### 4.5 Overlay inspector
 
-Docking changes the width of the main column. Animating that width would re-layout the table on every frame and shift every column, so:
-1. The docked inspector appears at its full width instantly; the table narrows instantly and keeps its scroll position.
-2. The inspector's content fades in: `opacity` 0 to 1 over `--duration-slow`.
-3. Closing is instant.
-4. Switching the record shown in an open inspector (next and previous record, clicking another row) swaps content instantly, with no fade, because users step through records quickly.
-5. Resizing follows the pointer or the keyboard step with no easing.
+The overlay inspector lays over the page and never changes the width of the main column, so the table does not move when it opens, closes, swaps or resizes. It has no enter or exit animation today; an edge-panel slide as in section 4.4 is a possible later item, and the static preview in `apps/web/design-preview` is not the reference for it.
+1. The card appears at its full width instantly, and the table keeps its width and scroll position.
+2. Closing is instant.
+3. Switching the record shown in an open inspector (next and previous record, ArrowDown and ArrowUp, clicking another row) swaps content instantly, with no fade, because users step through records quickly. The card stays mounted, so a swap cannot flicker.
+4. Resizing follows the pointer or the keyboard step with no easing, and the width is saved once on release.
 
 ### 4.6 Toast
 
@@ -369,7 +367,7 @@ Layout shift is forbidden. Cumulative Layout Shift budget is 0.05 at p75 ([20-fr
 5. **Scrollbars**: scroll containers set `scrollbar-gutter: stable`, so a scrollbar appearing does not shift columns.
 6. **Loading buttons keep their width** ([08-interaction-states.md](08-interaction-states.md)).
 7. **Tooltips and popovers** are portaled and positioned; they never push content.
-8. **Inspector docking** narrows the table, which is a layout change the user requested; it happens once, instantly, and keeps the scroll position.
+8. **The overlay inspector** never reflows the page: it appears and disappears instantly, and the table keeps its width and scroll position.
 
 ## 10. Scrolling
 
@@ -440,7 +438,7 @@ Components never call `matchMedia` for motion themselves.
 | Floating or hovering elements (bobbing buttons, drifting shapes) | Decorative |
 | Continuous animation other than the spinner, the live indicator and the skeleton pulse (pulsing badges, glowing borders, animated gradients, shimmer sweeps, animated icons) | Constant motion in peripheral vision during long sessions |
 | Scale on press, hover lift, or shadow growth on hover | Hierarchy is not shown with shadows ([06-surfaces-borders-radius.md](06-surfaces-borders-radius.md)) |
-| Height and width animations (accordions, sidebar collapse, inspector docking) | Layout thrash and content shift |
+| Height and width animations (accordions, sidebar collapse, resizing the table to make room for the inspector) | Layout thrash and content shift |
 | Animated focus rings | Focus must be immediate |
 | Sliding tab and segmented-control indicators | Decorative |
 | Autoplaying media and animated illustrations | No illustrations exist ([00-design-principles.md](00-design-principles.md)) |

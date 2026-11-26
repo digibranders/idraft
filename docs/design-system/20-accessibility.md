@@ -141,7 +141,7 @@ Rules:
 
 ### 4.2 Focus is never obscured
 
-Scroll containers set `scroll-padding-top: var(--sticky-stack-height)`. The bulk-action bar replaces the table toolbar at the top of the table ([12-tables.md](12-tables.md) section 1), so `scroll-padding-top` covers the sticky header and the bulk bar; there is no bottom bar. `--sticky-stack-height` is measured with a `ResizeObserver` on the sticky elements, so wrapping filter chips update it. Toasts render in the bottom-right corner at `--z-toast` and must not cover the focused element: when a toast's bounding box intersects the focused element, the toast stack moves to the top-right for its lifetime. The docked inspector never overlaps the table; the overlay inspector covers the right edge, and the table scrolls the focused cell into the uncovered area.
+Scroll containers set `scroll-padding-top: var(--sticky-stack-height)`. The bulk-action bar replaces the table toolbar at the top of the table ([12-tables.md](12-tables.md) section 1), so `scroll-padding-top` covers the sticky header and the bulk bar; there is no bottom bar. `--sticky-stack-height` is measured with a `ResizeObserver` on the sticky elements, so wrapping filter chips update it. Toasts render in the bottom-right corner at `--z-toast` and must not cover the focused element: when a toast's bounding box intersects the focused element, the toast stack moves to the top-right for its lifetime. The inspector lays over the right side of the page: its card never covers the first column of a table, which is pinned to the left edge. No code scrolls a focused cell clear of the card, so a focused cell under the card stays covered until the drawer is closed (Escape) or narrowed (the resize handle); this is a later item.
 
 ### 4.3 Focus management
 
@@ -149,7 +149,7 @@ Scroll containers set `scroll-padding-top: var(--sticky-stack-height)`. The bulk
 |---|---|---|
 | Menu, select, popover opens | First item or the selected item (Base UI) | Trigger on close |
 | Modal dialog opens | The first field of the body; the Close button when the body has no field; what the caller names with `initialFocus` (the title, for a dialog that opens on a table or list); for destructive confirmations, the least destructive button ("Cancel") | Trigger. When the trigger no longer exists (a deleted row), the screen that closes the dialog moves focus itself: the row now at the same index, else the table |
-| Inspector opens (docked or overlay) | Inspector title (`h2`, `tabindex="-1"`) | Escape or the close button returns focus to the originating row cell |
+| Inspector opens (overlay) | Inspector title (`h2`, `tabindex="-1"`) | Escape or the close button returns focus to the originating row cell |
 | Inspector record changes (next or previous record) | Stays on the control that changed it | n/a |
 | Mobile inspector sheet opens | Back button | The list row |
 | Command palette opens | Search input | Previously focused element |
@@ -201,7 +201,7 @@ Base UI implements the APG keyboard models listed below. Our responsibility is t
 | `Switch` | Switch | Space, Enter | `role="switch"` with `aria-checked`; label is the setting name, not "On" |
 | `RadioGroup` | Radio group | Arrows move and select; Tab leaves | `fieldset` and `legend` |
 | `Slider` (matrix thresholds) | Slider | Arrows by one step, Page Up and Page Down by 10 steps, Home, End | Always paired with a numeric input showing the same value; `aria-valuetext` includes the unit ("Rank threshold 10") |
-| Inspector resize handle | Window splitter | Left and Right Arrow resize by 16 px, Shift+Arrow by 64 px; Home sets the 360 px minimum, End sets the maximum (640 px or less by the docking rule); Enter restores the default width | Focusable `role="separator"` with `aria-orientation="vertical"`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext="400 pixels"`, `aria-controls` the inspector (ours) |
+| Inspector resize handle | Window splitter | Left and Right Arrow resize by 16 px, Shift+Arrow by 64 px; Home sets the 480 px minimum, End sets the maximum (60% of the viewport, 960 px at most); Enter and a double click restore the default width (640 px) | Focusable `role="separator"` with `aria-orientation="vertical"`, `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, `aria-valuetext="640 pixels"`, `aria-controls` the inspector (ours) |
 | Command palette | Dialog containing an editable combobox with a listbox | Cmd/Ctrl+K opens; typing filters; Up and Down move; Enter runs; Escape closes | Base UI Autocomplete inside Dialog (`inline open`); groups use `role="group"` with `aria-labelledby`; result count announced |
 | Filter chips row | Group of buttons | Tab moves between chip segments in DOM order; each chip's value opens its editor; Delete or Backspace on a focused chip's remove button removes the filter (ours) | Chip segments are buttons: "Topic: CRM. Edit filter", "Remove filter Topic". After removal focus moves to the next chip, else to "Add filter" |
 | `DateRangePicker` | Dialog with grid (calendar) plus inputs | Text inputs accept typed dates; calendar grid arrows move by day, Page Up and Page Down by month, Home and End to week edges | Presets (7, 28 and 90 days, 12 weeks; [10-forms.md](10-forms.md) section 10.2) are buttons before the calendar. Typed input is the primary path, the calendar is an aid |
@@ -384,7 +384,7 @@ Every drag has a single-pointer alternative that does not require dragging. Keyb
 | Column resize (drag the header edge) | Column options menu, "Resize column...": popover with a number input (px, step 8, bounded by the column min and max), "Fit to content" and "Reset". Double-click on the edge fits to content | Same menu via Alt+Down Arrow on the header |
 | Column reorder (drag a header) | Column options menu: "Move left", "Move right", "Move to start", "Move to end" | Same menu. Announces "Volume moved to position 4 of 9" |
 | Column reorder in the column chooser | "Move up" and "Move down" buttons on each row (visible on hover and focus, always visible on touch) | Buttons, plus Alt+Up and Alt+Down on a focused row |
-| Inspector resize (drag the left edge) | Inspector header menu: "Width: Default, Wide, Maximum" | Focusable window splitter (section 5) |
+| Inspector resize (drag the left edge) | Left and Right Arrow, Home, End and Enter on the focused separator (16 px steps, 64 px with Shift) | Focusable window splitter (section 5) |
 | Chart brush to zoom a date range | Date range inputs and presets in the filter bar; "Reset zoom" button in the chart toolbar | Same controls |
 | Matrix threshold slider | Click on the slider track sets the value; numeric input beside the slider | Slider keys, numeric input |
 | Card reorder in customize mode (drag the card's handle) | The card toolbar's More menu: "Move earlier", "Move later", "Move to start", "Move to end" | The handle is a button: Space picks the card up, arrow keys move it, Space drops it, Escape puts it back. Announces "Rank distribution, position 2 of 8" |
@@ -684,6 +684,7 @@ At 320 CSS px (1280 px at 400% zoom):
 | `g` then a letter | Go to a destination ([11-navigation.md](11-navigation.md) section 7) | Sequence of single characters | Yes |
 | `f` | Open the "+ Filter" field picker on table pages ([13-filters-search.md](13-filters-search.md) section 7) | Single character | Yes |
 | `j`, `k` | Next or previous row or record, when focus is in the grid or the inspector ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.10) | Single character | Yes |
+| ArrowDown, ArrowUp | Next or previous record, when focus is in the inspector and no control there uses the arrows ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.10) | Non-character keys | No |
 | `a`, `r`, `s`, `e` | Accept, reject, snooze or edit the focused row in triage inboxes ([23-application-patterns.md](23-application-patterns.md) section 10.2) | Single character | Yes |
 | `1` to `8`, `0` | Internal links, Pages tab, while rows are selected: set their tier to T1 to T8 (by the tier's position), or to Untiered with `0` (internal link tracker spec 5.2) | Single character | Yes |
 | F6, Shift+F6 | Cycle focus between regions | Function key | No |
@@ -770,7 +771,7 @@ For each flow the tester records whether names, roles, states, table position ("
 - [ ] The DataTable is one Tab stop; the keyboard map in section 6.3 works completely.
 - [ ] Sort, filter, select, bulk act, open the inspector and return, without a mouse.
 - [ ] Column resize and reorder work from the column options menu.
-- [ ] Inspector resize works with the separator keys and the width menu.
+- [ ] Inspector resize works with the separator keys, and ArrowDown and ArrowUp step records from inside the inspector.
 - [ ] Charts: the view toggle, Patterns, legend items and range controls are reachable and operable.
 - [ ] Single-key shortcuts work outside inputs, do nothing inside inputs, and stop after turning the switch off.
 - [ ] F6 cycles regions.
@@ -800,7 +801,7 @@ For each flow the tester records whether names, roles, states, table position ("
 | `Dialog` | Base UI Dialog, modal | Tab cycle, Escape | `aria-labelledby` title | Initial focus rule (section 4.3); full-screen sheet below 640 px |
 | `ConfirmDialog` (Base UI AlertDialog) | `role="alertdialog"` | Escape equals Cancel | Title names the object and count | Initial focus on Cancel |
 | `Drawer` / `Sheet` | Base UI Drawer | Escape, close button | Labelled by title | Swipe has a button alternative |
-| `Inspector` | `aside`, non-modal when docked or overlaid; modal sheet on mobile | Escape closes; F6 reaches it | Labelled by the record title | Resize separator (window splitter); focus returns to the row |
+| `Inspector` | `aside`, non-modal overlay from 900 px; modal sheet below 900 px | Escape closes; F6 reaches it | Labelled by the record title | Resize separator (window splitter); focus returns to the row |
 | `CommandPalette` | Dialog with combobox and listbox | Cmd/Ctrl+K, arrows, Enter, Escape | Input labelled "Search or run a command"; result count announced | Groups labelled |
 | `Toaster` / `toast()` | Base UI Toast in a named region | Buttons only | Polite or assertive by type | Action and error toasts never auto-dismiss; toasts are not copied to the notification center (section 10.5) |
 | `Sidebar` | `nav` "Primary" | Tab; `[` toggle | `aria-current="page"` | Collapsed rail keeps names; tooltips on focus |

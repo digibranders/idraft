@@ -25,7 +25,8 @@ export type DrawerCustomizerProps = Omit<CustomizableScreenProps, 'saveBar' | 'b
 
 /**
  * A customizable screen whose save bar is in the drawer's footer (`useDrawerCustomize().saveBar`). Its own box takes
- * no part in the layout, so the Inspector stays a direct child of the list's row, which its docked placement needs.
+ * no part in the layout (`box="contents"`), so the screen keeps the page's own layout row and the customizer adds no
+ * wrapper of its own to it.
  */
 export function DrawerCustomizer(props: DrawerCustomizerProps): ReactElement {
   return <CustomizableScreen {...props} saveBar="none" box="contents" />;

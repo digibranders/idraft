@@ -50,7 +50,7 @@ const COPY = {
   projectsFailed: 'The projects could not be read.',
   drawerTitle: 'Drawer cards, live',
   drawerNote:
-    'WP-16, T10. A keyword drawer at its 400 px width, built from the parts of the Inspector (its header, and its footer slot for the save bar) because the real Inspector docks and lays over a list page. More has Customize cards: one column, no widths, the Add card slot. Close, and Escape inside the drawer, ask first while there are changes and close it only after Discard.',
+    'WP-16, T10. A keyword drawer as a 400 px card, built from the parts of the Inspector (its header, and its footer slot for the save bar) because the real Inspector is a fixed card over the window, not a block of this page. More has Customize cards: one column, no widths, the Add card slot. Close, and Escape inside the drawer, ask first while there are changes and close it only after Discard.',
   drawerRecord: 'best crm for startups',
   drawerType: 'Keyword',
   drawerPosition: '12 of 986',
@@ -68,7 +68,7 @@ const COPY = {
   tableNumbers: 'Prompts numbers',
 } as const;
 
-/** The width of a record drawer (`INSPECTOR_WIDTH.default` of lib/inspector/placement). */
+/** The specimen card is a fixed 400 px, narrower than the drawer's 640 px default, so it fits its frame. */
 const DRAWER_WIDTH_CLASS = 'w-100 max-w-full';
 /** What closes before the drawer does, one layer per Escape: the Inspector's own list. */
 const OPEN_LAYERS =

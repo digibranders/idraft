@@ -9,8 +9,8 @@ Last updated: 2026-09-29
 |---|---|---|
 | Wide desktop | 1680, 1920, 2560 | Primary. Extra width goes to table columns and the inspector, never to empty margins |
 | Desktop | 1440 | Primary design reference. Every screen is designed here first |
-| Small desktop | 1280 | Fully supported. Sidebar stays expanded; inspector overlays instead of docking when the main column would drop below 720 px (section 6) |
-| Tablet | 768 to 1279 | Supported for review and triage: sidebar becomes the 56 px rail at 1024 to 1279 and a drawer below 1024 (section 5), inspector overlays, low-priority columns hide ([19-responsive-behavior.md](19-responsive-behavior.md)) |
+| Small desktop | 1280 | Fully supported. Sidebar stays expanded; the inspector lays over the page and never resizes it (section 6) |
+| Tablet | 768 to 1279 | Supported for review and triage: sidebar becomes the 56 px rail at 1024 to 1279 and a drawer below 1024 (section 5), inspector lays over the page from 900 px and is a full-width sheet below, low-priority columns hide ([19-responsive-behavior.md](19-responsive-behavior.md)) |
 | Mobile | 360 to 767 | Monitoring and simple inspection only ([19-responsive-behavior.md](19-responsive-behavior.md)) |
 
 Breakpoint utilities: `md` 768, `lg` 1024, `xl` 1280, `2xl` 1440, `3xl` 1680, `4xl` 1920 (defined in `globals.css`).
@@ -28,7 +28,7 @@ flowchart LR
             PH[Page header<br/>title, actions, tabs, filter bar<br/>sticky within main]
             CT[Content<br/>metric strip, charts, table<br/>scrolls]
         end
-        IN[Inspector<br/>400 or 440 px default by type, 360 to 640<br/>docked, own scroll]
+        IN[Inspector<br/>640 px default, 480 px to 60% of the viewport, 960 px at most<br/>fixed card over the page, own scroll]
     end
     SB --- Main --- IN
 ```
@@ -61,7 +61,7 @@ flowchart LR
 | Top bar | 52 px | Sticky at top of the main column | `surface`, bottom border `border-subtle` (hairline) |
 | Page header | title block 56 px (title 32, 4 px gap, meta line 20) starting 12 px below the top bar, actions right-aligned and vertically centered on the title block; optional tabs (44 px); on pages with a summary or filters the title, meta, summary, filter bar (36 px controls) and actions share one 36 px toolbar row instead of stacking; 12 px between these blocks; detail pages add the back link line. Totals per composition are in [23-application-patterns.md](23-application-patterns.md) section 3.2 | Sticky below the top bar on table pages; scrolls away on overview and detail pages | `background`, bottom border `border-subtle` |
 | Content | fills remaining width; 20 px page gutter left and right (narrower on tablet and mobile, [19-responsive-behavior.md](19-responsive-behavior.md)), 12 px between blocks (header to metric strip, header to table, panel to panel) | The document scrolls (not a nested scroll container) except on table pages, where the table body is the scroll container so its header can stick under the page header | `background` with panels on `surface` |
-| Inspector | 400 px default (440 px for prompt, citation and answer evidence), resizable 360 to 640 px ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2); 20 px padding | Docked right, full height below the top bar, own scroll, sticky inspector header | `surface`, left border `border` (hairline), no shadow when docked; `shadow-inspector` only when overlaying |
+| Inspector | 640 px by default, 480 px to 60% of the viewport (960 px at most), one saved width per user ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2); 16 px body padding | Lays over the page and never resizes it: a fixed card on the right, 12 px under the top bar and 12 px from the right and bottom window edges, own scroll, sticky inspector header | `background`, 1 px `border`, radius 10 px, `shadow-inspector` |
 
 ### 2.2 Scroll model
 
@@ -92,7 +92,7 @@ Arbitrary grid templates are allowed only in the documented forms above; new one
 | Element | Width |
 |---|---|
 | Sidebar | 208 px / 56 px collapsed |
-| Inspector | 400 px default; 360 min; 640 max; 440 px default for prompt, citation and answer evidence inspectors ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2) |
+| Inspector | 640 px by default, 480 px to 60% of the viewport (960 px at most), one saved width per user ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2) |
 | Dialog small / medium / large | 400 / 560 / 720 px |
 | Command palette | 640 px, max height 480 px |
 | Popover (filter) | 280 to 360 px, max height 400 px |
@@ -116,18 +116,17 @@ Exception: the `DateRangePicker` popover ([10-forms.md](10-forms.md) section 10.
 
 Collapse toggle: button at the bottom of the sidebar and shortcut `[`. The state persists in a cookie so server render matches.
 
-## 6. Inspector docking rules
+## 6. Inspector overlay rules
 
-The width resolution order is owned by [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6:
+The inspector lays over the page and never resizes it, so the main column keeps its width and the table keeps its scroll position and pinned columns whatever the inspector's width. The geometry is owned by [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6:
 
-| Space left for the inspector (viewport minus sidebar minus the 720 px minimum main column) | Behavior |
+| Viewport | Behavior |
 |---|---|
-| At least 360 px (the inspector minimum) | Inspector docks at `min(preferred width, space left)`; main column shrinks but keeps at least 720 px; table keeps its scroll position and pinned columns |
-| Less than 360 px, viewport at least 768 px | Inspector overlays the main column at its preferred width (the same floating card, 12 px under the top bar and from the right and bottom edges, no scrim, main content stays interactive) |
-| Below 768 px viewport | Inspector becomes a full-screen sheet with a back button |
+| 900 px and wider | Overlay: a fixed card, 640 px by default, 480 px to 60% of the viewport (960 px at most), 12 px under the top bar and from the right and bottom edges, no scrim, main content stays interactive. It covers the right side of the page, including the right end of a page header; the first column of a table stays visible |
+| Below 900 px | Inspector becomes a full-width sheet with a back button and no resize handle |
 
 Details of the inspector pattern are in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.
 
 ## 7. Empty width on large monitors
 
-At 1920 px and above, width goes to: more visible table columns (column priority, [19-responsive-behavior.md](19-responsive-behavior.md) section 6.1), the docked inspector at its per-type default (400 px, or 440 px for prompt, citation and answer evidence, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2), and chart plus side list layouts. Content is not centered in a narrow column. The only width-capped regions are prose and settings forms.
+At 1920 px and above, width goes to: more visible table columns (column priority, [19-responsive-behavior.md](19-responsive-behavior.md) section 6.1), the inspector at the person's saved width (640 px by default, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2), and chart plus side list layouts. Content is not centered in a narrow column. The only width-capped regions are prose and settings forms.

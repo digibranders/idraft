@@ -20,7 +20,7 @@ Rules:
 1. A panel on the canvas is `surface` with a 1 px `border`, radius 8 px, 16 px padding and a 48 px title row. No shadow.
 2. Panels are not nested. A panel never contains another bordered panel; subdivisions use `border-subtle` dividers or `surface-subtle` wells. One exception: the inspector is a card whose body is a column of cards ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.4). Its own fill is `background`, not `surface`, so the cards inside it read the way panels do on a page.
 3. Tables sit inside a panel (1 px `border`, radius 8). The table itself has no outer border; the panel provides it.
-4. The top bar is `surface` with a bottom hairline and always spans the full width. The inspector is a floating card under it: `background` fill, 1 px `border`, radius 10 px, `shadow-inspector`, 12 px from the top bar and the window edges.
+4. The top bar is `surface` with a bottom hairline and always spans the full width. The inspector is a floating card under it that lays over the page and never resizes it: `background` fill, 1 px `border`, radius 10 px, `shadow-inspector`, 12 px from the top bar and the window edges.
 5. Hover and selected states change the background token (and, for selection, the key text color to `primary-text`), never the shadow. The one selection state that adds an outline is the selected segment of a segmented control (`primary-border`).
 
 ## 2. Borders
@@ -59,7 +59,7 @@ There is no radius above 10 px. Pill shapes (`rounded-full` on a text element) a
 | `shadow-popover` | two layers: 1 px offset with 2 px blur at 6%, and 4 px offset with 12 px blur at 8% | 1 px ring + 20 px blur | Popovers, menus, selects, tooltips, chart tooltips, date pickers |
 | `shadow-dialog` | two layers: 2 px offset with 4 px blur at 6%, and 12 px offset with 32 px blur at 14% | 1 px ring + 40 px blur | Dialogs, command palette |
 | `shadow-drag` | 16 px blur | ring + blur | Dragged column header or row |
-| `shadow-inspector` | 2 px contact shadow + 28 px blur at 12% | 32 px blur at 50% | The inspector card, docked or overlaying. Not used by the full-screen sheet below 768 px |
+| `shadow-inspector` | 2 px contact shadow + 28 px blur at 12% | 32 px blur at 50% | The inspector card, which lays over the page. Not used by the full-width sheet below 900 px |
 
 Shadows are tinted with the foreground hue (never pure black). Nothing on the canvas (panels, cards, tables, metric strip) has a shadow. The inspector is the one floating surface that stays open beside the page, and it has one.
 

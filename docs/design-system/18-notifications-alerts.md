@@ -55,7 +55,7 @@ Base UI Toast (shadcn `toast`, [research/09-frontend-stack.md](../../research/09
 
 | Property | Value |
 |---|---|
-| Viewport | Bottom-right, 20 px from the right edge of the main column and the bottom of the viewport. When the inspector is docked, toasts align to the main column's right edge so they never cover the inspector footer. Below 768 px: bottom center, full width minus 24 px |
+| Viewport | Bottom-right, 20 px from the right edge of the main column and the bottom of the viewport. Toasts do not move for an open inspector: one can overlap the bottom right corner of the inspector's footer, which is known and left as it is. Below 768 px: bottom center, full width minus 24 px |
 | Width | 360 px |
 | Height | 48 px of content minimum (a 32 px action plus 8 px padding above and below), 50 px with the border; grows to two lines of description at most |
 | Surface | `surface-elevated`, 1 px `border`, `rounded-lg`, `shadow-popover`, `--z-toast` (100) |
