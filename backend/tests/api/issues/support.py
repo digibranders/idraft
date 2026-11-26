@@ -10,6 +10,7 @@ from tests.api.internal_links.support import SeedLink, seed_crawl
 from tests.conftest import PostgresServer
 
 LONG_PATH: Final = "/" + "x" * 120
+PATH_115: Final = "/" + "y" * 114
 
 PAGES: Final[list[tuple[str, int]]] = [
     ("/", 200),
@@ -31,6 +32,18 @@ PAGES: Final[list[tuple[str, int]]] = [
     ("/caf%C3%A9-menu", 200),
     (LONG_PATH, 200),
     ("/file.pdf", 200),
+    ("/About", 200),
+    ("/old_page", 200),
+    ("/variant-gone", 404),
+    ("/variant-moved", 301),
+    ("/blocked-noindex", 404),
+    ("/canon-redirect", 200),
+    ("/canon-blocked", 200),
+    ("/to-blocked", 301),
+    ("/title-60", 200),
+    ("/title-30", 200),
+    ("/depth-3", 200),
+    (PATH_115, 200),
 ]
 LINKS: Final = [
     SeedLink("/", "/services", "content"),
@@ -49,7 +62,7 @@ _COLUMNS: Final[dict[str, dict[str, object]]] = {
         "non_indexable_outlinks": 1,
     },
     "/pricing": {"title": SHARED_TITLE, "is_editorial_orphan": True, "linking_pages_all": 1},
-    "/Plans_Old": {"title": SHARED_TITLE, "in_sitemap": False},
+    "/Plans_Old": {"title": SHARED_TITLE.upper() + " ", "in_sitemap": False},
     "/gone": {"linking_pages_all": 1},
     "/error": {"in_sitemap": False},
     "/old": {"in_sitemap": False},
@@ -71,7 +84,22 @@ _COLUMNS: Final[dict[str, dict[str, object]]] = {
     "/lost": {"title": "", "is_orphan": True},
     "/a/b/c/d": {"click_depth": 4},
     "/long-title": {"title": "Long title " + "x" * 59},
-    "/file.pdf": {"resource_type": "other", "title": None},
+    "/file.pdf": {"resource_type": "other", "title": None, "is_indexable": False},
+    "/blocked-noindex": {"is_indexable": False, "non_indexable_reason": "meta_tag"},
+    "/canon-redirect": {
+        "is_indexable": False,
+        "non_indexable_reason": "canonical",
+        "in_sitemap": False,
+    },
+    "/canon-blocked": {
+        "is_indexable": False,
+        "non_indexable_reason": "canonical",
+        "in_sitemap": False,
+    },
+    "/to-blocked": {"in_sitemap": False},
+    "/title-60": {"title": "Title sixty " + "s" * 48},
+    "/title-30": {"title": "Title thirty " + "t" * 17},
+    "/depth-3": {"click_depth": 3},
 }
 # path -> column that holds a URL id -> path of the page it names
 _TARGETS: Final[dict[str, dict[str, str]]] = {
@@ -80,19 +108,24 @@ _TARGETS: Final[dict[str, dict[str, str]]] = {
     "/dead-end": {"redirect_url_id": "/gone"},
     "/services-copy": {"canonical_url_id": "/services", "variant_of_url_id": "/services"},
     "/canon-dead": {"canonical_url_id": "/gone", "variant_of_url_id": "/gone"},
+    "/variant-gone": {"variant_of_url_id": "/services"},
+    "/variant-moved": {"variant_of_url_id": "/services", "redirect_url_id": "/services"},
+    "/canon-redirect": {"canonical_url_id": "/old"},
+    "/canon-blocked": {"canonical_url_id": "/private", "variant_of_url_id": "/private"},
+    "/to-blocked": {"redirect_url_id": "/private"},
 }
 
 EXPECTED: Final[dict[str, list[str]]] = {
-    "status-4xx": ["/gone"],
+    "status-4xx": ["/blocked-noindex", "/gone"],
     "status-5xx": ["/error"],
     "redirect-broken": ["/dead-end"],
     "redirect-chain": ["/old"],
     "links-to-redirect": ["/services"],
-    "redirect-pages": ["/dead-end", "/old", "/older"],
-    "canonical-broken": ["/canon-dead"],
+    "redirect-pages": ["/dead-end", "/old", "/older", "/to-blocked"],
+    "canonical-broken": ["/canon-dead", "/canon-redirect"],
     "noindex": ["/hidden"],
-    "canonical-elsewhere": ["/canon-dead", "/services-copy"],
-    "sitemap-broken": ["/gone"],
+    "canonical-elsewhere": ["/canon-blocked", "/canon-dead", "/canon-redirect", "/services-copy"],
+    "sitemap-broken": ["/blocked-noindex", "/gone"],
     "sitemap-nonindexable": ["/hidden", "/services-copy"],
     "not-in-sitemap": ["/Plans_Old"],
     "broken-internal-links": ["/services"],
@@ -105,7 +138,7 @@ EXPECTED: Final[dict[str, list[str]]] = {
     "title-duplicate": ["/Plans_Old", "/pricing"],
     "title-long": ["/long-title"],
     "title-short": ["/services"],
-    "url-format": ["/Plans_Old"],
+    "url-format": ["/About", "/Plans_Old", "/old_page"],
     "url-long": [LONG_PATH],
 }
 

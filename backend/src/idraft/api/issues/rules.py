@@ -9,15 +9,16 @@ statuses that only refuse the crawler (`crawl/status.py`)."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Final, Protocol
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, FromClause, Select, and_, exists, false, func, or_, select
 from sqlalchemy.orm import aliased
 
-from idraft.api.issues.catalogue import DEPTH_MAX, PATH_MAX, TITLE_MAX, TITLE_MIN
+from idraft.api.issues.catalogue import BY_ID, DEPTH_MAX, PATH_MAX, TITLE_MAX, TITLE_MIN
 from idraft.crawl.status import BLOCKED_STATUSES
-from idraft.db.tables import crawl_links, crawl_pages, urls
+from idraft.db.tables import crawl_links, crawl_pages, crawl_runs, urls
 
 
 class CrawlRef(Protocol):
@@ -76,8 +77,23 @@ def _target_status(column: ColumnElement[int]) -> ColumnElement[int]:
     )
 
 
+_NBSP: Final = chr(0xA0)
+# Whitespace at either end of a title: spaces, tabs, line breaks and the non-breaking space.
+_EDGE_SPACE: Final = f"^[[:space:]{_NBSP}]+|[[:space:]{_NBSP}]+$"
+
+
+def _trimmed_title(page: FromClause) -> ColumnElement[str]:
+    """The title with its edge whitespace removed; empty when there is no title. The one
+    expression that the key and the length of a title are both read from."""
+    return func.regexp_replace(func.coalesce(page.c.title, ""), _EDGE_SPACE, "", "g")
+
+
 def title_key(page: FromClause) -> ColumnElement[str]:
-    return func.lower(func.btrim(func.coalesce(page.c.title, "")))
+    return func.lower(_trimmed_title(page))
+
+
+def title_length(page: FromClause) -> ColumnElement[int]:
+    return func.char_length(_trimmed_title(page))
 
 
 def titled(page: FromClause) -> ColumnElement[bool]:
@@ -103,7 +119,6 @@ def _shared_titles(crawl: CrawlRef) -> Select[Any]:
 _PATH_NO_ESCAPES: Final = func.regexp_replace(urls.c.path, "%[0-9A-Fa-f]{2}", "", "g")
 HAS_CAPITALS: Final = _PATH_NO_ESCAPES.op("~")("[A-Z]")
 HAS_UNDERSCORES: Final = func.strpos(urls.c.path, "_") > 0
-TITLE_LENGTH: Final = func.char_length(func.btrim(func.coalesce(crawl_pages.c.title, "")))
 NOFOLLOW_LINKS: Final = and_(
     crawl_links.c.workspace_id == crawl_pages.c.workspace_id,
     crawl_links.c.run_id == crawl_pages.c.run_id,
@@ -113,52 +128,94 @@ NOFOLLOW_LINKS: Final = and_(
     crawl_links.c.ignored.is_(False),
 )
 
+Rule = Callable[[CrawlRef], ColumnElement[bool]]
 
-def _crawl_condition(check_id: str, crawl: CrawlRef) -> ColumnElement[bool] | None:
+
+def _other_canonical() -> ColumnElement[bool]:
     page = crawl_pages
-    status = page.c.status_code
-    other_canonical = and_(
+    return and_(
         _html_ok(page),
         page.c.canonical_url_id.is_not(None),
         page.c.canonical_url_id != page.c.url_id,
     )
-    canonical_status = _target_status(page.c.canonical_url_id)
-    redirect_status = _target_status(page.c.redirect_url_id)
-    rules: dict[str, ColumnElement[bool]] = {
-        "status-4xx": and_(_broken(page), status < 500),
-        "status-5xx": and_(_broken(page), status >= 500),
-        "redirect-broken": and_(_redirected(page), _is_broken(redirect_status)),
-        "redirect-chain": and_(_redirected(page), _is_redirect(redirect_status)),
-        "links-to-redirect": and_(_live(page), page.c.redirect_outlinks > 0),
-        "redirect-pages": _redirected(page),
-        "canonical-broken": and_(
-            other_canonical, or_(_is_redirect(canonical_status), _is_broken(canonical_status))
-        ),
-        "noindex": and_(_live(page), page.c.non_indexable_reason.in_(("meta_tag", "http_header"))),
-        "canonical-elsewhere": other_canonical,
-        "sitemap-broken": and_(_unreachable(page), page.c.in_sitemap),
-        "sitemap-nonindexable": and_(
-            _html_ok(page), page.c.in_sitemap, page.c.is_indexable.is_(False)
-        ),
-        "not-in-sitemap": and_(_live(page), page.c.is_indexable, page.c.in_sitemap.is_(False)),
-        "broken-internal-links": and_(_live(page), page.c.broken_outlinks > 0),
-        "orphans": and_(_live(page), page.c.is_orphan),
-        "editorial-orphans": and_(_live(page), page.c.is_editorial_orphan),
-        "links-to-nonindexable": and_(_live(page), page.c.non_indexable_outlinks > 0),
-        "deep-pages": and_(_live(page), page.c.click_depth > DEPTH_MAX),
-        "nofollow-internal": and_(_live(page), exists().where(NOFOLLOW_LINKS)),
-        "title-missing": and_(_live(page), title_key(page) == ""),
-        "title-duplicate": and_(titled(page), title_key(page).in_(_shared_titles(crawl))),
-        "title-long": and_(_live(page), TITLE_LENGTH > TITLE_MAX),
-        "title-short": and_(_live(page), title_key(page) != "", TITLE_LENGTH < TITLE_MIN),
-        "url-format": and_(_live(page), or_(HAS_CAPITALS, HAS_UNDERSCORES)),
-        "url-long": and_(_live(page), func.char_length(urls.c.path) > PATH_MAX),
-    }
-    return rules.get(check_id)
+
+
+def _canonical_broken() -> ColumnElement[bool]:
+    status = _target_status(crawl_pages.c.canonical_url_id)
+    return and_(_other_canonical(), or_(_is_redirect(status), _is_broken(status)))
+
+
+def _redirect_target_is(check: Callable[[ColumnElement[int]], ColumnElement[bool]]) -> Rule:
+    def rule(_: CrawlRef) -> ColumnElement[bool]:
+        page = crawl_pages
+        return and_(_redirected(page), check(_target_status(page.c.redirect_url_id)))
+
+    return rule
+
+
+def _title_duplicate(crawl: CrawlRef) -> ColumnElement[bool]:
+    return and_(titled(crawl_pages), title_key(crawl_pages).in_(_shared_titles(crawl)))
+
+
+# One builder per check: a check builds only its own condition.
+_RULES: Final[dict[str, Rule]] = {
+    "status-4xx": lambda _: and_(_broken(crawl_pages), crawl_pages.c.status_code < 500),
+    "status-5xx": lambda _: and_(_broken(crawl_pages), crawl_pages.c.status_code >= 500),
+    "redirect-broken": _redirect_target_is(_is_broken),
+    "redirect-chain": _redirect_target_is(_is_redirect),
+    "links-to-redirect": lambda _: and_(_live(crawl_pages), crawl_pages.c.redirect_outlinks > 0),
+    "redirect-pages": lambda _: _redirected(crawl_pages),
+    "canonical-broken": lambda _: _canonical_broken(),
+    "noindex": lambda _: and_(
+        _live(crawl_pages), crawl_pages.c.non_indexable_reason.in_(("meta_tag", "http_header"))
+    ),
+    "canonical-elsewhere": lambda _: _other_canonical(),
+    "sitemap-broken": lambda _: and_(_unreachable(crawl_pages), crawl_pages.c.in_sitemap),
+    "sitemap-nonindexable": lambda _: and_(
+        _html_ok(crawl_pages), crawl_pages.c.in_sitemap, crawl_pages.c.is_indexable.is_(False)
+    ),
+    "not-in-sitemap": lambda _: and_(
+        _live(crawl_pages), crawl_pages.c.is_indexable, crawl_pages.c.in_sitemap.is_(False)
+    ),
+    "broken-internal-links": lambda _: and_(_live(crawl_pages), crawl_pages.c.broken_outlinks > 0),
+    "orphans": lambda _: and_(_live(crawl_pages), crawl_pages.c.is_orphan),
+    "editorial-orphans": lambda _: and_(_live(crawl_pages), crawl_pages.c.is_editorial_orphan),
+    "links-to-nonindexable": lambda _: and_(
+        _live(crawl_pages), crawl_pages.c.non_indexable_outlinks > 0
+    ),
+    "deep-pages": lambda _: and_(_live(crawl_pages), crawl_pages.c.click_depth > DEPTH_MAX),
+    "nofollow-internal": lambda _: and_(_live(crawl_pages), exists().where(NOFOLLOW_LINKS)),
+    "title-missing": lambda _: and_(_live(crawl_pages), title_key(crawl_pages) == ""),
+    "title-duplicate": _title_duplicate,
+    "title-long": lambda _: and_(_live(crawl_pages), title_length(crawl_pages) > TITLE_MAX),
+    "title-short": lambda _: and_(
+        _live(crawl_pages), title_key(crawl_pages) != "", title_length(crawl_pages) < TITLE_MIN
+    ),
+    "url-format": lambda _: and_(_live(crawl_pages), or_(HAS_CAPITALS, HAS_UNDERSCORES)),
+    "url-long": lambda _: and_(_live(crawl_pages), func.char_length(urls.c.path) > PATH_MAX),
+}
+
+
+def _sitemap_was_read(crawl: CrawlRef) -> ColumnElement[bool]:
+    """True when the crawl found a sitemap: without one, a sitemap check has nothing to say."""
+    return exists(
+        select(1)
+        .select_from(crawl_runs)
+        .where(
+            crawl_runs.c.workspace_id == crawl.workspace_id,
+            crawl_runs.c.id == crawl.run_id,
+            crawl_runs.c.sitemap_pages > 0,
+        )
+    )
 
 
 def condition(check_id: str, crawl: CrawlRef) -> ColumnElement[bool]:
     """The condition of a check. A check that reads another source matches nothing until task 4
     gives this function the sources."""
-    found = _crawl_condition(check_id, crawl)
-    return false() if found is None else found
+    rule = _RULES.get(check_id)
+    if rule is None:
+        return false()
+    found = rule(crawl)
+    if BY_ID[check_id].need == "sitemap":
+        return and_(_sitemap_was_read(crawl), found)
+    return found

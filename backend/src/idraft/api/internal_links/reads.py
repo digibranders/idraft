@@ -995,13 +995,15 @@ class LinkReadService:
             sorter = await _sorter(db, scope, view, sort)
             column = sorter.column
             descending = sort.startswith("-")
-            cursor_scope = {
+            cursor_scope: dict[str, object] = {
                 "run": str(scope.run_id),
                 "view": view.value,
                 "sort": sort,
                 "filter": found.model_dump(mode="json"),
-                "issue": issue,
             }
+            # Only when asked, so the cursors of the plain Pages list keep their value.
+            if issue is not None:
+                cursor_scope["issue"] = issue
             statement = _page_select(view, sorter).where(*conditions)
             if cursor is not None:
                 value, after_id = _page_cursor(cursor, cursor_scope, sort)
