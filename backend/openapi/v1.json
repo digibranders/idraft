@@ -16309,6 +16309,119 @@
         "title": "PageRowPage",
         "type": "object"
       },
+      "PageSearchDaily": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "days": {
+            "description": "One row per day of the window with `ok`, a day without a stored row as zeros; empty otherwise.",
+            "items": {
+              "$ref": "#/components/schemas/PageSearchDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "state",
+          "window_start",
+          "window_end",
+          "clicks",
+          "impressions",
+          "days"
+        ],
+        "title": "PageSearchDaily",
+        "type": "object"
+      },
+      "PageSearchDailyResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageSearchDaily"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageSearchDailyResponse",
+        "type": "object"
+      },
+      "PageSearchDay": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "clicks",
+          "impressions"
+        ],
+        "title": "PageSearchDay",
+        "type": "object"
+      },
       "PageSelection": {
         "additionalProperties": false,
         "description": "Exactly one of `url_ids` and `filter`.",
@@ -42882,6 +42995,89 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/search": {
+      "get": {
+        "operationId": "page_search_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageSearchDailyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: Search Console clicks and impressions by day",
         "tags": [
           "internal-links"
         ]

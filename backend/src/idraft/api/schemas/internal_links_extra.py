@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -105,6 +105,28 @@ class PagesOverview(BaseModel):
 
 class PagesOverviewResponse(BaseModel):
     data: PagesOverview
+
+
+class PageSearchDay(BaseModel):
+    date: date
+    clicks: int
+    impressions: int
+
+
+class PageSearchDaily(BaseModel):
+    state: Literal["ok", "pending", "not_connected"]
+    window_start: date | None
+    window_end: date | None
+    clicks: int | None
+    impressions: int | None
+    days: list[PageSearchDay] = Field(
+        description="One row per day of the window with `ok`, a day without a stored row as "
+        "zeros; empty otherwise."
+    )
+
+
+class PageSearchDailyResponse(BaseModel):
+    data: PageSearchDaily
 
 
 class ChangeLink(BaseModel):

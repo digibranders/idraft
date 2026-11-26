@@ -34,7 +34,7 @@ from idraft.api.schemas.internal_links import (
     UrlId,
     WorklistsResponse,
 )
-from idraft.api.schemas.internal_links_extra import PagesOverviewResponse
+from idraft.api.schemas.internal_links_extra import PageSearchDailyResponse, PagesOverviewResponse
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -202,6 +202,17 @@ async def get_page(
         access, project_id, run=_run(run), url_id=url_id, view=LinkScope(scope)
     )
     return PageDetailResponse(data=detail)
+
+
+@router.get(
+    "/pages/{url_id}/search", summary="One page: Search Console clicks and impressions by day"
+)
+async def page_search(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads, run: Run = "latest"
+) -> PageSearchDailyResponse:
+    return PageSearchDailyResponse(
+        data=await reads.page_search(access, project_id, run=_run(run), url_id=url_id)
+    )
 
 
 @router.get(

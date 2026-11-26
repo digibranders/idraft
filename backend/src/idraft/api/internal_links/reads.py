@@ -59,6 +59,7 @@ from idraft.api.internal_links.extras import (
     gsc_window,
     keyword_rows,
     keywords_of,
+    page_search_daily,
     summarize_keywords,
 )
 from idraft.api.internal_links.graph import GraphLink, GraphPage, TemplateLinks, build_graph
@@ -105,6 +106,7 @@ from idraft.api.schemas.internal_links_extra import (
     OverviewSection,
     OverviewSitemap,
     OverviewStatus,
+    PageSearchDaily,
     PagesOverview,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -1361,6 +1363,22 @@ class LinkReadService:
                 for edge in built.edges
             ],
         )
+
+    async def page_search(
+        self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None, url_id: int
+    ) -> PageSearchDaily:
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, run)
+            held = await db.execute(
+                select(crawl_pages.c.url_id).where(
+                    crawl_pages.c.workspace_id == scope.workspace_id,
+                    crawl_pages.c.run_id == scope.run_id,
+                    crawl_pages.c.url_id == url_id,
+                )
+            )
+            if held.first() is None:
+                raise NotFoundError
+            return await page_search_daily(db, scope, url_id)
 
     async def worklists(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
