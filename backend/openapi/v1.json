@@ -15455,6 +15455,31 @@
         "title": "PageChange",
         "type": "object"
       },
+      "PageDeclared": {
+        "properties": {
+          "date": {
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "json_ld",
+              "meta_modified",
+              "og_updated",
+              "sitemap"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "source"
+        ],
+        "title": "PageDeclared",
+        "type": "object"
+      },
       "PageDetail": {
         "properties": {
           "extras": {
@@ -15775,6 +15800,299 @@
           }
         },
         "title": "PageFilter",
+        "type": "object"
+      },
+      "PageGoogleCrawl": {
+        "properties": {
+          "behind": {
+            "description": "Google's last crawl is older than the last content change.",
+            "title": "Behind",
+            "type": "boolean"
+          },
+          "coverage_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage State"
+          },
+          "crawled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crawled At"
+          }
+        },
+        "required": [
+          "crawled_at",
+          "behind",
+          "coverage_state"
+        ],
+        "title": "PageGoogleCrawl",
+        "type": "object"
+      },
+      "PageHistory": {
+        "properties": {
+          "changes": {
+            "description": "Content versions, before the cap on `versions`.",
+            "title": "Changes",
+            "type": "integer"
+          },
+          "declared": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageDeclared"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Newest declared date; null when none or the site's dates are unreliable."
+          },
+          "declared_unreliable": {
+            "title": "Declared Unreliable",
+            "type": "boolean"
+          },
+          "first_seen": {
+            "description": "The oldest crawl that held the page.",
+            "format": "date-time",
+            "title": "First Seen",
+            "type": "string"
+          },
+          "google": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageGoogleCrawl"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history_starts": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The oldest crawl with a kept check.",
+            "title": "History Starts"
+          },
+          "last_change": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Change"
+          },
+          "readable": {
+            "description": "false for a redirect or an error page.",
+            "title": "Readable",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Status of the page in the latest crawl.",
+            "title": "Status"
+          },
+          "tracked": {
+            "title": "Tracked",
+            "type": "boolean"
+          },
+          "versions": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/PageHistoryVersion"
+            },
+            "title": "Versions",
+            "type": "array"
+          },
+          "versions_capped": {
+            "description": "true when more than 100 existed.",
+            "title": "Versions Capped",
+            "type": "boolean"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "enum": [
+                  "redirect",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when not readable.",
+            "title": "Why"
+          }
+        },
+        "required": [
+          "readable",
+          "why",
+          "status",
+          "first_seen",
+          "history_starts",
+          "last_change",
+          "changes",
+          "declared",
+          "declared_unreliable",
+          "versions",
+          "versions_capped",
+          "google",
+          "tracked"
+        ],
+        "title": "PageHistory",
+        "type": "object"
+      },
+      "PageHistoryChange": {
+        "description": "One line of a version's change list. `level` is for headings. For `links`, `before` is\n`all` or `editorial` (which count moved) and `delta` the signed difference; for `words`\n`delta` is the signed difference in words.",
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "type": {
+            "enum": [
+              "title",
+              "description",
+              "heading_added",
+              "heading_removed",
+              "words",
+              "links",
+              "edited"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "level",
+          "before",
+          "after",
+          "delta"
+        ],
+        "title": "PageHistoryChange",
+        "type": "object"
+      },
+      "PageHistoryResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageHistory"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageHistoryResponse",
+        "type": "object"
+      },
+      "PageHistoryVersion": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/PageHistoryChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "date": {
+            "description": "The date of the crawl that saw this version.",
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "content",
+              "site_wide",
+              "first"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "date",
+          "kind",
+          "changes"
+        ],
+        "title": "PageHistoryVersion",
         "type": "object"
       },
       "PageRow": {
@@ -42429,6 +42747,69 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/history": {
+      "get": {
+        "description": "Reads the latest crawl; `404` when the URL is not in it.",
+        "operationId": "get_page_history_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: when its content changed",
         "tags": [
           "internal-links"
         ]

@@ -61,6 +61,7 @@ from idraft.api.internal_links.extras import (
 )
 from idraft.api.internal_links.graph import GraphLink, GraphPage, TemplateLinks, build_graph
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
+from idraft.api.internal_links.page_history import page_history
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.internal_links.status_filter import status_classes
@@ -92,6 +93,7 @@ from idraft.api.schemas.internal_links import (
     TierStat,
     Worklists,
 )
+from idraft.api.schemas.internal_links_history import PageHistory
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
 from idraft.crawl.anchors import mostly_generic
@@ -1151,6 +1153,13 @@ class LinkReadService:
                     gsc=(await gsc_of(db, scope, [url]))[url],
                 ),
             )
+
+    async def page_history(
+        self, access: WorkspaceAccess, project_id: UUID, *, url_id: int
+    ) -> PageHistory:
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, None)
+            return await page_history(db, scope, url_id)
 
     async def tier_flow(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None, view: LinkScope

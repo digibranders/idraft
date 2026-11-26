@@ -1822,6 +1822,8 @@ async def test_a_list_holds_nothing_of_another_workspace(
 INTERNAL_LINK_READS = [
     ("/internal-links/pages", {}, True),
     ("/internal-links/pages/{url_id}", {}, True),
+    # The seeded page's check, snapshot and Google row (a first version of the seeded page).
+    ("/internal-links/pages/{url_id}/history", {}, False),
     ("/internal-links/edges", {"scope": "all"}, True),
     ("/internal-links/neighbors", {"direction": "in", "scope": "all", "url_id": "{url_id}"}, True),
     # The seeded page has no link out, so there is nothing of its own to name.
