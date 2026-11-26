@@ -248,7 +248,6 @@ def create_app(
                 sender=settings.email_from,
             )
             throttle = LoginThrottle(redis)
-            link_reads = LinkReadService(sessions=sessions)
             link_changes = ChangeService(sessions=sessions)
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
@@ -256,6 +255,7 @@ def create_app(
             sources = import_store
             if sources is None and settings.raw_storage_configured:
                 sources = await stack.enter_async_context(_open_import_store(settings))
+            link_reads = LinkReadService(sessions=sessions, raw_store=sources)
             page_tiers = PageTierService(sessions=sessions)
             ai_summary = SummaryService(sessions=sessions)
             ai_sources = SourceService(sessions=sessions)

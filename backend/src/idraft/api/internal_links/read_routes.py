@@ -34,7 +34,11 @@ from idraft.api.schemas.internal_links import (
     UrlId,
     WorklistsResponse,
 )
-from idraft.api.schemas.internal_links_extra import PageSearchDailyResponse, PagesOverviewResponse
+from idraft.api.schemas.internal_links_extra import (
+    PageOutlineResponse,
+    PageSearchDailyResponse,
+    PagesOverviewResponse,
+)
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -213,6 +217,18 @@ async def page_search(
     return PageSearchDailyResponse(
         data=await reads.page_search(access, project_id, run=_run(run), url_id=url_id)
     )
+
+
+@router.get(
+    "/pages/{url_id}/outline",
+    summary="One page: its outline, read from the stored HTML of the latest crawl",
+    description="Title, description, canonical, robots, headings, language versions, sharing tags, "
+    "structured data and content size. Read on demand; nothing is stored. Always the latest crawl.",
+)
+async def page_outline(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
+) -> PageOutlineResponse:
+    return PageOutlineResponse(data=await reads.page_outline(access, project_id, url_id=url_id))
 
 
 @router.get(

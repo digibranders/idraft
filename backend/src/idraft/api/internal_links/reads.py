@@ -12,6 +12,7 @@ the project and the workspace first) and reaches a URL only through it.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -69,6 +70,7 @@ from idraft.api.internal_links.inventory import (
     overview_statement,
     section_of,
 )
+from idraft.api.internal_links.outline import OutlineRow, outline_body, row_state, stored_html
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
@@ -106,12 +108,14 @@ from idraft.api.schemas.internal_links_extra import (
     OverviewSection,
     OverviewSitemap,
     OverviewStatus,
+    PageOutline,
     PageSearchDaily,
     PagesOverview,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
-from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
+from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, html_key, latest_run
 from idraft.crawl.anchors import mostly_generic
+from idraft.crawl.outline import parse_outline
 from idraft.crawl.scopes import LinkScope
 from idraft.crawl.status import BLOCKED_STATUSES, is_blocked, is_error
 from idraft.crawl.tiers import tier_code
@@ -130,6 +134,7 @@ from idraft.db.tables import (
     urls,
     users,
 )
+from idraft.storage.raw import ObjectStore
 
 DETAIL_LIST: Final = 25
 _DEPTH_LAST: Final = 2_147_483_647
@@ -958,8 +963,14 @@ async def attach_extras(
 
 
 class LinkReadService:
-    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        *,
+        sessions: async_sessionmaker[AsyncSession],
+        raw_store: ObjectStore | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._raw_store = raw_store
 
     def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
         # One snapshot for the page, its counts and its total.
@@ -1379,6 +1390,55 @@ class LinkReadService:
             if held.first() is None:
                 raise NotFoundError
             return await page_search_daily(db, scope, url_id)
+
+    async def page_outline(
+        self, access: WorkspaceAccess, project_id: UUID, *, url_id: int
+    ) -> PageOutline:
+        """Always the latest crawl: the stored HTML is one object per page, overwritten by the
+        next crawl. The crawl row is read in the transaction; the object and the parse are not."""
+        canonical = aliased(urls)
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, None)
+            found = (
+                await db.execute(
+                    select(
+                        urls.c.canonical_url.label("url"),
+                        urls.c.url_hash,
+                        crawl_pages.c.url_id,
+                        crawl_pages.c.status_code,
+                        crawl_pages.c.resource_type,
+                        crawl_pages.c.title,
+                        crawl_pages.c.canonical_url_id,
+                        canonical.c.canonical_url.label("canonical_url"),
+                        crawl_pages.c.non_indexable_reason,
+                    )
+                    .select_from(
+                        crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id).outerjoin(
+                            canonical, canonical.c.id == crawl_pages.c.canonical_url_id
+                        )
+                    )
+                    .where(
+                        crawl_pages.c.workspace_id == scope.workspace_id,
+                        crawl_pages.c.run_id == scope.run_id,
+                        crawl_pages.c.url_id == url_id,
+                    )
+                )
+            ).one_or_none()
+        if found is None:
+            raise NotFoundError
+        row = OutlineRow(**found._mapping)
+        state = row_state(row)
+        answer = PageOutline(
+            state=state, run_id=scope.run_id, status_code=row.status_code, outline=None
+        )
+        if state != "ok":
+            return answer
+        stored = await stored_html(self._raw_store, html_key(project_id, row.url_hash))
+        if stored is None:
+            return answer.model_copy(update={"state": "no_html"})
+        html, truncated = stored
+        parsed = await asyncio.to_thread(parse_outline, html, row.url)
+        return answer.model_copy(update={"outline": outline_body(row, parsed, truncated)})
 
     async def worklists(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
