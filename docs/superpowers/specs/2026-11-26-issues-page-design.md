@@ -317,7 +317,8 @@ The existing list `GET …/internal-links/pages` gets one more filter and one mo
 
 Everything else is the list as it is today: cursor paging (`cursor`, `limit`), search on the path (`q`), the
 sorts (`-clicks`, `path`, `-linking_pages`, `-click_depth` and the rest), `include=gsc` for the Clicks cell,
-tiers, and `format=csv`. With `filter[issue]`, the CSV has four more columns: the three detail values and clicks.
+tiers, and `format=csv`. With `filter[issue]`, the CSV has five more columns: `Found address`, `Found status`, `Found count`,
+`Found reason` (the four detail values) and `Clicks`.
 
 A check that did not run has no pages: the filter matches nothing, except `nofollow-internal` on a crawl whose
 links were dropped, which answers `410 links_dropped` as every read of link rows does.
