@@ -109,10 +109,21 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
     () =>
       pageFilterFields(t, tiers, tags, vocabularies.pending || vocabularies.error, {
         sections,
-        loading: overview.isPending,
+        // A failed read has no sections to check the address against: keep its folder, as while loading
+        loading: overview.isPending || overview.isError,
         label: folderLabel,
       }),
-    [t, tiers, tags, vocabularies.pending, vocabularies.error, sections, overview.isPending, folderLabel],
+    [
+      t,
+      tiers,
+      tags,
+      vocabularies.pending,
+      vocabularies.error,
+      sections,
+      overview.isPending,
+      overview.isError,
+      folderLabel,
+    ],
   );
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {

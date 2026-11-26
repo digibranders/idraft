@@ -681,6 +681,20 @@ describe('the folder, depth and variants filters (spec 7.4)', () => {
     );
   });
 
+  it('keeps a folder of the address when the Overview read fails, with its request and no dropped-filter notice', async () => {
+    server.use(
+      http.get(mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/overview'), () =>
+        HttpResponse.json({ type: 'about:blank', title: 'Server error', status: 500 }, { status: 500 }),
+      ),
+    );
+    const reads = pageReads();
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?folder=/blog/' });
+    await grid();
+    await waitFor(() => expect(reads().some((query) => query.get('filter[folder]') === '/blog/')).toBe(true));
+    expect(screen.queryByText(/filters? from the link (was|were) left out/i)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Folder: /blog/. Edit filter' })).toBeInTheDocument();
+  });
+
   it('sends the depth of the address and draws a chip that clears it', async () => {
     const reads = pageReads();
     const updates: string[] = [];
