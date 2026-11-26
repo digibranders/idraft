@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import ROUND_UP, Decimal
 from typing import Final, Literal, Protocol
 from urllib.parse import urlsplit
@@ -96,6 +97,7 @@ class PageItem(_Model):
     title: str | None
     canonical: str | None
     from_sitemap: bool
+    sitemap_lastmod: datetime | None = None
 
 
 class PageBatch(_Model):
@@ -189,6 +191,21 @@ def _summary(result: Mapping[str, object]) -> CrawlSummary:
     )
 
 
+_ZONE_GAP: Final = re.compile(r"\s+(?=[+-]\d{2}:?\d{2}$)")  # "2024-01-02 03:04:05 +00:00"
+
+
+def _sitemap_lastmod(value: object) -> datetime | None:
+    """`last_modified.sitemap` as a moment, or None (absent, null or not a date). The shape is
+    not verified on a real payload; the header's value is never read."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(_ZONE_GAP.sub("", value.strip()))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
 def _page(raw: object) -> PageItem:
     item = _mapping(raw)
     meta = _mapping(item.get("meta"))
@@ -202,6 +219,7 @@ def _page(raw: object) -> PageItem:
             "title": meta.get("title"),
             "canonical": meta.get("canonical"),
             "from_sitemap": checks.get("from_sitemap") is True,
+            "sitemap_lastmod": _sitemap_lastmod(_mapping(item.get("last_modified")).get("sitemap")),
         }
     )
 

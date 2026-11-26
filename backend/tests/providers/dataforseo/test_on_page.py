@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import httpx
@@ -126,6 +127,10 @@ async def test_pages_come_in_batches_with_a_token(api: Api, on_page: OnPage) -> 
         "url": "https://example.com/pricing",
         "meta": {"title": "Pricing", "canonical": "https://example.com/pricing"},
         "checks": {"from_sitemap": True, "is_redirect": False},
+        "last_modified": {
+            "header": "2025-02-01 00:00:00 +00:00",
+            "sitemap": "2024-03-04 05:06:07 +00:00",
+        },
     }
     redirect = {
         "resource_type": "redirect",
@@ -155,6 +160,27 @@ async def test_pages_come_in_batches_with_a_token(api: Api, on_page: OnPage) -> 
         ("https://example.com/old", 301, "https://example.com/new", False),
     ]
     assert batch.items[0].title == "Pricing"
+    # The sitemap's value only, never the header's; a page with none (or a malformed one) has None.
+    assert [item.sitemap_lastmod for item in batch.items] == [
+        datetime(2024, 3, 4, 5, 6, 7, tzinfo=UTC),
+        None,
+    ]
+
+
+@pytest.mark.parametrize(
+    "raw", [None, "", "yesterday", 5, {"sitemap": 1}, ["2024-01-01"], "2024-13-45"]
+)
+async def test_a_malformed_sitemap_date_is_none(api: Api, on_page: OnPage, raw: object) -> None:
+    page = {
+        "resource_type": "html",
+        "status_code": 200,
+        "url": "https://example.com/a",
+        "last_modified": {"sitemap": raw},
+    }
+    result = {"items": [page], "total_items_count": 1, "search_after_token": None}
+    api.answer("POST", "/v3/on_page/pages", envelope([task_answer(task_id=TASK, result=[result])]))
+
+    assert (await on_page.pages(TASK, token=None)).items[0].sitemap_lastmod is None
 
 
 async def test_raw_html_and_its_absence(api: Api, on_page: OnPage) -> None:
