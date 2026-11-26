@@ -11112,6 +11112,57 @@
         "title": "IssueCheck",
         "type": "object"
       },
+      "IssueDetail": {
+        "description": "What a check found on one page (spec section 4, last column). The web writes the sentence.",
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "target_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Path"
+          },
+          "target_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Status"
+          }
+        },
+        "title": "IssueDetail",
+        "type": "object"
+      },
       "IssueGsc": {
         "properties": {
           "state": {
@@ -15909,6 +15960,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/GscPage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueDetail"
               },
               {
                 "type": "null"
@@ -42576,7 +42637,7 @@
             }
           },
           {
-            "description": "Parts to add to each row as `extras`.",
+            "description": "Parts to add to each row as `extras`. `issue` is the detail of `filter[issue]` and stays null without it.",
             "in": "query",
             "name": "include",
             "required": false,
@@ -42589,7 +42650,8 @@
                       "keywords",
                       "citations",
                       "anchors",
-                      "gsc"
+                      "gsc",
+                      "issue"
                     ],
                     "type": "string"
                   },
@@ -42599,8 +42661,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Parts to add to each row as `extras`.",
-              "maxLength": 5,
+              "description": "Parts to add to each row as `extras`. `issue` is the detail of `filter[issue]` and stays null without it.",
+              "maxLength": 6,
               "title": "Include"
             }
           },

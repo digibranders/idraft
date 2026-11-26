@@ -65,6 +65,7 @@ from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.internal_links.status_filter import status_classes
 from idraft.api.issues.catalogue import BY_ID
+from idraft.api.issues.details import NO_DETAIL, detail_cells, issue_details
 from idraft.api.issues.rules import condition
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
@@ -452,6 +453,14 @@ _PAGE_CSV_HEADER: Final = (
     "in_sitemap",
     "top_anchor",
     "flags",
+)
+# Added after the Pages columns when the list is the pages of one check.
+_ISSUE_CSV_HEADER: Final = (
+    "Found address",
+    "Found status",
+    "Found count",
+    "Found reason",
+    "Clicks",
 )
 _EDGE_CSV_HEADER: Final = (
     "source_url",
@@ -911,9 +920,15 @@ async def neighbor_page(
 
 
 async def attach_extras(
-    db: AsyncSession, scope: PageScope, rows: list[PageRow], include: set[str]
+    db: AsyncSession,
+    scope: PageScope,
+    rows: list[PageRow],
+    include: set[str],
+    *,
+    issue: str | None = None,
 ) -> None:
-    """Fills `row.extras` for the parts asked for, one grouped query per part."""
+    """Fills `row.extras` for the parts asked for, one grouped query per part. `issue` is the
+    check the list is filtered by; the `issue` part is empty without it."""
     ids = [int(row.url_id) for row in rows]
     if not ids:
         return
@@ -926,6 +941,11 @@ async def attach_extras(
         else {}
     )
     gsc = await gsc_of(db, scope, ids) if "gsc" in include else {}
+    found = (
+        await issue_details(db, scope, issue, ids)
+        if "issue" in include and issue is not None
+        else None
+    )
     for row in rows:
         url = int(row.url_id)
         row.extras = PageExtras(
@@ -939,6 +959,8 @@ async def attach_extras(
                 else None
             ),
             gsc=gsc.get(url),
+            # A check with nothing to say shows an empty detail, not none.
+            issue=None if found is None else found.get(url, NO_DETAIL),
         )
 
 
@@ -1021,7 +1043,7 @@ class LinkReadService:
             )
             page_rows_out = await _page_rows(db, scope, view, tiers, rows)
             if include:
-                await attach_extras(db, scope, page_rows_out, set(include))
+                await attach_extras(db, scope, page_rows_out, set(include), issue=issue)
             return PageList(
                 rows=page_rows_out,
                 total=total,
@@ -1053,8 +1075,13 @@ class LinkReadService:
                     .limit(EXPORT_ROWS_MAX)
                 )
             ).all()
+            more = (
+                await detail_cells(db, scope, issue, [row.url_id for row in rows])
+                if issue is not None
+                else None
+            )
         return csv_text(
-            _PAGE_CSV_HEADER,
+            _PAGE_CSV_HEADER if more is None else (*_PAGE_CSV_HEADER, *_ISSUE_CSV_HEADER),
             (
                 (
                     row.canonical_url,
@@ -1070,6 +1097,7 @@ class LinkReadService:
                     row.in_sitemap,
                     row.top_anchor,
                     " ".join(_flags(row)),
+                    *(() if more is None else more[row.url_id]),
                 )
                 for row in rows
             ),

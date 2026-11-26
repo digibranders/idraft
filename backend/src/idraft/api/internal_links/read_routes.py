@@ -127,9 +127,13 @@ async def list_pages(
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
-        list[Literal["changes", "keywords", "citations", "anchors", "gsc"]] | None,
+        list[Literal["changes", "keywords", "citations", "anchors", "gsc", "issue"]] | None,
         Commas,
-        Query(max_length=5, description="Parts to add to each row as `extras`."),
+        Query(
+            max_length=6,
+            description="Parts to add to each row as `extras`. `issue` is the detail of "
+            "`filter[issue]` and stays null without it.",
+        ),
     ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:

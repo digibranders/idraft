@@ -61,6 +61,15 @@ class IssueCheck(BaseModel):
     )
 
 
+class IssueDetail(BaseModel):
+    """What a check found on one page (spec section 4, last column). The web writes the sentence."""
+
+    target_path: str | None = None
+    target_status: int | None = None
+    count: int | None = None
+    reason: str | None = None
+
+
 class IssueSummary(BaseModel):
     pages_crawled: int = Field(description="Every address of the crawl, variants included.")
     pages_with_issue: int
