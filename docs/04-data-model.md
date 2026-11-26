@@ -435,6 +435,8 @@ CREATE INDEX page_notes_page ON core.page_notes (project_id, url_id, created_at 
 
 A note is what the team wrote about one page of a project, shown newest first on the page's Notes tab. It is keyed by the address (`core.urls.id`), not by a crawl's page row, so it stays on the page in every crawl, old and new, and on an address that now redirects or errors. A delete is soft: the API sets `deleted_at` and `deleted_by`, and no role has `DELETE`, so Undo is one update and a row leaves only with its project. Only the API reads and writes the table (migration 0042): it may insert, and update `body`, `edited_at`, `deleted_at` and `deleted_by`; the worker has no access.
 
+Migration 0043 adds `mentions jsonb NOT NULL DEFAULT '[]'` with `CHECK (jsonb_typeof(mentions) = 'array' AND jsonb_array_length(mentions) <= 20)`, and the API may update it. Each entry is `{type, label, target}` (`page`, `user`, `issue` or `keyword`); the API checks every target against the workspace and project before it writes the list and keeps only the entries whose label is in the body, and the page's path for a chip is read from `core.urls`, never stored.
+
 ## 6. Entities: brands, aliases, competitors
 
 A competitor is an entity with a project role, not a separate table. This keeps SEO competitor tracking (by domain) and AI competitor tracking (by name and domain) on the same object.

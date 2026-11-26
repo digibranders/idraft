@@ -16319,6 +16319,14 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "mentions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PageNoteMention"
+            },
+            "title": "Mentions",
+            "type": "array"
           }
         },
         "required": [
@@ -16407,6 +16415,86 @@
         "title": "PageNoteListMeta",
         "type": "object"
       },
+      "PageNoteMention": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Label",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "target": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "page",
+              "user",
+              "issue",
+              "keyword"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "target"
+        ],
+        "title": "PageNoteMention",
+        "type": "object"
+      },
+      "PageNoteMentionIn": {
+        "additionalProperties": false,
+        "description": "One `@` in a note. The label is display text the server never interprets; the target is\nchecked against the database by type (spec 9.8.1).",
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Label",
+            "type": "string"
+          },
+          "target": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "page",
+              "user",
+              "issue",
+              "keyword"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "target"
+        ],
+        "title": "PageNoteMentionIn",
+        "type": "object"
+      },
       "PageNoteResponse": {
         "properties": {
           "data": {
@@ -16421,11 +16509,26 @@
       },
       "PageNoteWrite": {
         "additionalProperties": false,
-        "description": "The body of a create and of a change. Trimmed, 1 to 2,000 characters, no null character.",
+        "description": "The body of a create and of a change. Trimmed, 1 to 2,000 characters, no null character.\n`mentions` omitted on a change: the stored ones whose label is still in the text stay.",
         "properties": {
           "body": {
             "title": "Body",
             "type": "string"
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PageNoteMentionIn"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions"
           }
         },
         "required": [

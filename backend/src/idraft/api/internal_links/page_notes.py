@@ -4,6 +4,7 @@ is soft and the one who deleted can bring the note back. Every write is audited.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime
 from typing import Any
@@ -14,6 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
 from idraft.api.ai.engine_service import live_project
+from idraft.api.internal_links.mention_sources import IssueChecks, NoIssueChecks
+from idraft.api.internal_links.page_note_mentions import (
+    StoredMention,
+    as_snapshot,
+    check_mentions,
+    of_row,
+    paths_of,
+    stored_in_text,
+)
 from idraft.api.pagination import cursor_instant, decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.permissions import Permission, Role
 from idraft.api.problems import ForbiddenError, NotFoundError
@@ -23,6 +33,7 @@ from idraft.api.schemas.page_notes import (
     PageNoteAuthor,
     PageNoteList,
     PageNoteListMeta,
+    PageNoteMention,
     PageNoteWrite,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
@@ -58,6 +69,7 @@ def _notes(access: WorkspaceAccess, project_id: UUID, url_id: int) -> Select[Any
             page_notes.c.author_id,
             users.c.name.label("author_name"),
             page_notes.c.body,
+            page_notes.c.mentions,
             page_notes.c.created_at,
             page_notes.c.edited_at,
         )
@@ -72,17 +84,33 @@ def _may_delete(access: WorkspaceAccess, author_id: UUID) -> bool:
     return author_id == access.user_id or access.role in (Role.OWNER, Role.ADMIN)
 
 
-def _view(access: WorkspaceAccess, row: Row[Any]) -> PageNote:
+async def _views(
+    db: AsyncSession, access: WorkspaceAccess, rows: Sequence[Row[Any]]
+) -> list[PageNote]:
+    """The notes as the API shows them. A page chip shows the address's current path, read once
+    for the whole list and never taken from what the client sent."""
+    stored = [of_row(row.mentions) for row in rows]
+    paths = await paths_of(db, [mention for mentions in stored for mention in mentions])
     writes = access.holds(Permission.NOTES_WRITE)
-    return PageNote(
-        id=row.id,
-        author=PageNoteAuthor(id=row.author_id, name=row.author_name),
-        body=row.body,
-        created_at=row.created_at,
-        edited_at=row.edited_at,
-        can_edit=writes and row.author_id == access.user_id,
-        can_delete=writes and _may_delete(access, row.author_id),
-    )
+    return [
+        PageNote(
+            id=row.id,
+            author=PageNoteAuthor(id=row.author_id, name=row.author_name),
+            body=row.body,
+            mentions=[
+                PageNoteMention(
+                    **mention,
+                    path=paths.get(mention["target"]) if mention["type"] == "page" else None,
+                )
+                for mention in mentions
+            ],
+            created_at=row.created_at,
+            edited_at=row.edited_at,
+            can_edit=writes and row.author_id == access.user_id,
+            can_delete=writes and _may_delete(access, row.author_id),
+        )
+        for row, mentions in zip(rows, stored, strict=True)
+    ]
 
 
 def _after(cursor: str, scope: dict[str, object]) -> tuple[datetime, UUID]:
@@ -133,7 +161,12 @@ async def _locked(
     state = page_notes.c.deleted_at.is_not(None) if deleted else page_notes.c.deleted_at.is_(None)
     row = (
         await db.execute(
-            select(page_notes.c.author_id, page_notes.c.body, page_notes.c.deleted_by)
+            select(
+                page_notes.c.author_id,
+                page_notes.c.body,
+                page_notes.c.mentions,
+                page_notes.c.deleted_by,
+            )
             .where(
                 *_of_page(access.workspace_id, project_id, url_id),
                 page_notes.c.id == note_id,
@@ -162,8 +195,14 @@ async def _change(
 
 
 class PageNoteService:
-    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        *,
+        sessions: async_sessionmaker[AsyncSession],
+        issues: IssueChecks | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._issues: IssueChecks = NoIssueChecks() if issues is None else issues
 
     def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
         return workspace_transaction(self._sessions, access.workspace_id, user_id=access.user_id)
@@ -175,7 +214,7 @@ class PageNoteService:
         row = (
             await db.execute(_notes(access, project_id, url_id).where(page_notes.c.id == note_id))
         ).one()
-        return _view(access, row)
+        return (await _views(db, access, [row]))[0]
 
     @staticmethod
     async def _audit(
@@ -231,14 +270,15 @@ class PageNoteService:
                 )
             ).all()
             total = await notes_count(db, access.workspace_id, project_id, url_id)
-        shown = rows[:limit]
+            shown = rows[:limit]
+            views = await _views(db, access, shown)
         next_cursor = (
             encode_cursor([shown[-1].created_at.isoformat(), str(shown[-1].id)], scope=scope)
             if len(rows) > limit
             else None
         )
         return PageNoteList(
-            data=[_view(access, row) for row in shown],
+            data=views,
             meta=PageNoteListMeta(
                 limit=limit, next_cursor=next_cursor, has_more=next_cursor is not None, total=total
             ),
@@ -254,6 +294,9 @@ class PageNoteService:
     ) -> PageNote:
         async with self._transaction(access) as db:
             await _require_page(db, access, project_id, url_id)
+            mentions = await check_mentions(
+                db, access, project_id, body.body, body.mentions or [], self._issues
+            )
             note_id: UUID = (
                 await db.execute(
                     insert(page_notes)
@@ -263,6 +306,7 @@ class PageNoteService:
                         url_id=url_id,
                         author_id=access.user_id,
                         body=body.body,
+                        mentions=mentions,
                     )
                     .returning(page_notes.c.id)
                 )
@@ -273,7 +317,11 @@ class PageNoteService:
                 "page_note.created",
                 note_id,
                 info,
-                after={"url_id": str(url_id), "body": body.body},
+                after={
+                    "url_id": str(url_id),
+                    "body": body.body,
+                    "mentions": as_snapshot(mentions),
+                },
             )
             return await self._one(db, access, project_id, url_id, note_id)
 
@@ -291,16 +339,32 @@ class PageNoteService:
             note = await _locked(db, access, project_id, url_id, note_id, deleted=False)
             if note.author_id != access.user_id:
                 raise ForbiddenError("Only the one who wrote a note can change it.")
-            if note.body != body.body:
-                await _change(db, access, project_id, note_id, body=body.body, edited_at=func.now())
+            before = of_row(note.mentions)
+            kept: list[StoredMention] = (
+                stored_in_text(body.body, before)
+                if body.mentions is None
+                else await check_mentions(
+                    db, access, project_id, body.body, body.mentions, self._issues
+                )
+            )
+            if note.body != body.body or kept != before:
+                await _change(
+                    db,
+                    access,
+                    project_id,
+                    note_id,
+                    body=body.body,
+                    mentions=kept,
+                    edited_at=func.now(),
+                )
                 await self._audit(
                     db,
                     access,
                     "page_note.updated",
                     note_id,
                     info,
-                    before={"body": note.body},
-                    after={"body": body.body},
+                    before={"body": note.body, "mentions": as_snapshot(before)},
+                    after={"body": body.body, "mentions": as_snapshot(kept)},
                 )
             return await self._one(db, access, project_id, url_id, note_id)
 

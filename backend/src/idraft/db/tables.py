@@ -1841,6 +1841,7 @@ page_notes = Table(
     Column("url_id", BigInteger, ForeignKey(urls.c.id), nullable=False),
     Column("author_id", Uuid, ForeignKey(users.c.id), nullable=False),
     Column("body", Text, nullable=False),
+    Column("mentions", JSONB, nullable=False, server_default=FetchedValue()),
     _created_at(),
     Column("edited_at", DateTime(timezone=True)),
     Column("deleted_at", DateTime(timezone=True)),

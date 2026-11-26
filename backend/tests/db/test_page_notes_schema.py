@@ -92,6 +92,41 @@ async def test_deleted_at_and_deleted_by_are_set_together(migrated: PostgresServ
         )
 
 
+async def test_mentions_default_to_an_empty_list_and_hold_at_most_20(
+    migrated: PostgresServer,
+) -> None:
+    tenant = await seed_tenant(migrated, "notes-mentions")
+    entry = '{"type": "page", "label": "@/a", "target": "1"}'
+    async with connection(migrated) as db:
+        note_id = await _note_id(db, tenant, await _url_id(db))
+        assert (
+            await db.fetchval("SELECT mentions::text FROM core.page_notes WHERE id = $1", note_id)
+            == "[]"
+        )
+        for count in (1, 20):
+            await db.execute(
+                "UPDATE core.page_notes SET mentions = $2::jsonb WHERE id = $1",
+                note_id,
+                "[" + ", ".join([entry] * count) + "]",
+            )
+        for refused_value in ('"text"', '{"type": "page"}', "[" + ", ".join([entry] * 21) + "]"):
+            async with refused(db, asyncpg.CheckViolationError):
+                await db.execute(
+                    "UPDATE core.page_notes SET mentions = $2::jsonb WHERE id = $1",
+                    note_id,
+                    refused_value,
+                )
+
+
+async def test_the_api_may_update_mentions(migrated: PostgresServer) -> None:
+    tenant = await seed_tenant(migrated, "notes-mentions-grant")
+    async with connection(migrated) as db:
+        await _note_id(db, tenant, await _url_id(db))
+    async with scoped(migrated, "app_api", workspace_id=tenant.workspace_id) as db:
+        changed = await db.execute("UPDATE core.page_notes SET mentions = '[]'::jsonb")
+    assert changed != "UPDATE 0"
+
+
 async def test_a_note_for_an_address_that_does_not_exist_is_refused(
     migrated: PostgresServer,
 ) -> None:

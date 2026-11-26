@@ -1561,7 +1561,7 @@ interface PromptExplorerDetail {
 {W}/layouts/{screen}` and `PUT` and `DELETE {W}/me/layouts/{screen}` (any member), `PUT` and `DELETE
 {W}/layouts/{screen}/default` (`layouts:manage`). The same `notes:write` guards the notes of a page,
 which are built and live under `{P}/internal-links/pages/{url_id}/notes`
-(`backend/src/idraft/api/internal_links/page_note_routes.py`). 11 built operations gained optional additions that
+(`backend/src/idraft/api/internal_links/page_note_routes.py`). A note's create and change bodies take an optional `mentions` (at most 20 of `{ type: page | user | issue | keyword, label, target }`; the label starts with `@`, 2 to 200 characters, one line; omitted on a change, the stored entries whose label is still in the text stay), and every note read carries `mentions`, each with `path` (a page's current path, else null). An entry whose label is not in the text is dropped. `422 validation_failed` lists each failing entry at `mentions[i].target` with `mention_target_unknown` (not a page of this project, a member of this workspace or a tracked keyword of this project) or at `mentions[i].type` with `mention_type_unavailable` (every `issue` entry until the Issues catalogue is installed). 11 built operations gained optional additions that
 answer `501` when used and change nothing when left out (the prompts summary additions were built by WP-12, see its As built paragraph above): the prompt list (`filter[prompt_type_in]`,
 `filter[funnel_stage_in]`, `filter[importance_in]`, `filter[is_branded]`, `filter[is_active]=any`,
 `sort`); the create members `is_branded`, `source`, `creation_method` and `generated_from` (also on the

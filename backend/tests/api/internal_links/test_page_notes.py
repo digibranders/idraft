@@ -397,8 +397,14 @@ async def test_every_write_is_audited_with_its_bodies(
         action: (await audit_rows(migrated, site.workspace, action))[0] for action in ACTIONS
     }
     assert snapshots == {
-        "page_note.created": {"before": None, "after": {"url_id": url_id, "body": "first"}},
-        "page_note.updated": {"before": {"body": "first"}, "after": {"body": "second"}},
+        "page_note.created": {
+            "before": None,
+            "after": {"url_id": url_id, "body": "first", "mentions": []},
+        },
+        "page_note.updated": {
+            "before": {"body": "first", "mentions": []},
+            "after": {"body": "second", "mentions": []},
+        },
         "page_note.deleted": {
             "before": {"url_id": url_id, "body": "second", "author_id": str(editor.user_id)},
             "after": None,
