@@ -8,6 +8,7 @@ import { useMemo, useState, type ReactElement } from 'react';
 
 import { DrawerLinksTab } from './drawer-links-tab';
 import { DrawerIssuesTab } from './drawer-issues-tab';
+import { DrawerOutlineTab } from './drawer-outline-tab';
 import { DrawerOverviewTab } from './drawer-overview-tab';
 import { DrawerSearchTab } from './drawer-search-tab';
 import { ExtrasSections, type ExtrasPart } from './extras-sections';
@@ -37,6 +38,7 @@ import { changesSummaryQuery, DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuer
 import type { PageTier } from '@/lib/internal-links/types';
 import { PAGE_DRAWER_TABS, pageDrawerTab, type PageDrawerTab } from '@/lib/pages/drawer-tabs';
 import { usePageIssues } from '@/lib/pages/issue-source';
+import { OUTLINE_OPEN_AT_START, type OutlineBlockId } from '@/lib/pages/outline-model';
 
 const NONE = 'none';
 const NO_TIER_BULK = (): void => undefined;
@@ -71,8 +73,8 @@ export interface PageInspectorProps {
  * The tabbed drawer of one crawled page (spec 9, mock `il-drawer.js`). Overview holds the tier with its source and
  * tags and Needs attention; Search the 28 days of Search Console and the tracked keywords; Issues the page's issues
  * or, until they exist, its flags; AI the citations; Links
- * the strip, the linking pages by tier and placement, the changes and anchors cards and the neighbors; Outline and
- * Notes hold a line until their tabs land. Equity share is never shown (decision W4).
+ * the strip, the linking pages by tier and placement, the changes and anchors cards and the neighbors; Outline
+ * holds the page's numbers, search listing and headings, and Notes a line until its tab lands. Equity share is never shown (decision W4).
  */
 export function PageInspector({
   context,
@@ -113,6 +115,14 @@ export function PageInspector({
   const inspector = useInspector();
   const tab = pageDrawerTab(inspector.tab);
   const issues = usePageIssues(scope, context.crawl.run, urlId);
+  // The open blocks of the Outline tab belong to the drawer, so they stay while stepping from page to page
+  const [openBlocks, setOpenBlocks] = useState<ReadonlySet<OutlineBlockId>>(() => new Set(OUTLINE_OPEN_AT_START));
+  const toggleBlock = (id: OutlineBlockId): void =>
+    setOpenBlocks((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const ruleText = (ruleId: string | null): string | null => {
     const rule = rules.data?.data.find((candidate) => candidate.rule_id === ruleId);
@@ -257,7 +267,17 @@ export function PageInspector({
           keywords={extras(['keywords'], extrasWords('keywords'), Search)}
         />
       ),
-      outline: <p className="type-body text-foreground-tertiary">{drawer('outline.pending')}</p>,
+      outline: (
+        <DrawerOutlineTab
+          context={context}
+          urlId={urlId}
+          page={page}
+          active={tab === 'outline'}
+          issues={issues}
+          openBlocks={openBlocks}
+          onToggleBlock={toggleBlock}
+        />
+      ),
       issues: (
         <DrawerIssuesTab issues={issues} detail={detail} linkScope={linkScope} issueHref={context.hrefs.issueCheck} />
       ),

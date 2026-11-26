@@ -726,12 +726,27 @@ describe('the page inspector (spec 7.4)', () => {
       expect(await within(panel).findByRole('heading', { name: 'Flags' })).toBeInTheDocument();
     });
 
-    it('draws the interim lines of Outline and Notes', async () => {
+    it('draws the Outline tab, and the interim line of Notes', async () => {
       const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('outline'));
       const panel = await panelOf('/pricing');
-      expect(await within(panel).findByText('The outline of this page appears here')).toBeInTheDocument();
+      expect(await within(panel).findByRole('group', { name: 'Outline numbers' })).toBeInTheDocument();
+      expect(within(panel).queryByText('The outline of this page appears here')).toBeNull();
       await user.click(within(panel).getByRole('tab', { name: 'Notes' }));
       expect(await within(panel).findByText('The notes of this page appear here')).toBeInTheDocument();
+    });
+
+    it('asks for the outline only once the Outline tab is selected', async () => {
+      const asked: string[] = [];
+      server.events.on('request:start', ({ request }) => {
+        if (request.url.includes('/outline')) asked.push(request.url);
+      });
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('overview'));
+      const panel = await panelOf('/pricing');
+      await within(panel).findByRole('group', { name: 'Page numbers' });
+      expect(asked).toEqual([]);
+      await user.click(within(panel).getByRole('tab', { name: 'Outline' }));
+      await within(panel).findByRole('group', { name: 'Outline numbers' });
+      expect(asked).toHaveLength(1);
     });
 
     it('keeps the tab and the header when stepping with J and K', async () => {
