@@ -34,6 +34,8 @@ import {
   worklists,
 } from '../internal-links-world';
 import { linkGraphFixture } from '../fixtures/link-graph';
+import { overviewOf, PAGE_VIEWS, sectionOfPath, viewMatches } from '../internal-links-inventory';
+import { outlineOf } from '../internal-links-outline';
 import { invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
@@ -42,7 +44,7 @@ import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
 import { checkRuleValue, MAX_RULES } from '@/lib/internal-links/rule-value';
 import { MAX_BODY_BYTES, MAX_CSV_CHARS, parseTierCsv, requestBytes } from '@/lib/internal-links/tier-csv';
 import { MAX_TIERS, tierPosition } from '@/lib/internal-links/tiers';
-import type { PageFilter, PageInclude, PageRow, TierImportResult } from '@/lib/internal-links/types';
+import type { PageFilter, PageInclude, PageRow, PageView, TierImportResult } from '@/lib/internal-links/types';
 
 /**
  * The backend OpenAPI's internal links routes, answered from `internal-links-world.ts` (decision W21). Requests are
@@ -64,6 +66,10 @@ const PAGE_QUERY = [
   'filter[indexable]',
   'filter[flags]',
   'filter[worklist]',
+  'filter[view]',
+  'filter[folder]',
+  'filter[depth]',
+  'filter[include_variants]',
   'q',
   'sort',
   'include',
@@ -156,11 +162,20 @@ interface Criteria {
   indexable: boolean | null;
   flags: readonly string[];
   worklist: string | null;
+  view: PageView | null;
+  folder: string | null;
+  depth: number | null;
+  /** The fixture crawl has no variant rows, so this changes nothing here; the API's filter has it. */
+  includeVariants: boolean;
   q: string | null;
 }
 
+/** The `PageView` the address names, or null (also for a word that is not one: the handler answers that with a 422). */
+const viewOf = (raw: string | null): PageView | null => PAGE_VIEWS.find((view) => view === raw) ?? null;
+
 const criteriaOfUrl = (url: URL): Criteria => {
   const indexable = url.searchParams.get('filter[indexable]');
+  const depth = url.searchParams.get('filter[depth]');
   return {
     tierIds: listOf(url, 'filter[tier]'),
     tagIds: listOf(url, 'filter[tag]'),
@@ -168,6 +183,10 @@ const criteriaOfUrl = (url: URL): Criteria => {
     indexable: indexable === null ? null : indexable === 'true',
     flags: listOf(url, 'filter[flags]'),
     worklist: url.searchParams.get('filter[worklist]'),
+    view: viewOf(url.searchParams.get('filter[view]')),
+    folder: url.searchParams.get('filter[folder]'),
+    depth: depth === null ? null : Number(depth),
+    includeVariants: url.searchParams.get('filter[include_variants]') === 'true',
     q: url.searchParams.get('q'),
   };
 };
@@ -179,8 +198,46 @@ const criteriaOfFilter = (filter: PageFilter): Criteria => ({
   indexable: filter.indexable ?? null,
   flags: filter.flags ?? [],
   worklist: filter.worklist ?? null,
+  view: filter.view ?? null,
+  folder: filter.folder ?? null,
+  depth: filter.depth ?? null,
+  includeVariants: filter.include_variants,
   q: filter.q ?? null,
 });
+
+const FOLDER_MAX = 200;
+const DEPTH_MAX = 6;
+
+/** The errors of the new list filters: a view that is none, a view beside a worklist, a folder or a depth out of range. */
+function pageFilterErrors(url: URL): ValidationItem[] {
+  const view = url.searchParams.get('filter[view]');
+  const folder = url.searchParams.get('filter[folder]');
+  const depth = url.searchParams.get('filter[depth]');
+  return [
+    ...(view !== null && viewOf(view) === null
+      ? [queryError('filter[view]', 'enum', `Allowed: ${PAGE_VIEWS.join(', ')}.`)]
+      : []),
+    ...(view !== null && url.searchParams.get('filter[worklist]') !== null
+      ? [queryError('filter[view]', 'value_error', 'Give a view or a worklist, not both.')]
+      : []),
+    ...(folder !== null && (folder.length < 1 || folder.length > FOLDER_MAX)
+      ? [queryError('filter[folder]', 'string_length', `Between 1 and ${String(FOLDER_MAX)} characters.`)]
+      : []),
+    ...(depth !== null && !(/^[0-9]+$/.test(depth) && Number(depth) <= DEPTH_MAX)
+      ? [queryError('filter[depth]', 'int_range', `A whole number from 0 to ${String(DEPTH_MAX)}.`)]
+      : []),
+  ];
+}
+
+/** Total over 28 on each day, the rest on the first days, so the days add up to the total. */
+function spread(total: number, days: number): number[] {
+  const share = Math.floor(total / days);
+  const rest = total - share * days;
+  return Array.from({ length: days }, (_, index) => share + (index < rest ? 1 : 0));
+}
+
+const SEARCH_DAYS = 28;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The pages the worklists that need the crawl history or the links name, for the crawl in view. */
 interface MatchContext {
@@ -197,7 +254,10 @@ function contextOf(projectId: string, run: string | null): MatchContext {
 }
 
 function pageMatches(row: PageRow, criteria: Criteria, context: MatchContext): boolean {
-  const { tierIds, tagIds, status, indexable, flags, worklist, q } = criteria;
+  const { tierIds, tagIds, status, indexable, flags, worklist, view, folder, depth, q } = criteria;
+  if (view !== null && !viewMatches(row, view)) return false;
+  if (folder !== null && sectionOfPath(row.path) !== folder) return false;
+  if (depth !== null && !(viewMatches(row, 'reachable') && Math.min(row.click_depth ?? 0, 6) === depth)) return false;
   if (tierIds.length > 0 && !tierIds.includes(row.tier?.tier_id ?? 'none')) return false;
   if (tagIds.length > 0 && !row.tags.some((tag) => tagIds.includes(tag.term_id))) return false;
   if (status.length > 0 && (row.status_code === null || !status.includes(statusClassOf(row.status_code)))) return false;
@@ -243,11 +303,11 @@ function sortRows(
   rows: PageRow[],
   sort: string,
   deltaOf: (row: PageRow) => number,
-  extraOf: (row: PageRow, key: 'rank' | 'citations' | 'anchor' | 'clicks') => number | null,
+  extraOf: (row: PageRow, key: 'rank' | 'citations' | 'anchor' | 'clicks' | 'impressions') => number | null,
 ): PageRow[] {
   const desc = sort.startsWith('-');
   const key = desc ? sort.slice(1) : sort;
-  if (key === 'rank' || key === 'citations' || key === 'anchor' || key === 'clicks') {
+  if (key === 'rank' || key === 'citations' || key === 'anchor' || key === 'clicks' || key === 'impressions') {
     // Like the server: rank, anchor and clicks put pages without a value last in both directions; citations count 0
     const value = (row: PageRow): number | null => extraOf(row, key) ?? (key === 'citations' ? 0 : null);
     return [...rows].sort((a, b) => {
@@ -714,6 +774,8 @@ export const internalLinkHandlers: HttpHandler[] = [
     if (unknownIncludes.length > 0 || include.length > INCLUDES.length) {
       return invalid(request, [queryError('include', 'enum', `Allowed: ${INCLUDES.join(', ')}.`)]);
     }
+    const refused = pageFilterErrors(caller.url);
+    if (refused.length > 0) return invalid(request, refused);
     const run = readRun(request, caller.url, caller.project.project_id);
     if (run instanceof Response) return run;
     // The weak outlinks need the links, which a crawl past the last four no longer holds
@@ -736,7 +798,13 @@ export const internalLinkHandlers: HttpHandler[] = [
       (row, key) => {
         const page = crawledPage(row.url_id);
         if (page === undefined) return null;
-        const part = { rank: 'keywords', citations: 'citations', anchor: 'anchors', clicks: 'gsc' } as const;
+        const part = {
+          rank: 'keywords',
+          citations: 'citations',
+          anchor: 'anchors',
+          clicks: 'gsc',
+          impressions: 'gsc',
+        } as const;
         const extras = pageExtras(run, page, [part[key]]);
         switch (key) {
           case 'rank':
@@ -747,6 +815,8 @@ export const internalLinkHandlers: HttpHandler[] = [
             return extras.anchors?.distinct ?? null;
           case 'clicks':
             return extras.gsc?.clicks ?? null;
+          case 'impressions':
+            return extras.gsc?.impressions ?? null;
         }
       },
     );
@@ -961,6 +1031,84 @@ export const internalLinkHandlers: HttpHandler[] = [
     const includeAuto = caller.url.searchParams.get('include_auto') === 'true';
     const tierIds = pageTierViews().map((tier) => tier.tier_id);
     return HttpResponse.json({ data: linkGraphFixture(run.run.run_id, tierIds, includeAuto) });
+  }),
+
+  mock('get', `${P}/internal-links/overview`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: ['run'],
+    });
+    if (caller instanceof Response) return caller;
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    const rows = crawledPages().map((page) => pageRow(page, 'all'));
+    return HttpResponse.json({
+      data: overviewOf(rows, {
+        run_id: run.run.run_id,
+        finished_at: run.run.finished_at,
+        sitemap: (run.run.sitemap_pages ?? 0) > 0,
+      }),
+    });
+  }),
+
+  mock('get', `${P}/internal-links/pages/{url_id}/search`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: ['run'],
+    });
+    if (caller instanceof Response) return caller;
+    const id = String(params.url_id);
+    if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
+    const run = readRun(request, caller.url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    const page = crawledPage(id);
+    if (page === undefined) return problem(request, 'not_found');
+    const gsc = pageExtras(run, page, ['gsc']).gsc;
+    if (gsc === undefined || gsc === null || gsc.state !== 'ok' || gsc.window_start === null) {
+      return HttpResponse.json({
+        data: {
+          state: gsc?.state ?? 'not_connected',
+          window_start: null,
+          window_end: null,
+          clicks: null,
+          impressions: null,
+          days: [],
+        },
+      });
+    }
+    const clicks = spread(gsc.clicks ?? 0, SEARCH_DAYS);
+    const impressions = spread(gsc.impressions ?? 0, SEARCH_DAYS);
+    const start = Date.parse(`${gsc.window_start}T00:00:00Z`);
+    return HttpResponse.json({
+      data: {
+        state: 'ok',
+        window_start: gsc.window_start,
+        window_end: gsc.window_end,
+        clicks: gsc.clicks,
+        impressions: gsc.impressions,
+        days: clicks.map((count, index) => ({
+          date: new Date(start + index * DAY_MS).toISOString().slice(0, 10),
+          clicks: count,
+          impressions: impressions[index] ?? 0,
+        })),
+      },
+    });
+  }),
+
+  mock('get', `${P}/internal-links/pages/{url_id}/outline`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: [],
+    });
+    if (caller instanceof Response) return caller;
+    const id = String(params.url_id);
+    if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
+    // The stored HTML is of the latest crawl, whatever crawl the screen shows
+    const latest = runViewOf(caller.project.project_id, null);
+    if (latest === null) return problem(request, 'no_crawl');
+    const page = crawledPage(id);
+    if (page === undefined) return problem(request, 'not_found');
+    return HttpResponse.json({ data: outlineOf(pageRow(page, 'all'), latest.run.run_id) });
   }),
 
   mock('get', `${P}/internal-links/worklists`, ({ request, cookies, params }) => {

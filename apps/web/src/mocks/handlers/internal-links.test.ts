@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { MOCK_WORKSPACE } from '../fixtures';
-import { EVENTUS } from '../internal-links-world';
+import { PAGE_VIEWS } from '../internal-links-inventory';
+import { EVENTUS, HISTORY_RUN_IDS, setLinksScenario } from '../internal-links-world';
 import { mockBrowser } from '@/test/mock-api';
+import type { PageView } from '@/lib/internal-links/types';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
 const P = `${W}/projects/${EVENTUS.project_id}`;
@@ -290,5 +292,129 @@ describe('the internal links mock API', () => {
     expect((await patch({ name: ' Pages ', description: '' })).body).toMatchObject({
       data: { name: 'Pages', description: '' },
     });
+  });
+});
+
+const L = `${P}/internal-links`;
+const OVERVIEW = z.object({
+  data: z.object({
+    status: z.object({
+      live: z.number(),
+      variant: z.number(),
+      redirected: z.number(),
+      client_error: z.number(),
+      server_error: z.number(),
+      blocked: z.number(),
+      other: z.number(),
+    }),
+    indexable: z.number(),
+    not_indexable: z.number(),
+    reachable: z.number(),
+    unreachable: z.number(),
+    sitemap: z.object({
+      indexable_in_sitemap: z.number().nullable(),
+      indexable_missing: z.number().nullable(),
+      listed_not_live: z.number().nullable(),
+      listed_not_indexable: z.number().nullable(),
+    }),
+  }),
+});
+const TOTAL = z.object({ meta: z.object({ total: z.number() }) });
+const SEARCH = z.object({
+  data: z.object({
+    state: z.string(),
+    clicks: z.number().nullable(),
+    days: z.array(z.object({ date: z.string(), clicks: z.number(), impressions: z.number() })),
+  }),
+});
+const IMPRESSIONS = z.object({
+  data: z.array(z.object({ path: z.string() })),
+});
+
+describe('the Pages overview, views and page reads of the mock API', () => {
+  it('gives every view the number the overview shows for it', async () => {
+    const browser = mockBrowser('viewer');
+    const { data } = OVERVIEW.parse((await browser.call('GET', `${L}/overview`)).body);
+    const expected: Record<PageView, number | null> = {
+      live: data.status.live,
+      indexable: data.indexable,
+      not_indexable: data.not_indexable,
+      redirects: data.status.redirected,
+      errors: data.status.client_error + data.status.server_error,
+      client_errors: data.status.client_error,
+      server_errors: data.status.server_error,
+      blocked: data.status.blocked,
+      other: data.status.other,
+      variants: data.status.variant,
+      in_sitemap_indexable: data.sitemap.indexable_in_sitemap,
+      not_in_sitemap: data.sitemap.indexable_missing,
+      sitemap_not_live: data.sitemap.listed_not_live,
+      sitemap_not_indexable: data.sitemap.listed_not_indexable,
+      reachable: data.reachable,
+      unreachable: data.unreachable,
+    };
+    for (const view of PAGE_VIEWS) {
+      const answer = await browser.call('GET', `${L}/pages?filter[view]=${view}&limit=200`);
+      expect([view, TOTAL.parse(answer.body).meta.total]).toEqual([view, expected[view]]);
+    }
+  });
+
+  it('narrows the list by folder and by depth', async () => {
+    const browser = mockBrowser('viewer');
+    const folder = await browser.call('GET', `${L}/pages?filter[folder]=${encodeURIComponent('/blog/')}&limit=200`);
+    expect(ROWS.parse(folder.body).data.map((row) => row.path)).toEqual([
+      '/blog/soc-vs-mdr',
+      '/blog/threat-report-2022',
+      '/blog/vapt-checklist',
+      '/blog/what-is-a-soc',
+    ]);
+    const top = await browser.call('GET', `${L}/pages?filter[folder]=${encodeURIComponent('/')}&limit=200`);
+    expect(ROWS.parse(top.body).data.map((row) => row.path)).toContain('/blog');
+    const zero = await browser.call('GET', `${L}/pages?filter[depth]=0&limit=200`);
+    expect(ROWS.parse(zero.body).data.map((row) => row.path)).toEqual(['/']);
+    expect((await browser.call('GET', `${L}/pages?filter[depth]=7`)).status).toBe(422);
+  });
+
+  it('refuses a view beside a worklist, and a view that is none', async () => {
+    const browser = mockBrowser('viewer');
+    expect((await browser.call('GET', `${L}/pages?filter[view]=live&filter[worklist]=orphans`)).status).toBe(422);
+    expect((await browser.call('GET', `${L}/pages?filter[view]=nothing`)).status).toBe(422);
+  });
+
+  it('sorts by impressions, most first', async () => {
+    const answer = await mockBrowser('viewer').call('GET', `${L}/pages?sort=-impressions&limit=3`);
+    expect(IMPRESSIONS.parse(answer.body).data.map((row) => row.path)).toEqual([
+      '/blog/what-is-a-soc',
+      '/',
+      '/services/soc-as-a-service',
+    ]);
+  });
+
+  it('answers the search of a page over 28 days that add up to its clicks', async () => {
+    const answer = SEARCH.parse((await mockBrowser('viewer').call('GET', `${L}/pages/103/search`)).body).data;
+    expect(answer.state).toBe('ok');
+    expect(answer.days).toHaveLength(28);
+    expect(answer.days.reduce((sum, day) => sum + day.clicks, 0)).toBe(answer.clicks);
+  });
+
+  it('answers the search as pending when Search Console has nothing yet', async () => {
+    setLinksScenario({ gsc: 'pending' });
+    const answer = SEARCH.parse((await mockBrowser('viewer').call('GET', `${L}/pages/103/search`)).body).data;
+    expect(answer).toMatchObject({ state: 'pending', clicks: null, days: [] });
+  });
+
+  it('answers the outline of the latest crawl whatever crawl the screen shows, and 404 for an unknown page', async () => {
+    const browser = mockBrowser('viewer');
+    const latest = await browser.call('GET', `${L}/pages/102/outline`);
+    expect(latest.body).toMatchObject({ data: { state: 'ok', run_id: HISTORY_RUN_IDS[0] } });
+    expect((await browser.call('GET', `${L}/pages/9999/outline`)).status).toBe(404);
+  });
+
+  it('answers 404 on the new routes to a member of another workspace', async () => {
+    const browser = mockBrowser('viewer');
+    const stranger = `/api/v1/workspaces/0192d1a8-0000-7000-8000-00000000dead/projects/${EVENTUS.project_id}/internal-links`;
+    for (const tail of ['overview', 'pages/102/search', 'pages/102/outline']) {
+      expect([tail, (await browser.call('GET', `${stranger}/${tail}`)).status]).toEqual([tail, 404]);
+    }
   });
 });
