@@ -13,6 +13,7 @@ import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-re
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
 import { ShareDialog } from './export/share-dialog';
 import { useClientSummary } from './export/use-client-summary';
+import { drawerContextOf } from './inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
@@ -141,6 +142,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
   const [order, setOrder] = useState<readonly string[]>([]);
   const canWrite = useCan('projects:write');
+  const canNote = useCan('notes:write');
   // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
   const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | 'share' | null>(null);
   const ruleItems: MenuItemDef[] = [
@@ -362,9 +364,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       ) : (
         <PageInspector
           key={inspected.urlId}
-          context={context}
+          context={drawerContextOf(context, { write: canWrite, note: canNote })}
           urlId={inspected.urlId}
-          canWrite={canWrite}
           positionText={stepping.positionText}
           navigation={stepping.navigation}
           onStep={stepping.onStep}

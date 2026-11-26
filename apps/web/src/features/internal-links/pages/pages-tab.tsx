@@ -18,8 +18,7 @@ import { TierKeys } from './tier-keys';
 import { usePageBulk, type BulkTarget } from './use-page-bulk';
 import { WorklistChips } from './worklist-chips';
 import { ScopeMenu } from '../scope-menu';
-import { DEFAULT_SORT } from '../url-state';
-import type { LinksTabContext } from '../tabs';
+import type { PagesContext } from './pages-context';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableProps, RecordAction } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -42,7 +41,7 @@ import {
   pagesQuery,
   withRun,
 } from '@/lib/internal-links/queries';
-import type { EdgeWorklist, PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
+import type { PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
@@ -51,8 +50,6 @@ const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
 const NO_ROWS: readonly PageRow[] = [];
 const REQUIRED_COLUMNS = ['page'];
 const EXPORT_NAME = 'internal-links-pages.csv';
-/** Where the project's tag vocabularies are made (the bulk tag dialog's link when it has none). */
-const TAXONOMY_PATH = '/settings/taxonomy';
 /** The request waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
 
@@ -75,11 +72,17 @@ const EMPTY_KEY = {
  * server filters, sorts and pages (cursors, 100 or 200 rows a page, decision W6). The tab hands the page's Export the
  * server's CSV of the same filter. Equity share is never a column, a sort or an export column (decision W4).
  */
-export function PagesTab({ context }: { context: LinksTabContext }): ReactElement {
+export function PagesTab({ context }: { context: PagesContext }): ReactElement {
   const t = useTranslations('internalLinks');
   const common = useTranslations('common');
   const locale = useLocale();
-  const { scope, state, setSearch, tiers, registerExport } = context;
+  const { scope, setSearch, tiers, registerExport } = context;
+  // The host may build its state afresh on every render; the effects below follow its values, not its identity
+  const { scope: linkScope, view, worklist, sort, q, depth, variants } = context.state;
+  const state = useMemo(
+    () => ({ scope: linkScope, view, worklist, sort, q, depth, variants }),
+    [linkScope, view, worklist, sort, q, depth, variants],
+  );
   const vocabularies = useVocabularies(scope);
   const tags = useMemo(
     () =>
@@ -121,7 +124,17 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   }, [values, setValues, t]);
   // A new query starts again at the first page
   const chosenRun = context.crawl.run;
-  const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, state.q, values, chosenRun]);
+  const filtersKey = JSON.stringify([
+    state.scope,
+    state.view,
+    state.worklist,
+    state.sort,
+    state.q,
+    state.depth,
+    state.variants,
+    values,
+    chosenRun,
+  ]);
   const paging = useCursorPaging(filtersKey);
   // The chooser decides which parts of a row are read (`include`); changing it reads the current page again once
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
@@ -215,10 +228,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               ? 'filtered-empty'
               : 'empty'
             : 'ready';
-  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist]; // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
-  // here) and lists as many rows as the chip counts
-  const openEdgeWorklist = (worklist: EdgeWorklist): void =>
-    setSearch({ tab: 'links', lview: worklist, scope: 'all' }, { history: 'push' });
+  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
   const openRow = (row: PageRow, intent: 'inspector' | 'new-tab'): void => {
     if (intent === 'inspector') {
       context.inspect.open(row.url_id);
@@ -302,7 +312,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         linksAvailable={linksAvailable}
         current={state.worklist}
         onPick={(worklist) => setSearch({ view: worklist })}
-        onPickEdges={openEdgeWorklist}
+        onPickEdges={context.openEdgeWorklist}
         variants={context.crawl.crawl?.pages_variant ?? null}
         onShowVariants={() => {
           setSearch({ view: null });
@@ -342,9 +352,9 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         // The default sort is not written to the address, as the scope and the density are not
         onSortChange={(keys) => {
           const next = sortOfKeys(keys);
-          setSearch({ sort: next === null || next === DEFAULT_SORT ? null : next });
+          setSearch({ sort: next === null || next === context.defaultSort ? null : next });
         }}
-        defaultSort={keysOfSort(DEFAULT_SORT)}
+        defaultSort={keysOfSort(context.defaultSort)}
         density={parseDensity(table.density)}
         onDensityChange={(density) => void setTable({ density: density === 'compact' ? null : density })}
         columnState={{
@@ -437,7 +447,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         count={targetCount}
         tags={tags}
         vocabularies={vocabularies}
-        taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
+        taxonomyHref={context.taxonomyHref}
         pending={bulk.pending}
         alert={bulk.error}
         onApply={(tag, add) => bulk.changeTag(target, tag, add, 'dialog')}

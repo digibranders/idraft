@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Copy, ExternalLink, Flag, Layers, ListTree, Workflow } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
@@ -9,7 +10,7 @@ import { ExtrasSections } from './extras-sections';
 import { NeighborSection } from './neighbor-section';
 import { BulkTagDialog } from '../pages/bulk-tag-dialog';
 import { usePageBulk, type BulkTarget } from '../pages/use-page-bulk';
-import type { LinksTabContext } from '../tabs';
+import type { PageDrawerContext } from './page-drawer-context';
 import { Inspector } from '@/components/app/inspector/inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import { InspectorFooter } from '@/components/app/inspector/inspector-footer';
@@ -22,6 +23,7 @@ import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
@@ -41,13 +43,11 @@ const NO_TIER_BULK = (): void => undefined;
 /** Ids of the strip's group and cells, and the target and features of the page's own window. */
 const STRIP = { group: 'links', depth: 'depth', in: 'in', out: 'out' } as const;
 const NEW_WINDOW = ['_blank', 'noopener'] as const;
-const TAXONOMY_PATH = '/settings/taxonomy';
 
 export interface PageInspectorProps {
-  context: LinksTabContext;
+  context: PageDrawerContext;
   /** A url id the API takes (the screen has checked it with `checkUrlId`). */
   urlId: string;
-  canWrite: boolean;
   positionText: string | null;
   navigation: InspectorNavigation | null;
   onStep: ((direction: 'next' | 'previous') => void) | undefined;
@@ -62,7 +62,6 @@ export interface PageInspectorProps {
 export function PageInspector({
   context,
   urlId,
-  canWrite,
   positionText,
   navigation,
   onStep,
@@ -71,8 +70,8 @@ export function PageInspector({
   const t = useTranslations('internalLinks.inspector');
   const words = useTranslations('internalLinks');
   const common = useTranslations('common');
-  const { scope, state, tiers, timeZone } = context;
-  const read = useQuery(pageDetailQuery(scope, urlId, state.scope, context.crawl.run));
+  const { scope, linkScope, tiers, timeZone, canWrite } = context;
+  const read = useQuery(pageDetailQuery(scope, urlId, linkScope, context.crawl.run));
   const rules = useQuery(tierRulesQuery(scope));
   const summary = useQuery(changesSummaryQuery(scope, context.crawl.run));
   // Until the summary has answered (or when it failed) nothing is known of the comparison: no Changes card, so a
@@ -92,7 +91,7 @@ export function PageInspector({
   const target: BulkTarget = { ids: [urlId], allMatching: false };
   const detail = read.data?.data ?? null;
   const page = detail?.page ?? null;
-  const scopeWord = words(`scope.${SCOPE_KEY[state.scope]}`).toLowerCase();
+  const scopeWord = words(`scope.${SCOPE_KEY[linkScope]}`).toLowerCase();
 
   const ruleText = (ruleId: string | null): string | null => {
     const rule = rules.data?.data.find((candidate) => candidate.rule_id === ruleId);
@@ -113,17 +112,6 @@ export function PageInspector({
   };
   const placementLabel = (placement: Placement): string => words(`placement.${PLACEMENT_KEY[placement]}`);
   const flagLabel = (key: FlagKey): string => words(`flags.${key}`);
-  const viewAll = (filter: 'src' | 'tgt'): void =>
-    context.setSearch(
-      {
-        tab: 'links',
-        src: filter === 'src' ? urlId : null,
-        tgt: filter === 'tgt' ? urlId : null,
-        inspect: null,
-        itab: null,
-      },
-      { history: 'push' },
-    );
   const copyUrl = (): void => {
     if (page === null) return;
     void copyText(page.url).then((copied) =>
@@ -152,7 +140,7 @@ export function PageInspector({
       </InspectorBody>
     );
   } else {
-    const flags = page === null ? [] : pageFlags(page, state.scope);
+    const flags = page === null ? [] : pageFlags(page, linkScope);
     const inScope = (all: number): string => t('inScope', { scope: scopeWord, count: all });
     body = (
       <InspectorBody>
@@ -295,11 +283,11 @@ export function PageInspector({
               direction="in"
               run={context.crawl.run}
               linksAvailable={detail.links_available}
-              linkScope={state.scope}
+              linkScope={linkScope}
               total={detail.linking_pages_total}
               title={t('linkingPages', { count: detail.linking_pages_total })}
-              onOpen={context.inspect.open}
-              onViewAll={() => viewAll('tgt')}
+              onOpen={context.openPage}
+              viewAllHref={context.hrefs.linksTo(urlId)}
             />
             <NeighborSection
               scope={scope}
@@ -307,11 +295,11 @@ export function PageInspector({
               direction="out"
               run={context.crawl.run}
               linksAvailable={detail.links_available}
-              linkScope={state.scope}
+              linkScope={linkScope}
               total={detail.outlinks_total}
               title={t('outlinks', { count: detail.outlinks_total })}
-              onOpen={context.inspect.open}
-              onViewAll={() => viewAll('src')}
+              onOpen={context.openPage}
+              viewAllHref={context.hrefs.linksFrom(urlId)}
             />
             <InspectorSection title={t('flags')} icon={Flag} status="ready">
               {flags.length === 0 ? (
@@ -366,9 +354,9 @@ export function PageInspector({
             )
           }
           primary={
-            <Button variant="primary" icon={Workflow} onClick={() => context.openJourney(urlId)}>
+            <LinkButton variant="primary" icon={Workflow} render={<Link href={context.hrefs.journey(urlId)} />}>
               {t('openJourney')}
-            </Button>
+            </LinkButton>
           }
         />
       }
@@ -380,7 +368,7 @@ export function PageInspector({
         count={1}
         tags={tags}
         vocabularies={vocabularies}
-        taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
+        taxonomyHref={context.hrefs.taxonomy}
         pending={bulk.pending}
         alert={bulk.error}
         onApply={async (tag, add) => {

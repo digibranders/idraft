@@ -80,7 +80,7 @@ describe('the page inspector (spec 7.4)', () => {
     expect(within(panel).getByRole('group', { name: 'Page summary' })).toHaveTextContent(/Depth\s*1/);
     expect(await within(panel).findByRole('heading', { name: /^Linking pages \(\d+\)$/ })).toBeInTheDocument();
     expect(within(panel).getByRole('heading', { name: /^Outlinks \(\d+\)$/ })).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Open in journey' })).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'Open in journey' })).toBeInTheDocument();
     expect(panel.textContent ?? '').not.toMatch(/equity/i);
     // Names and titles are read aloud too
     const attributes = [...panel.querySelectorAll('[aria-label], [title]')].map(
@@ -254,30 +254,27 @@ describe('the page inspector (spec 7.4)', () => {
     expect(seen()).toEqual([]);
   });
 
-  it('opens the journey on the page and closes the inspector', async () => {
-    const onUrlUpdate = vi.fn();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
+  const BASE = '/digibranders/eventus-security/seo/internal-links';
+
+  it.each([
+    ['the latest crawl', OPEN, ''],
+    ['an older crawl', { searchParams: `inspect=page:108&run=${HISTORY_RUN_IDS[1]}` }, `&run=${HISTORY_RUN_IDS[1]}`],
+  ])('links Open in journey to the journey on the page, for %s', async (_name, search, run) => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), search);
     const panel = await panelOf('/pricing');
-    await user.click(await within(panel).findByRole('button', { name: 'Open in journey' }));
-    await waitFor(() => {
-      expect(lastQuery(onUrlUpdate)).toContain('tab=journey');
-      expect(lastQuery(onUrlUpdate)).toContain('focus=108');
-    });
-    expect(lastQuery(onUrlUpdate)).not.toContain('inspect');
-    expect(lastQuery(onUrlUpdate)).not.toContain('itab');
+    const link = await within(panel).findByRole('link', { name: 'Open in journey' });
+    expect(link).toHaveAttribute('href', `${BASE}?tab=journey&focus=108${run}`);
   });
 
-  it('closes the inspector when View all in Links opens the Links tab', async () => {
-    const onUrlUpdate = vi.fn();
-    const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { ...OPEN, onUrlUpdate });
+  it.each([
+    ['the latest crawl', OPEN, ''],
+    ['an older crawl', { searchParams: `inspect=page:108&run=${HISTORY_RUN_IDS[1]}` }, `&run=${HISTORY_RUN_IDS[1]}`],
+  ])('links View all in Links to the links into the page, for %s', async (_name, search, run) => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), search);
     const panel = await panelOf('/pricing');
     const heading = await within(panel).findByRole('heading', { name: /^Linking pages \(\d+\)$/ });
-    await user.click(
-      within(heading.closest('section') as HTMLElement).getByRole('button', { name: 'View all in Links' }),
-    );
-    await waitFor(() => expect(lastQuery(onUrlUpdate)).toContain('tab=links'));
-    expect(lastQuery(onUrlUpdate)).toContain('tgt=108');
-    expect(lastQuery(onUrlUpdate)).not.toContain('inspect');
+    const link = within(heading.closest('section') as HTMLElement).getByRole('link', { name: 'View all in Links' });
+    expect(link).toHaveAttribute('href', `${BASE}?tab=links&tgt=108${run}`);
   });
 
   it('closes with Close: the address loses the inspector', async () => {

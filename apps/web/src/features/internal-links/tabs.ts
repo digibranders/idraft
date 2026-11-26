@@ -10,6 +10,7 @@ import { JourneyTab } from './journey/journey-tab';
 import { LinksTab } from './links/links-tab';
 import { OpportunitiesTab } from './opportunities/opportunities-tab';
 import { SkeletonRows } from './crawl-states';
+import { pagesContextOf } from './pages/pages-context';
 import { PagesTab } from './pages/pages-tab';
 import type { LinksState, LinksTabId, SetLinksSearch } from './url-state';
 import type { CrawlInView } from '@/lib/internal-links/crawl-choice';
@@ -98,7 +99,7 @@ export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
     id: 'pages',
     label: (t) => t('tabs.pages'),
     icon: FileText,
-    render: (context) => createElement(PagesTab, { context }),
+    render: (context) => createElement(PagesTab, { context: pagesContextOf(context) }),
   },
   {
     id: 'links',

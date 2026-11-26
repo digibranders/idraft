@@ -5,7 +5,7 @@ import { searchPathOf } from '@/lib/internal-links/pasted-url';
 import { pageParams, type PageQuery } from '@/lib/internal-links/queries';
 import type { PageFlagFilter, PageTier, StatusClass } from '@/lib/internal-links/types';
 import type { LinksTranslate } from '../tabs';
-import type { LinksState } from '../url-state';
+import type { PagesState } from '@/lib/pages/url-state';
 
 /** The tier filter's value for pages with no tier (`filter[tier]=none`, `PageFilter.tier_ids`). */
 export const UNTIERED_VALUE = 'none';
@@ -99,7 +99,7 @@ export function pageFilterFields(
  * so a hand-edited address never makes the request a 422.
  */
 export function pageQueryOf(
-  state: LinksState,
+  state: Pick<PagesState, 'scope' | 'view' | 'worklist' | 'sort' | 'q' | 'depth' | 'variants'>,
   values: FilterValues,
   cursor: string | null,
   limit: number,
@@ -120,10 +120,10 @@ export function pageQueryOf(
     indexable: idx === 'yes' ? true : idx === 'no' ? false : null,
     flags: enumValuesOf(values.flag).filter((value): value is PageFlagFilter => FLAGS.some(([flag]) => flag === value)),
     worklist: state.worklist,
-    view: null,
+    view: state.view,
     folder: null,
-    depth: null,
-    includeVariants: false,
+    depth: state.depth,
+    includeVariants: state.variants,
     q: searchPathOf(state.q, host),
     sort: state.sort,
     include: [],
