@@ -2096,6 +2096,21 @@ describe('DataTable column groups', () => {
     expect(plain.querySelectorAll('li[role="presentation"]')).toHaveLength(0);
   });
 
+  it('heads a group once in the column chooser when some of its columns are hidden', async () => {
+    const columns = GROUPED.map((column) => (column.id === 'volume' ? { ...column, defaultVisible: false } : column));
+    const { user } = renderWithProviders(<GroupHarness columns={columns} />);
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Columns' });
+    const headings = [...dialog.querySelectorAll('li[role="presentation"]')].map((li) => li.textContent);
+    expect(headings).toEqual(['Engine A', 'Engine B']);
+    // The hidden Volume sits with its group, and Move up on a shown column still acts on the shown order
+    const names = [...dialog.querySelectorAll('li:not([role="presentation"])')].map((li) => li.textContent);
+    expect(names.indexOf('Volume')).toBe(names.indexOf('KD') + 1);
+    expect(screen.queryByRole('button', { name: 'Move Volume up' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Move Rank up' }));
+    expect(headerCell(/^KD/).compareDocumentPosition(headerCell(/^Rank/))).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+  });
+
   it('draws one header row when columns have groups but columnGroups is off', () => {
     const { unmount } = renderWithProviders(<GroupHarness columns={GROUPED} columnGroups={false} />);
     const withGroups = headMarkup();

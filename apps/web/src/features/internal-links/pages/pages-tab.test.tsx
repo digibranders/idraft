@@ -328,9 +328,8 @@ describe('the toolbar and the column groups of All pages (spec 7.1 and 7.2)', ()
     await user.click(within(bar).getByRole('button', { name: 'Columns' }));
     const dialog = await screen.findByRole('dialog', { name: 'Columns' });
     const headings = [...dialog.querySelectorAll('li[role="presentation"]')].map((li) => li.textContent);
-    // The chooser lists the shown columns first and the rest after them, so a group with columns on both sides
-    // of that line is headed twice; every group is headed at least once
-    expect([...new Set(headings)]).toEqual(['Page', 'Indexing', 'Issues', 'Search', 'AI', 'Links']);
+    // A hidden column sits with the rest of its group, so each group is headed once
+    expect(headings).toEqual(['Page', 'Indexing', 'Issues', 'Search', 'AI', 'Links']);
   });
 
   it('shows the link scope menu only while a column that depends on it is shown', async () => {
