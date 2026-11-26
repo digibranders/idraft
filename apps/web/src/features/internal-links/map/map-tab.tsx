@@ -95,6 +95,8 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
     placeholderData: keepPreviousData,
   });
   const answer = read.data?.data;
+  // The words above the map name the links of the map drawn, which is the old one while the new one is read
+  const drawnAuto = answer?.include_auto ?? includeAuto;
   const graph = useMemo(() => (answer === undefined ? null : toMapGraph(answer, tiers)), [answer, tiers]);
 
   // The canvas: its size decides which side the block of unlinked pages stands on
@@ -168,7 +170,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
         reducedMotion: prefersReducedMotion(),
         words: {
           home: t('home'),
-          blockTitle: t('blockTitle', { kind: t(includeAuto ? 'kindAuto' : 'kindEditorial') }),
+          blockTitle: t('blockTitle', { kind: t(drawnAuto ? 'kindAuto' : 'kindEditorial') }),
           blockLine: (key, count) => t('blockLine', { tier: tierName(key === 99 ? null : key), count }),
         },
         tooltip: (target) => {
@@ -189,7 +191,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
           );
         },
       });
-  }, [graph, layout, moved, colour, focus, hidden, minimap, includeAuto, t, tierName]);
+  }, [graph, layout, moved, colour, focus, hidden, minimap, drawnAuto, t, tierName]);
 
   const select = useCallback((id: string | null) => setSearch({ mpage: id }), [setSearch]);
   const onSelect = useCallback(
@@ -326,7 +328,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   }
   if (summary === null || colour === null || focus === null) return <SkeletonRows />;
 
-  const kind = t(includeAuto ? 'kindAuto' : 'kindEditorial');
+  const kind = t(drawnAuto ? 'kindAuto' : 'kindEditorial');
   const sentence = [
     t('summary', { pages: summary.pages, links: summary.links, kind }),
     summary.largest > 1 ? t('summaryLargest', { count: summary.largest }) : '',

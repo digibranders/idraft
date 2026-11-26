@@ -9760,7 +9760,7 @@
         "tier": "Tier",
         "linksIn": "Links in",
         "linksOut": "Links out",
-        "onMap": "On the map",
+        "onMap": "Linked on the map",
         "linked": "Linked",
         "unlinked": "No link in or out",
         "sitewide": "Menu or footer links from (pages)"

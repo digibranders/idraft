@@ -4254,7 +4254,7 @@ interface LinkMapChartProps {
 ```
 
 - **Pointer rules:** a press and a release more than 4 px apart never selects; a dragged page is saved on release anywhere on the canvas (a fast drag is released beside the dot), and only when it moved; a repaint replaces the series and keeps the tooltip (`replaceMerge`, never `notMerge`).
-- **The option** (`lib/internal-links/map-option.ts`) is a pure function of the graph model, the layout, the focus (selection, search, highlight), the colour groups, the tokens and the canvas size; the zoom limits are 40 to 1,200 percent and the minimap shows from 105 percent.
+- **The option** (`lib/internal-links/map-option.ts`) is a pure function of the graph model, the layout, the focus (selection, search, highlight), the colour groups, the tokens and the canvas size; the zoom limits are 40 to 1,200 percent and the minimap shows above 105 percent.
 - **Variants:** none.
 - **States:** arranging (the host shows a status until the layout is ready), drawn. Loading, error, empty and links dropped belong to the host tab.
 - **A11y:** `role="img"` with the host's label; the keyboard and the other controls are the host's buttons (search, choices, legend, zoom, fit, minimap, help, full screen) and the Pages tab is the accessible version.

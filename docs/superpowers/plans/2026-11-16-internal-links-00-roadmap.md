@@ -54,7 +54,7 @@ Plan 03 tasks 0 to 4 (design system and pure modules, no API needed) ───�
 | 10 | `.claude/worktrees/link-map-backend` | `feat/link-map-backend` |
 | 11 | `.claude/worktrees/link-map-web` | `feat/link-map-web` |
 
-All three are cut from `origin/develop` and merge into `develop`. Nothing goes to `main` except through `infra/ship.sh` when the owner says to release (AGENTS.md). Shared files that other tracks also change (messages, design-system registry, tokens, `ProjectSettings`) are named in each plan; merge `develop` into the branch before the final gate.
+Each is cut from `origin/develop` and merge into `develop`. Nothing goes to `main` except through `infra/ship.sh` when the owner says to release (AGENTS.md). Shared files that other tracks also change (messages, design-system registry, tokens, `ProjectSettings`) are named in each plan; merge `develop` into the branch before the final gate.
 
 ## Review steps
 
