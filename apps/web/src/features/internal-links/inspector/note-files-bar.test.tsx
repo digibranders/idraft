@@ -1,4 +1,5 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import type { InfiniteData } from '@tanstack/react-query';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { Route } from 'next';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,8 @@ import { DrawerNotesTab } from './drawer-notes-tab';
 import type { PageDrawerContext } from './page-drawer-context';
 import { announce } from '@/lib/a11y/announcer';
 import { problemFrom, type ApiProblem } from '@/lib/api/problem';
+import { pageNotesQuery } from '@/lib/internal-links/queries';
+import type { PageNoteList } from '@/lib/internal-links/types';
 import { clearAllNoteDrafts, noteDraftPending } from '@/lib/pages/note-drafts';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
 import { EVENTUS } from '@/mocks/internal-links-world';
@@ -100,12 +103,34 @@ const chooser = (container: HTMLElement): HTMLInputElement => {
 const choose = (container: HTMLElement, files: File[]): void => {
   fireEvent.change(chooser(container), { target: { files } });
 };
-/** The refusal line of the box (the app's own live region is an alert too, and empty). */
+/** The refusal line of the box: a polite status, always in the page (the app's own live regions are not a paragraph). */
 const alertLine = (): string => {
-  const line = screen.getAllByRole('alert').find((node) => node.tagName === 'P');
+  const line = screen.getAllByRole('status').find((node) => node.tagName === 'P');
   if (line === undefined) throw new Error('No refusal line');
   return line.textContent;
 };
+/** An upload that waits for `release`; one that `obey`s the signal ends when stopped, as a real request does. */
+const hold = (options: { only?: string; obey?: boolean } = {}): { release: () => void } => {
+  const gate = { release: (): void => undefined };
+  script.respond = (sent, signal) =>
+    options.only !== undefined && sent.name !== options.only
+      ? Promise.resolve(undefined)
+      : new Promise((resolve, reject) => {
+          gate.release = () => {
+            resolve(undefined);
+          };
+          if (options.obey === false) return;
+          signal?.addEventListener('abort', () => {
+            reject(new DOMException('The upload was stopped', 'AbortError'));
+          });
+        });
+  return gate;
+};
+/** Lets what an event started finish, so a test can say that something did not happen. */
+const settle = (): Promise<void> =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  });
 
 beforeEach(() => {
   clearAllNoteDrafts();
@@ -194,6 +219,31 @@ describe('drop and paste', () => {
     expect(screen.getByText('dropped.png')).toBeInTheDocument();
   });
 
+  /** jsdom has no `DragEvent`, so the leave is a plain event that carries the pointer's place. */
+  const leaveAt = (clientX: number, clientY: number): boolean =>
+    fireEvent(document.body, Object.assign(new Event('dragleave', { bubbles: true }), { clientX, clientY }));
+
+  it.each([
+    ['the drag ends', (): boolean => fireEvent.dragEnd(document.body)],
+    ['it is dropped elsewhere', (): boolean => fireEvent.drop(document.body)],
+    ['it leaves the window', (): boolean => leaveAt(-1, -1)],
+  ])('stops saying Drop files to attach when %s', async (_name, finish) => {
+    renderWithProviders(<Tab />);
+    const zone = zoneOf(await area());
+    fireEvent.dragEnter(zone, { dataTransfer: { types: ['Files'], files: [] } });
+    expect(screen.getByText('Drop files to attach')).toBeInTheDocument();
+    finish();
+    expect(screen.queryByText('Drop files to attach')).not.toBeInTheDocument();
+  });
+
+  it('keeps saying it when the pointer only crosses into another element of the page', async () => {
+    renderWithProviders(<Tab />);
+    const zone = zoneOf(await area());
+    fireEvent.dragEnter(zone, { dataTransfer: { types: ['Files'], files: [] } });
+    leaveAt(40, 40);
+    expect(screen.getByText('Drop files to attach')).toBeInTheDocument();
+  });
+
   it('leaves a drop of text to the text area', async () => {
     renderWithProviders(<Tab />);
     const zone = zoneOf(await area());
@@ -240,7 +290,9 @@ describe('refusals', () => {
     expect(alertLine()).toBe(
       'a.zip: only images (PNG, JPEG, GIF, WebP), PDF, text and CSV files. huge.png: over 10 MB. At most 5 files per note.',
     );
-    expect(screen.getAllByRole('alert').filter((node) => node.tagName === 'P')).toHaveLength(1);
+    // One polite line, never an alert
+    expect(screen.getAllByRole('status').filter((node) => node.tagName === 'P')).toHaveLength(1);
+    expect(screen.queryAllByRole('alert').filter((node) => node.tagName === 'P')).toHaveLength(0);
   });
 
   it('keeps the accepted files, and clears the line with the next accepted file', async () => {
@@ -381,6 +433,87 @@ describe('saving a note with files', () => {
   });
 });
 
+describe('uploads in flight', () => {
+  it('goes on when a chip that is not the one on its way is removed, and skips the removed file', async () => {
+    const gate = hold({ only: 'first.png' });
+    const { container, user } = renderWithProviders(<Tab />);
+    await area();
+    choose(container, [png('first.png'), png('second.png')]);
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await screen.findByRole('progressbar', { name: 'Uploading first.png' });
+    await user.click(screen.getByRole('button', { name: 'Remove second.png' }));
+    gate.release();
+    expect(await screen.findByRole('link', { name: /^first\.png/ })).toBeInTheDocument();
+    expect(script.calls).toBe(1);
+    expect(screen.queryByRole('link', { name: /^second\.png/ })).not.toBeInTheDocument();
+  });
+
+  it('does not add the note when the box goes away while a file is on its way', async () => {
+    const posts: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (request.method === 'POST') posts.push(request.url);
+    });
+    const gate = hold({ obey: false });
+    const { container, user, unmount } = renderWithProviders(<Tab />);
+    await area();
+    choose(container, [png('late.png')]);
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await screen.findByRole('progressbar', { name: 'Uploading late.png' });
+    unmount();
+    gate.release();
+    await settle();
+    expect(posts).toEqual([]);
+  });
+
+  it('says why a file dropped during an upload was not taken', async () => {
+    hold();
+    const { container, user } = renderWithProviders(<Tab />);
+    const zone = (await area()).closest('[data-slot="field"]');
+    if (zone === null) throw new Error('No box');
+    choose(container, [png('slow.png')]);
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await screen.findByRole('progressbar', { name: 'Uploading slow.png' });
+    fireEvent.drop(zone, { dataTransfer: { types: ['Files'], files: [png('late.png')] } });
+    expect(alertLine()).toBe('Files are still uploading. Add more when they are done.');
+    expect(screen.queryByText('late.png')).not.toBeInTheDocument();
+  });
+
+  it('moves the focus to the next chip, then to the paperclip, after a chip is removed', async () => {
+    const { container, user } = renderWithProviders(<Tab />);
+    await area();
+    choose(container, [png('a.png'), png('b.png'), png('c.png')]);
+    await user.click(screen.getByRole('button', { name: 'Remove a.png' }));
+    expect(screen.getByRole('button', { name: 'Remove b.png' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Remove c.png' }));
+    expect(screen.getByRole('button', { name: 'Attach files' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Remove b.png' }));
+    expect(screen.getByRole('button', { name: 'Attach files' })).toHaveFocus();
+  });
+
+  it('moves the focus to the text area when the paperclip cannot take it', async () => {
+    hold();
+    const { container, user } = renderWithProviders(<Tab />);
+    const box = await area();
+    choose(container, [png('slow.png')]);
+    await user.click(screen.getByRole('button', { name: 'Add note' }));
+    await screen.findByRole('progressbar', { name: 'Uploading slow.png' });
+    await user.click(screen.getByRole('button', { name: 'Remove slow.png' }));
+    expect(box).toHaveFocus();
+  });
+
+  it('shows a file row when the preview of a chosen image cannot be shown', async () => {
+    const { container } = renderWithProviders(<Tab />);
+    await area();
+    choose(container, [png('broken.png')]);
+    const list = screen.getByRole('list', { name: 'Files in this note' });
+    const image = list.querySelector('img');
+    if (image === null) throw new Error('No preview');
+    fireEvent.error(image);
+    expect(list.querySelector('img')).toBeNull();
+    expect(within(list).getByText('broken.png')).toBeInTheDocument();
+  });
+});
+
 describe('a saved note with files', () => {
   type User = ReturnType<typeof renderWithProviders>['user'];
 
@@ -479,9 +612,92 @@ describe('a saved note with files', () => {
     const item = await addNote(container, user, '', [png('only.png')]);
     await edit(user, item);
     await user.click(within(editing()).getByRole('button', { name: 'Remove only.png' }));
-    expect(within(editing()).getByRole('alert')).toHaveTextContent('A note needs text or a file.');
+    expect(within(editing()).getByRole('status')).toHaveTextContent('A note needs text or a file.');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(patches).toEqual([]);
+  });
+
+  it('cannot take a stored file out while files go up, and the file is still there in the saved list', async () => {
+    const { container, user } = renderWithProviders(<Tab />);
+    const item = await addNote(container, user, 'Shots', [png('one.png')]);
+    const keep = idOf(item, /^one\.png/);
+    await edit(user, item);
+    const gate = hold({ only: 'new.png' });
+    choose(editing(), [png('new.png')]);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('progressbar', { name: 'Uploading new.png' });
+    expect(within(editing()).getByRole('button', { name: 'Remove one.png' })).toBeDisabled();
+    gate.release();
+    const ids = (await changed(1)).attachment_ids;
+    expect(Array.isArray(ids) ? ids : []).toHaveLength(2);
+    expect(Array.isArray(ids) ? ids[0] : null).toBe(keep);
+  });
+
+  it('sends no file list when the note gained a file in another tab during the edit and only its text changed', async () => {
+    const { container, user, queryClient } = renderWithProviders(<Tab />);
+    const item = await addNote(container, user, 'Shots', [png('one.png')]);
+    await edit(user, item);
+    // A refetch brings a second file the edit did not begin with
+    const key = pageNotesQuery(SCOPE, PRICING).queryKey;
+    queryClient.setQueryData<InfiniteData<PageNoteList>>(key, (notes) => {
+      if (notes === undefined) throw new Error('No notes');
+      return {
+        ...notes,
+        pages: notes.pages.map((page) => ({
+          ...page,
+          data: page.data.map((note) => {
+            const first = note.attachments[0];
+            return first === undefined
+              ? note
+              : { ...note, attachments: [...note.attachments, { ...first, id: 'other-tab', name: 'other.png' }] };
+          }),
+        })),
+      };
+    });
+    await user.type(screen.getByRole('combobox', { name: 'Edit your note' }), ' again');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    const sent = await changed(1);
+    expect(sent.body).toBe('Shots again');
+    expect('attachment_ids' in sent).toBe(false);
+  });
+
+  it.each([
+    ['Cancel', async (user: User): Promise<void> => user.click(screen.getByRole('button', { name: 'Cancel' }))],
+    [
+      'Escape',
+      (): Promise<void> => {
+        fireEvent.keyDown(screen.getByRole('combobox', { name: 'Edit your note' }), { key: 'Escape' });
+        return Promise.resolve();
+      },
+    ],
+  ])('does not save the edit when %s ends it while a file goes up', async (_name, leave) => {
+    const { container, user } = renderWithProviders(<Tab />);
+    const item = await addNote(container, user, 'Shots', [png('one.png')]);
+    await edit(user, item);
+    const gate = hold({ obey: false });
+    choose(editing(), [png('new.png')]);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('progressbar', { name: 'Uploading new.png' });
+    await leave(user);
+    gate.release();
+    await settle();
+    expect(patches).toEqual([]);
+    expect(screen.queryByRole('combobox', { name: 'Edit your note' })).not.toBeInTheDocument();
+  });
+
+  it('shows the file row when the thumbnail of a saved image cannot be loaded, and in the edit box', async () => {
+    const { container, user } = renderWithProviders(<Tab />);
+    const item = await addNote(container, user, 'Shots', [png('one.png')]);
+    const thumb = item.querySelector('img');
+    if (thumb === null) throw new Error('No thumbnail');
+    fireEvent.error(thumb);
+    expect(item.querySelector('img')).toBeNull();
+    expect(within(item).getByText('one.png')).toBeInTheDocument();
+    await edit(user, item);
+    const chip = editing().querySelector('img');
+    if (chip === null) throw new Error('No chip image');
+    fireEvent.error(chip);
+    expect(editing().querySelector('img')).toBeNull();
   });
 
   it('brings the files back with the note when a delete is undone', async () => {

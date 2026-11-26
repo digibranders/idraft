@@ -2,7 +2,7 @@
 
 import { FileText } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 
 import { Icon } from '@/components/ui/icon';
 import { formatBytes } from '@/lib/format';
@@ -21,13 +21,21 @@ function FileEntry({ file }: { file: PageNoteFile }): ReactElement {
   const t = useTranslations('pages.drawer.notes.files');
   const size = formatBytes(file.size);
   const own = isOwnUrl(file.url);
+  // A picture that does not load falls back to the file row, so the name and size are still there
+  const [broken, setBroken] = useState(false);
   const body =
-    file.is_image && own ? (
+    file.is_image && own && !broken ? (
       // A fixed square box: the page does not jump when the picture arrives, and nothing is wider than its box
       <span className="block size-12 overflow-hidden rounded-md border border-border-subtle bg-surface-subtle">
         {/* The file name is the alt text, set as an attribute: never markup */}
         {/* eslint-disable-next-line @next/next/no-img-element -- a stored user file from our own API, not a static asset */}
-        <img src={file.url} alt={t('thumb', { name: file.name })} loading="lazy" className="size-full object-cover" />
+        <img
+          src={file.url}
+          alt={t('thumb', { name: file.name })}
+          loading="lazy"
+          onError={() => setBroken(true)}
+          className="size-full object-cover"
+        />
       </span>
     ) : (
       <span className="flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border-subtle px-2 py-1">

@@ -75,6 +75,7 @@ export function NoteEditor({
   const empty = value.trim() === '' && files.pending.length + files.kept.length === 0;
   const busy = pending || files.uploading;
   const drop = useNoteDropZone(files);
+  const attach = useRef<HTMLButtonElement | null>(null);
 
   const [caret, setCaret] = useState(value.length);
   const [focused, setFocused] = useState(false);
@@ -256,6 +257,11 @@ export function NoteEditor({
       )}
       <NoteFilesBar
         box={files}
+        focusFallback={() => {
+          // The paperclip is off while files go up
+          const clip = attach.current;
+          (clip !== null && !clip.disabled ? clip : area.current)?.focus();
+        }}
         onKeptRemoved={(left) => {
           // The last file of a note with no text: the note cannot be saved, and the box says why
           if (left === 0 && value.trim() === '') files.setNotice(t('saveNoText'));
@@ -270,7 +276,7 @@ export function NoteEditor({
             {t('cancel')}
           </Button>
         )}
-        <AttachButton box={files} />
+        <AttachButton box={files} buttonRef={attach} />
         <FieldDescription>{t('hint')}</FieldDescription>
       </div>
       {drop.overlay}

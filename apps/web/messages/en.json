@@ -9302,6 +9302,7 @@
           "quota": "Your workspace has no room left for files.",
           "storage": "Files cannot be stored right now. Try again later.",
           "failed": "{name} could not be uploaded.",
+          "busy": "Files are still uploading. Add more when they are done.",
           "uploading": "Uploading {done} of {total} files",
           "progress": "Uploading {name}",
           "open": "{name}, {size}. Opens in a new tab.",

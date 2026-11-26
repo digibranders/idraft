@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { announce } from '@/lib/a11y/announcer';
 import { formatBytes, formatInteger } from '@/lib/format';
@@ -24,6 +24,8 @@ export interface NoteFileBoxOptions {
 export interface NoteFileBox {
   pending: readonly File[];
   kept: readonly PageNoteFile[];
+  /** The stored files the box opened with: the baseline an edit is compared to, however the note changes meanwhile. */
+  began: readonly PageNoteFile[];
   /** The one refusal line under the box. */
   notice: string | null;
   setNotice: (text: string | null) => void;
@@ -60,16 +62,32 @@ export function useNoteFileBox({
   const sender = useNoteFileUpload(scope, urlId);
   const [pending, setPendingState] = useState<readonly File[]>(initialPending);
   const [kept, setKeptState] = useState<readonly PageNoteFile[]>(initialKept);
+  // What the box held when it opened: for an edit, the files the note had when the edit began
+  const [began] = useState<readonly PageNoteFile[]>(initialKept);
   const [notice, setNotice] = useState<string | null>(null);
   const [progress, setProgress] = useState<ReadonlyMap<File, number>>(new Map());
   const [uploading, setUploading] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const inFlight = useRef<File | null>(null);
+  // The live lists: a run that awaits a file must not write back the lists it started with
+  const pendingRef = useRef(initialPending);
+  const keptRef = useRef(initialKept);
+
+  // A box that goes away (Cancel, Escape, the drawer closing) stops its upload, and the save that awaits it does not go on
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+    },
+    [],
+  );
 
   const setPending = (files: readonly File[]): void => {
+    pendingRef.current = files;
     setPendingState(files);
     onPendingChange?.(files);
   };
   const setKept = (files: readonly PageNoteFile[]): void => {
+    keptRef.current = files;
     setKeptState(files);
     onKeptChange?.(files);
   };
@@ -96,43 +114,54 @@ export function useNoteFileBox({
   };
 
   const add = (incoming: readonly File[]): void => {
-    if (uploading || incoming.length === 0) return;
-    const { accepted, refused } = checkNewFiles(pending.length + kept.length, incoming, pending);
+    if (incoming.length === 0) return;
+    // Files go in a batch: more are taken once it is done, and the box says so
+    if (controller.current !== null) {
+      setNotice(t('busy'));
+      return;
+    }
+    const { accepted, refused } = checkNewFiles(
+      pendingRef.current.length + keptRef.current.length,
+      incoming,
+      pendingRef.current,
+    );
     // One line: a new accepted file with nothing refused clears the last one
     setNotice(
       refused.length === 0
         ? null
         : refused.map((item) => wording(item.kind, 'name' in item ? item.name : '')).join(' '),
     );
-    if (accepted.length > 0) setPending([...pending, ...accepted]);
+    if (accepted.length > 0) setPending([...pendingRef.current, ...accepted]);
   };
 
   const removePending = (file: File): void => {
-    controller.current?.abort();
-    setPending(pending.filter((held) => held !== file));
+    // Only the file on its way stops the request; the others are skipped when their turn comes
+    if (inFlight.current === file) controller.current?.abort();
+    setPending(pendingRef.current.filter((held) => held !== file));
   };
 
   const upload = async (): Promise<readonly PageNoteFile[] | null> => {
-    if (pending.length === 0) return kept;
+    if (pendingRef.current.length === 0) return keptRef.current;
     const run = new AbortController();
     controller.current = run;
     setUploading(true);
     setNotice(null);
-    let stored = [...kept];
-    let left = [...pending];
+    const batch = [...pendingRef.current];
     try {
-      for (const [index, file] of pending.entries()) {
-        announce(t('uploading', { done: index + 1, total: pending.length }), { key: 'note-files-upload' });
+      for (const [index, file] of batch.entries()) {
+        if (!pendingRef.current.includes(file)) continue;
+        announce(t('uploading', { done: index + 1, total: batch.length }), { key: 'note-files-upload' });
+        inFlight.current = file;
         try {
           const done = await sender.upload(file, {
             signal: run.signal,
             onProgress: ({ loaded, total }) =>
               setProgress((held) => new Map(held).set(file, total === null || total === 0 ? 0 : loaded / total)),
           });
-          stored = [...stored, done];
-          left = left.filter((held) => held !== file);
-          setKept(stored);
-          setPending(left);
+          // Stopped while the last bytes were on their way: the caller must not go on to write
+          if (run.signal.aborted) return null;
+          setKept([...keptRef.current, done]);
+          setPending(pendingRef.current.filter((held) => held !== file));
         } catch (error) {
           if (isAbort(error)) return null;
           if (!isNoteFileRefusal(error)) throw error;
@@ -140,10 +169,11 @@ export function useNoteFileBox({
           return null;
         }
       }
-      return stored;
+      return run.signal.aborted ? null : keptRef.current;
     } finally {
       setUploading(false);
       setProgress(new Map());
+      inFlight.current = null;
       controller.current = null;
     }
   };
@@ -151,13 +181,14 @@ export function useNoteFileBox({
   return {
     pending,
     kept,
+    began,
     notice,
     setNotice,
     progress,
     uploading,
     add,
     removePending,
-    removeKept: (id) => setKept(kept.filter((file) => file.id !== id)),
+    removeKept: (id) => setKept(keptRef.current.filter((file) => file.id !== id)),
     upload,
     reset: () => {
       setPending([]);

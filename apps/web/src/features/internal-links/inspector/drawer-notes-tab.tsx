@@ -146,8 +146,9 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
     // New files go up first; `next` is then the files that remain plus the new ones
     const next = await box.upload();
     if (next === null) return;
-    // The files the note holds now: `change` leaves `attachment_ids` out unless the set differs (`[]` detaches all)
-    const held = saved?.attachments ?? [];
+    // The files the edit began with, not the ones the list holds now (a refetch or another tab may have added some):
+    // `change` leaves `attachment_ids` out unless the box's set differs from them (`[]` detaches all)
+    const held = box.began;
     if (saved?.body === body && attachmentIdsOf({ held, next }) === undefined) {
       endEdit(noteId);
       return;
