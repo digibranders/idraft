@@ -68,7 +68,7 @@ describe('NoteText', () => {
 
   it('makes an issue chip a link to the check when the seam has a route', () => {
     renderText('Fix @Missing title', [ISSUE], { issueHref: (id) => route(`/seo/issues?check=${id}`) });
-    const link = screen.getByRole('link', { name: 'Open this check on the Issues page' });
+    const link = screen.getByRole('link', { name: 'Open Missing title on the Issues page' });
     expect(link).toHaveAttribute('href', '/seo/issues?check=title_missing');
   });
 

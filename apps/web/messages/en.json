@@ -9252,7 +9252,7 @@
         },
         "chips": {
           "openPage": "Open {path}",
-          "openIssue": "Open this check on the Issues page",
+          "openIssue": "Open {name} on the Issues page",
           "user": "Teammate {name}",
           "keyword": "Tracked keyword {keyword}"
         },

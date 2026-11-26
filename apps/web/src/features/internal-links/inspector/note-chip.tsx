@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { Icon } from '@/components/ui/icon';
+import { Truncate } from '@/components/ui/truncate';
 import type { MentionType, NoteMention } from '@/lib/pages/note-mentions';
 import { cn } from '@/lib/utils';
 
@@ -43,7 +44,7 @@ export function NoteChip({ mention, onOpenPage, issueHref }: NoteChipProps): Rea
   const inner = (
     <>
       <Icon icon={CHIP_ICON[mention.type]} size="xs" />
-      <span className="min-w-0 truncate">{label}</span>
+      <Truncate text={label} />
     </>
   );
 
@@ -63,7 +64,7 @@ export function NoteChip({ mention, onOpenPage, issueHref }: NoteChipProps): Rea
     const href = issueHref(mention.target);
     if (href !== null) {
       return (
-        <Link href={href} aria-label={t('openIssue')} className={cn(CHIP, ACTION)}>
+        <Link href={href} aria-label={t('openIssue', { name: label })} className={cn(CHIP, ACTION)}>
           {inner}
         </Link>
       );
@@ -75,9 +76,7 @@ export function NoteChip({ mention, onOpenPage, issueHref }: NoteChipProps): Rea
   return (
     <span className={CHIP}>
       <Icon icon={CHIP_ICON[mention.type]} size="xs" />
-      <span aria-hidden="true" className="min-w-0 truncate">
-        {label}
-      </span>
+      <Truncate aria-hidden="true" text={label} />
       <span className="sr-only">{words}</span>
     </span>
   );
