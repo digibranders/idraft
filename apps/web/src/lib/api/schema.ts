@@ -2380,6 +2380,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The checks of a crawl, with the pages each found and the totals of the strip */
+        get: operations["list_issues_api_v1_workspaces__workspace_id__projects__project_id__issues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups": {
         parameters: {
             query?: never;
@@ -8302,6 +8319,122 @@ export interface components {
         InvitationResponse: {
             data: components["schemas"]["Invitation"];
         };
+        /** IssueCheck */
+        IssueCheck: {
+            /** Category */
+            category: string;
+            /**
+             * Clicks
+             * @description Search Console clicks of those pages in the window; null when the check did not run or `meta.gsc.state` is not `ok`.
+             */
+            clicks: number | null;
+            /**
+             * Example Path
+             * @description The first path in byte order among the check's pages; null when none.
+             */
+            example_path: string | null;
+            /**
+             * Found By
+             * @enum {string}
+             */
+            found_by: "crawl" | "ranks" | "gsc" | "ga4" | "ai";
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "status-4xx" | "status-5xx" | "clicks-page-broken" | "rank-page-broken" | "cited-page-broken" | "clicks-page-orphan" | "redirect-broken" | "redirect-chain" | "links-to-redirect" | "redirect-pages" | "canonical-broken" | "noindex" | "canonical-elsewhere" | "sitemap-broken" | "sitemap-nonindexable" | "not-in-sitemap" | "broken-internal-links" | "orphans" | "editorial-orphans" | "links-to-nonindexable" | "deep-pages" | "nofollow-internal" | "title-missing" | "title-duplicate" | "title-long" | "title-short" | "url-format" | "url-long" | "off-target";
+            /**
+             * Pages
+             * @description Pages the check found; null when it did not run.
+             */
+            pages: number | null;
+            /**
+             * Reason
+             * @description Why the check did not run; null when it ran.
+             */
+            reason: ("source_not_connected" | "not_collected" | "no_sitemap" | "links_dropped") | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "notice";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ran" | "not_run";
+            /**
+             * Tab
+             * @enum {string}
+             */
+            tab: "technical" | "on_page";
+        };
+        /**
+         * IssueDetail
+         * @description What a check found on one page (spec section 4, last column). The web writes the sentence.
+         */
+        IssueDetail: {
+            /** Count */
+            count?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Target Path */
+            target_path?: string | null;
+            /** Target Status */
+            target_status?: number | null;
+        };
+        /** IssueGsc */
+        IssueGsc: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected";
+            /** Window End */
+            window_end: string | null;
+            /** Window Start */
+            window_start: string | null;
+        };
+        /** IssueListResponse */
+        IssueListResponse: {
+            /** Data */
+            data: components["schemas"]["IssueCheck"][];
+            meta: components["schemas"]["IssueMeta"];
+            summary: components["schemas"]["IssueSummary"];
+        };
+        /** IssueMeta */
+        IssueMeta: {
+            /** Crawled At */
+            crawled_at: string | null;
+            gsc: components["schemas"]["IssueGsc"];
+            /** Links Available */
+            links_available: boolean;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
+        /** IssueSummary */
+        IssueSummary: {
+            /** Checks Passed */
+            checks_passed: number;
+            /** Checks Ran */
+            checks_ran: number;
+            /**
+             * Pages Crawled
+             * @description Every address of the crawl, variants included.
+             */
+            pages_crawled: number;
+            /** Pages With Error */
+            pages_with_error: number;
+            /** Pages With Issue */
+            pages_with_issue: number;
+            /** Pages With Notice */
+            pages_with_notice: number;
+            /** Pages With Warning */
+            pages_with_warning: number;
+        };
         /** JoinedWorkspace */
         JoinedWorkspace: {
             /** Name */
@@ -10035,6 +10168,7 @@ export interface components {
             change?: components["schemas"]["PageChange"] | null;
             citations?: components["schemas"]["CitationCounts"] | null;
             gsc?: components["schemas"]["GscPage"] | null;
+            issue?: components["schemas"]["IssueDetail"] | null;
             keywords?: components["schemas"]["KeywordSummary"] | null;
         };
         /**
@@ -20053,10 +20187,12 @@ export interface operations {
                 "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors" | "variant")[] | null;
                 "filter[include_variants]"?: boolean;
                 "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
+                /** @description Only the pages one check of the Issues page found. It sets the variant handling the check needs, so `filter[include_variants]` is ignored with it. */
+                "filter[issue]"?: ("status-4xx" | "status-5xx" | "clicks-page-broken" | "rank-page-broken" | "cited-page-broken" | "clicks-page-orphan" | "redirect-broken" | "redirect-chain" | "links-to-redirect" | "redirect-pages" | "canonical-broken" | "noindex" | "canonical-elsewhere" | "sitemap-broken" | "sitemap-nonindexable" | "not-in-sitemap" | "broken-internal-links" | "orphans" | "editorial-orphans" | "links-to-nonindexable" | "deep-pages" | "nofollow-internal" | "title-missing" | "title-duplicate" | "title-long" | "title-short" | "url-format" | "url-long" | "off-target") | null;
                 q?: string | null;
                 sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change" | "rank" | "-rank" | "citations" | "-citations" | "anchor" | "-anchor" | "tier" | "-tier" | "clicks" | "-clicks" | "title" | "-title" | "indexable" | "-indexable" | "in_sitemap" | "-in_sitemap";
-                /** @description Parts to add to each row as `extras`. */
-                include?: ("changes" | "keywords" | "citations" | "anchors" | "gsc")[] | null;
+                /** @description Parts to add to each row as `extras`. `issue` is the detail of `filter[issue]` and stays null without it. */
+                include?: ("changes" | "keywords" | "citations" | "anchors" | "gsc" | "issue")[] | null;
                 format?: "json" | "csv";
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
@@ -20428,6 +20564,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorklistsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_issues_api_v1_workspaces__workspace_id__projects__project_id__issues_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description With `format=csv`: the rows as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueListResponse"];
+                    "text/csv": unknown;
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -24062,11 +24235,13 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPage
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterIssueAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[issue]"]> = ["status-4xx", "status-5xx", "clicks-page-broken", "rank-page-broken", "cited-page-broken", "clicks-page-orphan", "redirect-broken", "redirect-chain", "links-to-redirect", "redirect-pages", "canonical-broken", "noindex", "canonical-elsewhere", "sitemap-broken", "sitemap-nonindexable", "not-in-sitemap", "broken-internal-links", "orphans", "editorial-orphans", "links-to-nonindexable", "deep-pages", "nofollow-internal", "title-missing", "title-duplicate", "title-long", "title-short", "url-format", "url-long", "off-target"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change", "rank", "-rank", "citations", "-citations", "anchor", "-anchor", "tier", "-tier", "clicks", "-clicks", "title", "-title", "indexable", "-indexable", "in_sitemap", "-in_sitemap"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc", "issue"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksTierFlowGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idIssuesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
@@ -24195,6 +24370,13 @@ export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<com
 export const internalLinksSettingsScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettings"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
 export const internalLinksSettingsPatchScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettingsPatch"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
+export const issueCheckFound_byValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["found_by"]> = ["crawl", "ranks", "gsc", "ga4", "ai"];
+export const issueCheckIdValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["id"]> = ["status-4xx", "status-5xx", "clicks-page-broken", "rank-page-broken", "cited-page-broken", "clicks-page-orphan", "redirect-broken", "redirect-chain", "links-to-redirect", "redirect-pages", "canonical-broken", "noindex", "canonical-elsewhere", "sitemap-broken", "sitemap-nonindexable", "not-in-sitemap", "broken-internal-links", "orphans", "editorial-orphans", "links-to-nonindexable", "deep-pages", "nofollow-internal", "title-missing", "title-duplicate", "title-long", "title-short", "url-format", "url-long", "off-target"];
+export const issueCheckReasonAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["reason"]> = ["source_not_connected", "not_collected", "no_sitemap", "links_dropped"];
+export const issueCheckSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["severity"]> = ["error", "warning", "notice"];
+export const issueCheckStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["state"]> = ["ran", "not_run"];
+export const issueCheckTabValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["tab"]> = ["technical", "on_page"];
+export const issueGscStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueGsc"]["state"]> = ["ok", "pending", "not_connected"];
 export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
 export const keywordImportStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["status"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
