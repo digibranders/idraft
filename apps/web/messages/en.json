@@ -10417,7 +10417,7 @@
       "noTitle": "No title",
       "sameTitle": "Same title as {target}",
       "sameTitleMore": "Same title as {target} and {more} more",
-      "characters": "{count} characters",
+      "characters": "{count, plural, one {# character} other {# characters}}",
       "capitals": "Has capitals",
       "underscores": "Has underscores",
       "capitalsAndUnderscores": "Has capitals and underscores",

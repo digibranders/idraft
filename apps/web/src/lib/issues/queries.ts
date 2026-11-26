@@ -1,7 +1,7 @@
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
 import type { DownloadQuery } from '@/lib/api/download';
-import type { paths } from '@/lib/api/schema';
-import { csvOf, pagesPath, withRun } from '@/lib/internal-links/queries';
+import { issueGscStateValues, type paths } from '@/lib/api/schema';
+import { csvOf, isRecord, pagesPath, withRun } from '@/lib/internal-links/queries';
 import type { LinksScope, PageSort } from '@/lib/internal-links/types';
 import type { CheckId, IssueListResponse } from './types';
 
@@ -35,7 +35,16 @@ export const issuesPath = (scope: LinksScope): `/api/v1/${string}` =>
 export const issuesQuery = (scope: LinksScope, run: string | null = null): ApiQueryOptions<typeof ISSUES> =>
   apiQuery(ISSUES, { params: { path: pathOf(scope), query: withRun({}, run) } });
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+const SUMMARY_COUNTS = [
+  'pages_crawled',
+  'pages_with_issue',
+  'pages_with_error',
+  'pages_with_warning',
+  'pages_with_notice',
+  'checks_ran',
+  'checks_passed',
+] as const;
+const GSC_STATES: readonly unknown[] = issueGscStateValues;
 
 /**
  * The list answers JSON or CSV in the OpenAPI, so its typed answer is `unknown`, as the pages list's is. The JSON
@@ -48,10 +57,12 @@ export function isIssueListResponse(value: unknown): value is IssueListResponse 
   return (
     Array.isArray(data) &&
     isRecord(summary) &&
+    SUMMARY_COUNTS.every((count) => typeof summary[count] === 'number') &&
     isRecord(meta) &&
     typeof meta.run_id === 'string' &&
     typeof meta.links_available === 'boolean' &&
-    isRecord(meta.gsc)
+    isRecord(meta.gsc) &&
+    GSC_STATES.includes(meta.gsc.state)
   );
 }
 

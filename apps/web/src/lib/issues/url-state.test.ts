@@ -84,6 +84,12 @@ describe('parseIssuesSearch', () => {
     expect(parseIssuesSearch({ q: '  spaced out ' }).q).toBe('  spaced out ');
   });
 
+  it('cuts the search at 200 code points, so an emoji is never split', () => {
+    const emoji = String.fromCodePoint(0x1f600);
+    expect(parseIssuesSearch({ q: `${'a'.repeat(199)}${emoji}` }).q).toBe(`${'a'.repeat(199)}${emoji}`);
+    expect(parseIssuesSearch({ q: `${'a'.repeat(200)}${emoji}` }).q).toBe('a'.repeat(200));
+  });
+
   it('lets the tab of a check win over the tab of the address', () => {
     const checks = [check('status-4xx', 'technical'), check('title-long', 'on_page')];
     expect(parseIssuesSearch({ tab: 'technical', check: 'title-long' }, checks).tab).toBe('on-page');

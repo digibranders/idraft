@@ -209,7 +209,8 @@ export function pageFilterOf(query: PageQuery): PageFilter {
 export const pagesQuery = (scope: LinksScope, query: PageQuery, run: string | null): ApiQueryOptions<typeof PAGES> =>
   apiQuery(PAGES, { params: { path: pathOf(scope), query: withRun(pageParams(query), run) } });
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 /**
  * The pages list's 200 declares a JSON body and a CSV body in the OpenAPI, so the generated type of its answer is

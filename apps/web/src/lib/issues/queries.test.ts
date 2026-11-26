@@ -85,7 +85,15 @@ describe('the pages of a check query', () => {
 describe('isIssueListResponse (the list answers JSON or CSV, so its typed answer is unknown)', () => {
   const answer = {
     data: [],
-    summary: { pages_crawled: 18, checks_ran: 24, checks_passed: 9 },
+    summary: {
+      pages_crawled: 18,
+      pages_with_issue: 7,
+      pages_with_error: 2,
+      pages_with_warning: 4,
+      pages_with_notice: 5,
+      checks_ran: 24,
+      checks_passed: 9,
+    },
     meta: { run_id: 'r', crawled_at: null, links_available: true, gsc: { state: 'ok' } },
   };
 
@@ -100,5 +108,19 @@ describe('isIssueListResponse (the list answers JSON or CSV, so its typed answer
     expect(isIssueListResponse({ ...answer, summary: null })).toBe(false);
     expect(isIssueListResponse({ ...answer, meta: { ...answer.meta, gsc: null } })).toBe(false);
     expect(isIssueListResponse({ ...answer, meta: { ...answer.meta, run_id: 7 } })).toBe(false);
+  });
+
+  it('refuses a summary count that is not a number', () => {
+    expect(isIssueListResponse({ ...answer, summary: { ...answer.summary, checks_passed: '9' } })).toBe(false);
+    expect(isIssueListResponse({ ...answer, summary: { ...answer.summary, pages_with_notice: null } })).toBe(false);
+    expect(isIssueListResponse({ ...answer, summary: { ...answer.summary, pages_crawled: undefined } })).toBe(false);
+  });
+
+  it('accepts each Search Console state and refuses any other', () => {
+    for (const state of ['ok', 'pending', 'not_connected']) {
+      expect(isIssueListResponse({ ...answer, meta: { ...answer.meta, gsc: { state } } })).toBe(true);
+    }
+    expect(isIssueListResponse({ ...answer, meta: { ...answer.meta, gsc: { state: 'broken' } } })).toBe(false);
+    expect(isIssueListResponse({ ...answer, meta: { ...answer.meta, gsc: {} } })).toBe(false);
   });
 });

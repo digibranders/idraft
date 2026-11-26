@@ -26,7 +26,7 @@ export interface IssuesState {
 
 export type IssuesSearch = Readonly<Record<string, string | null | undefined>>;
 
-/** The longest search text the API takes. */
+/** The longest search text the API takes, in code points (an emoji is one, not two). */
 const MAX_SEARCH_LENGTH = 200;
 const SEVERITIES: readonly IssuesSeverity[] = ['error', 'warning', 'notice'];
 const FOUND_BY: readonly IssuesFoundBy[] = ['crawl', 'ranks', 'gsc', 'ai'];
@@ -78,7 +78,9 @@ export function parseIssuesSearch(search: IssuesSearch, checks: readonly IssueCh
     check,
     severity: SEVERITIES.find((severity) => severity === search.severity) ?? 'all',
     by: FOUND_BY.find((found) => found === search.by) ?? 'all',
-    q: (search.q ?? '').slice(0, MAX_SEARCH_LENGTH),
+    q: Array.from(search.q ?? '')
+      .slice(0, MAX_SEARCH_LENGTH)
+      .join(''),
     showPassed: search.passed !== 'hide',
     sort: isPageSort(search.sort) ? search.sort : null,
   };

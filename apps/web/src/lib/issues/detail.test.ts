@@ -1,3 +1,4 @@
+import { createTranslator } from 'next-intl';
 import { describe, expect, it } from 'vitest';
 
 import messages from '../../../messages/en.json';
@@ -256,6 +257,79 @@ const CASES: readonly Case[] = [
   { name: 'no count, duplicate title', check: 'title-duplicate', row: row(200, { target_path: '/a' }), expected: null },
   { name: 'no status, ranked broken page', check: 'rank-page-broken', row: row(null, { count: 1 }), expected: null },
 ];
+
+const t = createTranslator({ locale: 'en', messages, namespace: 'issues.found' });
+type FoundKey = Parameters<typeof t>[0];
+const isFoundKey = (key: string): key is FoundKey => Object.hasOwn(messages.issues.found, key);
+const render = (message: ReturnType<typeof detailMessage>): string | null =>
+  message === null ? null : isFoundKey(message.key) ? t(message.key, message.values) : `no message ${message.key}`;
+
+/** The sentence a reader sees for a page of a check, with the ICU plurals of the app's own formatter. */
+const TEXTS: readonly { check: CheckId; row: Row; text: string }[] = [
+  { check: 'status-5xx', row: row(503), text: 'Returns 503' },
+  { check: 'sitemap-broken', row: row(404), text: 'Returns 404' },
+  { check: 'redirect-pages', row: row(302, { target_path: null }), text: 'Returns 302' },
+  { check: 'status-4xx', row: row(404, { count: 1 }), text: 'Returns 404, linked from 1 page' },
+  { check: 'status-4xx', row: row(404, { count: 4 }), text: 'Returns 404, linked from 4 pages' },
+  { check: 'redirect-pages', row: row(301, { target_path: '/services/vapt' }), text: 'Redirects to /services/vapt' },
+  {
+    check: 'redirect-broken',
+    row: row(301, { target_path: '/gone', target_status: 404 }),
+    text: 'Redirects to /gone (404)',
+  },
+  { check: 'redirect-chain', row: row(301, { target_path: '/b' }), text: 'Redirects to /b, which redirects again' },
+  { check: 'links-to-redirect', row: row(200, { count: 1 }), text: 'Links to 1 address that redirects' },
+  { check: 'links-to-redirect', row: row(200, { count: 2 }), text: 'Links to 2 addresses that redirect' },
+  { check: 'canonical-elsewhere', row: row(200, { target_path: '/main' }), text: 'Canonical: /main' },
+  {
+    check: 'canonical-broken',
+    row: row(200, { target_path: '/main', target_status: 301 }),
+    text: 'Canonical: /main (301)',
+  },
+  { check: 'noindex', row: row(200, { reason: 'meta_tag' }), text: 'Has a noindex tag' },
+  { check: 'noindex', row: row(200, { reason: 'http_header' }), text: 'Sends a noindex header' },
+  { check: 'sitemap-nonindexable', row: row(200, { reason: 'canonical' }), text: 'Canonical points to another page' },
+  { check: 'sitemap-nonindexable', row: row(200, { reason: 'meta_tag' }), text: 'Set to noindex' },
+  { check: 'sitemap-nonindexable', row: row(200, { reason: 'robots_txt' }), text: 'Blocked by robots.txt' },
+  { check: 'sitemap-nonindexable', row: row(200, { reason: null }), text: 'Not indexable' },
+  { check: 'not-in-sitemap', row: row(200), text: 'Indexable, not in the sitemap' },
+  { check: 'broken-internal-links', row: row(200, { count: 1 }), text: 'Links to 1 broken page' },
+  { check: 'broken-internal-links', row: row(200, { count: 3 }), text: 'Links to 3 broken pages' },
+  { check: 'orphans', row: row(200), text: 'No internal links in' },
+  { check: 'editorial-orphans', row: row(200, { count: 1 }), text: '1 linking page, none editorial' },
+  { check: 'editorial-orphans', row: row(200, { count: 2 }), text: '2 linking pages, none editorial' },
+  { check: 'links-to-nonindexable', row: row(200, { count: 1 }), text: 'Links to 1 non-indexable page' },
+  { check: 'links-to-nonindexable', row: row(200, { count: 5 }), text: 'Links to 5 non-indexable pages' },
+  { check: 'deep-pages', row: row(200, { count: 5 }), text: '5 clicks from the home page' },
+  { check: 'nofollow-internal', row: row(200, { count: 1 }), text: '1 nofollow link to your pages' },
+  { check: 'nofollow-internal', row: row(200, { count: 6 }), text: '6 nofollow links to your pages' },
+  { check: 'title-missing', row: row(200), text: 'No title' },
+  { check: 'title-duplicate', row: row(200, { target_path: '/a', count: 1 }), text: 'Same title as /a' },
+  { check: 'title-duplicate', row: row(200, { target_path: '/a', count: 3 }), text: 'Same title as /a and 2 more' },
+  { check: 'title-long', row: row(200, { count: 1 }), text: '1 character' },
+  { check: 'title-short', row: row(200, { count: 12 }), text: '12 characters' },
+  { check: 'url-long', row: row(200, { count: 130 }), text: '130 characters' },
+  { check: 'url-format', row: row(200, { reason: 'capitals' }), text: 'Has capitals' },
+  { check: 'url-format', row: row(200, { reason: 'underscores' }), text: 'Has underscores' },
+  { check: 'url-format', row: row(200, { reason: 'both' }), text: 'Has capitals and underscores' },
+  { check: 'rank-page-broken', row: row(404, { count: 1 }), text: 'Returns 404, 1 keyword ranks with it' },
+  { check: 'rank-page-broken', row: row(301, { count: 2 }), text: 'Returns 301, 2 keywords rank with it' },
+  { check: 'cited-page-broken', row: row(404, { count: 1 }), text: 'Returns 404, cited in 1 answer' },
+  { check: 'cited-page-broken', row: row(301, { count: 3 }), text: 'Returns 301, cited in 3 answers' },
+  { check: 'off-target', row: row(200, { count: 1 }), text: '1 keyword ranks with another page' },
+  { check: 'off-target', row: row(200, { count: 4 }), text: '4 keywords rank with another page' },
+];
+
+describe('the sentences of "What was found", as the reader sees them', () => {
+  it.each(TEXTS)('$check: $text', ({ check, row: given, text }) => {
+    expect(render(detailMessage(check, given))).toBe(text);
+  });
+
+  it('covers every key of issues.found', () => {
+    const used = new Set(TEXTS.flatMap(({ check, row: given }) => detailMessage(check, given)?.key ?? []));
+    expect(Object.keys(messages.issues.found).filter((key) => !used.has(key))).toEqual([]);
+  });
+});
 
 describe('detailMessage', () => {
   it.each(CASES)('$name', ({ check, row: given, expected }) => {

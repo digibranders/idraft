@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { MOCK_WORKSPACE } from '../fixtures';
 import { EVENTUS, HISTORY_RUN_IDS, setLinksScenario } from '../internal-links-world';
 import { issueCheckIdValues } from '@/lib/api/schema';
+import { CATEGORY_IDS } from '@/lib/issues/types';
 import { fieldCodes, mockBrowser } from '@/test/mock-api';
 
 const P = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${EVENTUS.project_id}`;
@@ -11,7 +12,7 @@ const CHECK = z.object({
   id: z.string(),
   tab: z.string(),
   category: z.string(),
-  severity: z.string(),
+  severity: z.enum(['error', 'warning', 'notice']),
   found_by: z.string(),
   state: z.string(),
   reason: z.string().nullable(),
@@ -39,6 +40,7 @@ const LIST = z.object({
 const PAGES = z.object({
   data: z.array(
     z.object({
+      url_id: z.string(),
       path: z.string(),
       status_code: z.number().nullable(),
       extras: z
@@ -93,6 +95,45 @@ describe('the Issues mock API: the list of checks', () => {
     }
     expect((await checkOf('status-4xx')).pages).toBe(1);
     expect((await checkOf('status-4xx')).example_path).toBe('/services/threat-hunting');
+  });
+
+  it('counts every check that ran as its pages list does, and builds the strip from those lists', async () => {
+    const answer = await list();
+    const idsOf = async (id: string): Promise<{ total: number; ids: string[] }> => {
+      const pages = await pagesOf(id, '&limit=200');
+      return { total: pages.meta.total, ids: pages.data.map((row) => row.url_id) };
+    };
+    const unions: Record<'all' | 'error' | 'warning' | 'notice', Set<string>> = {
+      all: new Set(),
+      error: new Set(),
+      warning: new Set(),
+      notice: new Set(),
+    };
+    for (const check of answer.data.filter((candidate) => candidate.state === 'ran')) {
+      const { total, ids } = await idsOf(check.id);
+      expect([check.id, total]).toEqual([check.id, check.pages]);
+      expect([check.id, ids.length]).toEqual([check.id, total]);
+      for (const id of ids) {
+        unions.all.add(id);
+        unions[check.severity].add(id);
+      }
+    }
+    expect({
+      pages_with_issue: unions.all.size,
+      pages_with_error: unions.error.size,
+      pages_with_warning: unions.warning.size,
+      pages_with_notice: unions.notice.size,
+    }).toEqual({
+      pages_with_issue: answer.summary.pages_with_issue,
+      pages_with_error: answer.summary.pages_with_error,
+      pages_with_warning: answer.summary.pages_with_warning,
+      pages_with_notice: answer.summary.pages_with_notice,
+    });
+  });
+
+  it('gives every check a category the web has words for', async () => {
+    const known: readonly string[] = CATEGORY_IDS;
+    expect((await list()).data.filter((check) => !known.includes(check.category))).toEqual([]);
   });
 
   it('gives the five joined checks their states', async () => {
