@@ -15754,6 +15754,35 @@
             ],
             "title": "Tier Ids"
           },
+          "view": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "indexable",
+                  "not_indexable",
+                  "redirects",
+                  "errors",
+                  "client_errors",
+                  "server_errors",
+                  "blocked",
+                  "other",
+                  "variants",
+                  "in_sitemap_indexable",
+                  "not_in_sitemap",
+                  "sitemap_not_live",
+                  "sitemap_not_indexable",
+                  "reachable",
+                  "unreachable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          },
           "worklist": {
             "anyOf": [
               {
@@ -42169,6 +42198,40 @@
                 }
               ],
               "title": "Filter[Worklist]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[view]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "live",
+                    "indexable",
+                    "not_indexable",
+                    "redirects",
+                    "errors",
+                    "client_errors",
+                    "server_errors",
+                    "blocked",
+                    "other",
+                    "variants",
+                    "in_sitemap_indexable",
+                    "not_in_sitemap",
+                    "sitemap_not_live",
+                    "sitemap_not_indexable",
+                    "reachable",
+                    "unreachable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[View]"
             }
           },
           {

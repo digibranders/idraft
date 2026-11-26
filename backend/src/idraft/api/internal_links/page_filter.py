@@ -14,6 +14,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Join, and_, distinct, exists, false, func, or_, select
 from sqlalchemy.orm import aliased
 
+from idraft.api.internal_links.inventory import view_condition
 from idraft.api.internal_links.problems import LinksDroppedError
 from idraft.api.internal_links.status_filter import status_classes
 from idraft.api.schemas.internal_links import PageFilter
@@ -129,8 +130,10 @@ def page_conditions(found: PageFilter, scope: PageScope) -> list[ColumnElement[b
         conditions.append(crawl_pages.c.is_indexable.is_(found.indexable))
     for flag in found.flags or ():
         conditions.append(_FLAGS[flag])
+    if found.view is not None:
+        conditions.append(view_condition(found.view))
     # A variant is the same page under another address (plan 09): it does not count unless asked.
-    if not found.include_variants and "variant" not in (found.flags or ()):
+    if not (found.include_variants or "variant" in (found.flags or ()) or found.view == "variants"):
         conditions.append(crawl_pages.c.variant_of_url_id.is_(None))
     if found.worklist == "under_linked_t1":
         weak = [

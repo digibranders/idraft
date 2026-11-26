@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi.exceptions import RequestValidationError
 
 from idraft.api.internal_links.reads import EdgeQuery, LinkReadService
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
@@ -25,6 +26,7 @@ from idraft.api.schemas.internal_links import (
     PageFlag,
     PageRowPage,
     PageSort,
+    PageView,
     PageWorklist,
     PlacementName,
     StatusClass,
@@ -115,6 +117,7 @@ async def list_pages(
     flags: Flags = None,
     include_variants: Annotated[bool, Query(alias="filter[include_variants]")] = False,
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
+    view: Annotated[PageView | None, Query(alias="filter[view]")] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
@@ -124,6 +127,17 @@ async def list_pages(
     ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:
+    if view is not None and worklist is not None:
+        # A `ValueError` of the model here would be a 500: this is the caller's mistake.
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", "filter[view]"),
+                    "type": "view_with_worklist",
+                    "msg": "Give `filter[view]` or `filter[worklist]`, not both.",
+                }
+            ]
+        )
     found = PageFilter(
         tier_ids=tiers,
         tag_ids=tags,
@@ -132,19 +146,20 @@ async def list_pages(
         flags=flags,
         include_variants=include_variants,
         worklist=worklist,
+        view=view,
         q=q,
     )
-    view = LinkScope(scope)
+    link_scope = LinkScope(scope)
     if output == "csv":
         text = await reads.pages_csv(
-            access, project_id, run=_run(run), view=view, found=found, sort=sort
+            access, project_id, run=_run(run), view=link_scope, found=found, sort=sort
         )
         return _csv(text, "pages")
     listed = await reads.pages(
         access,
         project_id,
         run=_run(run),
-        view=view,
+        view=link_scope,
         found=found,
         sort=sort,
         cursor=page.cursor,
