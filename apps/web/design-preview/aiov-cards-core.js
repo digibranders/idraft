@@ -11,7 +11,7 @@ import { chartHost, MARKER_PATHS, MARKER_SHAPES, mountChart } from './aiov-chart
 import { ghostTrend, plain, richLineOption, richShareAreaOption, ringsOption, ringTable } from './aiov-rich.js';
 import { HEAT_METRICS, setScope } from './aiov-controls.js';
 import { CARD_INFO, MEASURE_INFO } from './aiov-info.js';
-import { barList, cardFrame, countsText, el, emptyBody, engineName, icon, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, valueText } from './aiov-parts.js';
+import { barList, cardFrame, countsText, el, emptyBody, engineName, infoButton, insufficient, insufficientText, pct0, plural, platformLabel, shareCountsText, sparkline, tableToggle, valueText } from './aiov-parts.js';
 import { wilsonInterval } from './vendor/stats/index.js';
 
 const ENGINE_TOKEN = { chatgpt_web: 'chart-1', gemini_web: 'chart-2', google_ai_mode: 'chart-3', google_ai_overview: 'chart-4' };
@@ -311,18 +311,11 @@ export function trendCard(ctx) {
   };
   const tools = [
     segmented(METRIC_TABS, measure, (key) => setScope({ metric: key }), 'Metric'),
-    (() => {
-      const button = el('button', 'h-control-sm px-2.5 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body text-foreground hover:bg-surface-hover');
-      button.type = 'button';
-      button.setAttribute('aria-pressed', 'false');
-      button.append(icon('table-2', 'size-icon-sm'), 'Table');
-      button.addEventListener('click', () => {
-        state.view = state.view === 'chart' ? 'table' : 'chart';
-        button.setAttribute('aria-pressed', String(state.view === 'table'));
-        draw();
-      });
-      return button;
-    })(),
+    tableToggle(() => {
+      state.view = state.view === 'chart' ? 'table' : 'chart';
+      draw();
+      return state.view === 'table';
+    }),
   ];
   draw();
   return cardFrame({
@@ -452,14 +445,10 @@ export function sovOverTimeCard(ctx) {
     });
     body.append(host, legend);
   };
-  const toggle = el('button', 'h-control-sm px-2.5 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body text-foreground hover:bg-surface-hover');
-  toggle.type = 'button';
-  toggle.setAttribute('aria-pressed', 'false');
-  toggle.append(icon('table-2', 'size-icon-sm'), 'Table');
-  toggle.addEventListener('click', () => {
+  const toggle = tableToggle(() => {
     state.view = state.view === 'chart' ? 'table' : 'chart';
-    toggle.setAttribute('aria-pressed', String(state.view === 'table'));
     draw();
+    return state.view === 'table';
   });
   draw();
   return cardFrame({ key: 'ai.sov_over_time', title: 'Share of voice over time', meta: all ? `average of ${entities[0].platforms} platforms, stacked to 100%` : 'stacked to 100%', tools: [toggle], body });

@@ -9,7 +9,7 @@
  */
 import { formatInteger } from './vendor/format/number.js';
 import { MARKER_SHAPES, mountChart } from './aiov-charts.js';
-import { el, icon, pct0 } from './aiov-parts.js';
+import { el, pct0, tableToggle } from './aiov-parts.js';
 
 const charts = window.PreviewCharts;
 const encode = (text) => echarts.format.encodeHTML(String(text));
@@ -333,8 +333,6 @@ export function ghostTrend({ title, text, height = 220 }) {
   return wrap;
 }
 
-const TOGGLE_CLASS = 'h-control-sm px-2.5 rounded-md border border-border bg-surface flex items-center gap-1.5 whitespace-nowrap type-body text-foreground hover:bg-surface-hover';
-
 /**
  * A card body that switches between a chart and its table. `drawChart(body)` fills the body and returns a dispose function
  * (or nothing); `drawTable(body)` fills it with the text alternative. Returns `{ body, toggle }` for the card frame.
@@ -349,14 +347,10 @@ export function chartWithTable({ drawChart, drawTable, className = 'flex flex-co
     if (state.view === 'table') drawTable(body);
     else state.dispose = drawChart(body) ?? null;
   };
-  const toggle = el('button', TOGGLE_CLASS);
-  toggle.type = 'button';
-  toggle.setAttribute('aria-pressed', 'false');
-  toggle.append(icon('table-2', 'size-icon-sm'), 'Table');
-  toggle.addEventListener('click', () => {
+  const toggle = tableToggle(() => {
     state.view = state.view === 'chart' ? 'table' : 'chart';
-    toggle.setAttribute('aria-pressed', String(state.view === 'table'));
     draw();
+    return state.view === 'table';
   });
   draw();
   return { body, toggle };

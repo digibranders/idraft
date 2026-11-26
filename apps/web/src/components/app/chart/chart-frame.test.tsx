@@ -157,12 +157,11 @@ describe('ChartFrame', () => {
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual(['Search volume', 'Previous year']);
-    expect(screen.getByRole('button', { name: 'Table' }).querySelector('svg')).toBeNull();
   });
 
-  it('writes the latest values in a legend under the chart, and a table icon, when a card opts in', async () => {
+  it('writes the latest values in a legend under the chart when a card opts in', async () => {
     const { user } = renderWithProviders(
-      <ChartFrame {...CATEGORY_BASE} status="ready" legendValues={{ volume: '34%', previous: 'n/a' }} tableIcon />,
+      <ChartFrame {...CATEGORY_BASE} status="ready" legendValues={{ volume: '34%', previous: 'n/a' }} />,
     );
     const legend = await screen.findByRole('list', { name: /Series in/ });
     expect(
@@ -173,7 +172,6 @@ describe('ChartFrame', () => {
     const canvas = screen.getByRole('img', { name: CATEGORY_BASE.title });
     expect(canvas.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const table = screen.getByRole('button', { name: 'Table' });
-    expect(table.querySelector('svg')).not.toBeNull();
     await user.click(table);
     expect(screen.queryByRole('list', { name: /Series in/ })).not.toBeInTheDocument();
   });
@@ -183,6 +181,15 @@ describe('ChartFrame', () => {
     expect(screen.queryByRole('button', { name: 'Patterns' })).toBeNull();
     rerender(frame('bar'));
     expect(screen.getByRole('button', { name: 'Patterns' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('draws the Table and Patterns toggles as icons without visible words', () => {
+    renderWithProviders(frame('bar'));
+    for (const name of ['Table', 'Patterns']) {
+      const toggle = screen.getByRole('button', { name });
+      expect(toggle.textContent).toBe('');
+      expect(toggle.querySelector('svg')).not.toBeNull();
+    }
   });
 
   it('draws the inspector variant as a level 3 title without the panel border and padding', async () => {

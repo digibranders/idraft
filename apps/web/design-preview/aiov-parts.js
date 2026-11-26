@@ -133,6 +133,18 @@ export function infoButton(title, info) {
   return button;
 }
 
+/** The Table view switch: an icon button named by its tooltip, pressed while the table shows. */
+export function tableToggle(onToggle) {
+  const button = el('button', 'size-control-sm shrink-0 rounded-md inline-flex items-center justify-center text-foreground-secondary hover:bg-surface-hover aria-pressed:bg-surface-selected aria-pressed:text-foreground');
+  button.type = 'button';
+  button.title = 'Table';
+  button.setAttribute('aria-label', 'Table');
+  button.setAttribute('aria-pressed', 'false');
+  button.append(icon('table-2', 'size-icon-sm'));
+  button.addEventListener('click', () => button.setAttribute('aria-pressed', String(onToggle())));
+  return button;
+}
+
 /**
  * A card of the dashboard: title row, optional meta and tools, a body. The card's definition and method sit behind
  * its info button, read from `CARD_INFO` by key. Cards read the same scope, so a card says what it covers in its
