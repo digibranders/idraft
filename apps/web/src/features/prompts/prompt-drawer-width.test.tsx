@@ -178,10 +178,14 @@ function isColumnBesideFlexible(node: Element): boolean {
 /** Nothing inside the card fixes a width in pixels (a share of the card, as a whisker has, is fine). */
 function expectNoPixelWidth(drawer: HTMLElement): void {
   for (const node of drawer.querySelectorAll<HTMLElement | SVGElement>('*')) {
-    // The card itself and its resize handle are the drawer's own
-    if (node.closest('[role="separator"]') !== null || isOwnSizeControl(node)) continue;
     // The box is named in the result, so a failure says which one holds the width
     const box = `${node.tagName.toLowerCase()}.${node.getAttribute('class') ?? ''}`;
+    // A cap that steps with a container only grows when a container is above it: without one it stays at its least
+    if ((node.getAttribute('class') ?? '').split(/\s+/).some((name) => /^@[^:]+:max-w-/.test(name))) {
+      expect({ box, container: node.closest('.\\@container') !== null }).toEqual({ box, container: true });
+    }
+    // The card itself and its resize handle are the drawer's own
+    if (node.closest('[role="separator"]') !== null || isOwnSizeControl(node)) continue;
     const inline = [node.style.width, node.style.minWidth, node.style.maxWidth].filter(
       (value) => value !== '' && !value.endsWith('%'),
     );
