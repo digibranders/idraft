@@ -3,7 +3,7 @@ spec D21 and section 5)."""
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -274,6 +274,26 @@ async def test_one_page_google_cannot_answer_for_does_not_stop_the_others(
     state = PullState.read((await integration_row(migrated, prop.integration_id))["backfill_state"])
     assert state.failures == 1
     assert state.retry_after is not None
+
+
+async def test_a_page_google_keeps_rejecting_backs_the_retry_off_to_30_minutes(
+    migrated: PostgresServer, worker_db: Sessions, fake: FakeSearchConsole
+) -> None:
+    prop = await make_property(migrated, fake)
+    (page,) = await track(migrated, prop, "pricing")
+    give_defaults(fake)
+    broken = await fetchrow(migrated, "SELECT canonical_url FROM core.urls WHERE id = $1", page)
+    fake.malformed_patterns.add(page_pattern(broken["canonical_url"], []))
+    stamp = datetime.now(UTC)
+
+    for expected in (1, 2):
+        report = await run_pass(worker_db, fake, prop, now=lambda: stamp)
+        state = PullState.read(
+            (await integration_row(migrated, prop.integration_id))["backfill_state"]
+        )
+        assert report.outcome is Outcome.FAILED
+        assert state.failures == expected
+        assert state.retry_after == stamp + timedelta(minutes=(15, 30)[expected - 1])
 
 
 async def test_the_step_runs_after_the_history_sweep(

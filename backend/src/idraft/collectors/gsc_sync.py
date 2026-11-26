@@ -155,6 +155,9 @@ class _Pass:
         self._access: str | None = None
         self._deadline = ctx.monotonic() + ctx.budget.total_seconds()
         self.state = facts.state
+        # The checkpoint after the sweep resets `state.failures`; a failure after it still counts
+        # on top of the ones the pass began with, so the retry wait grows.
+        self.failures_before = facts.state.failures
         self.calls = 0
         self.days_written = 0
         self.rows_written = 0
@@ -442,7 +445,8 @@ async def sync_integration(
             _log.error("gsc pass failed", reason=error.reason, **context)
         else:
             _log.warning("gsc pass failed", reason=error.reason, **context)
-        state = pull.state.failed(ctx.now())
+        failures = max(pull.state.failures, pull.failures_before)
+        state = replace(pull.state, failures=failures).failed(ctx.now())
         async with workspace_transaction(ctx.sessions, workspace_id) as db:
             await gsc_store.save_state(db, facts, state, last_error=error.reason)
         return _report(Outcome.FAILED, pull, error=error.reason)
