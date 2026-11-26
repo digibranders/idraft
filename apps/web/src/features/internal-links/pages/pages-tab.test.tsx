@@ -7,7 +7,7 @@ import { downloadApiFile } from '@/lib/api/download';
 import { problemFrom } from '@/lib/api/problem';
 import { internalLinksKeys } from '@/lib/internal-links/queries';
 import { MOCK_WORKSPACE } from '@/mocks/fixtures';
-import { crawledPages, EVENTUS, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
+import { crawledPages, EVENTUS, HISTORY_RUN_IDS, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS } from '@/test/internal-links-harness';
@@ -29,6 +29,8 @@ vi.mock('@/lib/api/download', () => ({ downloadApiFile: vi.fn(() => Promise.reso
 
 const PAGES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages');
 
+/** A finished crawl older than the latest one. */
+const OLDER_RUN = HISTORY_RUN_IDS[1] ?? '';
 /** Longer than the search delay of the tab, so the typing has paused. */
 const SEARCH_PAUSE_MS = 400;
 const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
@@ -537,6 +539,23 @@ describe('a crawl that ends while a later page is open', () => {
       await queryClient.invalidateQueries({ queryKey: READS_KEY });
     });
     expect(await screen.findByText('Showing 1 to 100 of 120')).toBeInTheDocument();
+  });
+});
+
+describe('the crawl in view on All pages', () => {
+  it('sends the chosen crawl with every read: the list, the summary strip and the worklist chips', async () => {
+    const seen: URL[] = [];
+    server.events.on('request:start', ({ request }) => {
+      const url = new URL(request.url);
+      if (/\/internal-links\/(pages|tier-flow|worklists)$/.test(url.pathname)) seen.push(url);
+    });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `?run=${OLDER_RUN}` });
+    await grid();
+    await waitFor(() => {
+      const routes = new Set(seen.map((url) => url.pathname.split('/').pop()));
+      expect(routes).toEqual(new Set(['pages', 'tier-flow', 'worklists']));
+    });
+    for (const url of seen) expect(url.searchParams.get('run')).toBe(OLDER_RUN);
   });
 });
 
