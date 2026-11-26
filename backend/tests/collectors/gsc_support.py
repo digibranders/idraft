@@ -28,6 +28,7 @@ from tests.providers.google.fake_google import CLIENT_ID, CLIENT_SECRET, Account
 
 CIPHER = EnvelopeCipher({1: base64.b64decode(TEST_SECRETS_KEY.get_secret_value())})
 SITE = "sc-domain:acme.example"
+GA4_PROPERTY = "properties/123"
 REDIRECT = "https://app.example.com/api/v1/oauth/google/callback"
 
 
@@ -187,7 +188,7 @@ class Property:
 
 async def make_property(
     pg: PostgresServer,
-    fake: FakeSearchConsole,
+    fake: FakeGoogle,
     *,
     workspace: Workspace | None = None,
     site: str = SITE,
@@ -195,8 +196,13 @@ async def make_property(
     connection_id: uuid.UUID | None = None,
     project_id: uuid.UUID | None = None,
     sites: list[str] | None = None,
+    kind: str = "gsc",
+    external_property: str | None = None,
 ) -> Property:
-    """A property linked to a project, whose connection holds a refresh token of `account`."""
+    """A property linked to a project, whose connection holds a refresh token of `account`.
+    `kind` is "gsc" or "ga4"; the property is `external_property`, else `site` for Search
+    Console and `properties/123` for GA4."""
+    site = external_property or (site if kind == "gsc" else GA4_PROPERTY)
     workspace = workspace or await make_workspace(pg)
     project_id = project_id or await make_project(pg, workspace.id)
     account = account or fake.account(
@@ -237,12 +243,13 @@ async def make_property(
         pg,
         "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_account, "
         "external_property, connection_id, scopes) "
-        "VALUES ($1, $2, 'gsc', $3, $4, $5, '{openid}') RETURNING id",
+        "VALUES ($1, $2, $6, $3, $4, $5, '{openid}') RETURNING id",
         workspace.id,
         project_id,
         account.email,
         site,
         connection_id,
+        kind,
     )
     assert connection_id is not None
     return Property(workspace.id, project_id, connection_id, row["id"], site, account)

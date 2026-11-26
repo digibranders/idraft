@@ -14,6 +14,7 @@ import hashlib
 import itertools
 import json
 from dataclasses import dataclass, field
+from typing import cast
 from urllib.parse import parse_qs
 
 import httpx
@@ -85,6 +86,8 @@ class FakeGoogle:
         # values) as the strings GA4 writes, and the hourly tokens it says are left.
         self.ga4_rows: dict[str, list[tuple[tuple[str, ...], tuple[str, ...]]]] = {}
         self.ga4_tokens_remaining = 39_995
+        # Answer every `runReport` of a known token with this status, instead of rows.
+        self.ga4_status: int | None = None
         self._numbers = itertools.count(1)
         self._codes: dict[str, _Code] = {}
         self._access: dict[str, Account] = {}
@@ -215,8 +218,19 @@ class FakeGoogle:
         self.calls.append(Call("POST", url, {}, authorization, body))
         if self._bearer(authorization) is None:
             return httpx.Response(401, json={"error": {"code": 401, "status": "UNAUTHENTICATED"}})
+        if self.ga4_status is not None:
+            return httpx.Response(self.ga4_status, json={"error": {"message": "refused"}})
         property_name = url.removeprefix(f"{ANALYTICS_DATA_URL}/").removesuffix(":runReport")
         rows = self.ga4_rows.get(property_name, [])
+        names = [
+            dimension["name"] for dimension in cast("list[dict[str, str]]", body["dimensions"])
+        ]
+        if "date" in names:
+            # A report holds only the days it was asked for, when it is split by day.
+            asked = cast("list[dict[str, str]]", body["dateRanges"])[0]
+            first = asked["startDate"].replace("-", "")
+            last = asked["endDate"].replace("-", "")
+            rows = [row for row in rows if first <= row[0][names.index("date")] <= last]
         offset, limit = int(str(body["offset"])), int(str(body["limit"]))
         answer: dict[str, object] = {"rowCount": len(rows)}
         if rows[offset : offset + limit]:
