@@ -49,6 +49,7 @@ const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
 /** One empty list for every render, so the table does not see new rows while nothing has loaded. */
 const NO_ROWS: readonly PageRow[] = [];
 const REQUIRED_COLUMNS = ['page'];
+const SCOPED_COLUMNS = ['linking', 'fromTiers', 'outlinks'];
 const EXPORT_NAME = 'internal-links-pages.csv';
 /** The request waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
@@ -68,13 +69,14 @@ const EMPTY_KEY = {
 } as const satisfies Record<PageWorklist, string>;
 
 /**
- * The Pages tab (spec 7.2, mock `il-pages.js`): worklist chips, the filter bar, the scope chip and the table. The
+ * The Pages tab (spec 7.2, mock `il-pages.js`): worklist chips and the table, whose toolbar holds the filter bar and the scope chip. The
  * server filters, sorts and pages (cursors, 100 or 200 rows a page, decision W6). The tab hands the page's Export the
  * server's CSV of the same filter. Equity share is never a column, a sort or an export column (decision W4).
  */
 export function PagesTab({ context }: { context: PagesContext }): ReactElement {
   const t = useTranslations('internalLinks');
   const common = useTranslations('common');
+  const groups = useTranslations('pages.groups');
   const locale = useLocale();
   const { scope, setSearch, tiers, registerExport } = context;
   // The host may build its state afresh on every render; the effects below follow its values, not its identity
@@ -152,7 +154,7 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
       : null;
   const columns = useMemo(
     () =>
-      pageColumns(t, {
+      pageColumns(t, groups, {
         tiers,
         scope: state.scope,
         openJourney: context.openJourney,
@@ -160,7 +162,7 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
         linksAvailable,
         olderCrawlDate,
       }),
-    [t, tiers, state.scope, context.openJourney, comparison, linksAvailable, olderCrawlDate],
+    [t, groups, tiers, state.scope, context.openJourney, comparison, linksAvailable, olderCrawlDate],
   );
   const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(
@@ -170,6 +172,8 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
     [table.cols, known, columns],
   );
   const include = useMemo(() => moreIncludes(visible), [visible]);
+  // The link scope only changes what these columns count
+  const scopeShown = SCOPED_COLUMNS.some((id) => visible.includes(id));
   const query = { ...pageQueryOf(state, values, paging.cursor, paging.size, context.host), include };
   // The rows stay while new filters load: no skeleton flash (12-tables.md section 7)
   const read = useQuery({
@@ -305,7 +309,7 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
   ];
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <WorklistChips
         scope={scope}
         run={chosenRun}
@@ -319,12 +323,22 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
           setValues(variantsOnly(values));
         }}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterBar fields={fields} values={values} onChange={setValues} />
-        <ScopeMenu scope={state.scope} onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })} />
-      </div>
       <DataTable<PageRow>
         caption={t('pages.caption')}
+        columnGroups
+        compactToolbar
+        toolbarParts={{ sortNote: false }}
+        toolbarEnd={
+          <>
+            <FilterBar compact fields={fields} values={values} onChange={setValues} />
+            {scopeShown ? (
+              <ScopeMenu
+                scope={state.scope}
+                onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })}
+              />
+            ) : null}
+          </>
+        }
         itemNoun={{ one: t('pages.one'), other: t('pages.other') }}
         columns={columns}
         getRowId={(row) => row.url_id}

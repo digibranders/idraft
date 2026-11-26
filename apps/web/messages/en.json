@@ -9154,6 +9154,14 @@
       "liveTip": "Pages that answered 200 with HTML, of every address",
       "liveBaseTip": "Of live pages"
     },
+    "groups": {
+      "page": "Page",
+      "indexing": "Indexing",
+      "issues": "Issues",
+      "search": "Search",
+      "ai": "AI",
+      "links": "Links"
+    },
     "overview": {
       "loadFailed": "The page counts could not be loaded",
       "loadFailedReason": "Try again. If it keeps failing, the crawl may still be saving."
@@ -9526,7 +9534,9 @@
       "outlinksTip": "Unique pages this page links to, in the link scope chosen",
       "flags": "Flags",
       "tags": "Tags",
-      "reason": "Indexability reason",
+      "reason": "Indexable",
+      "canonical": "Canonical",
+      "canonicalSelf": "This page",
       "sitemap": "In sitemap",
       "toT1": "Outlinks to T1",
       "broken": "Broken outlinks",
@@ -9570,7 +9580,8 @@
       "noKeywords": "No keywords",
       "clicks": "Clicks",
       "impressions": "Impressions",
-      "googleTip": "Google data, last 28 days",
+      "clicksTip": "Google Search clicks on this page in the last 28 days, from Search Console",
+      "impressionsTip": "Times this page was shown in Google Search in the last 28 days, from Search Console",
       "syncing": "Syncing",
       "syncingTip": "Search Console is still syncing, so there are no figures yet.",
       "notConnected": "Not connected",

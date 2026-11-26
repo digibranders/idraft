@@ -160,7 +160,6 @@ export function extraColumns(
   ) => Column,
 ): { change: Column; optional: Column[] } {
   const hidden = { defaultVisible: false };
-  const googleTip = t('columns.googleTip');
   const change = custom('change', 'count', t('columns.change'), (row) => changeCell(t, row, context), {
     headerTooltip: t('columns.changeTip'),
     width: 144,
@@ -230,14 +229,14 @@ export function extraColumns(
     }),
     custom('clicks', 'count', t('columns.clicks'), (row) => gscCell(t, row, 'clicks'), {
       ...hidden,
-      headerTooltip: googleTip,
+      headerTooltip: t('columns.clicksTip'),
       width: 120,
       sortValue: (row) => row.extras?.gsc?.clicks ?? null,
       cellTip: (row) => gscTip(t, row),
     }),
     custom('impressions', 'count', t('columns.impressions'), (row) => gscCell(t, row, 'impressions'), {
       ...hidden,
-      headerTooltip: googleTip,
+      headerTooltip: t('columns.impressionsTip'),
       width: 136,
       sortValue: (row) => row.extras?.gsc?.impressions ?? null,
       cellTip: (row) => gscTip(t, row),

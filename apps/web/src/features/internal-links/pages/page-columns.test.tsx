@@ -12,8 +12,9 @@ import { crawledPages, pageRow } from '@/mocks/internal-links-world';
 import messages from '../../../../messages/en.json';
 
 const t = createTranslator({ locale: 'en', messages, namespace: 'internalLinks' });
+const groups = createTranslator({ locale: 'en', messages, namespace: 'pages.groups' });
 const build = (comparison: Comparison = 'ready', linksAvailable = true): ReturnType<typeof pageColumns> =>
-  pageColumns(t, { tiers: [], scope: 'editorial', openJourney: () => undefined, comparison, linksAvailable });
+  pageColumns(t, groups, { tiers: [], scope: 'editorial', openJourney: () => undefined, comparison, linksAvailable });
 const columns = build();
 
 describe('the sort of the Pages table (decision W5)', () => {
@@ -61,20 +62,56 @@ describe('the sort of the Pages table (decision W5)', () => {
 });
 
 describe('the Pages columns', () => {
-  it('shows the slice 1 columns and Change by default and keeps the rest in the chooser, with no equity column', () => {
+  it('comes in the order and the groups of spec 7.2, each group in one run', () => {
+    expect(columns.map((column) => [column.group?.id, column.id])).toEqual([
+      ['page', 'page'],
+      ['page', 'tier'],
+      ['page', 'status'],
+      ['page', 'tags'],
+      ['indexing', 'reason'],
+      ['indexing', 'canonical'],
+      ['indexing', 'sitemap'],
+      ['issues', 'flags'],
+      ['search', 'clicks'],
+      ['search', 'impressions'],
+      ['search', 'keywords'],
+      ['search', 'rank'],
+      ['ai', 'citations'],
+      ['links', 'depth'],
+      ['links', 'linking'],
+      ['links', 'fromTiers'],
+      ['links', 'outlinks'],
+      ['links', 'change'],
+      ['links', 'toT1'],
+      ['links', 'broken'],
+      ['links', 'redirects'],
+      ['links', 'nonIndexable'],
+      ['links', 'topAnchor'],
+      ['links', 'anchors'],
+      ['links', 'matches'],
+    ]);
+    expect(columns.find((column) => column.id === 'reason')?.header).toBe('Indexable');
+    expect(columns.map((column) => column.group?.label).filter((label, i, all) => label !== all[i - 1])).toEqual([
+      'Page',
+      'Indexing',
+      'Issues',
+      'Search',
+      'AI',
+      'Links',
+    ]);
+  });
+
+  it('shows Tier, Status, Indexable, Flags and Clicks by default and keeps the rest in the chooser, with no equity column', () => {
     expect(columns.filter((column) => column.defaultVisible !== false).map((column) => column.id)).toEqual([
       'page',
       'tier',
       'status',
-      'depth',
-      'linking',
-      'fromTiers',
-      'outlinks',
-      'change',
+      'reason',
       'flags',
+      'clicks',
     ]);
     const hidden = columns.filter((column) => column.defaultVisible === false).map((column) => column.id);
-    for (const id of ['keywords', 'rank', 'citations', 'anchors', 'matches', 'clicks', 'impressions']) {
+    for (const id of ['keywords', 'rank', 'citations', 'anchors', 'matches', 'impressions', 'canonical', 'depth']) {
       expect(hidden).toContain(id);
     }
     expect(columns.some((column) => /equity|strength/i.test(column.id) || /equity|strength/i.test(column.header))).toBe(
@@ -158,7 +195,7 @@ describe('the rank, citation, anchor and Google columns', () => {
 
   it('labels rank and citations as today’s numbers, and beside an older crawl names that crawl’s date', () => {
     const header = (id: string, olderCrawlDate: string | null): { text: string; tip: string | undefined } => {
-      const column = pageColumns(t, {
+      const column = pageColumns(t, groups, {
         tiers: [],
         scope: 'editorial',
         openJourney: () => undefined,
@@ -206,6 +243,22 @@ describe('the rank, citation, anchor and Google columns', () => {
     expect(cellOf('clicks', withExtras({ gsc: { ...gsc, state: 'not_connected', clicks: null } })).text).toBe(
       'Not connected',
     );
-    expect(columns.find((column) => column.id === 'clicks')?.headerTooltip).toBe('Google data, last 28 days');
+    expect(columns.find((column) => column.id === 'clicks')?.headerTooltip).toBe(
+      'Google Search clicks on this page in the last 28 days, from Search Console',
+    );
+    expect(columns.find((column) => column.id === 'impressions')?.headerTooltip).toBe(
+      'Times this page was shown in Google Search in the last 28 days, from Search Console',
+    );
+  });
+});
+
+describe('the Canonical column', () => {
+  it('shows the canonical address, This page when it is the row itself, and None when there is none', () => {
+    expect(cellOf('canonical', { ...BASE, canonical_url: 'https://example.com/other' }).text).toBe(
+      'https://example.com/other',
+    );
+    expect(cellOf('canonical', { ...BASE, canonical_url: BASE.url }).text).toBe('This page');
+    expect(cellOf('canonical', { ...BASE, canonical_url: null }).text).toBe('None');
+    expect(columns.find((column) => column.id === 'canonical')?.sortValue).toBeUndefined();
   });
 });

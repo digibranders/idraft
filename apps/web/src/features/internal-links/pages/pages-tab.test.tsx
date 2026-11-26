@@ -69,14 +69,17 @@ describe('the Pages tab (spec 7.2)', () => {
   it('lists the pages with the slice 1 columns, and never an equity column, option or word', async () => {
     const { container, user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const table = await grid();
-    for (const name of ['Page', 'Tier', 'Status', 'Depth', 'Linking pages', 'Linked from tiers', 'Outlinks', 'Flags']) {
-      expect(within(table).getByRole('columnheader', { name: new RegExp(`^${name}`, 'i') })).toBeInTheDocument();
+    for (const name of ['Page', 'Tier', 'Status', 'Indexable', 'Flags', 'Clicks']) {
+      // The Page group cell and the Page column share a name, so more than one header may match
+      expect(within(table).getAllByRole('columnheader', { name: new RegExp(`^${name}`, 'i') }).length).toBeGreaterThan(
+        0,
+      );
     }
     expect(await rowOf('/pricing')).toBeInTheDocument();
     expect(within(table).queryByRole('columnheader', { name: /equity/i })).toBeNull();
     // The column chooser, the filter picker and the page text hold no equity either
     await user.click(screen.getByRole('button', { name: 'Columns' }));
-    expect(await screen.findByText('Indexability reason')).toBeInTheDocument();
+    expect(await screen.findByText('Canonical')).toBeInTheDocument();
     expect(screen.queryByText(/equity/i)).toBeNull();
     await user.keyboard('{Escape}');
     expect(container.textContent).not.toMatch(/equity/i);
@@ -120,7 +123,7 @@ describe('the Pages tab (spec 7.2)', () => {
   it('asks for the link scope the chip names and sends the explicit sort, never by equity', async () => {
     const reads = pageReads();
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
-      searchParams: 'sort=-linking_pages',
+      searchParams: 'sort=-linking_pages&cols=page,linking',
     });
     await rowOf('/pricing');
     expect(reads()[0]?.get('sort')).toBe('-linking_pages');
@@ -136,6 +139,7 @@ describe('the Pages tab (spec 7.2)', () => {
     const reads = pageReads();
     const writes: string[] = [];
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: '?cols=page,tier,depth,tags',
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     const table = await grid();
@@ -275,6 +279,83 @@ describe('the Pages tab (spec 7.2)', () => {
     expect(address).toContain('/seo/internal-links?');
     expect(address).toContain('tab=journey');
     expect(address).toContain('focus=108');
+  });
+});
+
+describe('the toolbar and the column groups of All pages (spec 7.1 and 7.2)', () => {
+  /** The table's whole toolbar: the role is on the density and Columns buttons, and the bar is two levels up. */
+  const toolbar = async (): Promise<HTMLElement> => {
+    const actions = await screen.findByRole('toolbar', { name: 'Pages table actions' });
+    const bar = actions.parentElement?.parentElement;
+    if (bar === null || bar === undefined) throw new Error('The table toolbar is missing');
+    return bar;
+  };
+
+  it('draws a group cell over two or more shown columns of a group, and none over one', async () => {
+    const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    const table = await grid();
+    await rowOf('/pricing');
+    // The default set shows one column of Indexing, Issues and Search: each collapses into its own header
+    for (const name of ['Indexing', 'Issues', 'Search']) {
+      expect(within(table).queryByRole('columnheader', { name })).toBeNull();
+    }
+    first.unmount();
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: '?cols=page,tier,reason,canonical,clicks,impressions',
+    });
+    const grouped = await grid();
+    await rowOf('/pricing');
+    for (const name of ['Indexing', 'Search']) {
+      expect(within(grouped).getByRole('columnheader', { name })).toBeInTheDocument();
+    }
+    expect(within(grouped).queryByRole('columnheader', { name: 'Issues' })).toBeNull();
+    expect(within(grouped).queryByRole('columnheader', { name: 'Links' })).toBeNull();
+  });
+
+  it('holds the filter bar in the table toolbar and draws no filter row outside the table', async () => {
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?tier=none' });
+    await rowOf('/blog');
+    const bar = await toolbar();
+    expect(within(bar).getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: 'Columns' })).toBeInTheDocument();
+    // A chosen filter draws its chip in the toolbar
+    expect(within(bar).getByRole('button', { name: 'Tier: Untiered. Edit filter' })).toBeInTheDocument();
+    // Nothing outside the table holds a filter control
+    const outside = [...document.querySelectorAll('[data-filter-add], [data-filter-chip]')].filter(
+      (element) => !bar.contains(element),
+    );
+    expect(outside).toEqual([]);
+    await user.click(within(bar).getByRole('button', { name: 'Columns' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Columns' });
+    const headings = [...dialog.querySelectorAll('li[role="presentation"]')].map((li) => li.textContent);
+    // The chooser lists the shown columns first and the rest after them, so a group with columns on both sides
+    // of that line is headed twice; every group is headed at least once
+    expect([...new Set(headings)]).toEqual(['Page', 'Indexing', 'Issues', 'Search', 'AI', 'Links']);
+  });
+
+  it('shows the link scope menu only while a column that depends on it is shown', async () => {
+    const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    expect(screen.queryByRole('button', { name: /^Link scope/ })).toBeNull();
+    first.unmount();
+    for (const id of ['linking', 'fromTiers', 'outlinks']) {
+      const shown = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+        searchParams: `?cols=page,${id}`,
+      });
+      await rowOf('/pricing');
+      expect(within(await toolbar()).getByRole('button', { name: /^Link scope/ })).toBeInTheDocument();
+      shown.unmount();
+    }
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?cols=page,depth' });
+    await rowOf('/pricing');
+    expect(screen.queryByRole('button', { name: /^Link scope/ })).toBeNull();
+  });
+
+  it('asks for the pages sorted by address when the address names no sort', async () => {
+    const reads = pageReads();
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await rowOf('/pricing');
+    expect(reads()[0]?.get('sort')).toBe('path');
   });
 });
 

@@ -81,14 +81,43 @@ const custom = (
   extra: Partial<Column> = {},
 ): Column => ({ id, type, header, cell, priority: 1, defaultVisible: true, ...extra });
 
+export type PageGroupId = 'page' | 'indexing' | 'issues' | 'search' | 'ai' | 'links';
+
+/** The columns of spec 7.2 by group, in the order of the table. */
+const LAYOUT: readonly (readonly [PageGroupId, readonly string[]])[] = [
+  ['page', ['page', 'tier', 'status', 'tags']],
+  ['indexing', ['reason', 'canonical', 'sitemap']],
+  ['issues', ['flags']],
+  ['search', ['clicks', 'impressions', 'keywords', 'rank']],
+  ['ai', ['citations']],
+  [
+    'links',
+    [
+      'depth',
+      'linking',
+      'fromTiers',
+      'outlinks',
+      'change',
+      'toT1',
+      'broken',
+      'redirects',
+      'nonIndexable',
+      'topAnchor',
+      'anchors',
+      'matches',
+    ],
+  ],
+];
+/** Shown until the person chooses (the Issues and Tracked columns join when their seams are filled). */
+const DEFAULT_SHOWN: ReadonlySet<string> = new Set(['page', 'tier', 'status', 'reason', 'flags', 'clicks']);
+
 /**
- * The Pages columns of spec 7.2 and the mock (`il-pages.js` `COLUMNS`), without equity (decision W4): Page (path,
- * title below, Open in journey), Tier, Status, Depth, Linking pages, Linked from tiers, Outlinks and Flags by
- * default; the chooser holds tags, indexability reason, in sitemap, outlinks to T1, broken outlinks, links to
- * redirects, links to non-indexable pages and the top anchor.
+ * The Pages columns of spec 7.2, without equity (decision W4), grouped Page, Indexing, Issues, Search, AI and Links.
+ * `groups` names the groups; Page, Tier, Status, Indexable, Flags and Clicks are shown by default.
  */
 export function pageColumns(
   t: LinksTranslate,
+  groups: (id: PageGroupId) => string,
   {
     tiers,
     scope,
@@ -245,6 +274,19 @@ export function pageColumns(
         defaultVisible: false,
       },
     ),
+    col.text<PageRow>(
+      'canonical',
+      (row) =>
+        row.canonical_url === null
+          ? null
+          : row.canonical_url === row.url
+            ? t('columns.canonicalSelf')
+            : row.canonical_url,
+      {
+        header: t('columns.canonical'),
+        unknown: () => ({ label: t('columns.none') }),
+      },
+    ),
     col.text<PageRow>('sitemap', (row) => (row.in_sitemap ? t('columns.yes') : t('columns.no')), {
       header: t('columns.sitemap'),
       defaultVisible: false,
@@ -269,6 +311,20 @@ export function pageColumns(
     ),
     ...extras.optional,
   ];
-  // Only the columns of SORT_FIELD sort: the server sorts, so a column without a server field must not offer it
-  return all.map((column) => (SORT_FIELD[column.id] === undefined ? { ...column, sortValue: undefined } : column));
+  const byId = new Map(all.map((column) => [column.id, column]));
+  // Columns of one group are adjacent here: the chooser draws a heading per run, so a person who moves a column
+  // across groups gets a repeated heading, which is accepted (the table's header splits the run the same way)
+  return LAYOUT.flatMap(([group, ids]) =>
+    ids.map((id) => {
+      const column = byId.get(id);
+      if (column === undefined) throw new Error(`The Pages layout names an unknown column: ${id}`);
+      return {
+        ...column,
+        group: { id: group, label: groups(group) },
+        defaultVisible: DEFAULT_SHOWN.has(id),
+        // Only the columns of SORT_FIELD sort: the server sorts, so a column without a server field must not offer it
+        ...(SORT_FIELD[id] === undefined ? { sortValue: undefined } : {}),
+      };
+    }),
+  );
 }

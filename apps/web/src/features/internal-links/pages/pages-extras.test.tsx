@@ -46,14 +46,12 @@ describe('the columns that read the extras of a row', () => {
     const reads = pageReads();
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     await rowOf('/pricing');
-    expect(reads()[0]?.get('include')).toBe('changes');
+    expect(reads()[0]?.get('include')).toBe('gsc');
     await user.click(screen.getByRole('button', { name: 'Columns' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Average rank today' }));
-    await waitFor(() => expect(reads().some((read) => read.get('include') === 'changes,keywords')).toBe(true));
+    await waitFor(() => expect(reads().some((read) => read.get('include') === 'keywords,gsc')).toBe(true));
     await user.click(await screen.findByRole('checkbox', { name: 'AI citations today' }));
-    await waitFor(() =>
-      expect(reads().some((read) => read.get('include') === 'changes,keywords,citations')).toBe(true),
-    );
+    await waitFor(() => expect(reads().some((read) => read.get('include') === 'keywords,citations,gsc')).toBe(true));
     // Link strength and equity are not offered
     expect(screen.queryByRole('checkbox', { name: /equity|strength/i })).toBeNull();
   });
@@ -61,7 +59,7 @@ describe('the columns that read the extras of a row', () => {
   it('shows the change of a page, and sorts by it on the server', async () => {
     const reads = pageReads();
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
-      searchParams: '?q=services%2Fvapt',
+      searchParams: `${cols('change')}&q=services%2Fvapt`,
     });
     const row = await rowOf('/services/vapt');
     // The mock crawl gained one editorial link to it
@@ -83,13 +81,15 @@ describe('the columns that read the extras of a row', () => {
 
   it('says there is no earlier crawl for a first crawl, and Updating while the comparison is worked out', async () => {
     setLinksScenario({ firstCrawl: true });
-    const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    const first = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: `${cols('change')}&q=pricing`,
+    });
     const row = await rowOf('/pricing');
     await waitFor(() => expect(row).toHaveTextContent('n/a'));
     expect(row).not.toHaveTextContent(/unchanged/i);
     first.unmount();
     setLinksScenario({ firstCrawl: false, enrich: 'running' });
-    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `${cols('change')}&q=pricing` });
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('Updating'));
   });
 
@@ -156,7 +156,7 @@ describe('the flag and the worklists of slice 2', () => {
 
   it('shows the no earlier crawl tip on a first crawl, and never Updating once the summary has answered', async () => {
     setLinksScenario({ firstCrawl: true });
-    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?q=pricing' });
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: `${cols('change')}&q=pricing` });
     const row = await rowOf('/pricing');
     await waitFor(async () => expect(await rowOf('/pricing')).toHaveTextContent('n/a'));
     const cell = within(await rowOf('/pricing'))
