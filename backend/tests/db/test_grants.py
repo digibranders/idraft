@@ -547,6 +547,10 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     ),
     # Page totals from Search Console, replaced by the worker a day at a time.
     "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
+    # Migration 0041: the referrer rules are global and read only; the worker replaces the
+    # classified AI referral numbers a window at a time.
+    "fp.ai_referrer_rules": (READ, READ),
+    "fp.ai_referral_daily": (READ, access("SELECT, INSERT, DELETE")),
 }
 
 _TABLES = """
