@@ -118,6 +118,7 @@ extras cards (changes, keywords, citations, anchors, Google), linking pages, out
 | client error | counted, `status_code` from 400 to 499, not blocked. |
 | server error | counted, `status_code` from 500 to 599. |
 | other | counted and none of the above: no status, or a 200 that is not HTML. |
+| orphan | counted and `is_orphan`, as the existing worklist `orphans` of Internal links. The Issues check `orphans` adds "live", so its count can be lower by the orphans that are not live. |
 | indexable | live and `is_indexable`. |
 | reachable | live and `click_depth IS NOT NULL`. |
 | section | The first folder of `core.urls.path` (`/blog/` for `/blog/post`); `/` for a page with one segment or none. |
@@ -165,6 +166,10 @@ the segmented variant has no "unavailable" state, and a dead tab would promise a
   `density`. `tab` is dropped; every other key is kept, `inspect` and `itab` included. The All pages address
   uses the same keys with the same meaning, so no key is translated.
 - A bare `/seo/internal-links` does not redirect: it is Internal links, on Journey.
+- Checked on 2026-11-26: Journey, the new default tab, writes none of those keys. The tabs that use `q`-like
+  searches, filter keys, `cols` or `density` (Links, Opportunities) always carry their own `tab`, so they never
+  match the rule. The plan repeats this check, and the redirect test lists a Journey address with its own keys
+  (`focus`, `jv`, `open`) as one that stays.
 - Links inside the app that pointed at the old tab are changed to `pagesPath(…, 'all')`:
   `internal-links-screen.tsx` (`untieredHref`, built from `UNTIERED_QUERY`), `flow/flow-tab.tsx` (`base`, where
   it opens pages), and the worklist chips, which move into the View menu of All pages (section 7.3).
@@ -307,10 +312,10 @@ the same rows with their counts and shares, each row a link.
 
 | # | Card | Chart | Rows, and what each opens |
 |---|---|---|---|
-| 1 | Addresses by status | `RingsChart`, one ring, centre "389 live" | Live pages (`live`), Parameter variants (`variants`), Redirects (`redirects`), Client errors (`client_errors`), Server errors (`server_errors`), Blocked (`blocked`), Other (`other`). A group of 0 is left out of the ring and kept in the table. |
+| 1 | Addresses by status | `RingsChart`, one ring, centre "389 live" (verify in the plan that it draws a single ring of seven segments; if not, a `StackedShareBar`) | Live pages (`live`), Parameter variants (`variants`), Redirects (`redirects`), Client errors (`client_errors`), Server errors (`server_errors`), Blocked (`blocked`), Other (`other`). A group of 0 is left out of the ring and kept in the table. |
 | 2 | From crawled to indexable | `BarList`, four rows on one scale | Addresses crawled, Live pages, Indexable, Indexable and in the sitemap (`in_sitemap_indexable`). The fourth row is absent when `sitemap.state` is `no_sitemap`. No "indexed by Google" row (D11). |
-| 3 | Pages by section | `BarList`, the 8 largest sections and "Other sections (n)" | A section opens All pages with `folder=<section>`. The folded row opens nothing. |
-| 4 | Pages by tier | `BarList` with the tier badge | A tier opens `tier=<tier_id>`; Untiered opens `tier=none`. |
+| 3 | Pages by section | `BarList`, the 8 largest sections and "Other sections (n)" | A section opens All pages with `view=live&folder=<section>`: the bar counts live pages, so the list must too (D8). The folded row opens nothing. |
+| 4 | Pages by tier | `BarList` with the tier badge | A tier opens `view=live&tier=<tier_id>`; Untiered opens `view=live&tier=none`. The Untiered entry of the View menu (7.3) keeps counting every counted address, as the toolbar's "Tiered x of y" does. |
 | 5 | Click depth | `BarList`, 0 to "6 and more", then "Not reachable by links" in the warning colour | A depth opens `depth=<n>`; the last row opens view `unreachable`. |
 | 6 | Sitemap coverage | `StackedShareBar` with its legend | In the sitemap and indexable (`in_sitemap_indexable`), Indexable, missing from the sitemap (`not_in_sitemap`), In the sitemap, not live (`sitemap_not_live`), In the sitemap, not indexable (`sitemap_not_indexable`). With `no_sitemap`: the card's empty state "The crawl found no sitemap". |
 | 7 | Issues | three rows: errors, warnings, notices (pages with at least one) | Each opens the Issues page with `severity=`. The card is absent while the seam answers `unavailable`. |
@@ -337,7 +342,7 @@ Export on this tab downloads one CSV of every card's rows (card, row, count), bu
 ### 7.1 What moves and what changes
 
 `PagesTab` becomes the body of All pages. It keeps its reads, paging, selection, bulk tier and tag dialogs, tier
-keys, CSV export and empty states. It changes in five places:
+keys, CSV export and empty states. It changes in six places:
 
 1. It takes a narrow `PagesContext` instead of `LinksTabContext` (see 9.2 for the same step on the drawer).
 2. The worklist chip row is removed; its lists move into the View menu (7.3). This row is what the 1280 by 720
@@ -346,6 +351,12 @@ keys, CSV export and empty states. It changes in five places:
 4. New filters `folder` and `depth`, the `variants` key, and server views (7.3, 7.4).
 5. The default sort becomes `path` (an inventory reads best by address, and it needs no extra read to know
    whether Search Console is connected). The old default `-linking_pages` remains a sort.
+6. The row that holds `FilterBar` and `ScopeMenu` today, outside the table, goes into the table's own toolbar.
+   `DataTable` has one slot, `toolbarEnd` (before density and columns); the Add filter button and the scope menu
+   go there. The View menu belongs at the start, before the search box, and no slot exists for it: `DataTable`
+   and `DataTableToolbar` (`components/app/data-table/toolbar.tsx`) gain an optional `toolbarStart?: ReactNode`.
+   The chips of the filters that are set are drawn as a second row of the toolbar, only while one is set. The
+   plan checks whether `FilterBar` can draw its button and its chips apart; if it cannot, it gains that split.
 
 ### 7.2 Columns
 
@@ -474,6 +485,9 @@ All pages, top to bottom, with the heights the tokens give:
 Filter chips add a row only while a filter is set. Crawl banners (a newer crawl running or failed) add a row
 only while they apply. Nothing else may sit above the table: no strip, no chip row, no description.
 
+This budget holds only with change 6 of section 7.1. With today's separate filter row (36 px and a 12 px gap)
+the first row would start near 260 px, which is 36%.
+
 The first row's position is measured on the running app at 1280 by 720 and at a wide screen. The target is at
 or above 216 px (30%) with no filter set and no banner.
 
@@ -491,13 +505,14 @@ when stepping, and closes by going back when the page pushed the entry.
 
 Hosts: All pages, Overview (a link that names a page), every tab of Internal links, and, by the other sessions,
 Issues and Monitoring. A host mounts `InspectorLayout`, calls `useInspector` and renders
-`<PageDrawer context={…} urlId={…} />`. The crawl is the host's `run`. A host with no crawl in view shows no
+`<PageInspector context={…} urlId={…} />`. The crawl is the host's `run`. A host with no crawl in view shows no
 drawer, as today.
 
-### 9.2 From PageInspector to PageDrawer
+### 9.2 PageInspector becomes the tabbed drawer
 
-`inspector/page-inspector.tsx` is renamed `page-drawer.tsx` and its component `PageDrawer`. It stops taking
-`LinksTabContext` and takes:
+`inspector/page-inspector.tsx` keeps its file name and its export `PageInspector`, so the Issues web work,
+which opens it today, merges with the smallest diff. In this spec "PageDrawer" names that component. It stops
+taking `LinksTabContext` and takes:
 
 ```ts
 export interface PageDrawerContext {
@@ -539,8 +554,8 @@ over the list otherwise, and is a full-screen sheet below 768 px. With the real 
 | 1280 | closed | docked, 440 px, the table keeps 772 px |
 | 1440 and wider | open or closed | docked |
 
-While docked, the table shrinks and keeps its own scroll; `DataTable` drops columns by `priority` as it does
-today. No new breakpoint is introduced.
+While docked, the table shrinks and keeps its own scroll; `DataTable` handles the narrower width as it does
+today (columns carry a `priority`; the plan verifies what it does with it). No new breakpoint is introduced.
 
 ### 9.4 Tabs
 
@@ -755,7 +770,7 @@ Targeted and serial only (the machine rule): `pytest -n 0 --no-cov <path>`, `vit
 - `pages-page/all-pages-tab.test.tsx`: the View menu with counts, a view in the address, the new filters, the
   default columns with and without the seams, the bulk action hidden without tracking. The existing
   `pages/*.test.tsx` keep passing after the context change.
-- `inspector/page-drawer.test.tsx` (the renamed `page-inspector.test.tsx`): five tabs in order, each tile opens
+- `inspector/page-inspector.test.tsx`: five tabs in order, each tile opens
   its tab, `itab` in the address, the seam states of the Issues tab and tile, the Search tab's three Search
   Console states, the exits as links.
 - `lib/navigation/registry.test.ts`, `src/i18n/messages.test.ts`, `src/lib/glossary/glossary-words.test.ts`.
@@ -791,7 +806,7 @@ mark opens a list whose total is the mark's number.
 | `backend/tests/api/test_route_access.py` | two rows | one row | its rows | Keep all rows |
 | `docs/glossary/terms.md`, `final-list.md` | A5 changed, All pages added, Website audit (same text as Issues) | A12 to A14, U9b, U13 to U15 | Monitoring, Tracked wording | Keep both; drop the duplicate Website audit row |
 | `docs/design-system/11-navigation.md` | the Pages row | the group and the Issues row | the Monitoring tab | Keep all |
-| `features/internal-links/inspector/` | renamed and tabbed | opens it from Issues | fills the Search slot | The other sessions rebase onto `PageDrawer` and `PageDrawerContext` |
+| `features/internal-links/inspector/` | tabbed, same file and export name, new context type | opens it from Issues | fills the Search slot | The other sessions pass a `PageDrawerContext` instead of `LinksTabContext` |
 
 ## 15. What blocks or narrows the build
 
