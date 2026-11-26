@@ -180,6 +180,81 @@ def test_search_engines_are_never_ai_even_with_a_hostile_rule(source: str) -> No
     assert classify([_row(source=source, manual_source=source)], hostile) == []
 
 
+@pytest.mark.parametrize("pattern", ["google.com", "bing.com", "msn.com", " Google.COM "])
+@pytest.mark.parametrize("field", ["referrer_host", "utm_source"])
+def test_a_rule_for_a_search_host_is_dropped_so_its_subdomains_are_not_ai(
+    pattern: str, field: Literal["referrer_host", "utm_source"]
+) -> None:
+    hostile = [_rule(field, "suffix", pattern, "hostile")]
+    host = pattern.strip().lower()
+
+    got = classify(
+        [_row(source=f"www.{host}", manual_source=f"www.{host}"), _row(source=f"x.{host}")],
+        hostile,
+    )
+
+    assert got == []
+
+
+@pytest.mark.parametrize(
+    ("host", "assistant"),
+    [
+        ("gemini.google.com", "gemini"),
+        ("copilot.microsoft.com", "copilot"),
+        ("edgeservices.bing.com", "copilot"),
+    ],
+)
+def test_seed_rules_on_a_subdomain_of_a_search_host_still_classify(
+    host: str, assistant: str
+) -> None:
+    got = _only(classify([_row(source=host)], _seed_rules()))
+
+    assert got.assistant_code == assistant
+
+
+@pytest.mark.parametrize(
+    ("source", "manual_source"),
+    [("(not set)", "google.com"), ("chatgpt.com", "google"), ("chatgpt.com", "bing.com")],
+)
+def test_a_search_host_on_either_side_of_the_row_drops_the_row(
+    source: str, manual_source: str
+) -> None:
+    # A suffix "com" rule is not a search host pattern, so only the row-level guard stops it.
+    rules = [
+        _rule("utm_source", "suffix", "com", "hostile", rule_id=1),
+        _rule("referrer_host", "exact", "chatgpt.com", "chatgpt", rule_id=2),
+    ]
+
+    assert classify([_row(source=source, manual_source=manual_source)], rules) == []
+
+
+def test_the_first_rule_in_input_order_does_not_decide_between_exact_rules() -> None:
+    rules = [
+        _rule("referrer_host", "exact", "chatgpt.com", "second", rule_id=7),
+        _rule("referrer_host", "exact", "chatgpt.com", "first", rule_id=3),
+    ]
+
+    forward = classify([_row(source="chatgpt.com")], rules)
+    backward = classify([_row(source="chatgpt.com")], list(reversed(rules)))
+
+    assert forward == backward
+    assert _only(forward).assistant_code == "first"
+
+
+def test_the_longest_suffix_wins_then_the_lowest_rule_id() -> None:
+    rules = [
+        _rule("referrer_host", "suffix", "ai", "short", rule_id=1),
+        _rule("referrer_host", "suffix", "chat.example.ai", "long_b", rule_id=9),
+        _rule("referrer_host", "suffix", "chat.example.ai", "long_a", rule_id=4),
+    ]
+
+    forward = classify([_row(source="eu.chat.example.ai")], rules)
+    backward = classify([_row(source="eu.chat.example.ai")], list(reversed(rules)))
+
+    assert forward == backward
+    assert _only(forward).assistant_code == "long_a"
+
+
 def test_a_direct_row_is_never_ai_but_a_utm_match_on_its_manual_source_counts() -> None:
     rules = [
         _rule("referrer_host", "exact", "(direct)", "hostile", rule_id=1),

@@ -8,8 +8,10 @@ docs/18-first-party-integrations.md sections 7.3 and 7.4. Each GA4 row is classi
   count; an `ambiguous` rule is for the breakdown and never reaches a headline number.
 
 Neither is labelled correct. Both leave out Google AI Overviews and AI Mode (GA4 files them under
-organic search), so `google`, `google.com`, `bing`, `bing.com` and `msn.com` are never AI here,
-whatever a rule says. Nothing here reads a clock, a database or the network.
+organic search). In `own_rules`, `google`, `google.com`, `bing`, `bing.com` and `msn.com` are never
+AI, whatever a rule says: such a rule is ignored and such a source drops the row. The GA4 channel
+classifier does not apply that guard; it trusts Google's own "AI Assistant" channel group.
+Nothing here reads a clock, a database or the network.
 """
 
 from __future__ import annotations
@@ -114,26 +116,34 @@ def _matches(rule: Rule, value: str) -> bool:
 
 
 def _best(rules: Sequence[Rule], field: str, value: str) -> Rule | None:
-    """The first exact match of the field, else the first suffix match."""
+    """An exact match of the field, else a suffix match, chosen independent of the rules' order.
+
+    Exact: the lowest rule_id. Suffix: the longest pattern (the most specific host), then the
+    lowest rule_id.
+    """
     if value in _UNKNOWN_VALUES:
         return None
     hits = [r for r in rules if r.match_field == field and _matches(r, value)]
-    for match_type in ("exact", "suffix"):
-        for rule in hits:
-            if rule.match_type == match_type:
-                return rule
-    return None
+    exact = [r for r in hits if r.match_type == "exact"]
+    if exact:
+        return min(exact, key=lambda r: r.rule_id)
+    suffix = [r for r in hits if r.match_type == "suffix"]
+    return min(suffix, key=lambda r: (-len(_norm(r.pattern)), r.rule_id), default=None)
 
 
 def _own_rule(row: SessionRow, rules: Sequence[Rule]) -> Rule | None:
     """A utm_source match (on the manual source) wins over a referrer host match (the source)."""
     source, manual = _norm(row.source), _norm(row.manual_source)
+    # Conservative: a search host on either side drops the row, even if the other side names an
+    # assistant, because the session cannot then be told apart from classic search.
     if source in _NEVER_AI or manual in _NEVER_AI:
         return None
     return _best(rules, "utm_source", manual) or _best(rules, "referrer_host", source)
 
 
-type _Key = tuple[date, str, int, str]  # day, classifier, rules version, assistant
+# The sum key: day, classifier, rules version, assistant. The classifier is a plain str here
+# because it is used to sort and compare; `ReferralRow` narrows it back to its Literal.
+type _Key = tuple[date, str, int, str]
 
 
 def _add(totals: dict[_Key, _Totals], key: _Key, row: SessionRow) -> None:
@@ -150,7 +160,11 @@ def classify(rows: Iterable[SessionRow], rules: Sequence[Rule]) -> list[Referral
     if len(versions) > 1:
         raise ValueError(f"one rule_set_version per run, got {sorted(versions)}")
     version = next(iter(versions), 0)
-    high = [rule for rule in rules if rule.confidence == "high"]
+    # A rule for a search host is dropped whatever its field or type: a suffix rule for google.com
+    # would count www.google.com and every other subdomain as AI.
+    high = [
+        rule for rule in rules if rule.confidence == "high" and _norm(rule.pattern) not in _NEVER_AI
+    ]
 
     totals: dict[_Key, _Totals] = {}
     for row in rows:
