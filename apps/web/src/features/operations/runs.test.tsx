@@ -761,6 +761,20 @@ describe('Runs', () => {
     expect(within(table).queryByRole('button', { name: /^Actions for / })).toBeNull();
   });
 
+  it('says Cancelled in a run drawer that is already open when the row cancels the run', async () => {
+    const running = store({ run_id: uuid(1) });
+    const served = serveRuns([running]);
+    const { user } = renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(1)}` });
+    const panel = await screen.findByRole('complementary');
+    await waitFor(() => expect(within(panel).queryByText('Cancelled')).toBeNull());
+    await user.click(within(await grid()).getByRole('button', { name: /^Actions for / }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel run' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel run' }));
+    await waitFor(() => expect(served.cancels).toEqual([running.run_id]));
+    expect(await within(panel).findByText('Cancelled by a member')).toBeInTheDocument();
+    expect(within(panel).getAllByText('Cancelled').length).toBeGreaterThan(0);
+  });
+
   it('says in words that a cancelled run was cancelled by a member, whatever free text the mock keeps', async () => {
     serveRuns([
       store({ run_id: uuid(1), cancelled_at: new Date(NOW.getTime() - 1_000).toISOString() }),
