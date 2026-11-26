@@ -552,10 +552,11 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT, UPDATE, DELETE"),
     ),
     # Migration 0042: page search detail. The worker learns the address forms; the API and the
-    # worker both store and prune what a page fetch brings; the API tracks and untracks pages.
+    # worker both store (INSERT ... ON CONFLICT DO UPDATE needs UPDATE) and prune what a page
+    # fetch brings; the API tracks and untracks pages.
     "fp.gsc_page_forms": (READ, access("SELECT, INSERT, UPDATE")),
-    "fp.gsc_page_fetches": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
-    "fp.gsc_page_breakdown": (access("SELECT, INSERT, DELETE"), access("SELECT, INSERT, DELETE")),
+    "fp.gsc_page_fetches": (CRUD, CRUD),
+    "fp.gsc_page_breakdown": (CRUD, CRUD),
     "core.tracked_pages": (access("SELECT, INSERT, DELETE"), READ),
     # Migration 0041: the referrer rules are global and read only; the worker replaces the
     # classified AI referral numbers a window at a time.

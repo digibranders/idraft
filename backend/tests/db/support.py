@@ -542,8 +542,8 @@ async def seed_search_console(
     )
     await db.execute(
         "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
-        "workspace_id, project_id, row_count) "
-        "VALUES ($1, 1, 'query', current_date - 27, current_date - 1, $2, $3, 1)",
+        "workspace_id, project_id, row_count, query_count) "
+        "VALUES ($1, 1, 'query', current_date - 27, current_date - 1, $2, $3, 1, 1)",
         integration_id,
         workspace_id,
         project_id,

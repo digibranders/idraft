@@ -1272,8 +1272,8 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     await execute(
         pg,
         "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
-        "workspace_id, project_id, row_count) "
-        "VALUES ($1, $2, 'query', current_date - 27, current_date - 1, $3, $4, 1)",
+        "workspace_id, project_id, row_count, query_count) "
+        "VALUES ($1, $2, 'query', current_date - 27, current_date - 1, $3, $4, 1, 1)",
         integration["id"],
         crawl_ids[pricing],
         workspace.id,

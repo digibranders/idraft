@@ -2238,6 +2238,8 @@ gsc_page_fetches = Table(
     Column("project_id", Uuid, nullable=False),
     Column("row_count", Integer, nullable=False),
     Column("truncated", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("query_count", Integer),
+    Column("query_count_capped", Boolean, nullable=False, server_default=FetchedValue()),
     Column("fetched_at", DateTime(timezone=True), nullable=False, server_default=FetchedValue()),
     ForeignKeyConstraint(
         ["integration_id", "workspace_id"],
