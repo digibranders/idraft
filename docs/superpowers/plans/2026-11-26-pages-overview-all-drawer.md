@@ -202,7 +202,7 @@ The web's `sectionOf` in `lib/internal-links/map-graph.ts` is another thing (the
 | `TRACKING_AVAILABLE`, `useTrackedPages`, `useTrackPages`, `TrackOutcome` | `src/lib/pages/tracking.ts` | spec 10.2 |
 | `PageSearchDetailSlot` | `src/lib/pages/search-detail-slot.tsx` | spec 10.3 |
 | `usePageSearchDaily(scope, run, urlId)` | `src/lib/pages/search-daily.ts` | `Seam<PageSearchDaily>`, never `unavailable` on this branch |
-| `usePageOutline(scope, urlId, enabled)` | `src/lib/pages/outline.ts` | `Seam<PageOutline>`, never `unavailable`; `error` carries `notFound: boolean` (Task 9) |
+| `usePageOutline(scope, urlId, enabled)`, `OutlineRead` | `src/lib/pages/outline.ts` | `loading`, `error` (with `notFound: boolean` and `retry`) or `ready` with the `PageOutline` (Task 9) |
 | `PAGE_DRAWER_TABS`, `PageDrawerTab`, `pageDrawerTab` | `src/lib/pages/drawer-tabs.ts` | `overview`, `search`, `outline`, `issues`, `ai`, `links`, `notes` (Task 23) |
 | `PageNote`, `pageNotesQuery(scope, urlId)`, `NOTE_MAX` | `src/lib/internal-links/types.ts`, `queries.ts`, `src/lib/pages/notes.ts` | Task 25d |
 | `usePageNotes`, `usePageNoteWrites`, `noteDraft`, `setNoteDraft`, `clearNoteDraft` | `src/lib/pages/notes.ts`, `note-drafts.ts` | Task 25d |
@@ -1136,7 +1136,8 @@ Spec 9.6.1, 9.6.2 (the last paragraph), decision D13. Contracts C4, C6.
     `short`; 61 `long`; the length is of the trimmed title;
   - canonical: the page's own id is `self` with its address; another crawled page is `elsewhere` with that
     page's address;
-  - noindex: a row whose `non_indexable_reason` is a noindex reason gives `robots.noindex` true;
+  - noindex: a row whose `non_indexable_reason` is `meta_tag` or `http_header` gives `robots.noindex` true;
+    any other reason and null give false;
   - a redirect (301) is `redirect`, a 404 and a page with no status are `error`, a 200 with
     `resource_type = 'other'` is `not_html`; each has `outline` null and the store's `get` was never called;
   - `no_html`: no object under the key; an object that is not a zstd frame; and the app built with no store.
@@ -1198,8 +1199,9 @@ def outline_body(row: OutlineRow, parsed: ParsedOutline, truncated: bool) -> Pag
   - `outline_body`: the title from `row.title` trimmed (`text` null when empty, `chars`, `length_state` with
     `TITLE_MIN` and `TITLE_MAX`); the description from `parsed` with `DESCRIPTION_MIN` and `DESCRIPTION_MAX`;
     the canonical from `canonical_url_id` (null `none`, equal to `row.url_id` `self` with `row.url`, else
-    `elsewhere` with `row.canonical_url`); `robots.noindex` from `non_indexable_reason` with the values Step 1
-    found, compared through one constant named in this module; `thin` is `parsed.words < THIN_WORDS`;
+    `elsewhere` with `row.canonical_url`); `robots.noindex` is `non_indexable_reason in NOINDEX_REASONS`, with
+    `NOINDEX_REASONS: Final = ("meta_tag", "http_header")` in this module (the two values the Issues check
+    `noindex` tests on its branch, `api/issues/rules.py`; Step 1 confirms the crawl writes exactly these); `thin` is `parsed.words < THIN_WORDS`;
     `read_minutes(parsed.words)`.
   `reads.py`: `LinkReadService.__init__(self, *, sessions, raw_store: ObjectStore | None = None)`, and
 
@@ -1263,7 +1265,8 @@ document. No route.
 **Files:**
 - Create: `backend/src/idraft/db/migrations/versions/0042_page_notes.py`
 - Modify: `backend/src/idraft/db/tables.py`
-- Modify: `backend/tests/db/test_tables.py`, `backend/tests/db/support.py`, `backend/tests/db/test_grants.py`
+- Modify: `backend/tests/db/test_tables.py`, `backend/tests/db/support.py`, `backend/tests/db/test_grants.py`,
+  `backend/tests/security/test_cross_tenant.py`
 - Create: `backend/tests/db/test_page_notes_schema.py`
 - Modify: `docs/04-data-model.md`
 
@@ -1284,6 +1287,10 @@ document. No route.
   - `support.py`: `"core.page_notes": "workspace_id"` in the tenant column map, and one seeded row (a note by
     the seeded user on a seeded URL of the seeded project) where the other seed inserts are, so the
     row-level security test covers the table.
+  - `tests/security/test_cross_tenant.py`: it keeps its own map of tenant tables (near line 1599) and its own
+    seed (near line 1044): add `"core.page_notes": "workspace_id"` and one seeded note there too. Find any
+    other list of every table with `grep -rln "keyword_prompt_links" backend/tests` and add the table
+    wherever that one is listed as a table (not where it is only queried).
   - `test_grants.py`: the API role has `SELECT` and `INSERT` on the table and `UPDATE` on exactly `body`,
     `edited_at`, `deleted_at`, `deleted_by`; it has no `DELETE`; the worker role has nothing.
   - `test_page_notes_schema.py`: a body of 1 and of 2,000 characters is stored; an empty body, a body of
@@ -1294,7 +1301,7 @@ document. No route.
     session sees no row of the first (row-level security).
 
 - [ ] **Step 3: Run, expect failures.**
-  `uv run pytest -n 0 --no-cov tests/db/test_page_notes_schema.py tests/db/test_tables.py tests/db/test_grants.py`
+  `uv run pytest -n 0 --no-cov tests/db/test_page_notes_schema.py tests/db/test_tables.py tests/db/test_grants.py tests/security/test_cross_tenant.py`
 
 - [ ] **Step 4: Implement.** The migration:
 
@@ -1529,8 +1536,10 @@ git commit -m "Regenerate the API client for the Pages routes"
   Expected: `schema.ts` gains the paths `…/internal-links/overview`, `…/internal-links/pages/{url_id}/search`
   and `…/internal-links/pages/{url_id}/outline`, the schemas `PagesOverview`, `PageSearchDaily`, `PageOutline`
   and `PageOutlineBody`, `PageNote`, `PageNoteList` and `PageNoteWrite`, the five note paths under
-  `…/internal-links/pages/{url_id}/notes`, `notes_count?: number` on `PageDetail`, and `filter[view]`,
-  `filter[folder]`, `filter[depth]` on the pages list. `pnpm typecheck` passes. If it fails, stop and report: do not edit `schema.ts` by hand.
+  `…/internal-links/pages/{url_id}/notes`, `notes_count?: number` on `PageDetail` (optional, as every defaulted field of
+  `openapi/v1.json` is today; if it comes out required and `pnpm typecheck` fails on a mock, stop and tell the
+  lead: the fix is `notes_count` in the mocked page detail in a commit of its own, not an edit of `schema.ts`),
+  and `filter[view]`, `filter[folder]`, `filter[depth]` on the pages list. `pnpm typecheck` passes. If it fails, stop and report: do not edit `schema.ts` by hand.
 
 - [ ] **Step 2: Independent senior review (Sonnet subagent).** The commit holds `schema.ts` only, and its
   diff is only additions that the backend commits of Tasks 1 to 5e explain.
@@ -1630,7 +1639,7 @@ Spec section 12 ("Mock handlers for the three new routes"), 9.6.1. Contracts C2,
   narrow the list; `filter[view]` with `filter[worklist]` is 422; `sort=-impressions` orders by impressions;
   `GET …/pages/{url_id}/search` answers `ok` with 28 days whose clicks add up to `clicks`; a viewer of
   another workspace gets 404 for the three new routes.
-  `internal-links-outline.test.ts`: `outlineOf(row)` for a live row is `ok` with every field of C6, its title
+  `internal-links-outline.test.ts`: `outlineOf(row, runId)` for a live row is `ok` with every field of C6, its title
   text is the row's title and its `state` follows 30 and 60, `level_counts[0]` equals the H1 entries of
   `headings`, `headings_total` is at least `headings.length`; a redirect row is `redirect`, a 404 row
   `error`, both with `outline: null`; the same row always gives the same outline; `OUTLINE_LONG_PAGE` has
@@ -3168,12 +3177,12 @@ four.
     "None"), `h1Missing`, `warn: true`; 2 gives `h1Many`, `warn: true`; the headings note carries
     `level_counts[1]` and `level_counts[2]`; words `thin` gives `thin` and `warn: true`, else `readTime` with
     the minutes; images with `images_without_alt` 2 gives `imagesNoAlt` with 2 and `warn: true`;
-  - `blocks.listing`: `tone` `ok` and no findings for the healthy one; for the other, the findings in the
+  - `listing`: `tone` `ok` and no findings for the healthy one; for the other, the findings in the
     order title, description, duplicate, noindex, canonical, each with the `checkId` of spec 9.6.3
     (`title-short`, `description-missing`, `noindex`, `canonical-elsewhere`) and `null` for a short or long
-    description; `tone` `warning`; `count` is the number of findings; `description-duplicate` is a finding
+    description; `tone` `warning` (the tab's summary count is `findings.length`); `description-duplicate` is a finding
     only when the second argument (the page's issues) lists that check;
-  - `blocks.headings`: `first` is the first `HEADINGS_FOLDED` (12) headings and `rest` the others; the
+  - `headings`: `first` is the first `HEADINGS_FOLDED` (12) headings and `rest` the others; the
     findings `h1-missing`, `h1-multiple` (with the count) and a skipped level (with the text, the level and
     the level before, `checkId: null`); `h1Text` is the text of the first H1 or `null`; `capped` is
     `{ shown: 200, total: 1240 }` when `headings_total` is over the list, else `null`;
@@ -3195,6 +3204,8 @@ four.
     the missing description has a link "See in Issues" to that route and the finding for a skipped level has
     none;
   - the meter: the text "29 characters, short of 30" is in the document and the bar has `aria-hidden="true"`;
+  - with an older crawl in view (`crawl.older`), a row that redirects in that crawl but is live in the
+    latest shows the outline, not the redirect sentence;
   - the states: a redirect row shows `state.redirect` with the path of the row's redirect target and sends
     no outline request that the tab waits on (the hook is still called; assert only the sentence); a 404
     row shows `state.error` with 404; `OUTLINE_NO_HTML_PAGE` shows `state.noHtml`; the read answering 404
@@ -3266,8 +3277,10 @@ export function outlineModel(outline: PageOutlineBody, issues: readonly PageIssu
   from `OUTLINE_OPEN_AT_START`, held by `page-inspector.tsx` so it survives stepping (pass `openBlocks` and
   `onToggleBlock`); "show all headings" in a `useState` keyed by `urlId`; the states of spec 9.6.3 as one
   sentence each; the strip as a `dl` in one joined panel, two columns that become four at the container
-  width the tiles of Task 24 use; then the two blocks; then the footer line. A page that is not live is
-  decided from the page row first (redirect, error), so its sentence shows without waiting for the read.
+  width the tiles of Task 24 use; then the two blocks; then the footer line. While the crawl in view is the
+  latest (`!context.crawl.older`), a page that is not live is decided from the page row first (redirect,
+  error), so its sentence shows without waiting for the read; with an older crawl in view the row is not the
+  latest crawl's, so the tab waits for the read and uses its `state`.
   Every string from the page is a text child (`{value}`); never `dangerouslySetInnerHTML`, never an `href`,
   `src` or `style` built from page text.
   `page-inspector.tsx`: the Outline panel renders the tab.
