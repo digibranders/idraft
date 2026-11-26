@@ -177,8 +177,15 @@ export function answerTrackedAsMany({
         // The count of the project's keywords (no filter) is the fixtures'; the count a bulk action reads
         // just before it acts (the list's filters, one row) is the total these tests give the list
         const filtered = [...url.searchParams.keys()].some((key) => key.startsWith('filter['));
+        // The strip asks for its six counts in this one-row read (`include=counts`)
+        const counts = url.searchParams.get('include')?.split(',').includes('counts')
+          ? { counts: { total, ranked: total, beyond: 0, top3: 0, top10: 0, top20: 0 } }
+          : {};
         return filtered
-          ? HttpResponse.json({ data: [], page: { limit: 1, next_cursor: null, has_more: total > 1, total } })
+          ? HttpResponse.json({
+              data: [],
+              page: { limit: 1, next_cursor: null, has_more: total > 1, total, ...counts },
+            })
           : undefined;
       }
       asked.push(new URLSearchParams(url.searchParams));

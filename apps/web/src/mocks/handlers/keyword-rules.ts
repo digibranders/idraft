@@ -891,6 +891,28 @@ export function rankReader(rank: RankContext): RankReader {
   };
 }
 
+/**
+ * The strip counts of `include=counts`, as `api/keywords/repository.py count_buckets` makes them over the rows the
+ * filters keep: `beyond` is "checked and not found" (`rank_is_null=true`), so a keyword never checked is in the
+ * total only.
+ */
+export function rankCounts(rows: readonly StoredTracked[], ranks: RankReader): Schemas['TrackedKeywordCounts'] {
+  const counts = { total: rows.length, ranked: 0, beyond: 0, top3: 0, top10: 0, top20: 0 };
+  for (const row of rows) {
+    const state = ranks(row);
+    const { rank } = state.current;
+    if (rank === null) {
+      if (state.last_observed_at !== null) counts.beyond += 1;
+      continue;
+    }
+    counts.ranked += 1;
+    if (rank <= 3) counts.top3 += 1;
+    if (rank <= 10) counts.top10 += 1;
+    if (rank <= 20) counts.top20 += 1;
+  }
+  return counts;
+}
+
 const rankFilterGiven = (filter: TrackedFilter): boolean =>
   filter.rankLte !== null ||
   filter.rankGte !== null ||
@@ -1097,6 +1119,7 @@ export function parseInclude(url: URL): Set<Include> | ValidationItem {
     'gsc',
     'features',
     'aio',
+    'counts',
   ] as const;
   const bad = values.filter((value) => !isOneOf(value, allowed));
   if (bad.length > 0) return queryError('include', 'enum', `Allowed: ${allowed.join(', ')}.`);
