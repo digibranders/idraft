@@ -164,7 +164,7 @@ export function VisibilityTab(): ReactElement {
         emptyText={t('states.noDataReason')}
         scrollHint={t('columns.scrollHint')}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 @4xl:grid-cols-2">
         <DonutCard
           title={t('charts.donut.lost.title')}
           summary={t('charts.donut.lost.summary')}
