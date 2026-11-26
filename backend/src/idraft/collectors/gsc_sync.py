@@ -221,7 +221,8 @@ class _Pass:
 
     async def _pages_window(self, probe: Sequence[date], start: date, end: date) -> bool:
         """The page rows of the days of the window that have none yet, one call per day, and the
-        pruning of days past `PAGE_KEEP_DAYS`. True when it stopped on the budget."""
+        pruning of days older than the history the pull keeps (a tracked page keeps them all).
+        True when it stopped on the budget."""
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             have = await gsc_pages.stored_page_days(db, self._facts, start, end)
         for day in probe:
@@ -243,7 +244,7 @@ class _Pass:
                 )
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             await gsc_pages.prune_pages(
-                db, self._facts, end - timedelta(days=gsc_pages.PAGE_KEEP_DAYS)
+                db, self._facts, history_start(pacific_today(self._ctx.now()))
             )
         return False
 
