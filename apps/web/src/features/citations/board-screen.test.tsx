@@ -4,8 +4,10 @@ import type { OnUrlUpdateFunction } from 'nuqs/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CitationsScreen, type CitationsScreenProps } from './board-screen';
+import { Inspector } from '@/components/app/inspector/inspector';
 import type { Role } from '@/lib/api/types';
 import { downloadBlob } from '@/lib/csv/csv-write';
+import { InspectorWidthUserContext, writeInspectorWidth } from '@/lib/inspector/width-store';
 import { PermissionProvider } from '@/lib/permissions';
 import { CITATIONS_FIXTURE } from '@/mocks/citations-v2-fixture';
 import { membershipFactory } from '@/mocks/factories/identity';
@@ -34,6 +36,18 @@ const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The fixture projects are missing');
 const ENTITIES = mswPath(`/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${fynix.project_id}/entities`);
 const PROMPT_DRAWER = <aside aria-label="Prompt inspector stub" />;
+/** The prompt inspector as the route composes it: the shared drawer, so it has the shared width. */
+const REAL_PROMPT_DRAWER = (
+  <Inspector
+    type="prompt"
+    header={{ title: 'Prompt drawer', typeLabel: 'Prompt', typeNoun: 'prompt' }}
+    backLabel="Back to Citations"
+    onClose={() => undefined}
+  >
+    <div />
+  </Inspector>
+);
+const USER = 'citations-board-user';
 const PROPS: CitationsScreenProps = {
   workspaceId: MOCK_WORKSPACE.workspace_id,
   workspaceSlug: 'digibranders',
@@ -46,7 +60,9 @@ function render(role: Role = 'editor', options: ProvidedRenderOptions = {}, prop
   nav.search = options.searchParams ?? '';
   return renderWithProviders(
     <PermissionProvider membership={membershipFactory(role)}>
-      <CitationsScreen {...PROPS} {...props} />
+      <InspectorWidthUserContext value={USER}>
+        <CitationsScreen {...PROPS} {...props} />
+      </InspectorWidthUserContext>
     </PermissionProvider>,
     options,
   );
@@ -58,6 +74,7 @@ beforeEach(() => {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('editor').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
 });
 afterEach(() => {
+  writeInspectorWidth(USER, null);
   restoreWideScreen();
   vi.restoreAllMocks();
   vi.mocked(downloadBlob).mockClear();
@@ -153,6 +170,92 @@ describe('the Citations screen', () => {
     await user.keyboard('j');
     await waitFor(() => expect(lastQuery(onUrlUpdate)).not.toBe(opened));
     expect(lastQuery(onUrlUpdate)).toMatch(/^\?inspect=cited-page:\d+$/);
+  });
+
+  it('lays the page drawer over the board, marks its row, and closes on Escape from inside it', async () => {
+    const { user } = render();
+    const table = await screen.findByRole('table', { name: 'Cited pages' });
+    const first = within(table).getAllByRole('button', { name: /^Open / })[0];
+    if (first === undefined) throw new Error('No row');
+    await user.click(first);
+    const drawer = await screen.findByRole('complementary');
+    expect(drawer).toHaveClass('fixed');
+    expect(first.closest('tr')).toHaveAttribute('data-active');
+    await waitFor(() => expect(drawer).toContainElement(document.activeElement as HTMLElement));
+    // A tooltip still showing takes an Escape of its own: the pointer leaves the row first
+    await user.unhover(first);
+    await waitFor(() => expect(document.querySelector('[data-slot="tooltip"]:not([data-ending-style])')).toBeNull());
+    // A drawer a row opened closes by going back, which the test address cannot do: the close is the call
+    // (`use-focus-return.test.tsx` covers the focus going back to the row once the drawer is gone)
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    await user.keyboard('{Escape}');
+    expect(back).toHaveBeenCalledOnce();
+  });
+
+  it('ArrowDown inside the page drawer steps to the next cited page', async () => {
+    const onUrlUpdate = vi.fn<OnUrlUpdateFunction>();
+    const { user } = render('editor', { onUrlUpdate });
+    const table = await screen.findByRole('table', { name: 'Cited pages' });
+    const [first, second] = within(table).getAllByRole('button', { name: /^Open / });
+    if (first === undefined || second === undefined) throw new Error('No rows');
+    await user.click(first);
+    const drawer = await screen.findByRole('complementary');
+    expect(await within(drawer).findByText(/^1 of \d+$/)).toBeVisible();
+    await waitFor(() => expect(drawer).toContainElement(document.activeElement as HTMLElement));
+    const opened = lastQuery(onUrlUpdate);
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(lastQuery(onUrlUpdate)).not.toBe(opened));
+    expect(lastQuery(onUrlUpdate)).toMatch(/^\?inspect=cited-page:\d+$/);
+    expect(await within(screen.getByRole('complementary')).findByText(/^2 of \d+$/)).toBeVisible();
+    expect(second.closest('tr')).toHaveAttribute('data-active');
+    expect(first.closest('tr')).not.toHaveAttribute('data-active');
+  });
+
+  it('J from a row of the board does nothing: the board is a plain table, stepping starts in the drawer', async () => {
+    const onUrlUpdate = vi.fn<OnUrlUpdateFunction>();
+    const { user } = render('editor', { onUrlUpdate });
+    const table = await screen.findByRole('table', { name: 'Cited pages' });
+    const first = within(table).getAllByRole('button', { name: /^Open / })[0];
+    if (first === undefined) throw new Error('No row');
+    await user.click(first);
+    const drawer = await screen.findByRole('complementary');
+    expect(await within(drawer).findByText(/^1 of \d+$/)).toBeVisible();
+    const opened = lastQuery(onUrlUpdate);
+    first.focus();
+    await user.keyboard('j');
+    expect(lastQuery(onUrlUpdate)).toBe(opened);
+    expect(within(drawer).getByText(/^1 of \d+$/)).toBeVisible();
+    // The same key from inside the drawer steps
+    within(drawer).getByRole('heading', { level: 2 }).focus();
+    await user.keyboard('j');
+    await waitFor(() => expect(lastQuery(onUrlUpdate)).not.toBe(opened));
+  });
+
+  it('keeps one width when a cited page gives way to a prompt and to a gap prompt', async () => {
+    writeInspectorWidth(USER, 720);
+    const pages = render('editor', {}, { promptDrawer: REAL_PROMPT_DRAWER });
+    const cited = await screen.findByRole('table', { name: 'Cited pages' });
+    const page = within(cited).getAllByRole('button', { name: /^Open / })[0];
+    if (page === undefined) throw new Error('No row');
+    await pages.user.click(page);
+    const pageDrawer = await screen.findByRole('complementary');
+    expect(pageDrawer.style.width).toBe('720px');
+    const prompts = await within(pageDrawer).findByRole('table', { name: 'Prompts that cite this page' });
+    const prompt = within(prompts).getAllByRole('button')[0];
+    if (prompt === undefined) throw new Error('The page has no prompt');
+    await pages.user.click(prompt);
+    expect((await screen.findByRole('complementary', { name: 'Prompt drawer' })).style.width).toBe('720px');
+    pages.unmount();
+
+    const gaps = render('editor', {}, { tab: 'gaps', promptDrawer: REAL_PROMPT_DRAWER });
+    const gapTable = await screen.findByRole('table', { name: 'Gap analysis' });
+    const gap = within(gapTable).getAllByRole('button', { name: /^Open / })[0];
+    if (gap === undefined) throw new Error('No row');
+    await gaps.user.click(gap);
+    const gapDrawer = await screen.findByRole('complementary');
+    expect(gapDrawer.style.width).toBe('720px');
+    await gaps.user.click(await within(gapDrawer).findByRole('button', { name: 'Open answers' }));
+    expect((await screen.findByRole('complementary', { name: 'Prompt drawer' })).style.width).toBe('720px');
   });
 
   it('reopens a shared cited page link in the drawer', async () => {

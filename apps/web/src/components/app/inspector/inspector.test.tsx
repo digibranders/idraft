@@ -572,7 +572,7 @@ describe('InspectorSection', () => {
     expect(title.parentElement?.parentElement).not.toHaveClass('h-12');
   });
 
-  it('can put its action on a second row until the card is 42 rem wide (a container query)', () => {
+  it('can put its action on a second row until the card is 24 rem wide (a container query)', () => {
     const { container, rerender } = renderWithProviders(
       <InspectorSection
         title="Who is cited"
@@ -593,7 +593,7 @@ describe('InspectorSection', () => {
       />,
     );
     expect(container.querySelector('section')).toHaveClass('@container');
-    expect(screen.getByRole('button', { name: 'Open' }).parentElement).toHaveClass('basis-full', '@2xl:basis-auto');
+    expect(screen.getByRole('button', { name: 'Open' }).parentElement).toHaveClass('basis-full', '@sm:basis-auto');
     expect(screen.getByRole('heading', { level: 3 }).parentElement?.parentElement).toHaveClass(
       'flex-wrap',
       'min-h-12',
