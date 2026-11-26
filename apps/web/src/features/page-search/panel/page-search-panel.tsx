@@ -75,35 +75,25 @@ function LivePanel({
   const state = usePanelState();
 
   // The read with no dates is the default month; it also tells the last final day, which the address's period needs
-  const defaults: PeriodParams = { compare: state.compare };
+  // With a period in the address the read with no dates only tells the last final day, so the comparison does not matter
+  const defaults: PeriodParams = { compare: state.hasPeriod ? 'none' : state.compare };
   const probe = useQuery(pageSearchQuery(scope, urlId, defaults));
   const finalThrough = probe.data?.meta.final_through ?? null;
   const range = state.hasPeriod && finalThrough !== null ? addressPeriod(state.address, finalThrough) : null;
-  const params = range === null || finalThrough === null ? defaults : periodParams(range, state.compare, finalThrough);
-  const read = useQuery({ ...pageSearchQuery(scope, urlId, params), placeholderData: keepPreviousData });
-
+  const params =
+    range === null || finalThrough === null
+      ? { compare: state.compare }
+      : periodParams(range, state.compare, finalThrough);
   // A period in the address cannot be sent before the last final day is known
   const waiting = state.hasPeriod && probe.data === undefined;
+  const read = useQuery({
+    ...pageSearchQuery(scope, urlId, params),
+    enabled: !waiting,
+    placeholderData: keepPreviousData,
+  });
+
   const failed = waiting ? probe : read;
   const answer = waiting ? undefined : read.data;
-  if (answer === undefined) {
-    return failed.isError ? (
-      <LoadError
-        error={failed.error}
-        retrying={failed.isFetching}
-        onRetry={() => {
-          void failed.refetch();
-        }}
-      />
-    ) : (
-      <PanelSkeleton />
-    );
-  }
-
-  const { data: detail, meta } = answer;
-  if (meta.state === 'not_connected') return <NotConnected workspaceSlug={workspaceSlug} projectSlug={projectSlug} />;
-  if (meta.state === 'pending') return <Pending />;
-
   const controls =
     finalThrough === null ? null : (
       <PeriodControls
@@ -115,6 +105,27 @@ function LivePanel({
         timeZone={timeZone}
       />
     );
+  if (answer === undefined) {
+    return failed.isError ? (
+      <div className="flex flex-col gap-4">
+        {controls}
+        <LoadError
+          error={failed.error}
+          retrying={failed.isFetching}
+          onRetry={() => {
+            void failed.refetch();
+          }}
+        />
+      </div>
+    ) : (
+      <PanelSkeleton />
+    );
+  }
+
+  const { data: detail, meta } = answer;
+  if (meta.state === 'not_connected') return <NotConnected workspaceSlug={workspaceSlug} projectSlug={projectSlug} />;
+  if (meta.state === 'pending') return <Pending />;
+
   const banner =
     meta.state === 'reauth_required' || meta.state === 'no_access' ? (
       <StaleBanner

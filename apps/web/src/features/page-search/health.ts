@@ -57,6 +57,7 @@ export type VerdictMessage =
   | 'stableAlone'
   | 'new'
   | 'lowData'
+  | 'lowDataAlone'
   | 'smallNumbers'
   | 'noData';
 
@@ -74,7 +75,7 @@ export function verdictMessage(health: PageHealth, compared: boolean): VerdictMe
     case 'sharp_drop':
       return 'sharpDrop';
     case 'low_data':
-      return health.small ? 'smallNumbers' : 'lowData';
+      return health.small ? 'smallNumbers' : compared ? 'lowData' : 'lowDataAlone';
     case 'no_data':
       return 'noData';
     case 'lost':

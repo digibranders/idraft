@@ -122,6 +122,13 @@ describe('Verdict', () => {
     expect(screen.getByText(sentence)).toBeInTheDocument();
   });
 
+  it('does not say both periods when the page has no numbers to compare with', () => {
+    show({ health: health('low_data'), current: numbers(2, 40), previous: null });
+    expect(
+      screen.getByText('Too little traffic to judge: 2 clicks and 40 impressions in Oct 1 to Oct 31, 2026.'),
+    ).toBeInTheDocument();
+  });
+
   it('adds one sentence per flag', () => {
     show({
       health: health('declining', { change: -0.2, flags: ['position_slipped', 'ctr_fell_impressions_rose'] }),

@@ -115,16 +115,23 @@ function BreakdownTable({ tab, scope, urlId, period, metric }: BreakdownTablePro
     return name.kind === 'text' ? name.text : t(name.key);
   };
 
+  const named = { metric: t(`metrics.${metric}`) };
   const columns: PlainColumn<BreakdownRow>[] = [
     { id: 'name', header: t(`names.${tab}`), cell: nameCell },
-    { id: 'now', header: t('columns.now'), cell: (row) => numbersCell(row.current) },
+    { id: 'now', header: t('columns.now', named), cell: (row) => numbersCell(row.current) },
     ...(compared
       ? [
-          { id: 'before', header: t('columns.before'), cell: (row: BreakdownRow) => numbersCell(row.previous) },
-          { id: 'change', header: t('columns.change'), cell: changeCell },
+          { id: 'before', header: t('columns.before', named), cell: (row: BreakdownRow) => numbersCell(row.previous) },
+          { id: 'change', header: t('columns.change', named), cell: changeCell },
         ]
       : []),
   ];
+  // The change of a count is the difference of the totals, so it needs saying when the periods differ in length
+  const totalsOfUnequalPeriods =
+    (metric === 'clicks' || metric === 'impressions') &&
+    answer?.meta.window != null &&
+    answer.meta.compare_window != null &&
+    answer.meta.window.days !== answer.meta.compare_window.days;
 
   const coverage = tab === 'queries' ? (answer?.meta.coverage ?? null) : null;
   const shown = showAll ? rows : rows.slice(0, SHOWN_ROWS);
@@ -162,6 +169,7 @@ function BreakdownTable({ tab, scope, urlId, period, metric }: BreakdownTablePro
           {t('showAll', { count: formatInteger(rows.length) })}
         </Button>
       ) : null}
+      {totalsOfUnequalPeriods ? <p className="type-meta text-foreground-tertiary">{t('breakdownLengths')}</p> : null}
       {coverage === null ? null : (
         <p className="type-meta text-foreground-tertiary">
           {t('coverage', { percent: formatPercent(coverage, { decimals: 0 }) })}

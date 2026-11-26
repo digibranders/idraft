@@ -278,12 +278,40 @@ describe('PageSearchPanel', () => {
         ),
       );
       const { user } = renderPanel();
-      expect(await screen.findByText('Google is busy. Trying again in 20 s.')).toBeInTheDocument();
+      expect(await screen.findByText('Google is busy. Try again in 20 s.')).toBeInTheDocument();
       expect(screen.queryByRole('group', { name: 'Search numbers for the period' })).not.toBeInTheDocument();
       const before = seen.length;
       await user.click(screen.getByRole('button', { name: 'Retry' }));
       await waitFor(() => expect(seen.length).toBeGreaterThan(before));
     });
+  });
+
+  it('keeps the period controls above the error when the read of the chosen period fails', async () => {
+    server.use(
+      http.get(ROUTE, ({ request }) =>
+        new URL(request.url).searchParams.has('from')
+          ? HttpResponse.json(
+              { type: 'about:blank', title: 'unavailable', status: 503, code: 'google_unavailable', request_id: 'r1' },
+              { status: 503 },
+            )
+          : HttpResponse.json(answer()),
+      ),
+    );
+    renderPanel({ searchParams: 'sp_win=7d' });
+    expect(await screen.findByText('Could not load the search numbers')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Period:/ })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: /^Compare with/ })).toBeInTheDocument();
+  });
+
+  it('does not read the first answer again when the comparison changes', async () => {
+    const seen = serve();
+    const { user } = renderPanel({ searchParams: 'sp_win=7d' });
+    await strip();
+    await user.click(screen.getByRole('combobox', { name: /^Compare with/ }));
+    await user.click(await screen.findByRole('option', { name: 'No comparison' }));
+    await waitFor(() => expect(seen.some((url) => url.searchParams.get('compare') === 'none')).toBe(true));
+    const probes = seen.filter((url) => !url.searchParams.has('from'));
+    expect(probes.every((url) => url.searchParams.get('compare') === 'none')).toBe(true);
   });
 
   it('has no accessibility violations', async () => {

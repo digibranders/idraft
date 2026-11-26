@@ -124,6 +124,7 @@ describe('health', () => {
     expect(verdictMessage(health('lost'), true)).toBe('lost');
     expect(verdictMessage(health('low_data', 0, { small: true }), true)).toBe('smallNumbers');
     expect(verdictMessage(health('low_data'), true)).toBe('lowData');
+    expect(verdictMessage(health('low_data'), false)).toBe('lowDataAlone');
     expect(verdictMessage(health('no_data'), true)).toBe('noData');
   });
 });

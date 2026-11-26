@@ -157,12 +157,42 @@ describe('BreakdownTabs', () => {
     expect(cellsOf('gone')).toEqual(['Not collected yet', '9', 'Not collected yet']);
   });
 
+  it('names the metric in the column headers', async () => {
+    serve(() => answer(QUERIES));
+    render('position');
+    const table = await loaded();
+    for (const name of ['Average position now', 'Average position before', 'Average position change']) {
+      expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
+    }
+  });
+
   it('drops Before and Change when the period is not compared', async () => {
     serve(() => answer(QUERIES, { compare_window: null }));
     render();
     const table = await loaded();
-    expect(within(table).queryByRole('columnheader', { name: 'Before' })).not.toBeInTheDocument();
-    expect(within(table).queryByRole('columnheader', { name: 'Change' })).not.toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Clicks now' })).toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Clicks before' })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('columnheader', { name: 'Clicks change' })).not.toBeInTheDocument();
+  });
+
+  it('says the change compares totals when the two periods differ in length, for counts only', async () => {
+    const note = 'The two periods differ in length, so the change is the difference of the totals.';
+    serve(() => answer(QUERIES));
+    const first = render();
+    await loaded();
+    expect(screen.getByText(note)).toBeInTheDocument();
+    first.unmount();
+    serve(() => answer(QUERIES, { compare_window: { ...COMPARE, days: 31 } }));
+    render();
+    await loaded();
+    expect(screen.queryByText(note)).not.toBeInTheDocument();
+  });
+
+  it('does not say it for a ratio metric', async () => {
+    serve(() => answer(QUERIES));
+    render('ctr');
+    await loaded();
+    expect(screen.queryByText(/differ in length/)).not.toBeInTheDocument();
   });
 
   it('shows 25 rows and the rest on Show all', async () => {
@@ -197,7 +227,7 @@ describe('BreakdownTabs', () => {
     let busy = true;
     const asked = serve(() => (busy ? problem(429, 'gsc_busy', { retry_after_seconds: 20 }) : answer(QUERIES)));
     const { user } = render();
-    expect(await screen.findByText('Google is busy. Trying again in 20 s.')).toBeInTheDocument();
+    expect(await screen.findByText('Google is busy. Try again in 20 s.')).toBeInTheDocument();
     const before = asked.length;
     busy = false;
     await user.click(screen.getByRole('button', { name: 'Retry' }));

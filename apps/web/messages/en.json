@@ -10256,10 +10256,11 @@
       "devices": "Devices"
     },
     "columns": {
-      "now": "Now",
-      "before": "Before",
-      "change": "Change"
+      "now": "{metric} now",
+      "before": "{metric} before",
+      "change": "{metric} change"
     },
+    "breakdownLengths": "The two periods differ in length, so the change is the difference of the totals.",
     "devices": {
       "desktop": "Desktop",
       "mobile": "Mobile",
@@ -10303,6 +10304,7 @@
       "stableAlone": "{clicks} clicks and {impressions} impressions in {period}.",
       "new": "New in search: {clicks} clicks, none in {period}.",
       "lowData": "Too little traffic to judge: {clicks} clicks and {impressions} impressions over both periods.",
+      "lowDataAlone": "Too little traffic to judge: {clicks} clicks and {impressions} impressions in {period}.",
       "smallNumbers": "Small numbers: {metric} went from {before} to {now}, too few to count as a real change.",
       "noData": "Google reported no impressions for this page in this period.",
       "perDay": "Counted per day, because the two periods differ in length.",
@@ -10317,7 +10319,7 @@
       "reauth": "Search Console needs a new sign-in. The numbers stop at {date}.",
       "noAccess": "This Google account can no longer read the property. The numbers stop at {date}.",
       "noImpressions": "Google reported no impressions for this page in this period.",
-      "busy": "Google is busy. Trying again in {seconds} s.",
+      "busy": "Google is busy. Try again in {seconds} s.",
       "retry": "Retry",
       "unavailable": "Google did not answer. Try again.",
       "errorTitle": "Could not load the search numbers",
