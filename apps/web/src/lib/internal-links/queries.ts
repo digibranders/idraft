@@ -70,7 +70,7 @@ export const withRun = <T extends object>(params: T, run: string | null): T & { 
   run === null ? params : { ...params, run };
 
 /** A CSV download of a selection: the same query without its window (`offset`, `limit`), as `format=csv`. */
-const csvOf = (params: object): DownloadQuery => {
+export const csvOf = (params: object): DownloadQuery => {
   const wanted: Record<string, DownloadQuery[string]> = {};
   for (const [key, value] of Object.entries(params)) {
     if (key !== 'limit' && key !== 'offset' && value !== undefined && value !== null) wanted[key] = value;
@@ -562,11 +562,21 @@ export function internalLinksKeys(scope: LinksScope): QueryKey[] {
 }
 
 /**
- * What a crawl turning ready makes stale: the crawl list, every read of the links (a new crawl is the latest one)
- * and the project settings document (which holds the internal links settings).
+ * The Issues list of the project. The pages of one check are a read of the internal links pages, so
+ * `internalLinksKeys` reaches them; only the list of checks needs a key of its own.
+ */
+export const issueKeys = (scope: LinksScope): QueryKey[] => [
+  [...projectKey(scope.workspaceId, scope.projectId), 'issues'],
+];
+
+/**
+ * What a crawl turning ready makes stale: the crawl list, every read of the links (a new crawl is the latest one),
+ * the list of Issues (its checks run on the latest crawl) and the project settings document (which holds the
+ * internal links settings).
  */
 export const crawlFinishedKeys = (scope: LinksScope): QueryKey[] => [
   ...crawlKeys(scope),
   ...internalLinksKeys(scope),
+  ...issueKeys(scope),
   [...projectKey(scope.workspaceId, scope.projectId), 'settings'],
 ];

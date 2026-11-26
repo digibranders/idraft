@@ -10234,6 +10234,345 @@
       "unknownReason": "The latest crawl is not among the most recent runs, so this page cannot tell what it holds yet. Try again."
     }
   },
+  "issues": {
+    "title": "Issues",
+    "tabs": {
+      "technical": "Technical",
+      "onPage": "On-page",
+      "found": "{count, plural, one {# issue} other {# issues}} found"
+    },
+    "categories": {
+      "status": "Status",
+      "earningPages": "Pages that earn visits",
+      "redirects": "Redirects",
+      "indexing": "Indexing",
+      "sitemap": "Sitemap",
+      "links": "Links",
+      "titles": "Titles",
+      "addresses": "Addresses",
+      "keywords": "Keywords"
+    },
+    "severity": {
+      "all": "All",
+      "error": {
+        "label": "Error",
+        "many": "Errors",
+        "tip": "Breaks a page for visitors or for Google. Fix these first."
+      },
+      "warning": {
+        "label": "Warning",
+        "many": "Warnings",
+        "tip": "Holds a page back. Fix after the errors."
+      },
+      "notice": {
+        "label": "Notice",
+        "many": "Notices",
+        "tip": "Worth a look. Often intended."
+      }
+    },
+    "foundBy": {
+      "label": "Found by",
+      "all": "All data",
+      "badge": "Found by: {name}",
+      "crawl": {
+        "label": "Crawl",
+        "tip": "Found by crawling the site, page by page."
+      },
+      "ranks": {
+        "label": "Rank checks",
+        "tip": "Found by the daily rank checks of your tracked keywords, joined with the crawl."
+      },
+      "gsc": {
+        "label": "Search Console",
+        "tip": "Found in Google Search Console data, joined with the crawl."
+      },
+      "ga4": {
+        "label": "Google Analytics",
+        "tip": "Found in Google Analytics data, joined with the crawl."
+      },
+      "ai": {
+        "label": "AI answers",
+        "tip": "Found in the pages AI answers cite, joined with the crawl."
+      }
+    },
+    "columns": {
+      "issue": "Issue",
+      "severity": "Severity",
+      "foundBy": "Found by",
+      "pages": "Pages",
+      "clicks": "Clicks",
+      "example": "Example",
+      "open": "Open",
+      "page": "Page",
+      "found": "What was found",
+      "status": "Status",
+      "tier": "Tier",
+      "linksIn": "Links in"
+    },
+    "tips": {
+      "foundBy": "The data the check comes from",
+      "pages": "Pages with this issue",
+      "pagesShare": "{share} of the {total} pages crawled",
+      "clicks": "Google Search clicks on the pages with this issue in the last 28 days, from Search Console",
+      "clicksPage": "Google Search clicks on the page in the last 28 days, from Search Console. The pages with the most clicks come first",
+      "linksIn": "Pages of the site that link to this page, any placement"
+    },
+    "strip": {
+      "pagesCrawled": {
+        "label": "Pages crawled",
+        "hint": "Every address the crawl in view found: pages, redirects and errors."
+      },
+      "pagesWithIssue": {
+        "label": "Pages with an issue",
+        "hint": "{share} of the pages crawled have at least one issue of any severity. A page with several issues counts once."
+      },
+      "pagesWithError": {
+        "label": "Pages with an error",
+        "hint": "Breaks a page for visitors or for Google. Fix these first. A page with several issues counts once."
+      },
+      "pagesWithWarning": {
+        "label": "Pages with a warning",
+        "hint": "Holds a page back. Fix after the errors. A page with several issues counts once."
+      },
+      "pagesWithNotice": {
+        "label": "Pages with a notice",
+        "hint": "Worth a look. Often intended. A page with several issues counts once."
+      },
+      "checksPassed": {
+        "label": "Checks passed",
+        "value": "{passed} of {total}",
+        "hint": "Checks that ran on this crawl and found no page."
+      }
+    },
+    "states": {
+      "passed": "Passed",
+      "notConnected": "Not connected",
+      "connectSearchConsole": "Connect Search Console",
+      "notCollected": "Not collected yet",
+      "na": "n/a",
+      "noSitemap": "The crawl found no sitemap",
+      "linksDropped": "This crawl no longer holds its links",
+      "gscNotConnected": "Search Console is not connected",
+      "gscPending": "Search Console has no page numbers yet"
+    },
+    "list": {
+      "searchChecks": "Search issues",
+      "showPassed": "Show passed checks",
+      "export": "Export",
+      "footer": "{count, plural, one {# check} other {# checks}} of {total} on this tab",
+      "noChecks": {
+        "title": "No checks match",
+        "hint": "Change the search, the severity or where the check is found, or show the passed checks.",
+        "clear": "Clear filters"
+      }
+    },
+    "check": {
+      "back": "All issues",
+      "why": "Why it matters",
+      "fix": "How to fix it",
+      "searchPages": "Search pages",
+      "export": "Export",
+      "footer": "{count, plural, one {# page} other {# pages}}",
+      "crawlOf": "Crawl of {date}",
+      "noPages": {
+        "title": "No pages have this issue",
+        "hint": "The check ran on this crawl and passed."
+      },
+      "noMatch": {
+        "title": "No pages match",
+        "hint": "Change the search.",
+        "clear": "Clear search"
+      }
+    },
+    "labels": {
+      "crawlAndActions": "Crawl and actions",
+      "measures": "Measures",
+      "issueTypes": "Issue types",
+      "severity": "Severity",
+      "checksOfTab": "{tab} checks",
+      "pagesOfCheck": "Pages: {name}"
+    },
+    "found": {
+      "returns": "Returns {status}",
+      "returnsLinked": "Returns {status}, linked from {count, plural, one {# page} other {# pages}}",
+      "redirectsTo": "Redirects to {target}",
+      "redirectsToStatus": "Redirects to {target} ({targetStatus})",
+      "redirectsAgain": "Redirects to {target}, which redirects again",
+      "linksToRedirects": "Links to {count, plural, one {# address that redirects} other {# addresses that redirect}}",
+      "canonical": "Canonical: {target}",
+      "canonicalStatus": "Canonical: {target} ({targetStatus})",
+      "noindexTag": "Has a noindex tag",
+      "noindexHeader": "Sends a noindex header",
+      "notIndexableCanonical": "Canonical points to another page",
+      "notIndexableNoindex": "Set to noindex",
+      "notIndexableRobots": "Blocked by robots.txt",
+      "notIndexable": "Not indexable",
+      "notInSitemap": "Indexable, not in the sitemap",
+      "linksToBroken": "Links to {count, plural, one {# broken page} other {# broken pages}}",
+      "noLinksIn": "No internal links in",
+      "noneEditorial": "{count, plural, one {# linking page} other {# linking pages}}, none editorial",
+      "linksToNonIndexable": "Links to {count, plural, one {# non-indexable page} other {# non-indexable pages}}",
+      "clicksDeep": "{count} clicks from the home page",
+      "nofollowLinks": "{count, plural, one {# nofollow link} other {# nofollow links}} to your pages",
+      "noTitle": "No title",
+      "sameTitle": "Same title as {target}",
+      "sameTitleMore": "Same title as {target} and {more} more",
+      "characters": "{count} characters",
+      "capitals": "Has capitals",
+      "underscores": "Has underscores",
+      "capitalsAndUnderscores": "Has capitals and underscores",
+      "rankBroken": "Returns {status}, {count, plural, one {# keyword ranks} other {# keywords rank}} with it",
+      "citedBroken": "Returns {status}, cited in {count, plural, one {# answer} other {# answers}}",
+      "offTarget": "{count, plural, one {# keyword ranks} other {# keywords rank}} with another page"
+    },
+    "checks": {
+      "status4xx": {
+        "name": "Pages that return a 4xx error",
+        "why": "Visitors and Google get an error instead of the page, and every link to it is wasted.",
+        "fix": "Restore the page, redirect its address to the closest live page, or remove the links to it."
+      },
+      "status5xx": {
+        "name": "Pages that return a 5xx error",
+        "why": "The server failed to answer. Google crawls a site less often when this repeats.",
+        "fix": "Check the server logs for these addresses and fix the cause."
+      },
+      "clicksPageBroken": {
+        "name": "Broken or redirected pages with Google clicks",
+        "why": "People click the result in Google and land on an error or on another page. The clicks stop once Google drops the address.",
+        "fix": "Restore the page, or redirect its address to the page that answers the same search."
+      },
+      "rankPageBroken": {
+        "name": "Broken or redirected pages that rank for a keyword",
+        "why": "The keyword still ranks with an address that no longer answers with the page, so the rank will be lost.",
+        "fix": "Restore the page, or redirect its address to the page you want to rank for the keyword."
+      },
+      "citedPageBroken": {
+        "name": "Broken or redirected pages cited in AI answers",
+        "why": "An AI answer sends people to an address that no longer shows the page it cited.",
+        "fix": "Restore the page at the cited address, or redirect it to the page with the same content."
+      },
+      "clicksPageOrphan": {
+        "name": "Orphan pages with Google clicks",
+        "why": "The page earns clicks with no help from the rest of the site. Internal links would make it stronger.",
+        "fix": "Link to the page from related pages, starting with the ones that get the most visits."
+      },
+      "redirectBroken": {
+        "name": "Redirects to a broken page",
+        "why": "The redirect sends visitors and Google to an error.",
+        "fix": "Point the redirect at a live page."
+      },
+      "redirectChain": {
+        "name": "Redirect chains",
+        "why": "Each extra hop slows the visit, and Google may stop following a long chain.",
+        "fix": "Point the first address straight at the final page."
+      },
+      "linksToRedirect": {
+        "name": "Pages that link to a redirect",
+        "why": "The link works, but every click and every crawl takes an extra hop.",
+        "fix": "Change the link to the final address."
+      },
+      "redirectPages": {
+        "name": "Addresses that redirect",
+        "why": "Not a problem by itself. Listed so you can check that each redirect is intended.",
+        "fix": "Keep the ones you set on purpose, and remove internal links to them."
+      },
+      "canonicalBroken": {
+        "name": "Canonical points to a broken or redirected page",
+        "why": "Google is asked to index an address that does not answer with a page, so it may index neither.",
+        "fix": "Set the canonical to a live page that returns 200."
+      },
+      "noindex": {
+        "name": "Pages set to noindex",
+        "why": "Google is told to keep these pages out of its index.",
+        "fix": "Remove the noindex tag if the page should be found in Google."
+      },
+      "canonicalElsewhere": {
+        "name": "Canonical points to another page",
+        "why": "Google is asked to index the other page instead of this one.",
+        "fix": "Check that each one is intended, and link to the canonical page instead of this one."
+      },
+      "sitemapBroken": {
+        "name": "Sitemap lists an address that does not return 200",
+        "why": "The sitemap should only list pages you want indexed. Errors and redirects in it waste crawling.",
+        "fix": "Remove the address from the sitemap, or list the final live address."
+      },
+      "sitemapNonindexable": {
+        "name": "Sitemap lists a page that is not indexable",
+        "why": "The sitemap asks Google to index a page that the page itself asks Google to leave out.",
+        "fix": "Remove the page from the sitemap, or make it indexable."
+      },
+      "notInSitemap": {
+        "name": "Indexable pages missing from the sitemap",
+        "why": "Google can still find them through links, but new and changed pages are picked up more slowly.",
+        "fix": "Add the pages you want indexed to the sitemap."
+      },
+      "brokenInternalLinks": {
+        "name": "Pages with broken internal links",
+        "why": "A visitor who clicks lands on an error, and the link passes nothing on.",
+        "fix": "Change each link to a live page, or remove it."
+      },
+      "orphans": {
+        "name": "Orphan pages",
+        "why": "No page on the site links to it, so visitors cannot reach it and Google finds it only through the sitemap.",
+        "fix": "Link to the page from a related page, or remove it if it is not needed."
+      },
+      "editorialOrphans": {
+        "name": "Pages with no editorial links in",
+        "why": "The page is linked only from menus, footers or automatic blocks, which tell Google little about it.",
+        "fix": "Add a link in the text of a related page."
+      },
+      "linksToNonindexable": {
+        "name": "Pages that link to a non-indexable page",
+        "why": "The link leads to a page Google is asked to leave out of its index.",
+        "fix": "Link to the indexable version of the page."
+      },
+      "deepPages": {
+        "name": "Pages more than 3 clicks from the home page",
+        "why": "Pages far from the home page are crawled less often and get fewer visits.",
+        "fix": "Link to the page from a page closer to the home page."
+      },
+      "nofollowInternal": {
+        "name": "Pages with nofollow internal links",
+        "why": "A nofollow link between your pages tells Google not to follow it.",
+        "fix": "Remove nofollow from links between your pages."
+      },
+      "titleMissing": {
+        "name": "Pages without a title",
+        "why": "The title is the line people see in Google. Without one, Google writes its own.",
+        "fix": "Give each page a title that says what it is about."
+      },
+      "titleDuplicate": {
+        "name": "Pages that share a title",
+        "why": "Google cannot tell the pages apart from their titles, and neither can a searcher.",
+        "fix": "Write a title for each page that says what is different about it."
+      },
+      "titleLong": {
+        "name": "Titles over 60 characters",
+        "why": "Google cuts long titles off, so the end may not show.",
+        "fix": "Put the main words first and keep the title short."
+      },
+      "titleShort": {
+        "name": "Titles under 30 characters",
+        "why": "A very short title says little about the page and leaves room unused in Google.",
+        "fix": "Add what the page offers and who it is for."
+      },
+      "urlFormat": {
+        "name": "Addresses with capitals or underscores",
+        "why": "Addresses are easier to read, type and share in lower case with hyphens.",
+        "fix": "Use lower case and hyphens for new pages. Change an old address only with a redirect."
+      },
+      "urlLong": {
+        "name": "Addresses over 115 characters",
+        "why": "Long addresses are cut off in Google and are hard to share.",
+        "fix": "Use shorter addresses for new pages."
+      },
+      "offTarget": {
+        "name": "Target pages that another page of yours outranks",
+        "why": "You set this page as the target of a keyword, and Google ranks another page of yours for it.",
+        "fix": "Make the target page the better answer, and link to it from the page that ranks."
+      }
+    }
+  },
   "setupChecklist": {
     "label": "Project setup",
     "loading": "Checking setup",
