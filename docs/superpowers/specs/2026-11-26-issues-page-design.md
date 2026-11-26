@@ -355,7 +355,9 @@ Top to bottom:
 2. MetricStrip with six measures: Pages crawled, Pages with an issue, Pages with an error, Pages with a warning,
    Pages with a notice, Checks passed ("9 of 27"). Each has its definition in a tooltip.
 3. One panel: the two tabs with the number of checks that found pages, search, the severity pills, "Show passed
-   checks", then the table. Rows are grouped by category with a group header row.
+   checks", then the table. Rows are grouped by category with a group header row. The header row is easy to see: its text is bold and in
+the main text colour (`type-body-strong text-foreground`), on the subtle surface, and the row is as tall as a
+table row of the compact density. A category header is never smaller or paler than the check names under it.
 
 Columns: Issue, Severity, Found by, Pages, Clicks, Example, and an open arrow. A row opens its check. A row of a
 check that did not run shows its state in the Pages cell (section 5) and does not open. Pages has a tooltip with
