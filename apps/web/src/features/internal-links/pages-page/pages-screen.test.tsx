@@ -67,13 +67,16 @@ afterEach(() => {
 const strip = async (): Promise<HTMLElement> => screen.findByRole('group', { name: 'Page counts of this crawl' });
 
 describe('the Pages screen, Overview', () => {
-  it('lists Overview and All pages as tabs, with no Monitoring', async () => {
+  it('lists Overview, All pages and Monitoring as tabs, Monitoring linking to its route', async () => {
     renderWithProviders(pagesAs('viewer', 'overview'));
     await strip();
     const nav = screen.getByRole('navigation', { name: 'Pages views' });
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'All pages' })).not.toHaveAttribute('aria-current');
-    expect(within(nav).queryByText(/Monitoring/)).toBeNull();
+    expect(within(nav).getByRole('link', { name: 'Monitoring' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/\/seo\/pages\/monitoring$/),
+    );
   });
 
   it('shows the five numbers of the overview read, each a link to All pages, and no sixth', async () => {

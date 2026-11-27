@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LastEditedLine } from '@/features/page-history';
 import { StatusBadge } from '../status-badge';
 import { formatDetailDateTime, formatInteger } from '@/lib/format';
 import { pageFlags, type FlagKey } from '@/lib/internal-links/page-flags';
@@ -84,6 +85,7 @@ export function IssueText({ issue }: { issue: PageIssue }): ReactElement {
 
 export interface DrawerOverviewTabProps {
   context: PageDrawerContext;
+  urlId: string;
   /** Null while the read is pending: every part then draws its skeleton. */
   detail: PageDetail | null;
   issues: Seam<readonly PageIssue[]>;
@@ -99,6 +101,7 @@ export interface DrawerOverviewTabProps {
  */
 export function DrawerOverviewTab({
   context,
+  urlId,
   detail,
   issues,
   onTab,
@@ -119,6 +122,12 @@ export function DrawerOverviewTab({
   return (
     <>
       <Chips page={detail.page} />
+      <LastEditedLine
+        scope={context.scope}
+        urlId={urlId}
+        timeZone={context.timeZone}
+        onOpen={() => onTab('history')}
+      />
       <Tiles detail={detail} issues={issues} linkScope={context.linkScope} onTab={onTab} />
       <Attention page={detail.page} linkScope={context.linkScope} issues={issues} onTab={onTab} />
       <About context={context} page={detail.page} onCopyAddress={onCopyAddress} />

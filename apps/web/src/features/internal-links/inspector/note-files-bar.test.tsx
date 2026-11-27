@@ -68,6 +68,8 @@ const MB = 1024 * 1024;
 
 const context: PageDrawerContext = {
   scope: SCOPE,
+  workspaceSlug: 'acme',
+  projectSlug: 'site',
   crawl: { crawl: null, run: null, older: false, linksAvailable: true, unknown: false },
   linkScope: 'editorial',
   tiers: [],

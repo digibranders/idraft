@@ -234,7 +234,7 @@ describe('the navigation registry', () => {
   it('Pages is live in the Website audit group before Internal links, and both of its tabs are its destination', () => {
     const audit = LIVE_NAVIGATION.filter((item) => item.group === 'audit').map((item) => item.key);
     expect(audit).toEqual(['pages', 'internalLinks']);
-    for (const path of ['/seo/pages', '/seo/pages/all']) {
+    for (const path of ['/seo/pages', '/seo/pages/all', '/seo/pages/monitoring']) {
       expect(destinationOf(LIVE_NAVIGATION, `/digibranders/fynix${path}`, 'digibranders', 'fynix')?.key).toBe('pages');
     }
   });

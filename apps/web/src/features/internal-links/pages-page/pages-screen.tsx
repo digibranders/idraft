@@ -21,15 +21,16 @@ import type { InternalLinksProject } from '../internal-links-screen';
 import { UNTIERED_QUERY } from '../pages/page-filters';
 import type { PagesContext } from '../pages/pages-context';
 import { PagesTab } from '../pages/pages-tab';
+import { PagesTabStrip } from './pages-tab-strip';
+
 import { inspectedPage } from '../url-state';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
-import { TabNav } from '@/components/app/shell/tab-nav';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
-import { livePagesTabs, type PagesTabId } from '@/lib/pages/tabs';
+import type { PagesTabId } from '@/lib/pages/tabs';
 import { PAGES_DEFAULT_SORT } from '@/lib/pages/url-state';
 import { useCan } from '@/lib/permissions';
 import { integrationsPath, pagesTabPath, projectPath, withQuery } from '@/lib/routes/paths';
@@ -114,7 +115,6 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
     },
     [run],
   );
-  const tabHref = (id: 'overview' | 'all'): Route => withRun(pagesTabPath(workspaceSlug, project.slug, id));
   const linksBase = projectPath(workspaceSlug, project.slug, INTERNAL_LINKS_PATH);
   const allPages = useCallback(
     (query: Record<string, string>): Route => withRun(pagesTabPath(workspaceSlug, project.slug, 'all'), query),
@@ -138,6 +138,8 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
   };
   const drawerContext: PageDrawerContext = {
     scope,
+    workspaceSlug,
+    projectSlug: project.slug,
     crawl: inView,
     linkScope: state.scope,
     tiers: shell.tiers,
@@ -167,14 +169,12 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
   };
 
   const tabList = (
-    <TabNav
-      variant="segmented"
-      label={t('tabs.label')}
-      items={livePagesTabs().flatMap((entry) =>
-        entry.id === 'overview' || entry.id === 'all'
-          ? [{ href: tabHref(entry.id), label: t(`tabs.${entry.id}`), current: entry.id === tab }]
-          : [],
-      )}
+    <PagesTabStrip
+      workspaceSlug={workspaceSlug}
+      projectSlug={project.slug}
+      current={tab}
+      // The crawl in view travels between Overview and All pages; Monitoring has no crawl
+      hrefOf={(id, route) => (id === 'monitoring' ? route : withRun(route))}
     />
   );
   const toolbar = (

@@ -2117,7 +2117,7 @@ export interface paths {
         };
         /**
          * The pages a project tracks, with their Search Console numbers
-         * @description At most 200 pages, no paging, ordered by path. `from` and `to` are Pacific Time days, both included, at most 92 (`422 window_too_large`); `to` is cut to the last final day. With neither, the period is the last full calendar month that ends on or before the last final day. `compare` is `previous_period` (default), `previous_year` or `none`. A page whose daily history is not stored yet has `history: loading` and no `current`, `previous`, `health` or `trend`. `queries` is read from stored counts only, and is null for a period with none stored. `cannibalization` is reserved and always null. With `not_connected` or `pending` the pages are listed and every number is null.
+         * @description At most 200 pages, no paging, ordered by path. `from` and `to` are Pacific Time days, both included, at most 92 (`422 window_too_large`); `to` is cut to the last final day. With neither, the period is the last full calendar month that ends on or before the last final day. `compare` is `previous_period` (default), `previous_year` or `none`. A page whose daily history is not stored yet has `history: loading` and no `current`, `previous`, `health` or `trend`. `queries` is read from stored counts only, and is null for a period with none stored. `cannibalization` counts the tracked keywords on which the page competes with another page of the site (the Cannibalization read of the last 30 days, desktop), and is null for a page no conflict names. With `not_connected` or `pending` the pages are listed and every number is null.
          */
         get: operations["list_tracked_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_get"];
         put?: never;
@@ -16377,7 +16377,7 @@ export interface components {
              * @description When the page began to be tracked.
              */
             added_at: string;
-            /** @description Reserved for the Cannibalization feature. Always null until it fills the field: the number of tracked keywords on which this page competes with another page of the site, split by verdict. */
+            /** @description The number of tracked keywords on which this page competes with another page of the site, split by verdict. Null for a page no conflict names. */
             cannibalization?: components["schemas"]["PageCannibalization"] | null;
             /** @description The numbers of the period. */
             current: components["schemas"]["PageNumbers"] | null;

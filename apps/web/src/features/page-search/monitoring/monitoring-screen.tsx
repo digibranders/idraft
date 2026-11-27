@@ -38,6 +38,7 @@ import { formatBusinessDate } from '@/lib/format';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { pageTiersQuery } from '@/lib/internal-links/queries';
 import { useCan } from '@/lib/permissions';
+import { projectPath } from '@/lib/routes/paths';
 
 /** While any row loads its history, or Search Console loads the first days, the list is asked again at this pace. */
 const POLL_MS = 10_000;
@@ -141,8 +142,7 @@ function MonitoringContent({
         ? null
         : { current: meta.window.days, before: meta.compare_window?.days ?? meta.window.days },
     pending: state === 'pending',
-    // The app has no Cannibalization route yet; the badge is plain text until it has (spec 11)
-    cannibalizationHref: null,
+    cannibalizationHref: projectPath(workspaceSlug, project.slug, '/seo/cannibalization'),
     showCannibalization: showCannibalization(rows),
   });
   const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);

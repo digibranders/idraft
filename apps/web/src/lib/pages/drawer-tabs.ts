@@ -1,5 +1,5 @@
 /** The tabs of the page drawer, in the owner's order (spec 9.4). */
-export const PAGE_DRAWER_TABS = ['overview', 'search', 'outline', 'issues', 'ai', 'links', 'notes'] as const;
+export const PAGE_DRAWER_TABS = ['overview', 'search', 'outline', 'issues', 'ai', 'links', 'history', 'notes'] as const;
 export type PageDrawerTab = (typeof PAGE_DRAWER_TABS)[number];
 
 const KNOWN: ReadonlySet<string> = new Set(PAGE_DRAWER_TABS);

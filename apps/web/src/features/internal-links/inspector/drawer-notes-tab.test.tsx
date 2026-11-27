@@ -45,6 +45,8 @@ function contextOf(canNote: boolean, openPage: (urlId: string) => void = () => u
   const route = (path: string): Route => path as Route;
   return {
     scope: SCOPE,
+    workspaceSlug: 'acme',
+    projectSlug: 'site',
     crawl: { crawl: null, run: null, older: false, linksAvailable: true, unknown: false },
     linkScope: 'editorial',
     tiers: [],

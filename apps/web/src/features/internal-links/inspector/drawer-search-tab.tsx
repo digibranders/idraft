@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, type ReactElement, type ReactNode } from 'react';
 
 import type { PageDrawerContext } from './page-drawer-context';
+import { PageSearchPanel } from '@/features/page-search';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { MetricStrip, type MetricStripGroup, type MetricStripItem } from '@/components/app/metric/metric-strip';
@@ -14,7 +15,6 @@ import { InlineError } from '@/components/app/status/inline-error';
 import { LinkButton } from '@/components/ui/link-button';
 import { formatBusinessDate, formatChartDate, formatInteger } from '@/lib/format';
 import type { PageSearchDaily } from '@/lib/internal-links/types';
-import { PageSearchDetailSlot } from '@/lib/pages/search-detail-slot';
 import { usePageSearchDaily } from '@/lib/pages/search-daily';
 import { canManageIntegrations, useMembership } from '@/lib/permissions';
 
@@ -23,21 +23,30 @@ export interface DrawerSearchTabProps {
   urlId: string;
   /** The address of the page, or null while the page read is pending (the slot then draws nothing). */
   url: string | null;
+  /** The status of the page in the crawl, or null when unknown. */
+  statusCode: number | null;
   /** The tracked keywords card, which the drawer builds from the page read. */
   keywords: ReactNode;
 }
 
 /**
- * The Search tab of the page drawer (spec 9.4): the 28 stored days of Search Console, then the slot of the Search
- * Console session, then the tracked keywords.
+ * The Search tab of the page drawer (spec 9.4): the 28 stored days of Search Console, then the page search panel, then the tracked keywords.
  */
-export function DrawerSearchTab({ context, urlId, url, keywords }: DrawerSearchTabProps): ReactElement {
+export function DrawerSearchTab({ context, urlId, url, statusCode, keywords }: DrawerSearchTabProps): ReactElement {
   const read = usePageSearchDaily(context.scope, context.crawl.run, urlId);
   return (
     <>
       <SearchConsole read={read} integrationsHref={context.hrefs.integrations} />
       {url === null ? null : (
-        <PageSearchDetailSlot scope={context.scope} urlId={urlId} url={url} timeZone={context.timeZone} />
+        <PageSearchPanel
+          workspaceId={context.scope.workspaceId}
+          projectId={context.scope.projectId}
+          workspaceSlug={context.workspaceSlug}
+          projectSlug={context.projectSlug}
+          urlId={urlId}
+          statusCode={statusCode}
+          timeZone={context.timeZone}
+        />
       )}
       {keywords}
     </>

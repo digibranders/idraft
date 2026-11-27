@@ -9727,6 +9727,7 @@
         "issues": "Issues",
         "ai": "AI",
         "links": "Links",
+        "history": "History",
         "notes": "Notes"
       },
       "overview": {
@@ -10037,7 +10038,8 @@
     "tabs": {
       "label": "Pages views",
       "overview": "Overview",
-      "all": "All pages"
+      "all": "All pages",
+      "monitoring": "Monitoring"
     },
     "view": {
       "trigger": "View: {view}",

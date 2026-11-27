@@ -32,6 +32,7 @@ describe('Rankings paths', () => {
     expect(pagesTabPath('acme', 'site')).toBe('/acme/site/seo/pages');
     expect(pagesTabPath('acme', 'site', 'overview')).toBe('/acme/site/seo/pages');
     expect(pagesTabPath('acme', 'site', 'all')).toBe('/acme/site/seo/pages/all');
+    expect(pagesTabPath('acme', 'site', 'monitoring')).toBe('/acme/site/seo/pages/monitoring');
     expect(pagesTabPath('a b', 'c/d', 'all')).toBe('/a%20b/c%2Fd/seo/pages/all');
   });
 

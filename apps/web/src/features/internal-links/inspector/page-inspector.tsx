@@ -13,6 +13,7 @@ import { DrawerOutlineTab } from './drawer-outline-tab';
 import { DrawerOverviewTab } from './drawer-overview-tab';
 import { DrawerSearchTab } from './drawer-search-tab';
 import { ExtrasSections, type ExtrasPart } from './extras-sections';
+import { HistoryTab } from '@/features/page-history';
 import { BulkTagDialog } from '../pages/bulk-tag-dialog';
 import { usePageBulk, type BulkTarget } from '../pages/use-page-bulk';
 import type { PageDrawerContext } from './page-drawer-context';
@@ -53,6 +54,7 @@ const TAB_KEY = {
   issues: 'tabs.issues',
   ai: 'tabs.ai',
   links: 'tabs.links',
+  history: 'tabs.history',
   notes: 'tabs.notes',
 } as const satisfies Record<PageDrawerTab, string>;
 
@@ -253,6 +255,7 @@ export function PageInspector({
       overview: (
         <DrawerOverviewTab
           context={context}
+          urlId={urlId}
           detail={detail}
           issues={issues}
           onTab={inspector.setTab}
@@ -265,6 +268,7 @@ export function PageInspector({
           context={context}
           urlId={urlId}
           url={page?.url ?? null}
+          statusCode={page?.status_code ?? null}
           keywords={extras(['keywords'], extrasWords('keywords'), Search)}
         />
       ),
@@ -302,6 +306,7 @@ export function PageInspector({
           linksCompared={linksCompared}
         />
       ),
+      history: <HistoryTab scope={scope} urlId={urlId} timeZone={timeZone} />,
       notes:
         page === null ? (
           loadingSection(drawer('tabs.notes'), StickyNote)

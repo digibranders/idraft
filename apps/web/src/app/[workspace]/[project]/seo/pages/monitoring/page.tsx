@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
+import { PagesTabStrip } from '@/features/internal-links';
 import { MonitoringScreen } from '@/features/page-search';
 import { projectsOfMembership } from '@/lib/projects/server';
 import { requireMembership } from '@/lib/session/server';
@@ -14,8 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * Pages > Monitoring (spec 10.1). The project shell above serves the loading and error states; the period and the
- * filters live in the address. The Pages tab strip and drawer are passed in (`tabs`, `onOpenPage`) when the Pages
- * shell is merged (spec 11); until then the shared inspector opens the page's search detail.
+ * filters live in the address. The Pages tab strip is passed in as `tabs`; a row opens the page's search detail in the
+ * shared inspector.
  */
 export default async function MonitoringPage({
   params,
@@ -28,6 +29,7 @@ export default async function MonitoringPage({
     <MonitoringScreen
       workspaceId={membership.workspace.workspace_id}
       workspaceSlug={membership.workspace.slug}
+      tabs={<PagesTabStrip workspaceSlug={membership.workspace.slug} projectSlug={current.slug} current="monitoring" />}
       project={{
         id: current.project_id,
         slug: current.slug,

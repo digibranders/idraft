@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -7,7 +7,6 @@ import { describe, expect, it } from 'vitest';
 import { ISSUE_COLUMNS_AVAILABLE, issueCountsOf, useIssueTotals, usePageIssues } from './issue-source';
 import { usePageOutline } from './outline';
 import { usePageSearchDaily } from './search-daily';
-import { PageSearchDetailSlot } from './search-detail-slot';
 import { TRACKING_AVAILABLE, useTrackedPages, useTrackPages } from './tracking';
 import { makeQueryClient } from '@/lib/api/query-client';
 import type { LinksScope, PageRow } from '@/lib/internal-links/types';
@@ -66,13 +65,6 @@ describe('the seams of the other sessions', () => {
     const { result } = renderHook(() => useTrackPages(SCOPE), { wrapper: providers() });
     expect(result.current.pending).toBe(false);
     await expect(result.current.track([PRICING])).rejects.toThrow('Tracking is not available');
-  });
-
-  it('draw nothing in the search detail slot', () => {
-    const { container } = render(
-      <PageSearchDetailSlot scope={SCOPE} urlId={PRICING} url="https://eventussecurity.com/pricing" timeZone="UTC" />,
-    );
-    expect(container).toBeEmptyDOMElement();
   });
 });
 

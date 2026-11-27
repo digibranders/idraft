@@ -13,6 +13,8 @@ const INTEGRATIONS_PATH = '/integrations/google';
 /** What the page drawer needs from its host (spec 9.2): the host builds the exits as links with `projectPath`. */
 export interface PageDrawerContext {
   scope: LinksScope;
+  workspaceSlug: string;
+  projectSlug: string;
   crawl: CrawlInView;
   linkScope: LinkScope;
   tiers: readonly PageTier[];
@@ -46,6 +48,8 @@ export function drawerContextOf(context: LinksTabContext, can: { write: boolean;
   };
   return {
     scope: context.scope,
+    workspaceSlug: context.workspaceSlug,
+    projectSlug: context.projectSlug,
     crawl: context.crawl,
     linkScope: context.state.scope,
     tiers: context.tiers,

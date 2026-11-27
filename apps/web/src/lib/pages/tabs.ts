@@ -3,15 +3,14 @@ export type PagesTabId = 'overview' | 'all' | 'monitoring';
 /** `path` is the part after `/seo/pages`. */
 export interface PagesTab {
   id: PagesTabId;
-  path: '' | '/all' | '/performance';
+  path: '' | '/all' | '/monitoring';
   status: 'live' | 'planned';
 }
 
-/** Monitoring turns `live` the day the Monitoring session adds its route; nothing else changes. */
 export const PAGES_TABS: readonly PagesTab[] = [
   { id: 'overview', path: '', status: 'live' },
   { id: 'all', path: '/all', status: 'live' },
-  { id: 'monitoring', path: '/performance', status: 'planned' },
+  { id: 'monitoring', path: '/monitoring', status: 'live' },
 ];
 
 export const livePagesTabs = (): readonly PagesTab[] => PAGES_TABS.filter((tab) => tab.status === 'live');

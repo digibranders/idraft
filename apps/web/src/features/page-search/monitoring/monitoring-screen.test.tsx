@@ -443,6 +443,8 @@ describe('MonitoringScreen', () => {
     const filled = await grid();
     expect(await within(filled).findByRole('columnheader', { name: /Cannibalization/i })).toBeInTheDocument();
     expect(within(await cellOf('/declining', 'Cannibalization')).getByText('3 keywords')).toBeInTheDocument();
+    // The count opens the project's Cannibalization page, so it is a button and not plain text
+    expect(within(await cellOf('/declining', 'Cannibalization')).getByRole('button')).toBeInTheDocument();
     await waitFor(async () => expect((await pathsOf()).slice(0, 2)).toEqual(['/declining', '/growing']));
   });
 

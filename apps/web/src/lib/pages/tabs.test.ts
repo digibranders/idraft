@@ -7,7 +7,8 @@ describe('the tabs of Pages', () => {
     expect(PAGES_TABS.map((tab) => tab.id)).toEqual(['overview', 'all', 'monitoring']);
   });
 
-  it('list only the live tabs: a planned one is not offered', () => {
-    expect(livePagesTabs().map((tab) => tab.id)).toEqual(['overview', 'all']);
+  it('are all live, and Monitoring is at /monitoring', () => {
+    expect(livePagesTabs().map((tab) => tab.id)).toEqual(['overview', 'all', 'monitoring']);
+    expect(PAGES_TABS.find((tab) => tab.id === 'monitoring')?.path).toBe('/monitoring');
   });
 });

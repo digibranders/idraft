@@ -43,6 +43,8 @@ function contextOf(
   const route = (path: string): Route => path as Route;
   return {
     scope: { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id },
+    workspaceSlug: 'acme',
+    projectSlug: 'site',
     crawl: { crawl: null, run: older ? MOCK_RUN_ID : null, older, linksAvailable: true, unknown: false },
     linkScope: 'editorial',
     tiers: [],

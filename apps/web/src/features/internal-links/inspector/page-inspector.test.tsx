@@ -57,13 +57,23 @@ vi.mock('@/lib/pages/search-daily', async (importOriginal) => {
   };
 });
 
-/** The Search Console session's slot: a test turns its marker on to see where the tab draws it. */
+/** The page search panel: a test turns its marker on to see where the tab draws it. */
 const slot = vi.hoisted(() => ({ marker: false, props: [] as unknown[] }));
-vi.mock('@/lib/pages/search-detail-slot', () => ({
-  PageSearchDetailSlot: (props: unknown): ReactElement | null => {
+vi.mock('@/features/page-search', () => ({
+  PageSearchPanel: (props: unknown): ReactElement | null => {
     slot.props.push(props);
     return slot.marker ? <p>Slot marker</p> : null;
   },
+}));
+
+/** The History session's parts: markers show where the drawer draws them. */
+vi.mock('@/features/page-history', () => ({
+  HistoryTab: (): ReactElement => <p>History marker</p>,
+  LastEditedLine: ({ onOpen }: { onOpen: () => void }): ReactElement => (
+    <button type="button" onClick={onOpen}>
+      Edited line marker
+    </button>
+  ),
 }));
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
@@ -97,7 +107,7 @@ const openTab = (tab: string, extra = ''): { searchParams: string } => ({
 const LINKS = openTab('links');
 /** A tab by its name: the Notes tab of the fixture page carries its count after the word. */
 const tabNamed = (name: string): RegExp => new RegExp(`^${name}`);
-const TAB_NAMES = ['Overview', 'Search', 'Outline', 'Issues', 'AI', 'Links', 'Notes'] as const;
+const TAB_NAMES = ['Overview', 'Search', 'Outline', 'Issues', 'AI', 'Links', 'History', 'Notes'] as const;
 /** The label of a tab without the unseen heavier copy that reserves its width. */
 const tabLabel = (tab: HTMLElement): string => (tab.firstElementChild?.firstElementChild?.textContent ?? '').trim();
 const selectedTab = (panel: HTMLElement): string | undefined => {
@@ -604,7 +614,7 @@ describe('the page inspector (spec 7.4)', () => {
   });
 
   describe('the tabs', () => {
-    it('lists the seven tabs of the owner in order under the name Page sections, Overview first', async () => {
+    it('lists the eight tabs of the owner in order under the name Page sections, Overview first', async () => {
       renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const panel = await panelOf('/pricing');
       const list = within(panel).getByRole('tablist', { name: 'Page sections' });
@@ -622,6 +632,14 @@ describe('the page inspector (spec 7.4)', () => {
       first.unmount();
       renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), openTab('nope'));
       expect(selectedTab(await panelOf('/pricing'))).toBe('Overview');
+    });
+
+    it('draws the last edited line in Overview, and its link opens the History tab', async () => {
+      const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
+      const panel = await panelOf('/pricing');
+      await user.click(await within(panel).findByRole('button', { name: 'Edited line marker' }));
+      expect(selectedTab(panel)).toBe('History');
+      expect(await within(panel).findByText('History marker')).toBeInTheDocument();
     });
 
     it('writes the chosen tab to the address without a history entry, and drops it for Overview', async () => {
@@ -667,7 +685,7 @@ describe('the page inspector (spec 7.4)', () => {
           within(menu)
             .getAllByRole('menuitem')
             .map((item) => item.textContent),
-        ).toEqual(['AI', 'Links', 'Notes3']);
+        ).toEqual(['AI', 'Links', 'History', 'Notes3']);
         await user.click(within(menu).getByRole('menuitem', { name: 'Links' }));
         await waitFor(() => expect(lastQuery(onUrlUpdate)).toContain('itab=links'));
         expect(selectedTab(panel)).toBe('Links');
@@ -1005,7 +1023,12 @@ describe('the page inspector (spec 7.4)', () => {
       const keywords = await within(panel).findByRole('heading', { name: 'Tracked keywords' });
       expect(heading.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(marker.compareDocumentPosition(keywords) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(slot.props.at(-1)).toMatchObject({ urlId: '108', url: expect.stringContaining('/pricing') });
+      expect(slot.props.at(-1)).toMatchObject({
+        urlId: '108',
+        workspaceSlug: MOCK_WORKSPACE.slug,
+        projectSlug: EVENTUS_LINKS.slug,
+        statusCode: expect.any(Number),
+      });
     });
 
     it('draws nothing for the slot while it is empty, and no Google card on any tab', async () => {
@@ -1027,7 +1050,8 @@ describe('the page inspector (spec 7.4)', () => {
       const panel = await panelOf('/pricing');
       await section(panel);
       expect(slot.props.at(-1)).toMatchObject({
-        scope: expect.objectContaining({ workspaceId: expect.any(String), projectId: expect.any(String) }),
+        workspaceId: expect.any(String),
+        projectId: expect.any(String),
         timeZone: expect.any(String),
       });
     });

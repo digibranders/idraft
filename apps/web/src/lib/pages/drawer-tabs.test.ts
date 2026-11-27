@@ -4,7 +4,7 @@ import { PAGE_DRAWER_TABS, pageDrawerTab } from './drawer-tabs';
 
 describe('the tabs of the page drawer', () => {
   it('are in the owner order', () => {
-    expect([...PAGE_DRAWER_TABS]).toEqual(['overview', 'search', 'outline', 'issues', 'ai', 'links', 'notes']);
+    expect([...PAGE_DRAWER_TABS]).toEqual(['overview', 'search', 'outline', 'issues', 'ai', 'links', 'history', 'notes']);
   });
 
   it('read a known tab as itself', () => {
