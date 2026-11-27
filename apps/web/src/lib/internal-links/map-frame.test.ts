@@ -20,7 +20,7 @@ registerModules([GraphChart, SVGRenderer]);
  * the map along one axis), so a change in ECharts shows here and not as names on top of each other.
  */
 describe('where the canvas puts the dots', () => {
-  it('is where frameOf and canvasPoint say, on a stretched map', () => {
+  it('is where frameOf and canvasPoint say, with round dots', () => {
     const tiers = [{ tier_id: 't1', position: 1, code: 'T1', name: 'T1' }] as unknown as PageTier[];
     const graph = toMapGraph(denseLinkGraph(), tiers);
     const layout = layoutMap({
@@ -64,13 +64,14 @@ describe('where the canvas puts the dots', () => {
       size.height,
     );
 
-    // The map is stretched: the pixels per unit differ along the two axes
-    expect(Math.abs(frame.sx / frame.sy - 1)).toBeGreaterThan(0.1);
+    // The map is not stretched: a unit is the same number of pixels along both axes, so a dot is round
+    expect(Math.abs(frame.sx / frame.sy - 1)).toBeLessThan(0.001);
     for (const item of data.slice(0, 40)) {
       const real = chart.convertToPixel({ seriesIndex: 0 }, [item.x, item.y]) as number[];
       const mine = canvasPoint(frame, [item.x, item.y]);
-      expect(mine[0]).toBeCloseTo(real[0] ?? Number.NaN, 0);
-      expect(mine[1]).toBeCloseTo(real[1] ?? Number.NaN, 0);
+      // ECharts rounds its pixels, so a whole pixel is the tolerance
+      expect(Math.abs(mine[0] - (real[0] ?? Number.NaN))).toBeLessThan(1);
+      expect(Math.abs(mine[1] - (real[1] ?? Number.NaN))).toBeLessThan(1);
     }
     chart.dispose();
   });

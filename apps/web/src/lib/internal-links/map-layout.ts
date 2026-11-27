@@ -38,6 +38,8 @@ const DENSE_REPULSION = 3.5;
 const DENSE_ATTRACTION = 0.1;
 const DENSE_HUB_EXPONENT = 1.3;
 const DENSE_SPACE = 32;
+/** The x stretch of a dense map: its layout is wider than the mock's, so it fills a wide canvas without the canvas stretching it. */
+const DENSE_STRETCH = 2.1;
 /** The links of a page at which a link to it counts as a normal one: below it the link pulls harder, above it less. */
 const TYPICAL_WEIGHT = 12;
 // Strong enough to keep groups that do not link to each other in one picture, not far apart
@@ -51,6 +53,8 @@ const COLUMNS = 12;
 const GROUP_GAP = 44;
 // Beside the map the block stands clear of the dots (the names keep clear of its text, see `map-labels.ts`); below it needs less
 const BLOCK_GAP_SIDE = 130;
+/** The gap the mock's map was tuned with: a dense map uses the narrower one above. */
+const BLOCK_GAP_SIDE_SMALL = 250;
 const BLOCK_GAP_BELOW = 90;
 
 /**
@@ -126,8 +130,11 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
       dy[a] = fy - ya * GRAVITY * wa;
     }
     for (const [a, b] of pairs) {
-      const pull =
-        hubs === 0 ? attraction : attraction * (TYPICAL_WEIGHT / Math.sqrt(at(weight, a) * at(weight, b))) ** hubs;
+      // Capped: two small pages that link only to each other would otherwise overshoot each round
+      const pull = Math.min(
+        0.5,
+        hubs === 0 ? attraction : attraction * (TYPICAL_WEIGHT / Math.sqrt(at(weight, a) * at(weight, b))) ** hubs,
+      );
       const ox = (at(x, a) - at(x, b)) * pull;
       const oy = (at(y, a) - at(y, b)) * pull;
       dx[a] = at(dx, a) - ox;
@@ -144,7 +151,9 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
       y[a] = at(y, a) + (at(dy, a) / length) * move;
     }
   }
-  if (!below) for (let i = 0; i < count; i += 1) x[i] = at(x, i) * STRETCH;
+  // A dense map is drawn wider: the layout is stretched along x here, not by the canvas (which would draw ovals)
+  const wide = below ? 1 : blend(STRETCH, DENSE_STRETCH, share);
+  if (!below) for (let i = 0; i < count; i += 1) x[i] = at(x, i) * wide;
   for (let round = 0; round < rounds.separation; round += 1) {
     for (let a = 0; a < count; a += 1) {
       for (let b = a + 1; b < count; b += 1) {
@@ -174,7 +183,7 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
     count > 0 ? list.reduce((a, b) => pick(a, b)) : 0;
   const right = extreme(x, Math.max);
   const leftMost = extreme(x, Math.min);
-  const left = below ? leftMost : right + BLOCK_GAP_SIDE;
+  const left = below ? leftMost : right + blend(BLOCK_GAP_SIDE_SMALL, BLOCK_GAP_SIDE, share);
   const top = below ? extreme(y, Math.max) + BLOCK_GAP_BELOW : extreme(y, Math.min);
   const columns = below ? Math.max(COLUMNS, Math.floor((right - leftMost) / CELL)) : COLUMNS;
   const byGroup = new Map<number, string[]>();

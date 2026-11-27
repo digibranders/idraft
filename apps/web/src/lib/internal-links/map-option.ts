@@ -16,7 +16,7 @@ export const MINIMAP_FROM = 1.05;
 /** From this zoom the pages in the block carry names: at the fitted size they stand too close. */
 export const BLOCK_NAMES_FROM = 2;
 /** The zooms at which the picture changes by itself (the minimap, the set of names), so the canvas repaints at each. */
-export const MAP_REPAINT_AT: readonly number[] = [MINIMAP_FROM, ...NAME_STEPS.filter((step) => step !== 1)];
+export const MAP_REPAINT_AT: readonly number[] = [MINIMAP_FROM, ...NAME_STEPS];
 /** Names of the nodes that only carry the block's lines of text. */
 export const HEADER_PREFIX = 'h:';
 
@@ -24,8 +24,6 @@ export const HEADER_PREFIX = 'h:';
 const PLAIN_SCALE = 0.8;
 /** The biggest a dot is drawn at 100 percent, so a hub of 200 links does not cover its neighbours. */
 const DOT_MAX = 30;
-/** The map may be stretched this much to fill a canvas of another shape: more is a distorted map. */
-export const MAX_STRETCH = 1.7;
 // Links into the selected page are green and dotted, links out blue and solid: told apart without colour too
 const IN_LINE = { type: [1, 6], cap: 'round', width: 2.75 } as const;
 
@@ -56,9 +54,9 @@ export interface MapOptionInput {
 }
 
 /**
- * The box the map is drawn in: the canvas less the margins (room for the view controls below), centred. The map keeps
- * its proportions, but may be stretched up to `MAX_STRETCH` times along the longer side of the room to fill a canvas of
- * another shape, so a wide canvas is used to its width.
+ * The box the map is drawn in: the canvas less the margins (room for the view controls below), centred, with the
+ * map's own proportions. The map is never stretched: ECharts would draw every dot as an ellipse, so a dense map gets
+ * its width from the layout instead (`layoutMap`).
  */
 export function fitBox(
   span: { width: number; height: number },
@@ -69,8 +67,8 @@ export function fitBox(
   const room = { width: Math.max(1, width - 72), height: Math.max(1, height - 96) };
   const fitted =
     room.width / room.height > shape
-      ? { width: Math.min(room.width, room.height * shape * MAX_STRETCH), height: room.height }
-      : { width: room.width, height: Math.min(room.height, (room.width / shape) * MAX_STRETCH) };
+      ? { width: room.height * shape, height: room.height }
+      : { width: room.width, height: room.width / shape };
   return { left: 36 + (room.width - fitted.width) / 2, top: 28 + (room.height - fitted.height) / 2, ...fitted };
 }
 
@@ -236,6 +234,13 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
       const [x, y] = canvasPoint(frame, [header.x - 5, header.y]);
       return { x, y, width: nameWidth(header.text, fontSize) * (header.strong ? 1.1 : 1) + 4, height: fontSize + 4 };
     });
+  // The dots of the block are obstacles too: a name never runs across a dot of a page with no link
+  for (const node of shown) {
+    if (node.degree > 0) continue;
+    const [x, y] = canvasPoint(frame, spot(node.id));
+    const size = sizeOf(node);
+    obstacles.push({ x: x - size / 2, y: y - size / 2, width: size, height: size });
+  }
   const named = chooseNames(ranked, { step: nameStep(view.zoom), fontSize, obstacles });
 
   const data: Record<string, unknown>[] = shown.map((node) => {
