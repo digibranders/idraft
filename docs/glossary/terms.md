@@ -395,6 +395,56 @@ sentences move to the Sample data badge. The same text is used for the card, its
 - What it shows: That there are answers or checks, but too few to show a number.
 - How it is counted: A rate needs at least 4 valid answers. The tooltip names how many there are.
 
+### 10.6 Cannibalization (the strip of each tab and the weekly chart; keys `cannibalization.measures.*`, `cannibalization.chart.info`)
+
+**Keywords with a conflict**
+- What it shows: How many ranked keywords have two or more of your pages in conflict.
+- How it is counted: Likely cannibalization, co-ranking and unstable page together. A keyword with fewer than 10 ranked checks in the period is not judged.
+
+**Likely cannibalization**
+- What it shows: Keywords where two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks.
+- How it is counted: Evidence of competition, not proof of cause.
+
+**Co-ranking**
+- What it shows: Keywords where two of your pages are both in the top 20 on at least half of the checks.
+- How it is counted: A page nested under another of your results (a sub-result) does not count.
+
+**Unstable page**
+- What it shows: Keywords where the ranking page changes often and the rank does not get worse for it.
+- How it is counted: The ranking page changed on at least 2 of every 10 checks, and the rank did not get worse.
+
+**Search volume at risk**
+- What it shows: Monthly searches of the keywords with likely cannibalization.
+- How it is counted: The sum of the keyword search volumes, as the provider reports them. It sizes the problem and does not estimate lost clicks.
+
+**Typical rank gap**
+- What it shows: How many places lower a keyword ranks, in the middle of the likely cases, when another page is the ranking page.
+- How it is counted: The median over the keywords with likely cannibalization in the period.
+
+**Confirmed switches**
+- What it shows: Times the ranking page changed and stayed changed.
+- How it is counted: A switch counts when the new page is also the ranking page on the next readable check. A change that lasts one check is not counted.
+
+**Keywords that switched**
+- What it shows: Ranked keywords whose ranking page changed at least once in the period.
+- How it is counted: Ranked keywords have at least 10 ranked checks in the period.
+
+**Flip-flop keywords**
+- What it shows: Keywords where a page took over and the page it replaced came back.
+- How it is counted: The page returns within 14 days. The first move shows as Moved until the page returns.
+
+**Left the target page**
+- What it shows: Switches away from the page you set as the keyword's target page.
+- How it is counted: Only keywords with a target page count.
+
+**Rank improved after, Rank dropped after**
+- What it shows: Switches after which the keyword ranked better, or worse, than before.
+- How it is counted: Compares the rank on the last check before the switch with the rank on the first check after.
+
+**Switches per week (chart)**
+- What it shows: How many confirmed switches happened each week, by what the new page did to the rank.
+- How it is counted: Each column splits a week's switches into rank improved, no change and rank dropped. Many switches across many keywords in one week can be the sign of a Google update.
+
 ## 11. Change log
 
 | Date | Term | Old | New | Reason |
@@ -407,3 +457,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-23 | Compare with (P15), Rate by platform over time, how it is counted | "With Compare on, a dashed vertical line separates the previous 28 days from the current 28 days" for every mode | The same text with the previous period; with "vs same period last year" the last sentence is "With Compare on, a second dashed line shows the same period last year, week for week." | The real card draws last year as a dashed line under the current weeks and has no boundary line for it; the preview does not draw it yet |
 | 2026-11-26 | Link map (A11) | | Added as the name of the Internal links tab that draws the whole crawl as one graph | Owner approved the tab and its name on 2026-11-26 |
 | 2026-11-27 | Cannibalization (A12, K1 to K8) | | Added as the SEO page and its measures | Owner approved the mock of the page on 2026-11-26 (docs/33) |
+| 2026-11-27 | Cannibalization info texts (10.6) | | Added for the strips and the weekly chart | The web page of docs/33 |

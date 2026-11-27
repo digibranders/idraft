@@ -30,6 +30,10 @@ describe('inspect targets', () => {
     });
     expect(defaultInspectorWidth('cited-page')).toBe(440);
     expect(defaultInspectorWidth('gap-prompt')).toBe(440);
+    expect(parseInspectTarget('cann-keyword:0192d1a8-c177-7000-8000-000000000001')).toMatchObject({
+      type: 'cann-keyword',
+    });
+    expect(defaultInspectorWidth('cann-keyword')).toBe(440);
   });
 
   it('opens nothing for an unknown type, an empty or spaced id, or no colon', () => {

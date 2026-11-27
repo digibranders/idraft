@@ -21,6 +21,8 @@ export const INSPECTOR_TYPES = [
   // The Citations page's drawers (WP-77): a cited page by its url_id, a prompt of the gap analysis
   'cited-page',
   'gap-prompt',
+  // The Cannibalization page's keyword drawer (docs/33 section 7.2), by tracked keyword id
+  'cann-keyword',
   'run',
   'candidate',
 ] as const;
@@ -55,6 +57,7 @@ const WIDE_TYPES: ReadonlySet<InspectorType> = new Set([
   'competitor',
   'cited-page',
   'gap-prompt',
+  'cann-keyword',
 ]);
 const TYPES: ReadonlySet<string> = new Set(INSPECTOR_TYPES);
 

@@ -8222,6 +8222,334 @@
       "brandCited": "{brand} citing answers"
     }
   },
+  "cannibalization": {
+    "title": "Cannibalization",
+    "noAccessTitle": "You cannot see this page",
+    "noAccessReason": "Ask a project owner to give you access to the project data.",
+    "toolbar": {
+      "label": "Scope and actions",
+      "scope": "Scope",
+      "trigger": "{name}: {value}",
+      "device": "Device",
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "group": "Group",
+      "allGroups": "All groups",
+      "groupSearch": "Search groups",
+      "groupEmpty": "No group matches “{query}”",
+      "groupClear": "Clear the search",
+      "groupOpen": "Show the groups",
+      "period": "Period",
+      "days14": "Last 14 days",
+      "days30": "Last 30 days",
+      "days90": "Last 90 days",
+      "reset": "Reset scope"
+    },
+    "tabs": {
+      "label": "Cannibalization views",
+      "cannibalization": "Cannibalization",
+      "switching": "Switching",
+      "keywordsCount": ", {count, plural, one {# keyword} other {# keywords}}",
+      "switchesCount": ", {count, plural, one {# switch} other {# switches}}"
+    },
+    "views": {
+      "label": "Table",
+      "keywords": "By keyword",
+      "pairs": "By page pair",
+      "changes": "Changes"
+    },
+    "show": {
+      "label": "Show",
+      "conflicts": "Conflicts",
+      "likely": "Likely",
+      "co_ranking": "Co-ranking",
+      "unstable": "Unstable",
+      "all": "All keywords"
+    },
+    "switchShow": {
+      "label": "Show",
+      "all": "All switches",
+      "flip_flop": "Flip-flops",
+      "improved": "Rank improved",
+      "dropped": "Rank dropped",
+      "left_target": "Left the target"
+    },
+    "switched": {
+      "label": "Keywords",
+      "only": "Switched",
+      "all": "All keywords"
+    },
+    "search": {
+      "label": "Search in table",
+      "keywords": "Search keywords",
+      "pages": "Search pages"
+    },
+    "pairFilter": {
+      "text": "{a} and {b}",
+      "clear": "Clear the page filter"
+    },
+    "verdict": {
+      "likely": {
+        "label": "Likely cannibalization",
+        "short": "Likely",
+        "what": "Two or more of your pages swap the best rank, and the keyword ranks 3 or more places worse when the other page is the one that ranks."
+      },
+      "co_ranking": {
+        "label": "Co-ranking",
+        "short": "Co-ranking",
+        "what": "Two of your pages are both in the top 20 on at least half of the checks. Often fine, for example a service page beside a guide."
+      },
+      "unstable": {
+        "label": "Unstable page",
+        "short": "Unstable",
+        "what": "The ranking page changes often, but the rank does not get worse for it."
+      },
+      "none": {
+        "label": "No conflict",
+        "short": "None",
+        "what": "One page ranks, or the pages do not compete."
+      },
+      "unranked": {
+        "label": "Not in the top 100",
+        "short": "Not ranked",
+        "what": "None of your pages ranked in the top 100 in this period, so there is nothing to compete."
+      },
+      "insufficient": {
+        "label": "Not enough checks",
+        "short": "Too early",
+        "what": "Fewer than 10 checks in this period ranked the keyword, so nothing is said yet."
+      },
+      "tip": "{label}. {what}"
+    },
+    "measures": {
+      "label": "Cannibalization measures",
+      "aria": "{label}: {value}. {hint}",
+      "change": "{before} in the {days} days before. Counts are not tested for detectability.",
+      "ofRanked": "of {ranked} ranked",
+      "places": "{count, plural, one {# place} other {# places}}",
+      "conflicts": {
+        "label": "Keywords with a conflict",
+        "what": "How many ranked keywords have two or more of your pages in conflict.",
+        "how": "Likely cannibalization, co-ranking and unstable page together. A keyword with fewer than 10 ranked checks in the period is not judged."
+      },
+      "likely": {
+        "label": "Likely cannibalization",
+        "what": "Keywords where two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks.",
+        "how": "Evidence of competition, not proof of cause."
+      },
+      "together": {
+        "label": "Co-ranking",
+        "what": "Keywords where two of your pages are both in the top 20 on at least half of the checks.",
+        "how": "A page nested under another of your results (a sub-result) does not count."
+      },
+      "unstable": {
+        "label": "Unstable page",
+        "what": "Keywords where the ranking page changes often and the rank does not get worse for it.",
+        "how": "The ranking page changed on at least 2 of every 10 checks, and the rank did not get worse."
+      },
+      "volume": {
+        "label": "Search volume at risk",
+        "what": "Monthly searches of the keywords with likely cannibalization.",
+        "how": "The sum of the keyword search volumes, as the provider reports them. It sizes the problem and does not estimate lost clicks."
+      },
+      "gap": {
+        "label": "Typical rank gap",
+        "what": "How many places lower a keyword ranks, in the middle of the likely cases, when another page is the ranking page.",
+        "how": "The median over the keywords with likely cannibalization in the period."
+      },
+      "switches": {
+        "label": "Confirmed switches",
+        "what": "Times the ranking page changed and stayed changed.",
+        "how": "A switch counts when the new page is also the ranking page on the next readable check. A change that lasts one check is not counted."
+      },
+      "switchedKeywords": {
+        "label": "Keywords that switched",
+        "what": "Ranked keywords whose ranking page changed at least once in the period.",
+        "how": "Ranked keywords have at least 10 ranked checks in the period."
+      },
+      "flipFlops": {
+        "label": "Flip-flop keywords",
+        "what": "Keywords where a page took over and the page it replaced came back.",
+        "how": "The page returns within 14 days. The first move shows as Moved until the page returns."
+      },
+      "leftTarget": {
+        "label": "Left the target page",
+        "what": "Switches away from the page you set as the keyword’s target page.",
+        "how": "Only keywords with a target page count."
+      },
+      "improved": {
+        "label": "Rank improved after",
+        "what": "Switches after which the keyword ranked better than before.",
+        "how": "Compares the rank on the last check before the switch with the rank on the first check after."
+      },
+      "dropped": {
+        "label": "Rank dropped after",
+        "what": "Switches after which the keyword ranked worse than before.",
+        "how": "Compares the rank on the last check before the switch with the rank on the first check after."
+      }
+    },
+    "columns": {
+      "keyword": "Keyword",
+      "status": "Status",
+      "pages": "Pages",
+      "rank": "Rank",
+      "gap": "Rank gap",
+      "switches": "Switches",
+      "together": "Together",
+      "volume": "Volume",
+      "history": "Ranking page",
+      "pair": "Pages",
+      "pairKeywords": "Keywords",
+      "pairVolume": "Volume",
+      "pairLikely": "Likely",
+      "lead": "Which page ranks better",
+      "overlap": "Title overlap",
+      "when": "When",
+      "switch": "Switch",
+      "rankChange": "Rank",
+      "held": "Held",
+      "type": "Type",
+      "target": "Target page",
+      "now": "Ranking page now",
+      "switchCount": "Switches",
+      "flipFlops": "Flip-flops",
+      "pageCount": "Pages",
+      "heldNow": "Held now",
+      "longest": "Longest hold"
+    },
+    "tips": {
+      "status": "The class of the detector: likely cannibalization, co-ranking, unstable page, or none.",
+      "pages": "Your pages that rank for the keyword, the page to compare with first. Colors match the history strip.",
+      "rank": "Best rank of your pages on the last check.",
+      "gap": "Places lower the keyword ranks when another page, not the page to compare with, is the ranking page.",
+      "switches": "Times the ranking page changed and stayed changed in the period.",
+      "together": "Share of checks with two of your pages in the top 20.",
+      "volume": "Monthly searches, provider value.",
+      "history": "Which page ranked on each check of the period, one cell per check. A color change is a switch.",
+      "pairKeywords": "Keywords with a conflict where both pages rank in the top 100.",
+      "pairVolume": "Monthly searches of those keywords.",
+      "pairLikely": "How many of the keywords are likely cannibalization.",
+      "lead": "On how many of the keywords each page has the better median rank.",
+      "overlap": "Share of title words the two pages have in common. A hint that the pages answer the same question, not a verdict.",
+      "when": "The first check on which the new page ranked.",
+      "switch": "The page that ranked, then the page that ranks now.",
+      "rankChange": "Rank on the last check before the switch, then on the first check after.",
+      "held": "Days the old page was the ranking page before the switch.",
+      "type": "Flip-flop: the page that took over returned the page it replaced within 14 days. Moved: any other confirmed switch.",
+      "target": "Whether the switch left or came back to the page set as the keyword’s target page.",
+      "now": "The page that ranks on the last check.",
+      "pagesCount": "Your pages that ranked for the keyword in the period.",
+      "heldNow": "Days the ranking page has held the best rank up to the last check.",
+      "longest": "The longest stretch of days one page held the best rank."
+    },
+    "cells": {
+      "gapValue": "+{count}",
+      "gapTip": "{count, plural, one {# place} other {# places}} lower when another page ranks",
+      "pageName": "Page {letter}: ",
+      "pageTip": "{title} ({path})",
+      "notTarget": "Not the target page",
+      "notTargetTip": "Ranks with {current}. The target page is {target}.",
+      "pagesLabel": "Pages for {keyword}: {pages}. Show the list with addresses and numbers.",
+      "pageLabel": "page {letter}, {path}",
+      "more": "+{count}",
+      "rankBefore": "{before} to {after}",
+      "heldDays": "{count, plural, one {# day} other {# days}}",
+      "moved": "Moved",
+      "flipFlop": "Flip-flop",
+      "leftTarget": "Left the target",
+      "leadsTip": "{a} ranks better on {aCount, plural, one {# keyword} other {# keywords}}, {b} on {bCount}.",
+      "leadSide": " keywords where page {letter} ranks better",
+      "improvedBy": "Improved by {count, plural, one {# place} other {# places}}",
+      "droppedBy": "Dropped by {count, plural, one {# place} other {# places}}"
+    },
+    "strip": {
+      "label": "Ranking page on each of the last {checks} checks: {pages}. {switches, plural, one {# switch} other {# switches}}",
+      "page": "{letter} {path} {checks}",
+      "noChecks": "No checks in this period"
+    },
+    "popover": {
+      "label": "Pages for {keyword}",
+      "head": "Pages that rank for this keyword",
+      "meta": "{keyword} · last {days} days",
+      "best": "Best page",
+      "target": "Target page",
+      "subResult": "Sub-result",
+      "openPage": "{path}, opens the page in a new tab",
+      "numbers": "Ranked on {share} of checks · ranking page on {best} · median rank {median}",
+      "details": "Open the evidence for this keyword"
+    },
+    "keywordTable": {
+      "caption": "Keywords where more than one of your pages competes",
+      "rowLabel": "Open {keyword}",
+      "footer": "{count, plural, one {# keyword} other {# keywords}}",
+      "early": "{count, plural, one {# keyword} other {# keywords}} too early to judge (fewer than 10 ranked checks)",
+      "updated": "Updated {date} · daily checks",
+      "emptyTitle": "No conflicts in this scope",
+      "emptyReason": "No keyword in the last {days} days has two of your pages competing. Choose a longer period, or look at all keywords.",
+      "showAll": "Show all keywords",
+      "noMatchTitle": "No keywords match",
+      "noMatchSearch": "No keyword contains “{query}”.",
+      "noMatchPair": "No keyword has both pages of this pair in the top 100.",
+      "clearSearch": "Clear search",
+      "clearPair": "Clear the page filter"
+    },
+    "pairTable": {
+      "caption": "Pairs of your pages that compete",
+      "rowLabel": "Show the keywords of {a} and {b}",
+      "footer": "{count, plural, one {# page pair} other {# page pairs}}",
+      "hint": "Fix at page level: merge, redirect or differentiate one of the two.",
+      "emptyTitle": "No page pairs in this scope",
+      "emptyReason": "No two pages compete on three or more checks of any keyword.",
+      "noMatchTitle": "No pairs match",
+      "noMatchReason": "No pair has a page containing “{query}”."
+    },
+    "changesTable": {
+      "caption": "Confirmed switches of the ranking page",
+      "footer": "{count, plural, one {# switch} other {# switches}}",
+      "emptyTitle": "No switches in this scope",
+      "emptyReason": "The ranking page of no keyword changed and stayed changed in the last {days} days. Choose a longer period.",
+      "noMatchTitle": "No switches match",
+      "noMatchReason": "No switch fits this filter and search.",
+      "clearFilters": "Show all switches"
+    },
+    "switchKeywordTable": {
+      "caption": "Keywords and how their ranking page changed",
+      "footer": "{count, plural, one {# keyword} other {# keywords}}",
+      "emptyTitle": "No keyword switched",
+      "emptyReason": "The ranking page of no keyword changed in the last {days} days. Choose a longer period, or look at all keywords.",
+      "showAll": "Show all keywords",
+      "notEnoughTitle": "Not enough checks yet",
+      "notEnoughReason": "A keyword needs 10 ranked checks in the period before its switches are read. Daily checks fill this in over the next days."
+    },
+    "chart": {
+      "title": "Switches per week",
+      "meta": "By what the new page did to the rank",
+      "weekOf": "Week of",
+      "improved": "Rank improved",
+      "same": "No change",
+      "dropped": "Rank dropped",
+      "total": "Total",
+      "summary": "Confirmed switches per week of the last {days} days: {weeks}.",
+      "week": "{label}: {improved} improved, {same} no change, {dropped} dropped",
+      "info": {
+        "what": "How many confirmed switches happened each week, by what the new page did to the rank.",
+        "how": "Each column splits a week’s switches into rank improved, no change and rank dropped. Many switches across many keywords in one week can be the sign of a Google update."
+      },
+      "emptyTitle": "No switches in this period",
+      "emptyReason": "Nothing to draw: no keyword changed its ranking page.",
+      "errorTitle": "Could not load the switches",
+      "errorReason": "The server returned an error. Your scope is unchanged.",
+      "retry": "Try again"
+    },
+    "states": {
+      "loadFailedTitle": "Could not load cannibalization",
+      "loadFailedReason": "The server returned an error. Your scope is unchanged.",
+      "retry": "Try again",
+      "noKeywordsTitle": "No tracked keywords yet",
+      "noKeywordsReason": "Cannibalization reads the checks of the keywords you track. Add keywords to see which of your pages compete for them.",
+      "addKeywords": "Go to Keywords"
+    }
+  },
   "fanout": {
     "engineNote": "{engines} {count, plural, one {does} other {do}} not expose fan-out.",
     "engineNoteTip": "Their queries are not exposed. That is not the same as no query being issued.",

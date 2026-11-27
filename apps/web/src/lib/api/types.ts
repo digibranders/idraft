@@ -171,3 +171,16 @@ export type ObservationFacts = Schemas['ObservationFacts'];
 
 /** Runtime lists from the OpenAPI enums: a form checks a slug against them before it asks the API. */
 export { reservedProjectSlugValues, reservedWorkspaceSlugValues, roleValues } from './schema';
+
+export type CannMeta = Schemas['CannMeta'];
+export type CannKeyword = Schemas['CannKeyword'];
+export type CannPage = Schemas['CannPage'];
+export type CannStripCell = Schemas['CannStripCell'];
+export type CannPair = Schemas['CannPair'];
+export type CannCount = Schemas['CannCount'];
+export type CannWeek = Schemas['CannWeek'];
+export type CannSwitchRow = Schemas['SwitchRow'];
+export type CannSwitchEvent = Schemas['SwitchEvent'];
+export type CannConflictList = Schemas['ConflictList'];
+export type CannSwitchList = Schemas['SwitchList'];
+export type CannPairList = Schemas['PairList'];
