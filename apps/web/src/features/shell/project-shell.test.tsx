@@ -191,15 +191,15 @@ describe('ProjectShell', () => {
     });
   });
 
-  it('labels the groups SEO, Website audit and AI visibility, and a member without data:read sees no Website audit', async () => {
+  it('labels the groups SEO, AI visibility and Website audit, and a member without data:read sees no Website audit', async () => {
     const { unmount } = renderWithProviders(shell('editor'));
     await screen.findByRole('heading', { name: 'Profile' });
     const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
-    const labels = ['SEO', 'Website audit', 'AI visibility'].map((label) => primary.getAllByText(label)[0]);
+    const labels = ['SEO', 'AI visibility', 'Website audit'].map((label) => primary.getAllByText(label)[0]);
     // Their order on the page is their order in the sidebar
-    const [seo, audit, ai] = labels;
-    expect(seo?.compareDocumentPosition(audit as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(audit?.compareDocumentPosition(ai as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const [seo, ai, audit] = labels;
+    expect(seo?.compareDocumentPosition(ai as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(ai?.compareDocumentPosition(audit as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     unmount();
     renderWithProviders(shell('billing'));
     await screen.findByRole('heading', { name: 'Profile' });

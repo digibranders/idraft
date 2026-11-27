@@ -718,14 +718,13 @@ describe('the inspector of the open check', () => {
     );
   });
 
-  it('sends View all in Links to Internal links, without the inspector keys in the address', async () => {
+  it('links View all in Links to Internal links, without the inspector keys in the address', async () => {
     const { user, panel } = await openRow('/pricing');
+    // The linking pages are in the Links tab of the Pages drawer
+    await user.click(within(panel).getByRole('tab', { name: 'Links' }));
     const heading = await within(panel).findByRole('heading', { name: /^Linking pages \(\d+\)$/ });
-    await user.click(
-      within(heading.closest('section') as HTMLElement).getByRole('button', { name: 'View all in Links' }),
-    );
-    expect(router.push).toHaveBeenCalledTimes(1);
-    expect(router.push).toHaveBeenCalledWith('/digibranders/eventus-security/seo/internal-links?tab=links&tgt=108');
+    const link = within(heading.closest('section') as HTMLElement).getByRole('link', { name: 'View all in Links' });
+    expect(link).toHaveAttribute('href', '/digibranders/eventus-security/seo/internal-links?tab=links&tgt=108');
   });
 });
 

@@ -49,9 +49,8 @@ async function requestsDuring(run: () => Promise<void>): Promise<string[]> {
 }
 
 describe('the seams of the other sessions', () => {
-  it('answer unavailable, false or null on this branch', () => {
+  it('answer unavailable, false or null until their owners fill them', () => {
     const wrapper = providers();
-    expect(renderHook(() => useIssueTotals(SCOPE, null), { wrapper }).result.current).toEqual({ state: 'unavailable' });
     expect(renderHook(() => usePageIssues(SCOPE, null, PRICING), { wrapper }).result.current).toEqual({
       state: 'unavailable',
     });
@@ -65,6 +64,21 @@ describe('the seams of the other sessions', () => {
     const { result } = renderHook(() => useTrackPages(SCOPE), { wrapper: providers() });
     expect(result.current.pending).toBe(false);
     await expect(result.current.track([PRICING])).rejects.toThrow('Tracking is not available');
+  });
+});
+
+describe('useIssueTotals', () => {
+  it('loads, then gives the totals of the latest crawl from the Issues read', async () => {
+    signIn();
+    const { result } = renderHook(() => useIssueTotals(SCOPE, null), { wrapper: providers() });
+    expect(result.current).toEqual({ state: 'loading' });
+    await waitFor(() => {
+      expect(result.current.state).toBe('ready');
+    });
+    if (result.current.state !== 'ready') throw new Error('not ready');
+    const { withIssue, error, warning, notice } = result.current.data;
+    expect(withIssue).toBeGreaterThan(0);
+    expect([error, warning, notice].every((count) => count >= 0)).toBe(true);
   });
 });
 

@@ -56,6 +56,8 @@ const PAGE_SORTS: Readonly<Record<PageSort, true>> = {
   '-tier': true,
   clicks: true,
   '-clicks': true,
+  impressions: true,
+  '-impressions': true,
   indexable: true,
   '-indexable': true,
   in_sitemap: true,

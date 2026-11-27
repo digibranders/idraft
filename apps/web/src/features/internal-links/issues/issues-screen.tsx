@@ -16,6 +16,7 @@ import { useResultAnnouncement } from './use-result-announcement';
 import { CrawlButton } from '../crawl-button';
 import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from '../crawl-reads';
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from '../crawl-states';
+import { drawerContextOf } from '../inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from '../inspector/page-inspector';
 import type { InternalLinksScreenProps } from '../internal-links-screen';
 import { TabBadge } from '../tab-badge';
@@ -128,6 +129,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   const router = useRouter();
   const tiers = useWorkspaceTiers(workspaceId);
   const canWrite = useCan('projects:write');
+  const canNote = useCan('notes:write');
   const inView = useMemo(() => crawlInView(crawls.data?.data ?? [], null), [crawls.data]);
   // The page inspector is the one of Internal links: `?inspect=page:<id>`, stepping through the rows of the open check
   const inspector = useInspector();
@@ -248,9 +250,8 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
       ) : (
         <PageInspector
           key={inspected.urlId}
-          context={inspectorContext}
+          context={drawerContextOf(inspectorContext, { write: canWrite, note: canNote })}
           urlId={inspected.urlId}
-          canWrite={canWrite}
           positionText={stepping.positionText}
           navigation={stepping.navigation}
           onStep={stepping.onStep}
@@ -266,7 +267,6 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
       value={state.by}
       onValueChange={(next) => setSearch({ by: next === 'all' ? null : next })}
       placeholder={t('foundBy.all')}
-      triggerPrefix={`${t('foundBy.label')}:`}
       options={FOUND_BY.map((value) =>
         value === 'all'
           ? { value, label: t('foundBy.all') }

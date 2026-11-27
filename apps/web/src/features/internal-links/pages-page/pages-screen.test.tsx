@@ -79,7 +79,7 @@ describe('the Pages screen, Overview', () => {
     );
   });
 
-  it('shows the five numbers of the overview read, each a link to All pages, and no sixth', async () => {
+  it('shows the five numbers of the overview read, each a link to All pages, and the sixth from Issues, a link to Issues', async () => {
     renderWithProviders(pagesAs('viewer', 'overview'));
     const group = await strip();
     await within(group).findByText(String(fixture.addresses));
@@ -95,7 +95,10 @@ describe('the Pages screen, Overview', () => {
       expect(link).toHaveAttribute('href', `${ALL}${query}`);
       expect(link.closest('div')?.textContent).toContain(count.toLocaleString('en-US'));
     }
-    expect(within(group).getAllByRole('link')).toHaveLength(5);
+    // The sixth number is the Issues read's own, and it links to the Issues page
+    const withIssue = await within(group).findByRole('link', { name: /Pages with an issue/ });
+    expect(withIssue).toHaveAttribute('href', `/${MOCK_WORKSPACE.slug}/${EVENTUS_LINKS.slug}/seo/issues`);
+    expect(within(group).getAllByRole('link')).toHaveLength(6);
   });
 
   it('carries the crawl in view to All pages, and nothing else', async () => {

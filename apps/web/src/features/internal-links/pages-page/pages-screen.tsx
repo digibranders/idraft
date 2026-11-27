@@ -15,7 +15,7 @@ import { CrawlNotFound } from '../crawl-not-found';
 import { CrawlPicker } from '../crawl-picker';
 import { useCrawlShell, usePageExport } from '../crawl-shell';
 import { useClientSummary } from '../export/use-client-summary';
-import type { PageDrawerContext } from '../inspector/page-drawer-context';
+import { issueCheckHref, type PageDrawerContext } from '../inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from '../inspector/page-inspector';
 import type { InternalLinksProject } from '../internal-links-screen';
 import { UNTIERED_QUERY } from '../pages/page-filters';
@@ -162,7 +162,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
           tgt: urlId,
           ...(state.scope === 'editorial' ? {} : { scope: state.scope }),
         }),
-      issueCheck: () => null,
+      issueCheck: issueCheckHref(projectPath(workspaceSlug, project.slug, '/seo/issues')),
       taxonomy: pagesContext.taxonomyHref,
       integrations: integrationsPath(workspaceSlug, project.slug),
     },

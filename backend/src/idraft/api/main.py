@@ -75,7 +75,7 @@ from idraft.api.internal_links.change_routes import router as change_routes_rout
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
 from idraft.api.internal_links.crawls import CrawlService
-from idraft.api.internal_links.mention_sources import NoIssueChecks
+from idraft.api.internal_links.mention_sources import CatalogueIssueChecks
 from idraft.api.internal_links.opportunities import OpportunityService
 from idraft.api.internal_links.opportunity_routes import router as opportunity_routes_router
 from idraft.api.internal_links.page_note_file_routes import router as page_note_file_routes_router
@@ -332,7 +332,7 @@ def create_app(
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
                 # No Issues catalogue on this branch: its session passes its checks here.
-                page_notes=PageNoteService(sessions=sessions, issues=NoIssueChecks()),
+                page_notes=PageNoteService(sessions=sessions, issues=CatalogueIssueChecks()),
                 page_note_files=PageNoteFileService(sessions=sessions, store=sources),
                 link_reads=link_reads,
                 issues=IssueService(sessions=sessions),

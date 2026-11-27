@@ -1,11 +1,12 @@
 """Where a mention's target is judged when the database cannot (spec 9.8.1). The Issues catalogue
-belongs to the Issues session and is not on this branch, so it is a seam: when that session lands
-it passes a class that reads its catalogue, and nothing else changes."""
+is the source for `issue` mentions; a service built without one refuses them."""
 
 from __future__ import annotations
 
 from collections.abc import Collection
 from typing import Protocol
+
+from idraft.api.issues.catalogue import BY_ID
 
 
 class IssueChecks(Protocol):
@@ -16,3 +17,10 @@ class IssueChecks(Protocol):
 class NoIssueChecks:
     async def known(self, check_ids: Collection[str]) -> frozenset[str] | None:
         return None
+
+
+class CatalogueIssueChecks:
+    """The checks of the Issues catalogue: a note may mention any check the Issues page lists."""
+
+    async def known(self, check_ids: Collection[str]) -> frozenset[str] | None:
+        return frozenset(check_ids) & BY_ID.keys()

@@ -237,6 +237,15 @@ async def test_a_malformed_entry_is_refused(
     assert problem(refused) == (422, "validation_failed")
 
 
+@pytest.fixture
+def without_issues(auth_app: FastAPI, resources: Resources) -> Iterator[None]:
+    service = PageNoteService(sessions=resources.sessions)
+    auth_app.dependency_overrides[get_page_notes] = lambda: service
+    yield
+    auth_app.dependency_overrides.pop(get_page_notes)
+
+
+@pytest.mark.usefixtures("without_issues")
 async def test_an_issue_mention_is_unavailable_without_a_catalogue(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -248,6 +257,21 @@ async def test_an_issue_mention_is_unavailable_without_a_catalogue(
     assert problem(refused) == (422, "validation_failed")
     assert errors(refused) == [("mentions[0].type", "mention_type_unavailable")]
     assert await audit_rows(migrated, site.workspace, "page_note.created") == []
+
+
+async def test_the_app_checks_an_issue_mention_against_the_issues_catalogue(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    site = await _site(migrated, resources)
+    known = {"type": "issue", "label": "@Broken pages", "target": "status-4xx"}
+    unknown = {"type": "issue", "label": "@Made up", "target": "made-up"}
+
+    refused = await _post(api, site, "See @Made up", [unknown])
+    created = await _post(api, site, "See @Broken pages", [known])
+
+    assert errors(refused) == [("mentions[0].target", "mention_target_unknown")]
+    assert created.status_code == 201, created.text
+    assert created.json()["data"]["mentions"] == [{**known, "path": None}]
 
 
 @pytest.mark.usefixtures("with_issues")

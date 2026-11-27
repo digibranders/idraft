@@ -4,9 +4,11 @@ import type { LinksTabContext } from '../tabs';
 import type { CrawlInView } from '@/lib/internal-links/crawl-choice';
 import { DEFAULT_SCOPE, type LinkScope } from '@/lib/internal-links/scopes';
 import type { LinksScope, PageTier } from '@/lib/internal-links/types';
+import { isCheckId } from '@/lib/issues/types';
 import { withQuery } from '@/lib/routes/paths';
 
 const INTERNAL_LINKS_PATH = '/seo/internal-links';
+const ISSUES_PATH = '/seo/issues';
 const TAXONOMY_PATH = '/settings/taxonomy';
 const INTEGRATIONS_PATH = '/integrations/google';
 
@@ -28,13 +30,19 @@ export interface PageDrawerContext {
     journey: (urlId: string) => Route;
     linksFrom: (urlId: string) => Route;
     linksTo: (urlId: string) => Route;
-    /** `null` while the Issues page is not on the branch: the links that need it are not rendered. */
+    /** The open check of the Issues page; `null` for an id the page does not know: no link is drawn then. */
     issueCheck: (checkId: string) => Route | null;
     taxonomy: Route;
     /** Integrations > Google, where the Search tab sends a member who may connect Search Console. */
     integrations: Route;
   };
 }
+
+/** The open check of the Issues page, for a check of its catalogue; `null` for an id the page does not know. */
+export const issueCheckHref =
+  (issuesPage: Route) =>
+  (checkId: string): Route | null =>
+    isCheckId(checkId) ? withQuery(issuesPage, new URLSearchParams({ check: checkId }).toString()) : null;
 
 /** The drawer's context for a tab of Internal links. */
 export function drawerContextOf(context: LinksTabContext, can: { write: boolean; note: boolean }): PageDrawerContext {
@@ -61,7 +69,7 @@ export function drawerContextOf(context: LinksTabContext, can: { write: boolean;
       journey: (urlId) => exit({ tab: 'journey', focus: urlId }),
       linksFrom: (urlId) => exit({ tab: 'links', src: urlId }),
       linksTo: (urlId) => exit({ tab: 'links', tgt: urlId }),
-      issueCheck: () => null,
+      issueCheck: issueCheckHref(context.hrefOf(ISSUES_PATH)),
       taxonomy: context.hrefOf(TAXONOMY_PATH),
       integrations: context.hrefOf(INTEGRATIONS_PATH),
     },
