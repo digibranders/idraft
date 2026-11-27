@@ -31,6 +31,15 @@ export interface MapLayout {
 // A page pushes others away in proportion to its links, so a hub keeps room for the pages around it
 const REPULSION = 6.5;
 const ATTRACTION = 0.05;
+// A dense map (hubs of 100 links and more) is laid out with these instead, in the share `dense()` gives. A link to a
+// hub pulls less than a link between two small pages, so the hubs stand out at the edge of their pages and the groups
+// show; the pages keep farther apart. The small map the mock was tuned on keeps the numbers above.
+const DENSE_REPULSION = 3.5;
+const DENSE_ATTRACTION = 0.1;
+const DENSE_HUB_EXPONENT = 1.3;
+const DENSE_SPACE = 32;
+/** The links of a page at which a link to it counts as a normal one: below it the link pulls harder, above it less. */
+const TYPICAL_WEIGHT = 12;
 // Strong enough to keep groups that do not link to each other in one picture, not far apart
 const GRAVITY = 0.03;
 // No two pages closer than this, plus room for the bigger dot of a page with many links
@@ -38,10 +47,10 @@ const SPACE = 26;
 // A wide canvas gets a wide map: names read left to right, so the room is worth more sideways
 const STRETCH = 1.45;
 const CELL = 18;
-const COLUMNS = 14;
+const COLUMNS = 12;
 const GROUP_GAP = 44;
-// Beside the map the block stands clear of the names, which run to the right of their dots; below it needs less
-const BLOCK_GAP_SIDE = 250;
+// Beside the map the block stands clear of the dots (the names keep clear of its text, see `map-labels.ts`); below it needs less
+const BLOCK_GAP_SIDE = 130;
 const BLOCK_GAP_BELOW = 90;
 
 /**
@@ -50,8 +59,16 @@ const BLOCK_GAP_BELOW = 90;
  */
 export function roundsFor(linked: number): { force: number; separation: number } {
   if (linked <= 300) return { force: 400, separation: 80 };
-  return { force: Math.max(120, Math.round(120_000 / linked)), separation: 30 };
+  // The moves apart are the costlier part (every pair, every round), so a bigger map gets fewer
+  return {
+    force: Math.max(120, Math.round(120_000 / linked)),
+    separation: Math.min(120, Math.max(30, Math.round(30_000_000 / (linked * linked)))),
+  };
 }
+
+/** How dense a map of this many linked pages is laid out, from 0 (the small map) to 1 (a site of 300 pages and more). */
+export const dense = (linked: number): number => Math.min(1, Math.max(0, (linked - 150) / 150));
+const blend = (small: number, big: number, share: number): number => small + (big - small) * share;
 
 /** Ids in code unit order: the same on every browser and locale, unlike `localeCompare`. */
 const byId = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -78,6 +95,11 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
     if (a !== undefined && b !== undefined && a !== b) pairs.push([a, b]);
   }
   const rounds = roundsFor(count);
+  const share = dense(count);
+  const repulsion = blend(REPULSION, DENSE_REPULSION, share);
+  const attraction = blend(ATTRACTION, DENSE_ATTRACTION, share);
+  const hubs = DENSE_HUB_EXPONENT * share;
+  const space = blend(SPACE, DENSE_SPACE, share);
   const dx = new Float64Array(count);
   const dy = new Float64Array(count);
 
@@ -94,7 +116,7 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
         const ox = xa - at(x, b);
         const oy = ya - at(y, b);
         const length = Math.max(0.01, Math.hypot(ox, oy));
-        const push = (REPULSION * wa * at(weight, b)) / length / length;
+        const push = (repulsion * wa * at(weight, b)) / length / length;
         fx += ox * push;
         fy += oy * push;
         dx[b] = at(dx, b) - ox * push;
@@ -104,8 +126,10 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
       dy[a] = fy - ya * GRAVITY * wa;
     }
     for (const [a, b] of pairs) {
-      const ox = (at(x, a) - at(x, b)) * ATTRACTION;
-      const oy = (at(y, a) - at(y, b)) * ATTRACTION;
+      const pull =
+        hubs === 0 ? attraction : attraction * (TYPICAL_WEIGHT / Math.sqrt(at(weight, a) * at(weight, b))) ** hubs;
+      const ox = (at(x, a) - at(x, b)) * pull;
+      const oy = (at(y, a) - at(y, b)) * pull;
       dx[a] = at(dx, a) - ox;
       dy[a] = at(dy, a) - oy;
       dx[b] = at(dx, b) + ox;
@@ -124,7 +148,7 @@ export function layoutMap({ nodes, edges, below }: LayoutInput): MapLayout {
   for (let round = 0; round < rounds.separation; round += 1) {
     for (let a = 0; a < count; a += 1) {
       for (let b = a + 1; b < count; b += 1) {
-        const need = SPACE + 1.6 * (Math.sqrt(at(weight, a)) + Math.sqrt(at(weight, b)));
+        const need = space + 1.6 * (Math.sqrt(at(weight, a)) + Math.sqrt(at(weight, b)));
         let ox = at(x, a) - at(x, b);
         let oy = at(y, a) - at(y, b);
         let length = Math.hypot(ox, oy);

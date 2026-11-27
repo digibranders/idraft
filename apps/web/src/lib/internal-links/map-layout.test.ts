@@ -56,7 +56,7 @@ describe('layoutMap', () => {
     const linkedRight = Math.max(...positions.filter(([id]) => !id.startsWith('loose')).map(([, x]) => x));
     const loose = positions.filter(([id]) => id.startsWith('loose'));
 
-    expect(loose.every(([, x]) => x > linkedRight + 200)).toBe(true);
+    expect(loose.every(([, x]) => x > linkedRight + 100)).toBe(true);
     expect(groups.map((group) => [group.key, group.count])).toEqual([
       [1, 5],
       [2, 4],
@@ -89,6 +89,7 @@ describe('roundsFor', () => {
   it('spends fewer rounds on a bigger map', () => {
     expect(roundsFor(150)).toEqual({ force: 400, separation: 80 });
     expect(roundsFor(300)).toEqual({ force: 400, separation: 80 });
+    expect(roundsFor(332)).toEqual({ force: 361, separation: 120 });
     expect(roundsFor(1000)).toEqual({ force: 120, separation: 30 });
     expect(roundsFor(3000)).toEqual({ force: 120, separation: 30 });
   });
