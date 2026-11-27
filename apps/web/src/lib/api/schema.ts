@@ -1877,6 +1877,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tracked keywords where two or more of the site's own pages compete
+         * @description One row per tracked keyword on the device with its verdict over the period, the pages involved, rank gap, confirmed switches and a one-cell-per-check history. The headline carries the figures of the period before when the history allows. A verdict needs `min_checks` ranked checks, else it is `insufficient`.
+         */
+        get: operations["conflicts_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One tracked keyword: its row and the page that ranked on each check */
+        get: operations["keyword_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_keywords__tracked_keyword_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pairs of own pages that compete on several keywords */
+        get: operations["pairs_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_pairs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Confirmed changes of the ranking page, with the weekly count
+         * @description A switch is confirmed when the new page also holds the best rank on the next ranked check; one-check changes are only counted. `kind` narrows the rows, not the headline or the weeks.
+         */
+        get: operations["switches_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_switches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains": {
         parameters: {
             query?: never;
@@ -5888,6 +5962,266 @@ export interface components {
             /** Updated */
             updated: number;
         };
+        /** CannCheck */
+        CannCheck: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Ranks */
+            ranks: components["schemas"]["CannCheckRank"][];
+            /** Readable */
+            readable: boolean;
+            /** Sub Results */
+            sub_results: string[];
+        };
+        /** CannCheckRank */
+        CannCheckRank: {
+            /** Rank */
+            rank: number;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannCount */
+        CannCount: {
+            /** Before */
+            before: number | null;
+            /** Value */
+            value: number;
+        };
+        /** CannKeyword */
+        CannKeyword: {
+            /** Checks */
+            checks: number;
+            /** Current Rank */
+            current_rank: number | null;
+            /** Current Url Id */
+            current_url_id: string | null;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /** Flip Flops */
+            flip_flops: number;
+            /** Group Ids */
+            group_ids: string[];
+            /** Held Now Days */
+            held_now_days: number;
+            /** Keyword */
+            keyword: string;
+            /** Longest Hold Days */
+            longest_hold_days: number;
+            /**
+             * On Target
+             * @description Null when no target page is set or no page ranks now.
+             */
+            on_target: boolean | null;
+            /** One Check Changes */
+            one_check_changes: number;
+            /** Pages */
+            pages: components["schemas"]["CannPage"][];
+            /** Previous Verdict */
+            previous_verdict: ("likely" | "co_ranking" | "unstable" | "none" | "unranked" | "insufficient") | null;
+            /** Rank Gap */
+            rank_gap: number;
+            /** Ranked Checks */
+            ranked_checks: number;
+            /** Strip */
+            strip: components["schemas"]["CannStripCell"][];
+            /** Switch Rate */
+            switch_rate: number;
+            /** Switches */
+            switches: components["schemas"]["SwitchEvent"][];
+            /** Target Url Id */
+            target_url_id: string | null;
+            /** Together Rate */
+            together_rate: number;
+            /** Tracked Keyword Id */
+            tracked_keyword_id: string;
+            /** Unreadable Checks */
+            unreadable_checks: number;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "likely" | "co_ranking" | "unstable" | "none" | "unranked" | "insufficient";
+            /** Volume */
+            volume: number | null;
+        };
+        /** CannKeywordDetail */
+        CannKeywordDetail: {
+            /** Checks */
+            checks: components["schemas"]["CannCheck"][];
+            keyword: components["schemas"]["CannKeyword"];
+            meta: components["schemas"]["CannMeta"];
+            /** Urls */
+            urls: components["schemas"]["CannUrl"][];
+        };
+        /** CannKeywordDetailResponse */
+        CannKeywordDetailResponse: {
+            data: components["schemas"]["CannKeywordDetail"];
+        };
+        /** CannMeta */
+        CannMeta: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Days
+             * @enum {integer}
+             */
+            days: 14 | 30 | 90;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /**
+             * Has Previous
+             * @description True when at least one keyword has enough checks in the period before.
+             */
+            has_previous: boolean;
+            /**
+             * Method Version
+             * @default 2
+             */
+            method_version: number;
+            /**
+             * Min Checks
+             * @default 10
+             */
+            min_checks: number;
+            /**
+             * Total
+             * @description Rows matching the filters, before `limit`.
+             */
+            total: number;
+        };
+        /** CannPage */
+        CannPage: {
+            /** Best Count */
+            best_count: number;
+            /** Best Ever */
+            best_ever: number;
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Is Sub Result
+             * @description Was nested under another own result on some checks.
+             */
+            is_sub_result: boolean;
+            /** Is Target */
+            is_target: boolean;
+            /**
+             * Last Date
+             * Format: date
+             */
+            last_date: string;
+            /** Last Rank */
+            last_rank: number;
+            /**
+             * Letter
+             * @description A is the page to compare with; B to F follow; + for more.
+             */
+            letter: string;
+            /** Median */
+            median: number;
+            /** Path */
+            path: string;
+            /** Ranked */
+            ranked: number;
+            /** Share */
+            share: number;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannPair */
+        CannPair: {
+            a: components["schemas"]["CannPairPage"];
+            /** A Leads */
+            a_leads: number;
+            b: components["schemas"]["CannPairPage"];
+            /** B Leads */
+            b_leads: number;
+            /** Keywords */
+            keywords: number;
+            /** Likely */
+            likely: number;
+            /** Title Overlap */
+            title_overlap: number | null;
+            /** Tracked Keyword Ids */
+            tracked_keyword_ids: string[];
+            /** Volume */
+            volume: number;
+        };
+        /** CannPairPage */
+        CannPairPage: {
+            /** Path */
+            path: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannStripCell */
+        CannStripCell: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "page" | "none" | "unreadable";
+            /** Rank */
+            rank: number | null;
+            /** Together */
+            together: boolean;
+            /** Url Id */
+            url_id: string | null;
+        };
+        /** CannUrl */
+        CannUrl: {
+            /** Path */
+            path: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannWeek */
+        CannWeek: {
+            /** Dropped */
+            dropped: number;
+            /** Improved */
+            improved: number;
+            /** Same */
+            same: number;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
         /** CardItem */
         CardItem: {
             /** Id */
@@ -6743,6 +7077,33 @@ export interface components {
             valid_from: string;
             /** Valid To */
             valid_to: string | null;
+        };
+        /** ConflictHeadline */
+        ConflictHeadline: {
+            conflicts: components["schemas"]["CannCount"];
+            likely: components["schemas"]["CannCount"];
+            /** Ranked Keywords */
+            ranked_keywords: number;
+            together: components["schemas"]["CannCount"];
+            /** Typical Rank Gap */
+            typical_rank_gap: number | null;
+            unstable: components["schemas"]["CannCount"];
+            /** Volume At Risk */
+            volume_at_risk: number;
+            /** Volume Keywords */
+            volume_keywords: number;
+        };
+        /** ConflictList */
+        ConflictList: {
+            counts: components["schemas"]["VerdictCounts"];
+            headline: components["schemas"]["ConflictHeadline"];
+            /** Items */
+            items: components["schemas"]["CannKeyword"][];
+            meta: components["schemas"]["CannMeta"];
+        };
+        /** ConflictListResponse */
+        ConflictListResponse: {
+            data: components["schemas"]["ConflictList"];
         };
         /** Connection */
         Connection: {
@@ -11384,6 +11745,16 @@ export interface components {
         PagesOverviewResponse: {
             data: components["schemas"]["PagesOverview"];
         };
+        /** PairList */
+        PairList: {
+            /** Items */
+            items: components["schemas"]["CannPair"][];
+            meta: components["schemas"]["CannMeta"];
+        };
+        /** PairListResponse */
+        PairListResponse: {
+            data: components["schemas"]["PairList"];
+        };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
             /** Current Password */
@@ -14648,6 +15019,82 @@ export interface components {
              */
             may_be_incomplete: boolean;
         };
+        /** SwitchEvent */
+        SwitchEvent: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** From Url Id */
+            from_url_id: string;
+            /** Held Days */
+            held_days: number;
+            /** Is Flip Flop */
+            is_flip_flop: boolean;
+            /** Rank After */
+            rank_after: number;
+            /** Rank Before */
+            rank_before: number;
+            /** To Url Id */
+            to_url_id: string;
+        };
+        /** SwitchHeadline */
+        SwitchHeadline: {
+            /** Dropped */
+            dropped: number;
+            /** Flip Flop Keywords */
+            flip_flop_keywords: number;
+            /** Improved */
+            improved: number;
+            /** Keywords */
+            keywords: number;
+            /** Left Target */
+            left_target: number;
+            /** One Check Changes */
+            one_check_changes: number;
+            /** Ranked Keywords */
+            ranked_keywords: number;
+            switches: components["schemas"]["CannCount"];
+        };
+        /** SwitchList */
+        SwitchList: {
+            headline: components["schemas"]["SwitchHeadline"];
+            /** Items */
+            items: components["schemas"]["SwitchRow"][];
+            meta: components["schemas"]["CannMeta"];
+            /** Weeks */
+            weeks: components["schemas"]["CannWeek"][];
+        };
+        /** SwitchListResponse */
+        SwitchListResponse: {
+            data: components["schemas"]["SwitchList"];
+        };
+        /** SwitchRow */
+        SwitchRow: {
+            event: components["schemas"]["SwitchEvent"];
+            /** From Title */
+            from_title: string | null;
+            /** From Url */
+            from_url: string;
+            /** Keyword */
+            keyword: string;
+            /** Left Target */
+            left_target: boolean;
+            /**
+             * Rank Change
+             * @description Places gained (positive) or lost (negative).
+             */
+            rank_change: number;
+            /** To Title */
+            to_title: string | null;
+            /** To Url */
+            to_url: string;
+            /** Tracked Keyword Id */
+            tracked_keyword_id: string;
+            /** Volume */
+            volume: number | null;
+        };
         /** TagChangeResponse */
         TagChangeResponse: {
             data: components["schemas"]["TagChangeResult"];
@@ -16147,6 +16594,25 @@ export interface components {
             message: string;
             /** Path */
             path: string;
+        };
+        /** VerdictCounts */
+        VerdictCounts: {
+            /** All */
+            all: number;
+            /** Co Ranking */
+            co_ranking: number;
+            /** Conflicts */
+            conflicts: number;
+            /** Insufficient */
+            insufficient: number;
+            /** Likely */
+            likely: number;
+            /** None */
+            none: number;
+            /** Unranked */
+            unranked: number;
+            /** Unstable */
+            unstable: number;
         };
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
@@ -20676,6 +21142,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AliasTestResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    conflicts_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+                verdict?: "conflicts" | "all" | "likely" | "co_ranking" | "unstable" | "none" | "unranked" | "insufficient";
+                /** @description A keyword group, with the groups under it. */
+                group_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictListResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    keyword_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_keywords__tracked_keyword_id__get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannKeywordDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pairs_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_pairs_get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+                /** @description A keyword group, with the groups under it. */
+                group_id?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairListResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    switches_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_switches_get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+                kind?: "all" | "flip_flop" | "improved" | "dropped" | "left_target";
+                /** @description A keyword group, with the groups under it. */
+                group_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SwitchListResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -26139,6 +26764,16 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsG
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationGetParametersQueryVerdictValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"]["get"]["parameters"]["query"]["verdict"]> = ["conflicts", "all", "likely", "co_ranking", "unstable", "none", "unranked", "insufficient"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationKeywordsTracked_keyword_idGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationKeywordsTracked_keyword_idGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationPairsGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationPairsGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationSwitchesGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationSwitchesGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationSwitchesGetParametersQueryKindValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"]["get"]["parameters"]["query"]["kind"]> = ["all", "flip_flop", "improved", "dropped", "left_target"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
@@ -26225,6 +26860,12 @@ export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeep
 export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "site_crawl", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const budgetUpdateAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetUpdate"]["action_on_hard"]> = ["pause", "alert_only"];
+export const cannKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannKeyword"]["device"]> = ["desktop", "mobile"];
+export const cannKeywordPrevious_verdictAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannKeyword"]["previous_verdict"]> = ["likely", "co_ranking", "unstable", "none", "unranked", "insufficient"];
+export const cannKeywordVerdictValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannKeyword"]["verdict"]> = ["likely", "co_ranking", "unstable", "none", "unranked", "insufficient"];
+export const cannMetaDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannMeta"]["days"]> = [14, 30, 90];
+export const cannMetaDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannMeta"]["device"]> = ["desktop", "mobile"];
+export const cannStripCellKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannStripCell"]["kind"]> = ["page", "none", "unreadable"];
 export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
 export const changeAlertChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeAlert"]["channel"]> = ["app", "email", "slack"];
 export const changeAlertDelivery_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeAlert"]["delivery_state"]> = ["shown_in_app", "channel_unavailable"];
