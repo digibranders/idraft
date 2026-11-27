@@ -35,7 +35,21 @@ export type FoundKey =
   | 'capitalsAndUnderscores'
   | 'rankBroken'
   | 'citedBroken'
-  | 'offTarget';
+  | 'offTarget'
+  | 'httpResources'
+  | 'hreflangProblems'
+  | 'milliseconds'
+  | 'noDescription'
+  | 'sameDescription'
+  | 'sameDescriptionMore'
+  | 'noH1'
+  | 'h1Count'
+  | 'words'
+  | 'sameText'
+  | 'sameTextMore'
+  | 'imagesWithoutAlt'
+  | 'noOpenGraph'
+  | 'jsonldErrors';
 
 /** A message under `issues.found` and the values it needs. */
 export interface DetailMessage {
@@ -73,11 +87,16 @@ function urlFormatMessage(reason: string | null | undefined): DetailMessage | nu
   return null;
 }
 
-function duplicateTitleMessage(issue: IssueDetail | null): DetailMessage | null {
+/** A page that shares its title, description or text with others: one other page by name, or that one and `more`. */
+function duplicateMessage(
+  issue: IssueDetail | null,
+  one: 'sameTitle' | 'sameDescription' | 'sameText',
+  many: 'sameTitleMore' | 'sameDescriptionMore' | 'sameTextMore',
+): DetailMessage | null {
   const target = issue?.target_path;
   const others = issue?.count;
   if (target === null || target === undefined || others === null || others === undefined || others < 1) return null;
-  return others === 1 ? say('sameTitle', { target }) : say('sameTitleMore', { target, more: others - 1 });
+  return others === 1 ? say(one, { target }) : say(many, { target, more: others - 1 });
 }
 
 /**
@@ -131,7 +150,31 @@ export function detailMessage(check: CheckId, { status, issue }: DetailRow): Det
     case 'title-missing':
       return say('noTitle');
     case 'title-duplicate':
-      return duplicateTitleMessage(issue);
+      return duplicateMessage(issue, 'sameTitle', 'sameTitleMore');
+    case 'description-duplicate':
+      return duplicateMessage(issue, 'sameDescription', 'sameDescriptionMore');
+    case 'duplicate-content':
+      return duplicateMessage(issue, 'sameText', 'sameTextMore');
+    case 'mixed-content':
+      return count === null ? null : say('httpResources', { count });
+    case 'hreflang':
+      return count === null ? null : say('hreflangProblems', { count });
+    case 'slow-pages':
+      return count === null ? null : say('milliseconds', { count });
+    case 'description-missing':
+      return say('noDescription');
+    case 'h1-missing':
+      return say('noH1');
+    case 'h1-multiple':
+      return count === null ? null : say('h1Count', { count });
+    case 'thin-content':
+      return count === null ? null : say('words', { count });
+    case 'image-alt':
+      return count === null ? null : say('imagesWithoutAlt', { count });
+    case 'social-tags':
+      return say('noOpenGraph');
+    case 'schema-errors':
+      return count === null ? null : say('jsonldErrors', { count });
     case 'title-long':
     case 'title-short':
     case 'url-long':

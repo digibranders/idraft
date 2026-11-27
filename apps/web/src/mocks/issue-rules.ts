@@ -42,7 +42,7 @@ interface Rule {
   foundBy: FoundBy;
   need: Need | null;
   matches: (subject: Subject, all: readonly Subject[]) => boolean;
-  detail?: (subject: Subject, all: readonly Subject[]) => Partial<IssueDetail>;
+  detail?: ((subject: Subject, all: readonly Subject[]) => Partial<IssueDetail>) | undefined;
 }
 
 const subjects = (): Subject[] => crawledPages().map((page) => ({ page, row: pageRow(page, 'all') }));
@@ -95,7 +95,112 @@ const OFF_TARGET_KEYWORDS: Readonly<Record<string, number>> = { '/services/vapt'
 
 const clicksOf = (subject: Subject): number => gscClicksOf(subject.page);
 
-/** The 29 checks in catalogue order (backend `api/issues/catalogue.py`). */
+/** What a page's HTML says and how fast it answered (`crawl_pages` columns of the HTML checks). */
+interface PageFacts {
+  description: string;
+  h1: number;
+  words: number;
+  /** The hash of the text: pages with the same one have the same text. */
+  text: string;
+  imagesWithoutAlt: number;
+  openGraph: boolean;
+  jsonldErrors: number;
+  hreflangErrors: number;
+  httpResources: number;
+  responseMs: number;
+}
+
+const THIN_WORDS = 200;
+const DUPLICATE_MIN_WORDS = 50;
+const SLOW_MS = 3000;
+
+const DEFAULT_FACTS: PageFacts = {
+  description: '',
+  h1: 1,
+  words: 640,
+  text: '',
+  imagesWithoutAlt: 0,
+  openGraph: true,
+  jsonldErrors: 0,
+  hreflangErrors: 0,
+  httpResources: 0,
+  responseMs: 420,
+};
+
+/** The facts of the mock crawl's pages by path; a page not listed has a description of its own and nothing wrong. */
+const FACTS: Readonly<Record<string, Partial<PageFacts>>> = {
+  '/services': { description: '', imagesWithoutAlt: 1, hreflangErrors: 2 },
+  '/services/soc-as-a-service': {
+    description: 'Round-the-clock monitoring by our analysts.',
+    responseMs: 3600,
+  },
+  '/services/managed-detection-and-response': { description: 'Round-the-clock monitoring by our analysts.' },
+  '/pricing': { h1: 2, jsonldErrors: 1 },
+  '/blog': { h1: 0, words: 90 },
+  '/blog/what-is-a-soc': { imagesWithoutAlt: 2 },
+  '/blog/vapt-checklist': { text: 'checklist', responseMs: 4200 },
+  '/blog/threat-report-2022': { text: 'checklist', openGraph: false },
+  '/about': { imagesWithoutAlt: 3, httpResources: 2 },
+  '/partners': { description: '', h1: 0, words: 40, openGraph: false },
+  '/compare/eventus-vs-in-house-soc': { openGraph: false },
+};
+
+const factsOf = (subject: Subject): PageFacts => ({
+  ...DEFAULT_FACTS,
+  description: `${titleOf(subject)}, in a few words.`,
+  text: pathOf(subject),
+  ...FACTS[pathOf(subject)],
+});
+
+const descriptionKey = (subject: Subject): string => factsOf(subject).description.trim().toLowerCase();
+
+/** Other live, indexable pages that share a value (a description or a text) with a page, by path. */
+const sharing = (
+  subject: Subject,
+  all: readonly Subject[],
+  keyOf: (page: Subject) => string,
+  counts: (page: Subject) => boolean,
+): string[] =>
+  keyOf(subject) === ''
+    ? []
+    : all
+        .filter(
+          (other) =>
+            other !== subject &&
+            isLive(other) &&
+            other.row.is_indexable &&
+            counts(other) &&
+            keyOf(other) === keyOf(subject),
+        )
+        .map(pathOf)
+        .sort((first, second) => (first < second ? -1 : 1));
+
+const duplicateDetail = (others: readonly string[]): Partial<IssueDetail> => ({
+  target_path: others[0] ?? null,
+  count: others.length,
+});
+
+const sameDescription = (subject: Subject, all: readonly Subject[]): string[] =>
+  sharing(subject, all, descriptionKey, () => true);
+const sameText = (subject: Subject, all: readonly Subject[]): string[] =>
+  sharing(
+    subject,
+    all,
+    (page) => factsOf(page).text,
+    (page) => factsOf(page).words >= DUPLICATE_MIN_WORDS,
+  );
+
+/** A check of the HTML of live pages, which the mock crawl read for every page. */
+const htmlRule = (
+  id: CheckId,
+  tab: ApiTab,
+  category: string,
+  severity: Severity,
+  matches: Rule['matches'],
+  detail?: Rule['detail'],
+): Rule => ({ id, tab, category, severity, foundBy: 'crawl', need: null, matches, detail });
+
+/** The 41 checks in catalogue order (backend `api/issues/catalogue.py`). */
 const RULES: readonly Rule[] = [
   {
     id: 'status-4xx',
@@ -315,6 +420,30 @@ const RULES: readonly Rule[] = [
     need: 'links',
     matches: () => false,
   },
+  htmlRule(
+    'mixed-content',
+    'technical',
+    'security',
+    'warning',
+    (subject) => isLive(subject) && factsOf(subject).httpResources > 0,
+    (subject) => ({ count: factsOf(subject).httpResources }),
+  ),
+  htmlRule(
+    'hreflang',
+    'technical',
+    'languages',
+    'warning',
+    (subject) => isLive(subject) && factsOf(subject).hreflangErrors > 0,
+    (subject) => ({ count: factsOf(subject).hreflangErrors }),
+  ),
+  htmlRule(
+    'slow-pages',
+    'technical',
+    'speed',
+    'warning',
+    (subject) => isLive(subject) && factsOf(subject).responseMs > SLOW_MS,
+    (subject) => ({ count: factsOf(subject).responseMs }),
+  ),
   {
     id: 'title-missing',
     tab: 'on_page',
@@ -359,6 +488,73 @@ const RULES: readonly Rule[] = [
     matches: (subject) => isLive(subject) && titleOf(subject) !== '' && textLength(titleOf(subject)) < TITLE_MIN,
     detail: (subject) => ({ count: textLength(titleOf(subject)) }),
   },
+  htmlRule(
+    'description-missing',
+    'on_page',
+    'descriptions',
+    'warning',
+    (subject) => isLive(subject) && descriptionKey(subject) === '',
+  ),
+  htmlRule(
+    'description-duplicate',
+    'on_page',
+    'descriptions',
+    'notice',
+    (subject, all) => isLive(subject) && subject.row.is_indexable && sameDescription(subject, all).length > 0,
+    (subject, all) => duplicateDetail(sameDescription(subject, all)),
+  ),
+  htmlRule('h1-missing', 'on_page', 'headings', 'warning', (subject) => isLive(subject) && factsOf(subject).h1 === 0),
+  htmlRule(
+    'h1-multiple',
+    'on_page',
+    'headings',
+    'notice',
+    (subject) => isLive(subject) && factsOf(subject).h1 > 1,
+    (subject) => ({ count: factsOf(subject).h1 }),
+  ),
+  htmlRule(
+    'thin-content',
+    'on_page',
+    'content',
+    'warning',
+    (subject) => isLive(subject) && factsOf(subject).words < THIN_WORDS,
+    (subject) => ({ count: factsOf(subject).words }),
+  ),
+  htmlRule(
+    'duplicate-content',
+    'on_page',
+    'content',
+    'warning',
+    (subject, all) =>
+      isLive(subject) &&
+      subject.row.is_indexable &&
+      factsOf(subject).words >= DUPLICATE_MIN_WORDS &&
+      sameText(subject, all).length > 0,
+    (subject, all) => duplicateDetail(sameText(subject, all)),
+  ),
+  htmlRule(
+    'image-alt',
+    'on_page',
+    'images',
+    'notice',
+    (subject) => isLive(subject) && factsOf(subject).imagesWithoutAlt > 0,
+    (subject) => ({ count: factsOf(subject).imagesWithoutAlt }),
+  ),
+  htmlRule(
+    'schema-errors',
+    'on_page',
+    'structured_data',
+    'warning',
+    (subject) => isLive(subject) && factsOf(subject).jsonldErrors > 0,
+    (subject) => ({ count: factsOf(subject).jsonldErrors }),
+  ),
+  htmlRule(
+    'social-tags',
+    'on_page',
+    'social_tags',
+    'notice',
+    (subject) => isLive(subject) && !factsOf(subject).openGraph,
+  ),
   {
     id: 'url-format',
     tab: 'on_page',
@@ -422,7 +618,7 @@ export interface CheckResult {
   found: readonly Subject[];
 }
 
-/** The 29 checks of the crawl in view, in catalogue order, with the pages each found. */
+/** The 41 checks of the crawl in view, in catalogue order, with the pages each found. */
 export function checkResults(view: RunView): CheckResult[] {
   const all = subjects();
   const clicksCount = gscState() === 'ok';

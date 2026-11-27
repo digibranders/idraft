@@ -79,13 +79,38 @@ const pagesOf = async (id: string, query = ''): Promise<z.infer<typeof PAGES>> =
   );
 
 describe('the Issues mock API: the list of checks', () => {
-  it('answers the 29 checks in catalogue order', async () => {
+  it('answers the 41 checks in catalogue order', async () => {
     const answer = await list();
     expect(answer.data.map((check) => check.id)).toEqual(issueCheckIdValues);
     expect(answer.data.map((check) => check.tab)).toEqual([
-      ...Array<string>(22).fill('technical'),
-      ...Array<string>(7).fill('on_page'),
+      ...Array<string>(25).fill('technical'),
+      ...Array<string>(16).fill('on_page'),
     ]);
+  });
+
+  it('finds pages for each of the twelve HTML checks and counts them as the pages list does', async () => {
+    const html = [
+      'mixed-content',
+      'hreflang',
+      'slow-pages',
+      'description-missing',
+      'description-duplicate',
+      'h1-missing',
+      'h1-multiple',
+      'thin-content',
+      'duplicate-content',
+      'image-alt',
+      'schema-errors',
+      'social-tags',
+    ];
+    const answer = await list();
+    expect(answer.data).toHaveLength(41);
+    for (const id of html) {
+      const check = await checkOf(id);
+      expect([id, check.state]).toEqual([id, 'ran']);
+      expect([id, (check.pages ?? 0) > 0]).toEqual([id, true]);
+      expect([id, (await pagesOf(id)).meta.total]).toEqual([id, check.pages]);
+    }
   });
 
   it('counts the pages of a crawl check the way the pages list does', async () => {
@@ -212,7 +237,7 @@ describe('the Issues mock API: the list of checks', () => {
     expect(answer.status).toBe(200);
     const lines = String(answer.body.text).trim().split('\n');
     expect(lines[0]).toBe('Tab,Category,Check,Severity,Found by,State,Pages,Clicks');
-    expect(lines).toHaveLength(30);
+    expect(lines).toHaveLength(42);
   });
 
   it('refuses a format it does not know, an unknown parameter and a crawl that is not there', async () => {
@@ -225,6 +250,21 @@ describe('the Issues mock API: the list of checks', () => {
 });
 
 describe('the Issues mock API: the pages of a check', () => {
+  it('names the other page and counts the others for a shared description and a shared text', async () => {
+    const description = await pagesOf('description-duplicate', '&include=issue');
+    const soc = '/services/soc-as-a-service';
+    const mdr = '/services/managed-detection-and-response';
+    const shown = description.data.map((row) => [row.path, row.extras?.issue?.target_path, row.extras?.issue?.count]);
+    expect(shown).toEqual([
+      [mdr, soc, 1],
+      [soc, mdr, 1],
+    ]);
+    const text = await pagesOf('duplicate-content', '&include=issue');
+    expect(text.data.map((row) => row.path)).toEqual(['/blog/threat-report-2022', '/blog/vapt-checklist']);
+    const slow = await pagesOf('slow-pages', '&include=issue');
+    expect(slow.data.map((row) => row.extras?.issue?.count)).toEqual([4200, 3600]);
+  });
+
   it('answers the detail of what was found with include=issue', async () => {
     const found = await pagesOf('status-4xx', '&include=issue,gsc');
     expect(found.data).toHaveLength(1);
