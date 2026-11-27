@@ -68,16 +68,20 @@ class CannibalizationService:
         tracked_keyword_id: UUID | None = None,
     ) -> tuple[model.Window, list[model.Result], Mapping[int, UrlInfo]]:
         await live_project(db, access, project_id)
-        window = model.Window(today=(today or datetime.now(UTC).date()).toordinal(), days=days)
+        utc_today = (today or datetime.now(UTC).date()).toordinal()
+        # `observed_date` is the keyword's own local date, which may be a day ahead of UTC: the
+        # period ends on the newest check, and the load starts a day early to cover it.
         series, urls = await load_series(
             db,
             workspace_id=access.workspace_id,
             project_id=project_id,
             device=device,
-            since=date.fromordinal(window.before_start),
+            since=date.fromordinal(utc_today - 2 * days - 1),
             group_id=group_id,
             tracked_keyword_id=tracked_keyword_id,
         )
+        newest = max((c.day for s in series for c in s.checks), default=utc_today)
+        window = model.Window(today=max(utc_today, newest), days=days)
         return window, model.analyse_all(series, window), urls
 
     @staticmethod
@@ -247,5 +251,6 @@ class CannibalizationService:
             if r.series.target_url_id is not None
             and r.now.current is not None
             and r.now.current_rank is not None
+            and r.now.strip[-1].kind == "page"
             and r.now.current != r.series.target_url_id
         ]

@@ -19,11 +19,12 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
 
 describe('the navigation registry', () => {
   it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8) and Internal links, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(17);
+    expect(NAVIGATION).toHaveLength(18);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
       'keywords',
+      'cannibalization',
       'pages',
       'internalLinks',
     ]);
@@ -36,9 +37,10 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Insights, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Cannibalization, Internal links, AI Overview, Prompts, Citations, Insights, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'cannibalization',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -67,6 +69,7 @@ describe('the navigation registry', () => {
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
     expect(shownTo('viewer')).toEqual([
       'keywords',
+      'cannibalization',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -80,6 +83,7 @@ describe('the navigation registry', () => {
     ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
+      'cannibalization',
       'internalLinks',
       'aiOverview',
       'prompts',

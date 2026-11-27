@@ -4,6 +4,7 @@ import {
   FileChartColumn,
   FileText,
   Grid2x2,
+  GitCompareArrows,
   LayoutDashboard,
   ListOrdered,
   MessageSquare,
@@ -36,6 +37,7 @@ export type NavKey =
   | 'matrix'
   | 'rankings'
   | 'keywords'
+  | 'cannibalization'
   | 'pages'
   | 'internalLinks'
   | 'aiOverview'
@@ -105,6 +107,15 @@ export const NAVIGATION: readonly NavDestination[] = [
     key: 'keywords',
     path: '/seo/keywords',
     icon: ListOrdered,
+    section: 1,
+    group: 'seo',
+    permission: 'data:read',
+    status: 'live',
+  },
+  {
+    key: 'cannibalization',
+    path: '/seo/cannibalization',
+    icon: GitCompareArrows,
     section: 1,
     group: 'seo',
     permission: 'data:read',

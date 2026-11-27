@@ -26,7 +26,7 @@ from idraft.db.tables import (
     urls,
 )
 from idraft.keywords.trees import descendants
-from idraft.ranks.cannibalization import Check, check_from_observation
+from idraft.ranks.cannibalization import MIN_READABLE_DEPTH, Check, check_from_observation
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +47,11 @@ class _Snapshot:
     depth: int
     ranks: list[int] = field(default_factory=list)
     urls: list[int] = field(default_factory=list)
+
+    @property
+    def readable(self) -> bool:
+        # A later unreadable check of the day does not hide an earlier readable one
+        return self.valid and self.depth >= MIN_READABLE_DEPTH
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +150,7 @@ async def load_series(
             obs.c.tracked_keyword_id.in_(ids),
             obs.c.observed_date > since,
         )
-        .order_by(obs.c.observed_at)
+        .order_by(obs.c.observed_at, obs.c.entity_id)
     )
     for row in rows:
         snap = snapshots.setdefault(
@@ -158,7 +163,9 @@ async def load_series(
             titles[row.ranking_url_id] = row.ranking_title  # the latest check wins
 
     latest_of_day: dict[tuple[UUID, date], _Snapshot] = {}
-    for (tracked_id, _), snap in sorted(snapshots.items(), key=lambda item: item[1].at):
+    for (tracked_id, _), snap in sorted(
+        snapshots.items(), key=lambda item: (item[1].readable, item[1].at)
+    ):
         latest_of_day[(tracked_id, snap.day)] = snap
 
     by_keyword: dict[UUID, list[Check]] = defaultdict(list)
