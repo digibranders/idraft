@@ -176,6 +176,12 @@ const withOverview = (page: Record<string, unknown>, gsc: Record<string, unknown
   );
 
 describe('the page inspector (spec 7.4)', () => {
+  it('says where a redirect page leads under its path, so it is not taken for the page of that path', async () => {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: 'inspect=page:106' });
+    const panel = await panelOf('/services/penetration-testing');
+    expect((await within(panel).findAllByText('Redirects to /services/vapt')).length).toBeGreaterThan(0);
+  });
+
   it('shows the tier with its source, the strip, the linking pages and the flags, and no equity', async () => {
     const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
     const panel = await panelOf('/pricing');

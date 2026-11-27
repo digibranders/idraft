@@ -37,6 +37,7 @@ import { EMPTY_VALUE, formatInteger, formatTableDate } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
 import { comparisonOf } from '@/lib/internal-links/page-extras';
 import { changesSummaryQuery, DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuery } from '@/lib/internal-links/queries';
+import { redirectNote } from '@/lib/internal-links/redirect-rows';
 import type { PageTier } from '@/lib/internal-links/types';
 import { PAGE_DRAWER_TABS, pageDrawerTab, type PageDrawerTab } from '@/lib/pages/drawer-tabs';
 import { usePageIssues } from '@/lib/pages/issue-source';
@@ -114,6 +115,14 @@ export function PageInspector({
   const target: BulkTarget = { ids: [urlId], allMatching: false };
   const detail = read.data?.data ?? null;
   const page = detail?.page ?? null;
+  // A redirect says where it leads (and the www form its host), so it is not mistaken for the page of the same path
+  const note = page === null ? null : redirectNote(page, context.host ?? '');
+  const subtitle =
+    note === null
+      ? (page?.title ?? null)
+      : note.host === null
+        ? words('pages.redirectsTo', { path: note.target })
+        : words('pages.redirectsFromHost', { host: note.host, path: note.target });
   // The tab is the address's `itab`; an unknown one reads as Overview
   const inspector = useInspector();
   const tab = pageDrawerTab(inspector.tab);
@@ -345,9 +354,9 @@ export function PageInspector({
         typeNoun: t('typeNoun'),
         positionText,
         navigation,
-        ...(page === null || page.title === null
+        ...(subtitle === null
           ? {}
-          : { freshness: <span className="type-meta text-foreground-secondary">{page.title}</span> }),
+          : { freshness: <span className="type-meta text-foreground-secondary">{subtitle}</span> }),
       }}
       backLabel={t('back')}
       onClose={onClose}

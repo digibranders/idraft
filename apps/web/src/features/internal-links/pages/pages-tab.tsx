@@ -209,6 +209,7 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
       pageColumns(t, groups, {
         tiers,
         scope: state.scope,
+        host: context.host,
         openJourney: context.openJourney,
         comparison,
         linksAvailable,
@@ -220,6 +221,7 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
       groups,
       tiers,
       state.scope,
+      context.host,
       context.openJourney,
       comparison,
       linksAvailable,

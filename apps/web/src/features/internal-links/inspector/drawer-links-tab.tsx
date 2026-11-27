@@ -126,6 +126,7 @@ export function DrawerLinksTab({
             run={context.crawl.run}
             linksAvailable={detail.links_available}
             linkScope={linkScope}
+            host={context.host ?? ''}
             total={detail.linking_pages_total}
             title={t('linkingPages', { count: detail.linking_pages_total })}
             onOpen={context.openPage}
@@ -138,6 +139,7 @@ export function DrawerLinksTab({
             run={context.crawl.run}
             linksAvailable={detail.links_available}
             linkScope={linkScope}
+            host={context.host ?? ''}
             total={detail.outlinks_total}
             title={t('outlinks', { count: detail.outlinks_total })}
             onOpen={context.openPage}

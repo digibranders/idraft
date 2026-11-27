@@ -234,6 +234,8 @@ function cellFor(column, page) {
   const out = outs(page.id, 'all');
   const builders = {
     tier: () => {
+      // A redirect cannot hold a tier, so it says what it is
+      if (page.status >= 300 && page.status < 400 && page.redirect) return el('span', 'inline-flex h-badge shrink-0 items-center rounded-sm border border-neutral-border bg-neutral-subtle px-2 type-micro text-neutral-text', 'Redirect');
       const badge = tierBadge(tierIdOf(page));
       badge.title = `${tierLabel(tierIdOf(page))}. ${sourceText(page)}`;
       return badge;
@@ -292,7 +294,9 @@ function pageRow(page, columns) {
   name.scope = 'row';
   const line = el('span', 'flex items-center gap-1 min-w-0');
   const text = el('span', 'flex min-w-0 flex-1 flex-col leading-tight');
-  text.append(el('span', 'truncate type-table text-foreground', page.path), el('span', 'truncate type-label text-foreground-tertiary', page.title));
+  // A redirect shares its path with the page it leads to, so it says where it points
+  const redirectsTo = page.status >= 300 && page.status < 400 && page.redirect ? pageById(page.redirect) : null;
+  text.append(el('span', 'truncate type-table text-foreground', page.path), el('span', 'truncate type-label text-foreground-tertiary', redirectsTo ? `Redirects to ${redirectsTo.path}` : page.title));
   const journey = rowButton('workflow', `Open ${page.path} in journey`);
   journey.dataset.journey = page.id;
   journey.title = 'Open in journey';

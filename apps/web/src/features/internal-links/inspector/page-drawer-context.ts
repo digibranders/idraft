@@ -21,6 +21,8 @@ export interface PageDrawerContext {
   linkScope: LinkScope;
   tiers: readonly PageTier[];
   timeZone: string;
+  /** The site's host: a page on another host (the www form) names it beside its path. */
+  host?: string;
   canWrite: boolean;
   /** `notes:write`: may add a note, and change or delete their own (9.7). */
   canNote: boolean;
@@ -62,6 +64,7 @@ export function drawerContextOf(context: LinksTabContext, can: { write: boolean;
     linkScope: context.state.scope,
     tiers: context.tiers,
     timeZone: context.timeZone,
+    host: context.host,
     canWrite: can.write,
     canNote: can.note,
     openPage: context.inspect.open,

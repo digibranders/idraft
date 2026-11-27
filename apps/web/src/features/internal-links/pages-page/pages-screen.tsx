@@ -138,6 +138,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
   };
   const drawerContext: PageDrawerContext = {
     scope,
+    host,
     workspaceSlug,
     projectSlug: project.slug,
     crawl: inView,

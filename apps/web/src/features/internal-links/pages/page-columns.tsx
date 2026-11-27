@@ -17,6 +17,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { formatInteger } from '@/lib/format';
 import type { Comparison } from '@/lib/internal-links/page-extras';
 import { pageFlags } from '@/lib/internal-links/page-flags';
+import { isRedirectRow, redirectNote } from '@/lib/internal-links/redirect-rows';
 import type { LinkScope } from '@/lib/internal-links/scopes';
 import { tierPosition } from '@/lib/internal-links/tiers';
 import type { PageRow, PageSort, PageTier } from '@/lib/internal-links/types';
@@ -124,6 +125,7 @@ export function pageColumns(
   {
     tiers,
     scope,
+    host = '',
     openJourney,
     comparison,
     linksAvailable,
@@ -131,6 +133,8 @@ export function pageColumns(
     seams,
   }: {
     tiers: readonly PageTier[];
+    /** The site's host: a row on another host (the www form) names it beside its path. */
+    host?: string;
     scope: LinkScope;
     openJourney: (urlId: string) => void;
     /** Where the comparison with the previous crawl stands, for the Change column. */
@@ -155,6 +159,14 @@ export function pageColumns(
     })),
     { id: 'none', name: t('filters.untiered'), color: 'tier-none' as const },
   ];
+  // A redirect shares its path with the page it leads to (the www form with the home page), so it says where it goes
+  const redirectText = (row: PageRow): string | undefined => {
+    const note = redirectNote(row, host);
+    if (note === null) return undefined;
+    return note.host === null
+      ? t('pages.redirectsTo', { path: note.target })
+      : t('pages.redirectsFromHost', { host: note.host, path: note.target });
+  };
   const flagNames = (row: PageRow): string[] => pageFlags(row, scope).map((flag) => t(`flags.${flag.key}`));
   const flagsTip = (row: PageRow): CellTip | undefined => {
     const names = flagNames(row);
@@ -163,7 +175,14 @@ export function pageColumns(
   const all: Column[] = [
     col.keyword<PageRow>('page', (row) => row.path, {
       header: t('columns.page'),
-      detail: (row) => row.title ?? undefined,
+      detail: (row) => redirectText(row) ?? row.title ?? undefined,
+      // The rows have one fixed height, so the note follows the path on its line, muted
+      marker: (row) => {
+        const text = redirectText(row);
+        return text === undefined ? null : (
+          <span className="type-meta whitespace-nowrap text-foreground-secondary">{text}</span>
+        );
+      },
       trailing: (row) => (
         <IconButton
           {...CELL_CONTROL}
@@ -177,10 +196,17 @@ export function pageColumns(
         />
       ),
     }),
-    custom('tier', 'badge', t('columns.tier'), (row) => <TierBadge tier={row.tier} />, {
-      width: 96,
-      sortValue: (row) => tierPosition(row.tier),
-    }),
+    // A redirect cannot hold a tier, so it says what it is: the cell is only drawn differently, the sort and the filter read `tier`
+    custom(
+      'tier',
+      'badge',
+      t('columns.tier'),
+      (row) => (isRedirectRow(row) ? <Badge>{t('pages.redirectBadge')}</Badge> : <TierBadge tier={row.tier} />),
+      {
+        width: 96,
+        sortValue: (row) => tierPosition(row.tier),
+      },
+    ),
     custom(
       'status',
       'status',
