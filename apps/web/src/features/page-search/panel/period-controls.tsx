@@ -57,7 +57,6 @@ export function PeriodControls({
         onValueChange={onCompareChange}
         options={options}
         placeholder={t('compareWith')}
-        triggerPrefix={<>{t('compareWith')}:</>}
         aria-label={`${t('compareWith')}: ${chosen}`}
         listLabel={t('compareWith')}
       />
