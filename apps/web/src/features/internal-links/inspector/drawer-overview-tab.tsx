@@ -122,12 +122,7 @@ export function DrawerOverviewTab({
   return (
     <>
       <Chips page={detail.page} />
-      <LastEditedLine
-        scope={context.scope}
-        urlId={urlId}
-        timeZone={context.timeZone}
-        onOpen={() => onTab('history')}
-      />
+      <LastEditedLine scope={context.scope} urlId={urlId} timeZone={context.timeZone} onOpen={() => onTab('history')} />
       <Tiles detail={detail} issues={issues} linkScope={context.linkScope} onTab={onTab} />
       <Attention page={detail.page} linkScope={context.linkScope} issues={issues} onTab={onTab} />
       <About context={context} page={detail.page} onCopyAddress={onCopyAddress} />
