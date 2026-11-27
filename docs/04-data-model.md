@@ -428,6 +428,7 @@ CREATE TABLE core.page_notes (
     deleted_at   timestamptz,
     deleted_by   uuid REFERENCES auth.users(id),
     CHECK ((deleted_at IS NULL) = (deleted_by IS NULL)),
+    UNIQUE (id, workspace_id),
     FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
 );
 CREATE INDEX page_notes_page ON core.page_notes (project_id, url_id, created_at DESC, id DESC)
@@ -448,7 +449,7 @@ CREATE TABLE core.page_note_attachments (
     workspace_id  uuid NOT NULL,
     project_id    uuid NOT NULL,
     url_id        bigint NOT NULL REFERENCES core.urls(id),
-    note_id       uuid REFERENCES core.page_notes(id),
+    note_id       uuid,
     uploaded_by   uuid NOT NULL REFERENCES auth.users(id),
     storage_key   text NOT NULL UNIQUE,
     original_name text NOT NULL CHECK (char_length(original_name) BETWEEN 1 AND 255),
@@ -458,6 +459,7 @@ CREATE TABLE core.page_note_attachments (
     created_at    timestamptz NOT NULL DEFAULT now(),
     removed_at    timestamptz,
     CHECK (removed_at IS NULL OR note_id IS NOT NULL),
+    FOREIGN KEY (note_id, workspace_id) REFERENCES core.page_notes(id, workspace_id),
     FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
 );
 CREATE INDEX page_note_attachments_note ON core.page_note_attachments (note_id)

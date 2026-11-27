@@ -33,6 +33,7 @@ CREATE TABLE core.page_notes (
     deleted_at   timestamptz,
     deleted_by   uuid REFERENCES auth.users(id),
     CHECK ((deleted_at IS NULL) = (deleted_by IS NULL)),
+    UNIQUE (id, workspace_id),
     FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
         ON DELETE CASCADE
 );

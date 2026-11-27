@@ -28,7 +28,7 @@ CREATE TABLE core.page_note_attachments (
     workspace_id  uuid NOT NULL,
     project_id    uuid NOT NULL,
     url_id        bigint NOT NULL REFERENCES core.urls(id),
-    note_id       uuid REFERENCES core.page_notes(id),
+    note_id       uuid,
     uploaded_by   uuid NOT NULL REFERENCES auth.users(id),
     storage_key   text NOT NULL UNIQUE,
     original_name text NOT NULL CHECK (char_length(original_name) BETWEEN 1 AND 255),
@@ -38,6 +38,7 @@ CREATE TABLE core.page_note_attachments (
     created_at    timestamptz NOT NULL DEFAULT now(),
     removed_at    timestamptz,
     CHECK (removed_at IS NULL OR note_id IS NOT NULL),
+    FOREIGN KEY (note_id, workspace_id) REFERENCES core.page_notes(id, workspace_id),
     FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id)
         ON DELETE CASCADE
 );
