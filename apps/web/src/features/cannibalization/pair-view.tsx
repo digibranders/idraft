@@ -3,17 +3,19 @@
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import { exportFileName, headerWords, pairTable, PAIR_COLUMNS, type ExportSpec } from './cann-export';
+import { useExportSpec } from './cann-export-button';
 import { CannPanel } from './cann-panel';
 import { pairMatches, sortRows, type CannState } from './cann-model';
-import { PageChip, PageMark } from './cann-parts';
+import { NoValue, PageChip, PageMark } from './cann-parts';
 import type { CannRead } from './cann-reads';
-import { ReadError, ViewSwitch } from './cann-view-parts';
+import { ReadError, useCannWidths, ViewSwitch } from './cann-view-parts';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { BoardTable, BoardTableSkeleton, type BoardColumn, type BoardSort } from '@/components/app/table/board-table';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { CannPair, CannPairList } from '@/lib/api/types';
-import { EMPTY_VALUE, formatBusinessDate, formatInteger, formatPercent } from '@/lib/format';
+import { formatBusinessDate, formatInteger, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export interface PairViewProps {
@@ -23,6 +25,8 @@ export interface PairViewProps {
   tabs: ReactNode;
   search: string;
   onSearchChange: (search: string) => void;
+  /** Tells the toolbar's Export button which table is in view. */
+  onExportChange: (spec: ExportSpec | null) => void;
 }
 
 const FLEX_MIN = 200;
@@ -41,7 +45,15 @@ const SORT_VALUE: Readonly<Record<string, (pair: CannPair) => string | number>> 
 const byVolume = (a: CannPair, b: CannPair): number => b.volume - a.volume || pairId(a).localeCompare(pairId(b));
 
 /** By page pair (docs/33 section 7.2): the pairs of your pages that compete, to fix at page level. */
-export function PairView({ read, state, set, tabs, search, onSearchChange }: PairViewProps): ReactElement {
+export function PairView({
+  read,
+  state,
+  set,
+  tabs,
+  search,
+  onSearchChange,
+  onExportChange,
+}: PairViewProps): ReactElement {
   const t = useTranslations('cannibalization');
   const [sort, setSort] = useState<BoardSort>(DEFAULT_SORT);
   const list = read.data;
@@ -112,11 +124,24 @@ export function PairView({ read, state, set, tabs, search, onSearchChange }: Pai
         sortKey: 'overlap',
         cellClassName: 'num text-foreground-secondary',
         cell: (pair) =>
-          pair.title_overlap === null ? EMPTY_VALUE : formatPercent(pair.title_overlap, { decimals: 0 }),
+          pair.title_overlap === null ? <NoValue kind="overlap" /> : formatPercent(pair.title_overlap, { decimals: 0 }),
       },
     ],
     [t],
   );
+
+  const { resize, onResetWidths } = useCannWidths('pairs', columns);
+  const exportSpec = useMemo((): ExportSpec | null => {
+    if (read.status !== 'ready' || visible.length === 0) return null;
+    return {
+      table: 'pairs',
+      fileName: exportFileName('pairs', state, list?.meta.date_to),
+      rows: visible.length,
+      truncated: null,
+      build: () => pairTable(visible, { header: headerWords(PAIR_COLUMNS, (key) => t(`export.pairColumns.${key}`)) }),
+    };
+  }, [read.status, visible, state, list?.meta.date_to, t]);
+  useExportSpec(exportSpec, onExportChange);
 
   let body: ReactNode;
   if (read.status === 'loading') {
@@ -161,6 +186,7 @@ export function PairView({ read, state, set, tabs, search, onSearchChange }: Pai
         onSortChange={setSort}
         flexMin={FLEX_MIN}
         busy={read.refetching}
+        resize={resize}
       />
     );
   }
@@ -173,6 +199,7 @@ export function PairView({ read, state, set, tabs, search, onSearchChange }: Pai
       searchPlaceholder={t('search.pages')}
       controls={<ViewSwitch tab="cannibalization" view={state.view} onChange={(view) => set({ view, pair: '' })} />}
       summary={<p className="type-meta md:whitespace-nowrap">{t('pairTable.hint')}</p>}
+      onResetWidths={onResetWidths}
       refetching={read.refetching}
       footerText={list === undefined ? null : t('pairTable.footer', { count: visible.length })}
       updated={

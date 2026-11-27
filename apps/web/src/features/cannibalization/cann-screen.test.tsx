@@ -21,6 +21,12 @@ import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders, type ProvidedRenderOptions } from '@/test/render';
 
+const saved = vi.hoisted(() => ({ blobs: [] as { blob: Blob; name: string }[] }));
+vi.mock('@/lib/csv/csv-write', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/csv/csv-write')>()),
+  downloadBlob: (blob: Blob, name: string) => saved.blobs.push({ blob, name }),
+}));
+
 // jsdom has no canvas: the chart draws on a stub
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => null }));
 
@@ -86,6 +92,7 @@ function render(options: ProvidedRenderOptions = {}, props: Partial<CannScreenPr
 }
 
 beforeEach(() => {
+  saved.blobs.length = 0;
   stubWideScreen();
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('editor').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
 });
@@ -160,5 +167,98 @@ describe('the Cannibalization screen', () => {
     render();
     expect((await screen.findAllByText('Could not load cannibalization'))[0]).toBeVisible();
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Try again' })[0]).toBeVisible());
+  });
+});
+
+describe('the Cannibalization screen: export, widths, period notes and the live numbers', () => {
+  it('saves the table in view as CSV, says how many rows, and says when the read stopped short', async () => {
+    server.use(
+      http.get(BASE, () =>
+        HttpResponse.json({
+          data: { ...cannConflicts(KEYWORDS), meta: { ...cannConflicts(KEYWORDS).meta, total: 812 } },
+        }),
+      ),
+      http.get(`${BASE}/pairs`, () => HttpResponse.json({ data: cannPairs() })),
+      http.get(`${BASE}/switches`, () => HttpResponse.json({ data: cannSwitches([]) })),
+    );
+    const { user } = render();
+    await screen.findByRole('table', { name: /Keywords where more than one/ });
+    expect(screen.getByText('Showing the first 4 of 812 keywords')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Export this table as CSV' }));
+    expect(saved.blobs).toHaveLength(1);
+    expect(saved.blobs[0]?.name).toBe('cannibalization-keywords-desktop-30d-2026-11-26.csv');
+    const text = await saved.blobs[0]?.blob.text();
+    expect(text).toContain('Keyword,Status,Pages,Rank,Rank gap (places)');
+    expect(text).toContain('alpha,Likely cannibalization');
+    expect(text).not.toContain('gamma');
+    expect(screen.getByText(/^Exported 2 rows/)).toHaveTextContent(
+      'Exported 2 rows as cannibalization-keywords-desktop-30d-2026-11-26.csv. The page read the first 4 of 812 keywords, so the file does not hold the rest.',
+    );
+  });
+
+  it('puts the date range of each period under its option', async () => {
+    serve();
+    const { user } = render();
+    await screen.findByRole('table', { name: /Keywords where more than one/ });
+    await user.click(screen.getByRole('combobox', { name: 'Period: Last 30 days' }));
+    expect(await screen.findByText('Oct 28 to Nov 26, 2026')).toBeVisible();
+    expect(screen.getByText('Nov 13 to Nov 26, 2026')).toBeVisible();
+  });
+
+  it('shows the short status word and keeps the full name for a screen reader', async () => {
+    serve();
+    render();
+    const table = await screen.findByRole('table', { name: /Keywords where more than one/ });
+    expect(within(table).getAllByText('Likely cannibalization', { selector: '.sr-only' }).length).toBeGreaterThan(0);
+  });
+
+  it('offers Reset column widths only while a column differs, and takes it back', async () => {
+    serve();
+    const { user } = render();
+    const table = await screen.findByRole('table', { name: /Keywords where more than one/ });
+    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBeNull();
+    const rank = within(table).getByRole('separator', { name: 'Resize the Rank column' });
+    rank.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(rank).toHaveAttribute('aria-valuenow', '80');
+    await user.click(await screen.findByRole('button', { name: 'Reset column widths' }));
+    expect(within(table).getByRole('separator', { name: 'Resize the Rank column' })).toHaveAttribute(
+      'aria-valuenow',
+      '64',
+    );
+    expect(screen.queryByRole('button', { name: 'Reset column widths' })).toBeNull();
+  });
+
+  it('carries this period numbers in the strip tooltips', async () => {
+    serve();
+    render();
+    expect(
+      await screen.findByLabelText(/^Keywords with a conflict: 2, .*2 of 3 ranked keywords have a conflict\./),
+    ).toBeVisible();
+  });
+
+  it('names what a switch did to the target page, and says it is not ranked rather than n/a', async () => {
+    server.use(
+      http.get(BASE, () =>
+        HttpResponse.json({
+          data: cannConflicts([
+            cannKeyword('alpha', 'likely', { target_url_id: 'b' }),
+            cannKeyword('beta', 'likely', { target_url_id: null, current_rank: null }),
+          ]),
+        }),
+      ),
+      http.get(`${BASE}/pairs`, () => HttpResponse.json({ data: cannPairs() })),
+      http.get(`${BASE}/switches`, () =>
+        HttpResponse.json({ data: cannSwitches([cannSwitchRow('alpha'), cannSwitchRow('beta')]) }),
+      ),
+    );
+    render({ searchParams: '' }, { tab: 'switching' });
+    const table = await screen.findByRole('table', { name: 'Confirmed switches of the ranking page' });
+    expect(within(table).getByText('Back on target')).toBeVisible();
+    expect(within(table).getByText('No target set')).toBeVisible();
+    expect(
+      screen.getByText('The first move of a flip-flop shows as Moved until the page returns.', { exact: false }),
+    ).toBeVisible();
+    expect(screen.queryByText('n/a')).toBeNull();
   });
 });

@@ -148,6 +148,9 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | K10 | Possible causes to check | A list of hypotheses the page offers beside the evidence: title overlap, the section the pages are in, a target page that is not the ranking page, internal links. Always labelled "Hypotheses, not findings". | Not a finding, not a diagnosis. | Root cause, Reasons, Problems found | Cannibalization drawer | Firm |
 | K11 | Rank by page | The drawer chart of the rank of each of your pages on each check, lower is better, with a letter at the end of each line and a Table view. | Not a competitor chart. | Rank history (for this chart), Rankings | Cannibalization drawer | Firm |
 | K12 | Ranking page by day | The drawer lanes, one per page: full color on the checks the page was the ranking page, faded where it ranked beside it, outlined where Google hid the result address. | Not a rank. | Heatmap, Timeline chart | Cannibalization drawer | Firm |
+| K13 | Export (Cannibalization toolbar) | The button that saves the table in view as a CSV file, with the rows the page has read and the filters on. | Not an Excel file. Not a report. | Download, Save as | Cannibalization, Switching | Firm |
+| K14 | Reset column widths | The button that appears while a column of the table in view is not at its default width, and puts every column back. | Not Reset scope. | Restore columns, Reset layout | Cannibalization, Switching | Firm |
+| K15 | Back on target, No target set, Not involved, Not ranked, Not known | The words of a cell with nothing to show, in place of a mark: Target page cell of a switch (Left the target, Back on target, No target set, Not involved: the move was between other pages), Rank and Pages (Not ranked), Volume, Rank gap and Title overlap (Not known). | Not "N/A", not "n/a", not "No data". | N/A, n/a, No data, None (for these cells) | Cannibalization, Switching | Firm |
 
 
 ## 7. Brands, sites and states
@@ -449,6 +452,8 @@ sentences move to the Sample data badge. The same text is used for the card, its
 - What it shows: How many confirmed switches happened each week, by what the new page did to the rank.
 - How it is counted: Each column splits a week's switches into rank improved, no change and rank dropped. Many switches across many keywords in one week can be the sign of a Google update.
 
+Live numbers in the strip tooltips (`cannibalization.measures.*.whatLive` and `howLive`): the sentences above with this period's numbers in them, for example "12 of 40 ranked keywords have a conflict." and "Median over 3 keywords with likely cannibalization, in the last 30 days." The general text is shown while the numbers load.
+
 ## 11. Change log
 
 | Date | Term | Old | New | Reason |
@@ -463,3 +468,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-27 | Cannibalization (A12, K1 to K8) | | Added as the SEO page and its measures | Owner approved the mock of the page on 2026-11-26 (docs/33) |
 | 2026-11-27 | Cannibalization info texts (10.6) | | Added for the strips and the weekly chart | The web page of docs/33 |
 | 2026-11-27 | Cannibalization drawer (K9 to K12) | | Added for the keyword drawer: its tabs, Possible causes to check, Rank by page, Ranking page by day | The web inspector of docs/33 section 7.2 |
+| 2026-11-27 | Cannibalization Export, Reset column widths, empty-cell words (K13 to K15) | | Added | Closing the gaps of the web page against the mock (docs/33 sections 7.1 and 7.2) |

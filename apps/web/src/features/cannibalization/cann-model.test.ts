@@ -8,9 +8,12 @@ import {
   pageToken,
   pagesColumnWidth,
   parseCann,
+  periodRange,
   shownPages,
   stripFacts,
   switchCounts,
+  targetStatus,
+  truncation,
   writeCann,
 } from './cann-model';
 import type { CannKeyword, CannPage, CannSwitchRow } from '@/lib/api/types';
@@ -207,5 +210,36 @@ describe('pagesColumnWidth', () => {
     expect(pagesColumnWidth([some])).toBeGreaterThan(176);
     const huge = keyword('k', 'likely', { pages: [wide('/'.padEnd(120, 'x')), wide('/'.padEnd(120, 'y'))] });
     expect(pagesColumnWidth([huge])).toBe(260);
+  });
+});
+
+describe('periodRange', () => {
+  it('counts both ends of the period', () => {
+    expect(periodRange('2026-11-26', 30)).toEqual({ from: '2026-10-28', to: '2026-11-26' });
+    expect(periodRange('2026-11-26', 14)).toEqual({ from: '2026-11-13', to: '2026-11-26' });
+    expect(periodRange('2026-03-05', 90).from).toBe('2025-12-06');
+  });
+
+  it('returns the date itself when it does not read', () => {
+    expect(periodRange('soon', 30)).toEqual({ from: 'soon', to: 'soon' });
+  });
+});
+
+describe('targetStatus', () => {
+  const event = { to_url_id: 'b' } as CannSwitchRow['event'];
+  it('says left, back, none or other', () => {
+    expect(targetStatus({ left_target: true, event }, { target_url_id: 'a' })).toBe('left');
+    expect(targetStatus({ left_target: false, event }, { target_url_id: 'b' })).toBe('back');
+    expect(targetStatus({ left_target: false, event }, { target_url_id: null })).toBe('none');
+    expect(targetStatus({ left_target: false, event }, { target_url_id: 'c' })).toBe('other');
+    expect(targetStatus({ left_target: false, event }, undefined)).toBe('other');
+  });
+});
+
+describe('truncation', () => {
+  it('names the rows read only when the total is larger', () => {
+    expect(truncation(500, 812)).toEqual({ read: 500, total: 812 });
+    expect(truncation(500, 500)).toBeNull();
+    expect(truncation(3, undefined)).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import { useMemo, type ReactElement } from 'react';
 import { countChange } from './cann-model';
 import { MetricStrip, type MetricStripItem } from '@/components/app/metric/metric-strip';
 import type { CannCount, CannConflictList, CannSwitchList } from '@/lib/api/types';
-import { EMPTY_VALUE, formatInteger } from '@/lib/format';
+import { formatInteger } from '@/lib/format';
 
 type Translate = ReturnType<typeof useTranslations<'cannibalization.measures'>>;
 
@@ -29,6 +29,8 @@ interface Figure {
   /** `null`: the figure is not a number (no keyword to take a median of). */
   value: string | null;
   count?: CannCount;
+  /** The tooltip's sentences with this period's numbers in them, in place of the general ones. */
+  live?: { what?: string; how?: string };
 }
 
 interface StripContext {
@@ -37,10 +39,10 @@ interface StripContext {
   hasPrevious: boolean;
 }
 
-function itemOf({ id, value, count }: Figure, { t, days, hasPrevious }: StripContext): MetricStripItem {
+function itemOf({ id, value, count, live }: Figure, { t, days, hasPrevious }: StripContext): MetricStripItem {
   const label = t(`${id}.label`);
-  const hint = `${t(`${id}.what`)} ${t(`${id}.how`)}`;
-  const shown = value ?? EMPTY_VALUE;
+  const hint = `${live?.what ?? t(`${id}.what`)} ${live?.how ?? t(`${id}.how`)}`;
+  const shown = value ?? t('notKnown');
   const change = count === undefined ? null : countChange(count, hasPrevious);
   return {
     id,
@@ -101,15 +103,29 @@ export function ConflictStrip({ list, status, days }: ConflictStripProps): React
   const places = t('places', { count: Math.round(head?.typical_rank_gap ?? 0) });
   const figures = useMemo((): Figure[] | null => {
     if (head === undefined) return null;
+    const ofRanked = `${formatInteger(head.conflicts.value)} ${t('ofRanked', { ranked: formatInteger(head.ranked_keywords) })}`;
     return [
-      { id: 'conflicts', value: formatInteger(head.conflicts.value), count: head.conflicts },
+      {
+        id: 'conflicts',
+        value: formatInteger(head.conflicts.value),
+        count: head.conflicts,
+        live: { what: t('conflicts.whatLive', { ofRanked }) },
+      },
       { id: 'likely', value: formatInteger(head.likely.value), count: head.likely },
       { id: 'together', value: formatInteger(head.together.value), count: head.together },
       { id: 'unstable', value: formatInteger(head.unstable.value), count: head.unstable },
-      { id: 'volume', value: formatInteger(head.volume_at_risk) },
-      { id: 'gap', value: head.typical_rank_gap === null ? null : places },
+      {
+        id: 'volume',
+        value: formatInteger(head.volume_at_risk),
+        live: { what: t('volume.whatLive', { count: head.volume_keywords }) },
+      },
+      {
+        id: 'gap',
+        value: head.typical_rank_gap === null ? null : places,
+        live: { how: t('gap.howLive', { count: head.volume_keywords, days }) },
+      },
     ];
-  }, [head, places]);
+  }, [head, places, days, t]);
   const items = useItems(figures, { t, days, hasPrevious: list?.meta.has_previous ?? false }, CONFLICT_IDS);
   return (
     <MetricStrip
@@ -134,14 +150,27 @@ export function SwitchStrip({ list, status, days }: SwitchStripProps): ReactElem
   const figures = useMemo((): Figure[] | null => {
     if (head === undefined) return null;
     return [
-      { id: 'switches', value: formatInteger(head.switches.value), count: head.switches },
-      { id: 'switchedKeywords', value: formatInteger(head.keywords) },
+      {
+        id: 'switches',
+        value: formatInteger(head.switches.value),
+        count: head.switches,
+        live: { how: t('switches.howLive', { count: head.one_check_changes, days }) },
+      },
+      {
+        id: 'switchedKeywords',
+        value: formatInteger(head.keywords),
+        live: {
+          what: t('switchedKeywords.whatLive', {
+            ofRanked: `${formatInteger(head.keywords)} ${t('ofRanked', { ranked: formatInteger(head.ranked_keywords) })}`,
+          }),
+        },
+      },
       { id: 'flipFlops', value: formatInteger(head.flip_flop_keywords) },
       { id: 'leftTarget', value: formatInteger(head.left_target) },
       { id: 'improved', value: formatInteger(head.improved) },
       { id: 'dropped', value: formatInteger(head.dropped) },
     ];
-  }, [head]);
+  }, [head, days, t]);
   const items = useItems(figures, { t, days, hasPrevious: list?.meta.has_previous ?? false }, SWITCH_IDS);
   return (
     <MetricStrip

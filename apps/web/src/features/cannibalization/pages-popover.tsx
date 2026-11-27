@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import { useState, type ReactElement } from 'react';
 
 import { PageMark } from './cann-parts';
-import { shownPages } from './cann-model';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { Popover } from '@/components/ui/popover';
@@ -29,6 +28,7 @@ export interface PagesPopoverProps {
  */
 export function PagesPopover({ row, days, summary, triggerLabel, onDetails }: PagesPopoverProps): ReactElement {
   const t = useTranslations('cannibalization.popover');
+  const device = useTranslations('cannibalization.toolbar');
   const [open, setOpen] = useState(false);
   return (
     <Popover
@@ -66,10 +66,12 @@ export function PagesPopover({ row, days, summary, triggerLabel, onDetails }: Pa
     >
       <div className="flex flex-col gap-0.5 border-b border-border-subtle px-3 pt-3 pb-2">
         <span className="type-subsection-title">{t('head')}</span>
-        <span className="type-meta">{t('meta', { keyword: row.keyword, days })}</span>
+        <span className="type-meta">
+          {t('meta', { keyword: row.keyword, device: device(row.device === 'mobile' ? 'mobile' : 'desktop'), days })}
+        </span>
       </div>
       <ul className="max-h-80 overflow-y-auto py-1">
-        {shownPages(row).map((page) => (
+        {row.pages.map((page) => (
           <li key={page.url_id} className="flex gap-2 px-3 py-2">
             <PageMark letter={page.letter} />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">

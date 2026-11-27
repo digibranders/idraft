@@ -12,7 +12,7 @@ const BASE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibaliz
 const PAIRS = `${BASE}/pairs` as const;
 const SWITCHES = `${BASE}/switches` as const;
 const KEYWORD = `${BASE}/keywords/{tracked_keyword_id}` as const;
-/** The most rows the API answers (it caps `limit` at this). Tables sort and filter the rows in memory. */
+/** The most rows the API answers (it caps `limit` at this). Tables sort and filter the rows in memory; `meta.total` says when more exist. */
 export const ROWS_MAX = 500;
 
 export interface CannScope {
@@ -28,7 +28,6 @@ const common = (scope: CannScope, filters: ScopeFilters) => ({
   device: filters.device,
   days: String(filters.days) as '14' | '30' | '90',
   ...(filters.group === 'all' ? {} : { group_id: filters.group }),
-  limit: ROWS_MAX,
 });
 
 export interface CannRead<T> {
@@ -61,7 +60,7 @@ export function useConflicts(scope: CannScope, filters: ScopeFilters): CannRead<
   const { path, ...query } = common(scope, filters);
   return useRead(
     useQuery({
-      ...apiQuery(BASE, { params: { path, query: { ...query, verdict: 'all' } } }),
+      ...apiQuery(BASE, { params: { path, query: { ...query, verdict: 'all', limit: ROWS_MAX } } }),
       select: (answer): CannConflictList => answer.data,
       placeholderData: keepPreviousData,
     }),
@@ -84,7 +83,7 @@ export function useSwitches(scope: CannScope, filters: ScopeFilters, enabled: bo
   const { path, ...query } = common(scope, filters);
   return useRead(
     useQuery({
-      ...apiQuery(SWITCHES, { params: { path, query: { ...query, kind: 'all' } } }),
+      ...apiQuery(SWITCHES, { params: { path, query: { ...query, kind: 'all', limit: ROWS_MAX } } }),
       select: (answer): CannSwitchList => answer.data,
       placeholderData: keepPreviousData,
       enabled,

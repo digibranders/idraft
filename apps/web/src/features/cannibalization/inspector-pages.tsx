@@ -11,7 +11,7 @@ import { KeyValues } from '@/components/app/inspector/key-values';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
-import { EMPTY_VALUE, formatInteger, formatPercent } from '@/lib/format';
+import { formatInteger, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const KEY = { share: 'share', ranking: 'ranking', median: 'median', best: 'best' } as const;
@@ -24,6 +24,7 @@ export function InspectorPages({ pages }: { pages: readonly PageRef[] }): ReactE
   const t = useTranslations('cannibalization.inspector.pages');
   const popover = useTranslations('cannibalization.popover');
   const cells = useTranslations('cannibalization.cells');
+  const unknown = useTranslations('cannibalization.unknown');
   const ranked = pages.filter((page) => page.ranked > 0);
   return (
     <InspectorSection
@@ -79,12 +80,12 @@ export function InspectorPages({ pages }: { pages: readonly PageRef[] }): ReactE
                   {
                     id: KEY.median,
                     label: t('medianLabel'),
-                    value: page.median === null ? EMPTY_VALUE : formatInteger(page.median),
+                    value: page.median === null ? unknown('rank') : formatInteger(page.median),
                   },
                   {
                     id: KEY.best,
                     label: t('bestLabel'),
-                    value: page.bestEver === null ? EMPTY_VALUE : formatInteger(page.bestEver),
+                    value: page.bestEver === null ? unknown('rank') : formatInteger(page.bestEver),
                   },
                 ]}
               />

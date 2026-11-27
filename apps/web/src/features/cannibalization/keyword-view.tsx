@@ -1,11 +1,12 @@
 'use client';
 
-import { Target } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import { exportFileName, headerWords, keywordTable, KEYWORD_COLUMNS, type ExportSpec } from './cann-export';
+import { useExportSpec } from './cann-export-button';
 import { CannPanel } from './cann-panel';
 import {
   filterKeywords,
@@ -14,24 +15,23 @@ import {
   SEVERITY,
   shownPages,
   sortRows,
+  truncation,
   type CannState,
   type KeywordShow,
 } from './cann-model';
-import { HistoryStrip, PageChip, VerdictBadge } from './cann-parts';
+import { HistoryStrip, KeywordCell, NoValue, PageChip, VerdictBadge } from './cann-parts';
 import type { CannRead } from './cann-reads';
-import { PairChip, ReadError, ViewSwitch } from './cann-view-parts';
+import { PairChip, ReadError, useCannWidths, ViewSwitch } from './cann-view-parts';
 import { PagesPopover } from './pages-popover';
 import { PressedGroup } from '@/components/app/filters/pressed-group';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { BoardTable, BoardTableSkeleton, type BoardColumn, type BoardSort } from '@/components/app/table/board-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Icon } from '@/components/ui/icon';
 import { LinkButton } from '@/components/ui/link-button';
 import { Tooltip } from '@/components/ui/tooltip';
-import { Truncate } from '@/components/ui/truncate';
 import type { CannConflictList, CannKeyword } from '@/lib/api/types';
-import { EMPTY_VALUE, formatBusinessDate, formatInteger, formatPercent } from '@/lib/format';
+import { formatBusinessDate, formatInteger, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export interface KeywordViewProps {
@@ -45,6 +45,8 @@ export interface KeywordViewProps {
   /** Opens the keyword's evidence; `opener` is where focus returns when it closes. `tab` is the drawer's first tab. */
   onOpen: (row: CannKeyword, opener: HTMLElement | null, tab?: string) => void;
   onOrderChange: (ids: readonly string[]) => void;
+  /** Tells the toolbar's Export button which table is in view. */
+  onExportChange: (spec: ExportSpec | null) => void;
   /** The Keywords page, for a project with no tracked keywords. */
   keywordsHref: Route;
 }
@@ -71,7 +73,7 @@ const byVolume = (a: CannKeyword, b: CannKeyword): number =>
 /** By keyword (docs/33 section 7.2): the keywords with the verdict, the pages, the figures and the history strip. */
 export function KeywordView(props: KeywordViewProps): ReactElement {
   const t = useTranslations('cannibalization');
-  const { read, state, set, onOrderChange, onOpen } = props;
+  const { read, state, set, onOrderChange, onOpen, onExportChange } = props;
   const [sort, setSort] = useState<BoardSort>(DEFAULT_SORT);
   const list = read.data;
   const rows = list?.items ?? NO_ROWS;
@@ -116,7 +118,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         width: 64,
         sortKey: 'rank',
         cellClassName: 'num text-foreground',
-        cell: (row) => (row.current_rank === null ? EMPTY_VALUE : formatInteger(row.current_rank)),
+        cell: (row) => (row.current_rank === null ? <NoValue kind="rank" /> : formatInteger(row.current_rank)),
       },
       {
         id: 'gap',
@@ -157,7 +159,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         width: 72,
         sortKey: 'volume',
         cellClassName: 'num text-foreground-secondary',
-        cell: (row) => (row.volume === null ? EMPTY_VALUE : formatInteger(row.volume)),
+        cell: (row) => (row.volume === null ? <NoValue kind="volume" /> : formatInteger(row.volume)),
       },
       {
         id: 'history',
@@ -169,6 +171,25 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
     ],
     [t, pagesWidth, state.days, onOpen],
   );
+
+  const { resize, onResetWidths } = useCannWidths('keywords', columns);
+  const total = list?.meta.total;
+  const cut = useMemo(() => truncation(rows.length, total), [rows.length, total]);
+  const exportSpec = useMemo((): ExportSpec | null => {
+    if (read.status !== 'ready' || visible.length === 0) return null;
+    return {
+      table: 'keywords',
+      fileName: exportFileName('keywords', state, list?.meta.date_to),
+      rows: visible.length,
+      truncated: cut,
+      build: () =>
+        keywordTable(visible, {
+          header: headerWords(KEYWORD_COLUMNS, (key) => t(`export.keywordColumns.${key}`)),
+          status: (verdict) => t(`verdict.${verdict}.label`),
+        }),
+    };
+  }, [read.status, visible, state, list?.meta.date_to, cut, t]);
+  useExportSpec(exportSpec, onExportChange);
 
   const counts = list?.counts;
   const chipCount = (show: KeywordShow): string | undefined =>
@@ -256,6 +277,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         onSortChange={setSort}
         flexMin={FLEX_MIN}
         busy={read.refetching}
+        resize={resize}
       />
     );
   }
@@ -282,6 +304,12 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
           label={t('pairFilter.text', { a: pairLabel[0] ?? '', b: pairLabel[1] ?? '' })}
         />
       }
+      notice={
+        cut === null
+          ? null
+          : t('keywordTable.truncated', { read: formatInteger(cut.read), total: formatInteger(cut.total) })
+      }
+      onResetWidths={onResetWidths}
       refetching={read.refetching}
       footerText={footer}
       updated={
@@ -292,33 +320,6 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
     >
       {body}
     </CannPanel>
-  );
-}
-
-/** A keyword with a mark when the ranking page is not the page set as its target. */
-function KeywordCell({ row }: { row: CannKeyword }): ReactElement {
-  const t = useTranslations('cannibalization.cells');
-  const current = row.pages.find((page) => page.url_id === row.current_url_id);
-  const target = row.pages.find((page) => page.url_id === row.target_url_id);
-  return (
-    <>
-      <Truncate text={row.keyword} className="text-foreground" />
-      {row.on_target === false ? (
-        <Tooltip
-          content={
-            current !== undefined && target !== undefined
-              ? t('notTargetTip', { current: current.path, target: target.path })
-              : t('notTarget')
-          }
-          purpose="label"
-        >
-          <span className="inline-flex shrink-0 text-warning-text">
-            <Icon icon={Target} size="sm" />
-            <span className="sr-only">{t('notTarget')}</span>
-          </span>
-        </Tooltip>
-      ) : null}
-    </>
   );
 }
 
@@ -345,9 +346,11 @@ function PagesCell({
   onOpen: KeywordViewProps['onOpen'];
 }): ReactElement {
   const t = useTranslations('cannibalization.cells');
-  const shown = shownPages(row);
+  // A keyword whose pages all have fewer ranked checks than the table counts still lists them
+  const counted = shownPages(row);
+  const shown = counted.length > 0 ? counted : row.pages;
   const [first, second] = shown;
-  if (first === undefined) return <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>;
+  if (first === undefined) return <NoValue kind="page" />;
   return (
     <PagesPopover
       row={row}

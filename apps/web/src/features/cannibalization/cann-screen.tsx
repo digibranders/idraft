@@ -4,6 +4,8 @@ import { Ban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import type { ExportSpec } from './cann-export';
+import { ExportButton } from './cann-export-button';
 import { ConflictStrip, SwitchStrip } from './cann-strip';
 import { KeywordView } from './keyword-view';
 import { PairView } from './pair-view';
@@ -86,6 +88,10 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
   const commitSearch = useCallback((search: string) => set({ search }), [set]);
   const [searchText, setSearchText] = useSearchDraft(state.search, commitSearch);
 
+  // The table in view registers itself here, so the Export button in the toolbar saves that table
+  const [exportSpec, setExportSpec] = useState<ExportSpec | null>(null);
+  const onExportChange = useCallback((spec: ExportSpec | null) => setExportSpec(spec), []);
+
   const inspector = useInspector();
   const [order, setOrder] = useState<readonly string[]>([]);
   // Closing the drawer returns focus to the row that opened it
@@ -153,11 +159,20 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
         activeId={target?.type === 'cann-keyword' ? target.id : null}
         onOpen={openKeyword}
         onOrderChange={setOrder}
+        onExportChange={onExportChange}
       />
     );
   } else if (state.view === 'pairs') {
     main = (
-      <PairView read={pairs} state={state} set={set} tabs={tabs} search={searchText} onSearchChange={setSearchText} />
+      <PairView
+        read={pairs}
+        state={state}
+        set={set}
+        tabs={tabs}
+        search={searchText}
+        onSearchChange={setSearchText}
+        onExportChange={onExportChange}
+      />
     );
   } else {
     main = (
@@ -171,6 +186,7 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
         activeId={target?.type === 'cann-keyword' ? target.id : null}
         onOpen={(row, opener, tabId) => openKeyword(row.tracked_keyword_id, opener, tabId)}
         onOrderChange={setOrder}
+        onExportChange={onExportChange}
         keywordsHref={keywordsHref}
       />
     );
@@ -185,6 +201,8 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
             state={state}
             groups={groupChoices}
             isDefaultScope={isDefaultScope}
+            dateTo={(tab === 'cannibalization' ? conflicts : switches).data?.meta.date_to ?? null}
+            actions={<ExportButton spec={exportSpec} />}
             onChange={set}
             onReset={resetScope}
           />

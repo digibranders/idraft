@@ -2,14 +2,15 @@
 
 import { ChevronDown, Undo2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, useRef, type ReactElement } from 'react';
+import { useMemo, useRef, type ReactElement, type ReactNode } from 'react';
 
-import { DEVICES, PERIODS, type CannState, type Device, type Period } from './cann-model';
+import { DEVICES, PERIODS, periodRange, type CannState, type Device, type Period } from './cann-model';
 import { Combobox } from '@/components/ui/combobox';
 import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
 import { inputVariants } from '@/components/ui/input-variants';
 import { Select, type SelectOption } from '@/components/ui/select';
+import { formatDateRange } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export interface GroupChoice {
@@ -22,6 +23,10 @@ export interface ScopeToolbarProps {
   /** The project's keyword groups; `null` while they load. */
   groups: readonly GroupChoice[] | null;
   isDefaultScope: boolean;
+  /** The last day of the period the page has read, for the date range under each Period option; `null` until it has. */
+  dateTo?: string | null | undefined;
+  /** At the right of the toolbar: the Export button. */
+  actions?: ReactNode;
   onChange: (patch: Partial<CannState>) => void;
   onReset: () => void;
 }
@@ -42,7 +47,15 @@ const GROUP_TRIGGER = cn(
  * The scope toolbar (docs/33 section 7.1): Device, Group and Period, as a two column grid below 1024 px and a wrapping
  * row from it. The page's own Period and Device replace the shell's date range and country, which this page hides.
  */
-export function ScopeToolbar({ state, groups, isDefaultScope, onChange, onReset }: ScopeToolbarProps): ReactElement {
+export function ScopeToolbar({
+  state,
+  groups,
+  isDefaultScope,
+  dateTo = null,
+  actions,
+  onChange,
+  onReset,
+}: ScopeToolbarProps): ReactElement {
   const t = useTranslations('cannibalization');
   const first = useRef<HTMLButtonElement>(null);
 
@@ -52,8 +65,15 @@ export function ScopeToolbar({ state, groups, isDefaultScope, onChange, onReset 
   );
   const periodOptions = useMemo(
     (): readonly SelectOption<string>[] =>
-      PERIODS.map((value) => ({ value: String(value), label: t(`toolbar.${PERIOD_KEY[value]}`) })),
-    [t],
+      PERIODS.map((value) => {
+        const range = dateTo === null ? null : periodRange(dateTo, value);
+        return {
+          value: String(value),
+          label: t(`toolbar.${PERIOD_KEY[value]}`),
+          note: range === null ? undefined : formatDateRange(range.from, range.to),
+        };
+      }),
+    [t, dateTo],
   );
   const everyGroup = useMemo((): GroupChoice => ({ id: 'all', name: t('toolbar.allGroups') }), [t]);
   const choices = useMemo((): readonly GroupChoice[] => [everyGroup, ...(groups ?? [])], [everyGroup, groups]);
@@ -129,6 +149,7 @@ export function ScopeToolbar({ state, groups, isDefaultScope, onChange, onReset 
           />
         </span>
       </div>
+      {actions === undefined ? null : <div className="flex min-w-0 items-center gap-x-4 xl:ml-auto">{actions}</div>}
     </section>
   );
 }

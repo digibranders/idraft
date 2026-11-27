@@ -1,12 +1,14 @@
 'use client';
 
-import { TriangleAlert } from 'lucide-react';
+import { Target, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { pageToken, stripFacts, type Verdict } from './cann-model';
 import { Badge } from '@/components/ui/badge';
+import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
+import { Truncate } from '@/components/ui/truncate';
 import type { CannKeyword, CannPage } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
 
@@ -102,14 +104,54 @@ export function VerdictBadge({ verdict }: { verdict: Verdict }): ReactElement {
   const quiet = verdict === 'insufficient' || verdict === 'unranked';
   return (
     <Tooltip content={t('tip', { label: t(`${verdict}.label`), what: t(`${verdict}.what`) })} purpose="label">
-      <Badge
-        tone={verdict === 'likely' ? 'warning' : 'neutral'}
-        icon={verdict === 'likely' ? TriangleAlert : undefined}
-        className={cn(quiet && 'text-foreground-tertiary')}
-      >
-        {t(`${verdict}.short`)}
-      </Badge>
+      <span className="inline-flex">
+        <span aria-hidden="true">
+          <Badge
+            tone={verdict === 'likely' ? 'warning' : 'neutral'}
+            icon={verdict === 'likely' ? TriangleAlert : undefined}
+            className={cn(quiet && 'text-foreground-tertiary')}
+          >
+            {t(`${verdict}.short`)}
+          </Badge>
+        </span>
+        <span className="sr-only">{t(`${verdict}.label`)}</span>
+      </span>
     </Tooltip>
+  );
+}
+
+export type UnknownKind = 'rank' | 'page' | 'volume' | 'overlap' | 'gap' | 'target';
+
+/** What a cell says when it has nothing to show: a word, never a bare mark. */
+export function NoValue({ kind }: { kind: UnknownKind }): ReactElement {
+  const t = useTranslations('cannibalization.unknown');
+  return <span className="text-foreground-tertiary">{t(kind)}</span>;
+}
+
+/** A keyword with a mark when the ranking page is not the page set as its target. */
+export function KeywordCell({ row }: { row: CannKeyword }): ReactElement {
+  const t = useTranslations('cannibalization.cells');
+  const current = row.pages.find((page) => page.url_id === row.current_url_id);
+  const target = row.pages.find((page) => page.url_id === row.target_url_id);
+  return (
+    <>
+      <Truncate text={row.keyword} className="text-foreground" />
+      {row.on_target === false ? (
+        <Tooltip
+          content={
+            current !== undefined && target !== undefined
+              ? t('notTargetTip', { current: current.path, target: target.path })
+              : t('notTarget')
+          }
+          purpose="label"
+        >
+          <span className="inline-flex shrink-0 text-warning-text">
+            <Icon icon={Target} size="sm" />
+            <span className="sr-only">{t('notTarget')}</span>
+          </span>
+        </Tooltip>
+      ) : null}
+    </>
   );
 }
 

@@ -2,11 +2,14 @@
 
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, ReactNode } from 'react';
+import { useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { viewsOf, type CannTab, type CannView } from './cann-model';
 import type { CannRead } from './cann-reads';
 import { PressedGroup } from '@/components/app/filters/pressed-group';
+import type { BoardColumn, BoardResize } from '@/components/app/table/board-table';
+import { widthsDiffer } from '@/components/app/table/board-widths';
+import { useColumnWidths } from '@/components/app/table/use-column-widths';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Icon } from '@/components/ui/icon';
 
@@ -71,4 +74,23 @@ export function PairChip({
       </button>
     </span>
   );
+}
+
+/** The adjustable widths of one table: what its BoardTable takes, and the reset the panel shows while any differ. */
+export function useCannWidths(
+  tableId: string,
+  columns: readonly Pick<BoardColumn<unknown>, 'id' | 'width' | 'least' | 'widest'>[],
+): { resize: BoardResize; onResetWidths: (() => void) | undefined } {
+  const t = useTranslations('cannibalization.widths');
+  const { widths, setWidth, reset } = useColumnWidths(`cannibalization-${tableId}`);
+  const resize = useMemo(
+    (): BoardResize => ({
+      widths,
+      onChange: setWidth,
+      label: (column) => t('separator', { column }),
+      valueText: (count) => t('value', { count }),
+    }),
+    [widths, setWidth, t],
+  );
+  return { resize, onResetWidths: widthsDiffer(columns, widths) ? reset : undefined };
 }

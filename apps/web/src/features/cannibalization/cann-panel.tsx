@@ -1,11 +1,12 @@
 'use client';
 
-import { Search } from 'lucide-react';
+import { Search, Undo2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRef, type ReactElement, type ReactNode } from 'react';
 
 import { MAX_SEARCH } from './cann-model';
 import { RefetchBar } from '@/components/app/status/refetch-bar';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InputGroup } from '@/components/ui/input-group';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
@@ -22,6 +23,10 @@ export interface CannPanelProps {
   summary?: ReactNode;
   /** Between the toolbar and the table: the weekly chart. */
   above?: ReactNode;
+  /** A quiet line under the table, such as the note that the read stopped short. */
+  notice?: string | null | undefined;
+  /** Shown while a column has a width other than its default: puts the widths back. */
+  onResetWidths?: (() => void) | undefined;
   refetching: boolean;
   footerText: string | null;
   updated: string | null;
@@ -41,12 +46,15 @@ export function CannPanel({
   controls,
   summary,
   above,
+  notice,
+  onResetWidths,
   refetching,
   footerText,
   updated,
   children,
 }: CannPanelProps): ReactElement {
   const t = useTranslations('cannibalization.search');
+  const widths = useTranslations('cannibalization.widths');
   const input = useRef<HTMLInputElement>(null);
   useShortcut(
     '/',
@@ -77,13 +85,23 @@ export function CannPanel({
           />
         </InputGroup>
         <div className="flex flex-wrap items-center gap-3">{controls}</div>
-        <div className="ml-auto flex items-center gap-3">{summary}</div>
+        <div className="ml-auto flex items-center gap-3">
+          {onResetWidths === undefined ? null : (
+            <Button variant="secondary" size="sm" icon={Undo2} onClick={onResetWidths}>
+              {widths('reset')}
+            </Button>
+          )}
+          {summary}
+        </div>
       </div>
       {above}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <RefetchBar active={refetching} position="under-table-header" />
         {children}
       </div>
+      {notice === undefined || notice === null ? null : (
+        <p className="shrink-0 border-t border-border-subtle px-3 py-2 type-meta">{notice}</p>
+      )}
       <div className="flex h-12 shrink-0 items-center gap-3 border-t border-border-subtle px-3">
         <span className="num type-meta">{footerText}</span>
         {updated === null ? null : <span className="ml-auto type-meta whitespace-nowrap">{updated}</span>}

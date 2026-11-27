@@ -257,3 +257,37 @@ export function pagesColumnWidth(rows: readonly CannKeyword[]): number {
   // 24 px of cell padding, 4 for the button, 26 for the chevron
   return Math.min(260, Math.max(176, Math.ceil(Math.max(0, ...need) + 54)));
 }
+
+// -------------------------------------------------------------------------------------------------
+// Period range, target status, truncation
+
+/** The first and last day of a period that ends on `dateTo` (both ends count, so 30 days start 29 days back). */
+export function periodRange(dateTo: string, days: number): { from: string; to: string } {
+  const [year, month, day] = dateTo.split('-').map(Number);
+  if (year === undefined || month === undefined || day === undefined || [year, month, day].some(Number.isNaN)) {
+    return { from: dateTo, to: dateTo };
+  }
+  const from = new Date(Date.UTC(year, month - 1, day - (days - 1)));
+  return { from: from.toISOString().slice(0, 10), to: dateTo };
+}
+
+/**
+ * What a confirmed switch did to the keyword's target page: it left it, came back to it, the keyword has no target,
+ * or the move was between other pages.
+ */
+export type TargetStatus = 'left' | 'back' | 'none' | 'other';
+
+export function targetStatus(
+  row: Pick<CannSwitchRow, 'left_target' | 'event'>,
+  keyword: Pick<CannKeyword, 'target_url_id'> | undefined,
+): TargetStatus {
+  if (row.left_target) return 'left';
+  if (keyword === undefined) return 'other';
+  if (keyword.target_url_id === null) return 'none';
+  return row.event.to_url_id === keyword.target_url_id ? 'back' : 'other';
+}
+
+/** The rows read and the rows that exist, when the read stopped short of the total; `null` when it has them all. */
+export function truncation(read: number, total: number | undefined): { read: number; total: number } | null {
+  return total !== undefined && total > read ? { read, total } : null;
+}

@@ -4,6 +4,16 @@ import { ChevronRight, TrendingDown, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 
+import {
+  changeTable,
+  CHANGE_COLUMNS,
+  exportFileName,
+  headerWords,
+  switchKeywordTable,
+  SWITCH_KEYWORD_COLUMNS,
+  type ExportSpec,
+} from './cann-export';
+import { useExportSpec } from './cann-export-button';
 import { CannPanel } from './cann-panel';
 import {
   filterSwitches,
@@ -11,22 +21,32 @@ import {
   SWITCH_SHOWS,
   sortRows,
   switchCounts,
+  targetStatus,
+  truncation,
   type CannState,
   type SwitchShow,
+  type TargetStatus,
 } from './cann-model';
-import { HistoryStrip, PageChip } from './cann-parts';
+import { HistoryStrip, KeywordCell, NoValue, PageChip } from './cann-parts';
 import type { CannRead } from './cann-reads';
-import { ReadError, ViewSwitch } from './cann-view-parts';
+import { ReadError, useCannWidths, ViewSwitch } from './cann-view-parts';
 import { SwitchChart } from './switch-chart';
 import { PressedGroup } from '@/components/app/filters/pressed-group';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { BoardTable, BoardTableSkeleton, type BoardColumn, type BoardSort } from '@/components/app/table/board-table';
+import {
+  BoardTable,
+  BoardTableSkeleton,
+  type BoardColumn,
+  type BoardResize,
+  type BoardSort,
+} from '@/components/app/table/board-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/components/ui/icon';
 import { Truncate } from '@/components/ui/truncate';
 import type { CannConflictList, CannKeyword, CannPage, CannSwitchList, CannSwitchRow } from '@/lib/api/types';
-import { EMPTY_VALUE, formatBusinessDate, formatInteger } from '@/lib/format';
+import { formatBusinessDate, formatInteger } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export interface SwitchingViewProps {
@@ -42,6 +62,8 @@ export interface SwitchingViewProps {
   /** Opens the keyword's evidence on its Timeline tab. */
   onOpen: (keywordId: string, opener: HTMLElement | null, tab?: string) => void;
   onOrderChange: (ids: readonly string[]) => void;
+  /** Tells the toolbar's Export button which table is in view. */
+  onExportChange: (spec: ExportSpec | null) => void;
 }
 
 const FLEX_MIN = 132;
@@ -93,9 +115,186 @@ const KEYWORD_SORT_VALUE: Readonly<Record<string, (row: CannKeyword) => string |
   longest: (row) => row.longest_hold_days,
 };
 
+type Translate = ReturnType<typeof useTranslations<'cannibalization'>>;
+
+/** The Changes table's columns. `keywords` holds each keyword's pages and target, joined by the keyword's id. */
+function changeColumns(t: Translate, keywords: ReadonlyMap<string, CannKeyword>): BoardColumn<CannSwitchRow>[] {
+  return [
+    {
+      id: 'keyword',
+      header: t('columns.keyword'),
+      width: 216,
+      sortKey: 'keyword',
+      cell: (row) => {
+        const known = keywords.get(row.tracked_keyword_id);
+        return known === undefined ? (
+          <Truncate text={row.keyword} className="text-foreground" />
+        ) : (
+          <KeywordCell row={known} />
+        );
+      },
+    },
+    {
+      id: 'when',
+      header: t('columns.when'),
+      tip: t('tips.when'),
+      width: 92,
+      sortKey: 'when',
+      cellClassName: 'whitespace-nowrap text-foreground-secondary',
+      cell: (row) => formatBusinessDate(row.event.date, { withYear: false }),
+    },
+    {
+      id: 'switch',
+      header: t('columns.switch'),
+      tip: t('tips.switch'),
+      width: 300,
+      cell: (row) => {
+        const pages = keywords.get(row.tracked_keyword_id)?.pages;
+        return (
+          <span className="flex min-w-0 items-center gap-2">
+            <PageChip page={sidePage(row, 'from', pages)} />
+            <Icon icon={ChevronRight} size="sm" className="shrink-0 text-foreground-tertiary" />
+            <PageChip page={sidePage(row, 'to', pages)} strong />
+          </span>
+        );
+      },
+    },
+    {
+      id: 'rank',
+      header: t('columns.rankChange'),
+      tip: t('tips.rankChange'),
+      width: 128,
+      sortKey: 'change',
+      cellClassName: 'num',
+      cell: (row) => <RankChange row={row} />,
+    },
+    {
+      id: 'held',
+      header: t('columns.held'),
+      tip: t('tips.held'),
+      width: 108,
+      sortKey: 'held',
+      cellClassName: 'num text-foreground-secondary',
+      cell: (row) => t('cells.heldDays', { count: row.event.held_days }),
+    },
+    {
+      id: 'type',
+      header: t('columns.type'),
+      tip: t('tips.type'),
+      width: 116,
+      sortKey: 'type',
+      cell: (row) =>
+        row.event.is_flip_flop ? (
+          <Badge tone="warning">{t('cells.flipFlop')}</Badge>
+        ) : (
+          <Badge>{t('cells.moved')}</Badge>
+        ),
+    },
+    {
+      id: 'target',
+      header: t('columns.target'),
+      tip: t('tips.target'),
+      width: null,
+      cell: (row) => <TargetCell status={targetStatus(row, keywords.get(row.tracked_keyword_id))} />,
+    },
+  ];
+}
+
+/** What a switch did to the keyword's target page, in words. */
+function TargetCell({ status }: { status: TargetStatus }): ReactElement {
+  const t = useTranslations('cannibalization.cells');
+  switch (status) {
+    case 'left':
+      return <Badge tone="warning">{t('leftTarget')}</Badge>;
+    case 'back':
+      return <Badge>{t('backOnTarget')}</Badge>;
+    case 'none':
+      return <NoValue kind="target" />;
+    case 'other':
+      return <span className="text-foreground-tertiary">{t('notInvolved')}</span>;
+  }
+}
+
+function switchKeywordColumns(t: Translate): BoardColumn<CannKeyword>[] {
+  return [
+    {
+      id: 'keyword',
+      header: t('columns.keyword'),
+      width: 216,
+      sortKey: 'keyword',
+      cell: (row) => <Truncate text={row.keyword} className="text-foreground" />,
+    },
+    {
+      id: 'now',
+      header: t('columns.now'),
+      tip: t('tips.now'),
+      width: 208,
+      cell: (row) => {
+        const page = row.pages.find((entry) => entry.url_id === row.current_url_id);
+        return page === undefined ? <NoValue kind="page" /> : <PageChip page={page} strong />;
+      },
+    },
+    {
+      id: 'switches',
+      header: t('columns.switchCount'),
+      tip: t('tips.switches'),
+      width: 92,
+      sortKey: 'switches',
+      cellClassName: 'num text-foreground',
+      cell: (row) => formatInteger(row.switches.length),
+    },
+    {
+      id: 'flipFlops',
+      header: t('columns.flipFlops'),
+      width: 100,
+      sortKey: 'flipFlops',
+      cellClassName: 'num',
+      cell: (row) => (
+        <span className={cn(row.flip_flops > 0 ? 'text-warning-text' : 'text-foreground-tertiary')}>
+          {formatInteger(row.flip_flops)}
+        </span>
+      ),
+    },
+    {
+      id: 'pages',
+      header: t('columns.pageCount'),
+      tip: t('tips.pagesCount'),
+      width: 84,
+      sortKey: 'pages',
+      cellClassName: 'num text-foreground',
+      cell: (row) => formatInteger(row.pages.filter((page) => page.best_count > 0).length),
+    },
+    {
+      id: 'held',
+      header: t('columns.heldNow'),
+      tip: t('tips.heldNow'),
+      width: 108,
+      sortKey: 'held',
+      cellClassName: 'num text-foreground-secondary',
+      cell: (row) => t('cells.heldDays', { count: row.held_now_days }),
+    },
+    {
+      id: 'longest',
+      header: t('columns.longest'),
+      tip: t('tips.longest'),
+      width: 120,
+      sortKey: 'longest',
+      cellClassName: 'num text-foreground-secondary',
+      cell: (row) => t('cells.heldDays', { count: row.longest_hold_days }),
+    },
+    {
+      id: 'history',
+      header: t('columns.history'),
+      tip: t('tips.history'),
+      width: null,
+      cell: (row) => <HistoryStrip row={row} />,
+    },
+  ];
+}
+
 /** The Switching tab (docs/33 section 7.3): the weekly chart above the Changes or By keyword table. */
 export function SwitchingView(props: SwitchingViewProps): ReactElement {
-  const { state, set, tabs, search, onSearchChange, switches, keywords, onOrderChange } = props;
+  const { state, set, tabs, search, onSearchChange, switches, keywords, onOrderChange, onExportChange } = props;
   const t = useTranslations('cannibalization');
   const byKeyword = state.view === 'keywords';
   const [changeSort, setChangeSort] = useState<BoardSort>(CHANGE_SORT);
@@ -138,6 +337,66 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
     );
   }, [byKeyword, byKeywordRows, changes, onOrderChange]);
 
+  const keywordsById = useMemo(
+    (): ReadonlyMap<string, CannKeyword> => new Map(keywordRows.map((row) => [row.tracked_keyword_id, row])),
+    [keywordRows],
+  );
+  const changeCols = useMemo(() => changeColumns(t, keywordsById), [t, keywordsById]);
+  const keywordCols = useMemo(() => switchKeywordColumns(t), [t]);
+  const changeWidths = useCannWidths('changes', changeCols);
+  const keywordWidths = useCannWidths('switch-keywords', keywordCols);
+  const widths = byKeyword ? keywordWidths : changeWidths;
+  const keywordTotal = keywords.data?.meta.total;
+  const switchTotal = switches.data?.meta.total;
+  const cut = useMemo(
+    () => (byKeyword ? truncation(keywordRows.length, keywordTotal) : truncation(switchRows?.length ?? 0, switchTotal)),
+    [byKeyword, keywordRows.length, keywordTotal, switchRows?.length, switchTotal],
+  );
+
+  const exportSpec = useMemo((): ExportSpec | null => {
+    const read = byKeyword ? keywords : switches;
+    const rowsInView = byKeyword ? byKeywordRows.length : changes.length;
+    if (read.status !== 'ready' || rowsInView === 0) return null;
+    const dateTo = read.data?.meta.date_to;
+    if (byKeyword) {
+      return {
+        table: 'switch-keywords',
+        fileName: exportFileName('switch-keywords', state, dateTo),
+        rows: rowsInView,
+        truncated: cut,
+        build: () =>
+          switchKeywordTable(byKeywordRows, {
+            header: headerWords(SWITCH_KEYWORD_COLUMNS, (key) => t(`export.switchKeywordColumns.${key}`)),
+          }),
+      };
+    }
+    return {
+      table: 'changes',
+      fileName: exportFileName('changes', state, dateTo),
+      rows: rowsInView,
+      truncated: cut,
+      build: () =>
+        changeTable(
+          changes.map((row) => ({ row, target: targetStatus(row, keywordsById.get(row.tracked_keyword_id)) })),
+          {
+            header: headerWords(CHANGE_COLUMNS, (key) => t(`export.changeColumns.${key}`)),
+            type: (flipFlop) => t(flipFlop ? 'cells.flipFlop' : 'cells.moved'),
+            target: (status) =>
+              t(
+                status === 'left'
+                  ? 'cells.leftTarget'
+                  : status === 'back'
+                    ? 'cells.backOnTarget'
+                    : status === 'none'
+                      ? 'unknown.target'
+                      : 'cells.notInvolved',
+              ),
+          },
+        ),
+    };
+  }, [byKeyword, keywords, switches, byKeywordRows, changes, keywordsById, state, cut, t]);
+  useExportSpec(exportSpec, onExportChange);
+
   const counts = useMemo(
     () => (switchRows === undefined ? undefined : switchCounts(switchRows, state.search)),
     [switchRows, state.search],
@@ -146,10 +405,13 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
   const footer = byKeyword
     ? keywords.data === undefined
       ? null
-      : t('switchKeywordTable.footer', { count: byKeywordRows.length })
+      : t('switchKeywordTable.footer', { count: byKeywordRows.length, total: formatInteger(ranked.length) })
     : switches.data === undefined
       ? null
-      : t('changesTable.footer', { count: changes.length });
+      : [
+          t('changesTable.footer', { count: changes.length }),
+          ...(switches.data.items.length > 0 ? [t('changesTable.footerNote')] : []),
+        ].join(' \u00b7 ');
 
   return (
     <CannPanel
@@ -161,14 +423,10 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
         <>
           <ViewSwitch tab="switching" view={state.view} onChange={(view) => set({ view })} />
           {byKeyword ? (
-            <PressedGroup<'only' | 'all'>
-              label={t('switched.label')}
-              value={state.switchedOnly ? 'only' : 'all'}
-              onValueChange={(value) => set({ switchedOnly: value === 'only' })}
-              items={[
-                { value: 'only', label: t('switched.only') },
-                { value: 'all', label: t('switched.all') },
-              ]}
+            <Checkbox
+              checked={state.switchedOnly}
+              onCheckedChange={(checked) => set({ switchedOnly: checked })}
+              label={t('switched.only')}
             />
           ) : (
             <PressedGroup<SwitchShow>
@@ -185,6 +443,15 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
         </>
       }
       above={<SwitchChart read={switches} days={state.days} />}
+      notice={
+        cut === null
+          ? null
+          : t(byKeyword ? 'keywordTable.truncated' : 'changesTable.truncated', {
+              read: formatInteger(cut.read),
+              total: formatInteger(cut.total),
+            })
+      }
+      onResetWidths={widths.onResetWidths}
       refetching={active.refetching}
       footerText={footer}
       updated={
@@ -196,6 +463,8 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
       {byKeyword ? (
         <ByKeywordTable
           read={keywords}
+          columns={keywordCols}
+          resize={keywordWidths.resize}
           total={ranked.length}
           rows={byKeywordRows}
           sort={keywordSort}
@@ -209,7 +478,8 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
       ) : (
         <ChangesTable
           read={switches}
-          pages={keywords.data?.items ?? NO_ROWS}
+          columns={changeCols}
+          resize={changeWidths.resize}
           total={switchRows?.length ?? 0}
           rows={changes}
           sort={changeSort}
@@ -226,8 +496,8 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
 
 interface ChangesTableProps {
   read: CannRead<CannSwitchList>;
-  /** Every keyword with its pages, for the letters of the pages in the Switch column. */
-  pages: readonly CannKeyword[];
+  columns: readonly BoardColumn<CannSwitchRow>[];
+  resize: BoardResize;
   /** Switches before the chip and the search. */
   total: number;
   rows: readonly CannSwitchRow[];
@@ -241,7 +511,8 @@ interface ChangesTableProps {
 
 function ChangesTable({
   read,
-  pages,
+  columns,
+  resize,
   total,
   rows,
   sort,
@@ -252,85 +523,6 @@ function ChangesTable({
   onOpen,
 }: ChangesTableProps): ReactElement {
   const t = useTranslations('cannibalization');
-  const pagesOf = useMemo(() => new Map(pages.map((row) => [row.tracked_keyword_id, row.pages])), [pages]);
-  const columns = useMemo(
-    (): BoardColumn<CannSwitchRow>[] => [
-      {
-        id: 'keyword',
-        header: t('columns.keyword'),
-        width: 216,
-        sortKey: 'keyword',
-        cell: (row) => <Truncate text={row.keyword} className="text-foreground" />,
-      },
-      {
-        id: 'when',
-        header: t('columns.when'),
-        tip: t('tips.when'),
-        width: 92,
-        sortKey: 'when',
-        cellClassName: 'whitespace-nowrap text-foreground-secondary',
-        cell: (row) => formatBusinessDate(row.event.date, { withYear: false }),
-      },
-      {
-        id: 'switch',
-        header: t('columns.switch'),
-        tip: t('tips.switch'),
-        width: 300,
-        cell: (row) => (
-          <span className="flex min-w-0 items-center gap-2">
-            <PageChip page={sidePage(row, 'from', pagesOf.get(row.tracked_keyword_id))} />
-            <Icon icon={ChevronRight} size="sm" className="shrink-0 text-foreground-tertiary" />
-            <PageChip page={sidePage(row, 'to', pagesOf.get(row.tracked_keyword_id))} strong />
-          </span>
-        ),
-      },
-      {
-        id: 'rank',
-        header: t('columns.rankChange'),
-        tip: t('tips.rankChange'),
-        width: 128,
-        sortKey: 'change',
-        cellClassName: 'num',
-        cell: (row) => <RankChange row={row} />,
-      },
-      {
-        id: 'held',
-        header: t('columns.held'),
-        tip: t('tips.held'),
-        width: 108,
-        sortKey: 'held',
-        cellClassName: 'num text-foreground-secondary',
-        cell: (row) => t('cells.heldDays', { count: row.event.held_days }),
-      },
-      {
-        id: 'type',
-        header: t('columns.type'),
-        tip: t('tips.type'),
-        width: 116,
-        sortKey: 'type',
-        cell: (row) =>
-          row.event.is_flip_flop ? (
-            <Badge tone="warning">{t('cells.flipFlop')}</Badge>
-          ) : (
-            <Badge>{t('cells.moved')}</Badge>
-          ),
-      },
-      {
-        id: 'target',
-        header: t('columns.target'),
-        tip: t('tips.target'),
-        width: null,
-        cell: (row) =>
-          row.left_target ? (
-            <Badge tone="warning">{t('cells.leftTarget')}</Badge>
-          ) : (
-            <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
-          ),
-      },
-    ],
-    [t, pagesOf],
-  );
-
   if (read.status === 'loading') return <BoardTableSkeleton columns={columns} flexMin={FLEX_MIN} />;
   if (read.status === 'error') return <ReadError read={read} />;
   if (total === 0) {
@@ -379,6 +571,7 @@ function ChangesTable({
       onSortChange={onSort}
       flexMin={FLEX_MIN}
       busy={read.refetching}
+      resize={resize}
     />
   );
 }
@@ -404,6 +597,8 @@ function RankChange({ row }: { row: CannSwitchRow }): ReactElement {
 
 interface ByKeywordTableProps {
   read: CannRead<CannConflictList>;
+  columns: readonly BoardColumn<CannKeyword>[];
+  resize: BoardResize;
   /** Ranked keywords before the chip and the search. */
   total: number;
   rows: readonly CannKeyword[];
@@ -418,6 +613,8 @@ interface ByKeywordTableProps {
 
 function ByKeywordTable({
   read,
+  columns,
+  resize,
   total,
   rows,
   sort,
@@ -429,87 +626,6 @@ function ByKeywordTable({
   onOpen,
 }: ByKeywordTableProps): ReactElement {
   const t = useTranslations('cannibalization');
-  const columns = useMemo(
-    (): BoardColumn<CannKeyword>[] => [
-      {
-        id: 'keyword',
-        header: t('columns.keyword'),
-        width: 216,
-        sortKey: 'keyword',
-        cell: (row) => <Truncate text={row.keyword} className="text-foreground" />,
-      },
-      {
-        id: 'now',
-        header: t('columns.now'),
-        tip: t('tips.now'),
-        width: 208,
-        cell: (row) => {
-          const page = row.pages.find((entry) => entry.url_id === row.current_url_id);
-          return page === undefined ? (
-            <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
-          ) : (
-            <PageChip page={page} strong />
-          );
-        },
-      },
-      {
-        id: 'switches',
-        header: t('columns.switchCount'),
-        tip: t('tips.switches'),
-        width: 92,
-        sortKey: 'switches',
-        cellClassName: 'num text-foreground',
-        cell: (row) => formatInteger(row.switches.length),
-      },
-      {
-        id: 'flipFlops',
-        header: t('columns.flipFlops'),
-        width: 100,
-        sortKey: 'flipFlops',
-        cellClassName: 'num',
-        cell: (row) => (
-          <span className={cn(row.flip_flops > 0 ? 'text-warning-text' : 'text-foreground-tertiary')}>
-            {formatInteger(row.flip_flops)}
-          </span>
-        ),
-      },
-      {
-        id: 'pages',
-        header: t('columns.pageCount'),
-        tip: t('tips.pagesCount'),
-        width: 84,
-        sortKey: 'pages',
-        cellClassName: 'num text-foreground',
-        cell: (row) => formatInteger(row.pages.filter((page) => page.best_count > 0).length),
-      },
-      {
-        id: 'held',
-        header: t('columns.heldNow'),
-        tip: t('tips.heldNow'),
-        width: 108,
-        sortKey: 'held',
-        cellClassName: 'num text-foreground-secondary',
-        cell: (row) => t('cells.heldDays', { count: row.held_now_days }),
-      },
-      {
-        id: 'longest',
-        header: t('columns.longest'),
-        tip: t('tips.longest'),
-        width: 120,
-        sortKey: 'longest',
-        cellClassName: 'num text-foreground-secondary',
-        cell: (row) => t('cells.heldDays', { count: row.longest_hold_days }),
-      },
-      {
-        id: 'history',
-        header: t('columns.history'),
-        tip: t('tips.history'),
-        width: null,
-        cell: (row) => <HistoryStrip row={row} />,
-      },
-    ],
-    [t],
-  );
   if (read.status === 'loading') return <BoardTableSkeleton columns={columns} flexMin={FLEX_MIN} />;
   if (read.status === 'error') return <ReadError read={read} />;
   if (total === 0) {
@@ -559,6 +675,7 @@ function ByKeywordTable({
       onSortChange={onSort}
       flexMin={FLEX_MIN}
       busy={read.refetching}
+      resize={resize}
     />
   );
 }

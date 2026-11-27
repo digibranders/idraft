@@ -8243,7 +8243,9 @@
       "days14": "Last 14 days",
       "days30": "Last 30 days",
       "days90": "Last 90 days",
-      "reset": "Reset scope"
+      "reset": "Reset scope",
+      "export": "Export",
+      "exportLabel": "Export this table as CSV"
     },
     "tabs": {
       "label": "Cannibalization views",
@@ -8275,9 +8277,7 @@
       "left_target": "Left the target"
     },
     "switched": {
-      "label": "Keywords",
-      "only": "Switched",
-      "all": "All keywords"
+      "only": "Only keywords that switched"
     },
     "search": {
       "label": "Search in table",
@@ -8330,7 +8330,8 @@
       "conflicts": {
         "label": "Keywords with a conflict",
         "what": "How many ranked keywords have two or more of your pages in conflict.",
-        "how": "Likely cannibalization, co-ranking and unstable page together. A keyword with fewer than 10 ranked checks in the period is not judged."
+        "how": "Likely cannibalization, co-ranking and unstable page together. A keyword with fewer than 10 ranked checks in the period is not judged.",
+        "whatLive": "{ofRanked} keywords have a conflict."
       },
       "likely": {
         "label": "Likely cannibalization",
@@ -8350,22 +8351,26 @@
       "volume": {
         "label": "Search volume at risk",
         "what": "Monthly searches of the keywords with likely cannibalization.",
-        "how": "The sum of the keyword search volumes, as the provider reports them. It sizes the problem and does not estimate lost clicks."
+        "how": "The sum of the keyword search volumes, as the provider reports them. It sizes the problem and does not estimate lost clicks.",
+        "whatLive": "Monthly searches of the {count, plural, one {# keyword} other {# keywords}} with likely cannibalization."
       },
       "gap": {
         "label": "Typical rank gap",
         "what": "How many places lower a keyword ranks, in the middle of the likely cases, when another page is the ranking page.",
-        "how": "The median over the keywords with likely cannibalization in the period."
+        "how": "The median over the keywords with likely cannibalization in the period.",
+        "howLive": "The median over {count, plural, one {# keyword} other {# keywords}} with likely cannibalization, in the last {days} days."
       },
       "switches": {
         "label": "Confirmed switches",
         "what": "Times the ranking page changed and stayed changed.",
-        "how": "A switch counts when the new page is also the ranking page on the next readable check. A change that lasts one check is not counted."
+        "how": "A switch counts when the new page is also the ranking page on the next readable check. A change that lasts one check is not counted.",
+        "howLive": "A switch counts when the new page is also the ranking page on the next readable check. {count, plural, one {# one-check change} other {# one-check changes}} in the last {days} days {count, plural, one {was} other {were}} not counted."
       },
       "switchedKeywords": {
         "label": "Keywords that switched",
         "what": "Ranked keywords whose ranking page changed at least once in the period.",
-        "how": "Ranked keywords have at least 10 ranked checks in the period."
+        "how": "Ranked keywords have at least 10 ranked checks in the period.",
+        "whatLive": "{ofRanked} keywords changed their ranking page at least once in the period."
       },
       "flipFlops": {
         "label": "Flip-flop keywords",
@@ -8386,7 +8391,8 @@
         "label": "Rank dropped after",
         "what": "Switches after which the keyword ranked worse than before.",
         "how": "Compares the rank on the last check before the switch with the rank on the first check after."
-      }
+      },
+      "notKnown": "Not known"
     },
     "columns": {
       "keyword": "Keyword",
@@ -8460,7 +8466,9 @@
       "leadsTip": "{a} ranks better on {aCount, plural, one {# keyword} other {# keywords}}, {b} on {bCount}.",
       "leadSide": " keywords where page {letter} ranks better",
       "improvedBy": "Improved by {count, plural, one {# place} other {# places}}",
-      "droppedBy": "Dropped by {count, plural, one {# place} other {# places}}"
+      "droppedBy": "Dropped by {count, plural, one {# place} other {# places}}",
+      "backOnTarget": "Back on target",
+      "notInvolved": "Not involved"
     },
     "strip": {
       "label": "Ranking page on each of the last {checks} checks: {pages}. {switches, plural, one {# switch} other {# switches}}",
@@ -8470,7 +8478,7 @@
     "popover": {
       "label": "Pages for {keyword}",
       "head": "Pages that rank for this keyword",
-      "meta": "{keyword} · last {days} days",
+      "meta": "{keyword} · {device} · last {days} days",
       "best": "Best page",
       "target": "Target page",
       "subResult": "Sub-result",
@@ -8491,7 +8499,8 @@
       "noMatchSearch": "No keyword contains “{query}”.",
       "noMatchPair": "No keyword has both pages of this pair in the top 100.",
       "clearSearch": "Clear search",
-      "clearPair": "Clear the page filter"
+      "clearPair": "Clear the page filter",
+      "truncated": "Showing the first {read} of {total} keywords"
     },
     "pairTable": {
       "caption": "Pairs of your pages that compete",
@@ -8510,11 +8519,13 @@
       "emptyReason": "The ranking page of no keyword changed and stayed changed in the last {days} days. Choose a longer period.",
       "noMatchTitle": "No switches match",
       "noMatchReason": "No switch fits this filter and search.",
-      "clearFilters": "Show all switches"
+      "clearFilters": "Show all switches",
+      "truncated": "Showing the first {read} of {total} switches",
+      "footerNote": "The first move of a flip-flop shows as Moved until the page returns."
     },
     "switchKeywordTable": {
       "caption": "Keywords and how their ranking page changed",
-      "footer": "{count, plural, one {# keyword} other {# keywords}}",
+      "footer": "{count, plural, one {# keyword} other {# keywords}} of {total} ranked",
       "emptyTitle": "No keyword switched",
       "emptyReason": "The ranking page of no keyword changed in the last {days} days. Choose a longer period, or look at all keywords.",
       "showAll": "Show all keywords",
@@ -8635,6 +8646,67 @@
         "emptyReason": "None of your pages was in the top 100 in this period.",
         "note": "A sub-result sits under another result at the same rank and is not a second result."
       }
+    },
+    "export": {
+      "done": "Exported {rows, plural, one {# row} other {# rows}} as {file}.",
+      "truncatedKeywords": "The page read the first {read} of {total} keywords, so the file does not hold the rest.",
+      "truncatedSwitches": "The page read the first {read} of {total} switches, so the file does not hold the rest.",
+      "failedTitle": "Could not export the table",
+      "failedDescription": "Nothing was saved. Try again.",
+      "keywordColumns": {
+        "keyword": "Keyword",
+        "status": "Status",
+        "pages": "Pages",
+        "rank": "Rank",
+        "gap": "Rank gap (places)",
+        "switches": "Switches",
+        "together": "Together (percent of checks)",
+        "volume": "Volume",
+        "rankingPage": "Ranking page"
+      },
+      "pairColumns": {
+        "pageA": "Page A",
+        "pageB": "Page B",
+        "keywords": "Keywords",
+        "volume": "Volume",
+        "likely": "Likely",
+        "aLeads": "Keywords where page A ranks better",
+        "bLeads": "Keywords where page B ranks better",
+        "overlap": "Title overlap (percent)"
+      },
+      "changeColumns": {
+        "keyword": "Keyword",
+        "when": "When",
+        "from": "From page",
+        "to": "To page",
+        "rankBefore": "Rank before",
+        "rankAfter": "Rank after",
+        "held": "Held (days)",
+        "type": "Type",
+        "target": "Target page"
+      },
+      "switchKeywordColumns": {
+        "keyword": "Keyword",
+        "now": "Ranking page now",
+        "switches": "Switches",
+        "flipFlops": "Flip-flops",
+        "pages": "Pages",
+        "heldNow": "Held now (days)",
+        "longest": "Longest hold (days)"
+      }
+    },
+    "widths": {
+      "reset": "Reset column widths",
+      "separator": "Resize the {column} column",
+      "value": "{count} pixels wide"
+    },
+    "unknown": {
+      "rank": "Not ranked",
+      "page": "Not ranked",
+      "volume": "Not known",
+      "overlap": "Not known",
+      "gap": "Not known",
+      "target": "No target set"
     }
   },
   "fanout": {
