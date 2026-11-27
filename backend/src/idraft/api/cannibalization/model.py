@@ -13,21 +13,21 @@ from statistics import median
 
 from idraft.api.cannibalization.repository import KeywordSeries, UrlInfo
 from idraft.api.schemas.cannibalization import (
-    CheckRank,
+    CannCheck,
+    CannCheckRank,
+    CannCount,
+    CannKeyword,
+    CannPage,
+    CannPair,
+    CannPairPage,
+    CannStripCell,
+    CannWeek,
     ConflictHeadline,
-    Count,
     DeviceName,
-    KeywordCheck,
-    KeywordConflict,
-    PageFigures,
-    PagePair,
-    PairPage,
-    StripCell,
     SwitchEvent,
     SwitchHeadline,
     SwitchRow,
     VerdictCounts,
-    WeekBucket,
 )
 from idraft.ranks.cannibalization import MIN_CHECKS, Analysis, analyse
 
@@ -136,12 +136,12 @@ def switch_event(
     )
 
 
-def keyword_row(result: Result, urls: Mapping[int, UrlInfo], device: DeviceName) -> KeywordConflict:
+def keyword_row(result: Result, urls: Mapping[int, UrlInfo], device: DeviceName) -> CannKeyword:
     now, series = result.now, result.series
     letters = letters_of(now)
     target = series.target_url_id
     pages = [
-        PageFigures(
+        CannPage(
             url_id=str(s.page),
             url=_url(urls, s.page).url,
             path=_url(urls, s.page).path,
@@ -160,7 +160,7 @@ def keyword_row(result: Result, urls: Mapping[int, UrlInfo], device: DeviceName)
         )
         for s in now.pages
     ]
-    return KeywordConflict(
+    return CannKeyword(
         tracked_keyword_id=str(series.tracked_keyword_id),
         keyword=series.keyword,
         group_ids=[str(g) for g in series.group_ids],
@@ -190,7 +190,7 @@ def keyword_row(result: Result, urls: Mapping[int, UrlInfo], device: DeviceName)
         target_url_id=str(target) if target is not None else None,
         on_target=None if target is None or now.current is None else now.current == target,
         strip=[
-            StripCell(
+            CannStripCell(
                 date=_iso(c.day),
                 kind=c.kind,
                 url_id=str(c.page) if c.page is not None else None,
@@ -202,12 +202,12 @@ def keyword_row(result: Result, urls: Mapping[int, UrlInfo], device: DeviceName)
     )
 
 
-def keyword_checks(series: KeywordSeries, window: Window) -> list[KeywordCheck]:
+def keyword_checks(series: KeywordSeries, window: Window) -> list[CannCheck]:
     return [
-        KeywordCheck(
+        CannCheck(
             date=_iso(c.day),
             readable=c.readable,
-            ranks=[CheckRank(url_id=str(p), rank=r) for p, r in c.ranks],
+            ranks=[CannCheckRank(url_id=str(p), rank=r) for p, r in c.ranks],
             sub_results=[str(p) for p in c.grouped],
         )
         for c in series.checks
@@ -215,11 +215,11 @@ def keyword_checks(series: KeywordSeries, window: Window) -> list[KeywordCheck]:
     ]
 
 
-def _count(rows: Sequence[Result], before: Sequence[Analysis], pick: str | None) -> Count:
+def _count(rows: Sequence[Result], before: Sequence[Analysis], pick: str | None) -> CannCount:
     def hit(verdict: str) -> bool:
         return verdict in CONFLICTS if pick is None else verdict == pick
 
-    return Count(
+    return CannCount(
         value=sum(1 for r in rows if hit(r.now.verdict)),
         before=sum(1 for a in before if hit(a.verdict)) if before else None,
     )
@@ -256,9 +256,9 @@ def title_overlap(a: str | None, b: str | None) -> float | None:
     return both / (len(x) + len(y) - both)
 
 
-def _pair_page(urls: Mapping[int, UrlInfo], page: int) -> PairPage:
+def _pair_page(urls: Mapping[int, UrlInfo], page: int) -> CannPairPage:
     info = _url(urls, page)
-    return PairPage(url_id=str(page), url=info.url, path=info.path, title=info.title)
+    return CannPairPage(url_id=str(page), url=info.url, path=info.path, title=info.title)
 
 
 @dataclass(slots=True)
@@ -270,7 +270,7 @@ class _PairTotals:
     b_leads: int = 0
 
 
-def pair_rows(results: Sequence[Result], urls: Mapping[int, UrlInfo]) -> list[PagePair]:
+def pair_rows(results: Sequence[Result], urls: Mapping[int, UrlInfo]) -> list[CannPair]:
     """Pages that compete on several keywords, the level at which a conflict is fixed."""
     pairs: dict[tuple[int, int], _PairTotals] = {}
     for r in results:
@@ -289,7 +289,7 @@ def pair_rows(results: Sequence[Result], urls: Mapping[int, UrlInfo]) -> list[Pa
                 else:
                     totals.b_leads += 1
     items = [
-        PagePair(
+        CannPair(
             a=_pair_page(urls, a),
             b=_pair_page(urls, b),
             keywords=len(t.ids),
@@ -343,7 +343,7 @@ def switch_headline(results: Sequence[Result], rows: Sequence[SwitchRow]) -> Swi
     has_before = any(r.before is not None for r in results)
     return SwitchHeadline(
         ranked_keywords=sum(1 for r in results if r.now.ranked_checks >= MIN_CHECKS),
-        switches=Count(value=len(rows), before=before_events if has_before else None),
+        switches=CannCount(value=len(rows), before=before_events if has_before else None),
         keywords=len({s.tracked_keyword_id for s in rows}),
         flip_flop_keywords=len({s.tracked_keyword_id for s in rows if s.event.is_flip_flop}),
         left_target=sum(1 for s in rows if s.left_target),
@@ -353,7 +353,7 @@ def switch_headline(results: Sequence[Result], rows: Sequence[SwitchRow]) -> Swi
     )
 
 
-def weekly_switches(rows: Sequence[SwitchRow], window: Window) -> list[WeekBucket]:
+def weekly_switches(rows: Sequence[SwitchRow], window: Window) -> list[CannWeek]:
     """Switches per week of the period, by what the new page did to the rank."""
     weeks = math.ceil(window.days / 7)
     first = window.today - weeks * 7 + 1  # the first day of week 0
@@ -363,7 +363,7 @@ def weekly_switches(rows: Sequence[SwitchRow], window: Window) -> list[WeekBucke
         buckets[index][
             "improved" if s.rank_change > 0 else "dropped" if s.rank_change < 0 else "same"
         ] += 1
-    return [WeekBucket(starts_on=_iso(first + 7 * i), **bucket) for i, bucket in enumerate(buckets)]
+    return [CannWeek(starts_on=_iso(first + 7 * i), **bucket) for i, bucket in enumerate(buckets)]
 
 
 def switch_matches(row: SwitchRow, kind: str) -> bool:

@@ -22,7 +22,7 @@ SwitchKind = Literal["all", "flip_flop", "improved", "dropped", "left_target"]
 StripKindName = Literal["page", "none", "unreadable"]
 
 
-class Meta(BaseModel):
+class CannMeta(BaseModel):
     days: PeriodDays
     device: DeviceName
     method_version: int = METHOD_VERSION
@@ -35,7 +35,7 @@ class Meta(BaseModel):
     total: int = Field(description="Rows matching the filters, before `limit`.")
 
 
-class PageFigures(BaseModel):
+class CannPage(BaseModel):
     url_id: str
     url: str
     path: str
@@ -53,7 +53,7 @@ class PageFigures(BaseModel):
     last_rank: int
 
 
-class StripCell(BaseModel):
+class CannStripCell(BaseModel):
     date: date
     kind: StripKindName
     url_id: str | None
@@ -71,7 +71,7 @@ class SwitchEvent(BaseModel):
     is_flip_flop: bool
 
 
-class KeywordConflict(BaseModel):
+class CannKeyword(BaseModel):
     tracked_keyword_id: str
     keyword: str
     group_ids: list[str]
@@ -82,7 +82,7 @@ class KeywordConflict(BaseModel):
     checks: int
     unreadable_checks: int
     ranked_checks: int
-    pages: list[PageFigures]
+    pages: list[CannPage]
     rank_gap: float
     switch_rate: float
     together_rate: float
@@ -97,20 +97,20 @@ class KeywordConflict(BaseModel):
     on_target: bool | None = Field(
         description="Null when no target page is set or no page ranks now."
     )
-    strip: list[StripCell]
+    strip: list[CannStripCell]
 
 
-class Count(BaseModel):
+class CannCount(BaseModel):
     value: int
     before: int | None
 
 
 class ConflictHeadline(BaseModel):
     ranked_keywords: int
-    conflicts: Count
-    likely: Count
-    together: Count
-    unstable: Count
+    conflicts: CannCount
+    likely: CannCount
+    together: CannCount
+    unstable: CannCount
     volume_at_risk: int
     volume_keywords: int
     typical_rank_gap: float | None
@@ -128,26 +128,26 @@ class VerdictCounts(BaseModel):
 
 
 class ConflictList(BaseModel):
-    meta: Meta
+    meta: CannMeta
     headline: ConflictHeadline
     counts: VerdictCounts
-    items: list[KeywordConflict]
+    items: list[CannKeyword]
 
 
 class ConflictListResponse(BaseModel):
     data: ConflictList
 
 
-class PairPage(BaseModel):
+class CannPairPage(BaseModel):
     url_id: str
     url: str
     path: str
     title: str | None
 
 
-class PagePair(BaseModel):
-    a: PairPage
-    b: PairPage
+class CannPair(BaseModel):
+    a: CannPairPage
+    b: CannPairPage
     keywords: int
     likely: int
     volume: int
@@ -158,8 +158,8 @@ class PagePair(BaseModel):
 
 
 class PairList(BaseModel):
-    meta: Meta
-    items: list[PagePair]
+    meta: CannMeta
+    items: list[CannPair]
 
 
 class PairListResponse(BaseModel):
@@ -181,7 +181,7 @@ class SwitchRow(BaseModel):
 
 class SwitchHeadline(BaseModel):
     ranked_keywords: int
-    switches: Count
+    switches: CannCount
     keywords: int
     flip_flop_keywords: int
     left_target: int
@@ -190,7 +190,7 @@ class SwitchHeadline(BaseModel):
     one_check_changes: int
 
 
-class WeekBucket(BaseModel):
+class CannWeek(BaseModel):
     starts_on: date
     improved: int
     same: int
@@ -198,9 +198,9 @@ class WeekBucket(BaseModel):
 
 
 class SwitchList(BaseModel):
-    meta: Meta
+    meta: CannMeta
     headline: SwitchHeadline
-    weeks: list[WeekBucket]
+    weeks: list[CannWeek]
     items: list[SwitchRow]
 
 
@@ -208,31 +208,31 @@ class SwitchListResponse(BaseModel):
     data: SwitchList
 
 
-class CheckRank(BaseModel):
+class CannCheckRank(BaseModel):
     url_id: str
     rank: int
 
 
-class KeywordCheck(BaseModel):
+class CannCheck(BaseModel):
     date: date
     readable: bool
-    ranks: list[CheckRank]
+    ranks: list[CannCheckRank]
     sub_results: list[str]
 
 
-class UrlRef(BaseModel):
+class CannUrl(BaseModel):
     url_id: str
     url: str
     path: str
     title: str | None
 
 
-class KeywordDetail(BaseModel):
-    meta: Meta
-    keyword: KeywordConflict
-    urls: list[UrlRef]
-    checks: list[KeywordCheck]
+class CannKeywordDetail(BaseModel):
+    meta: CannMeta
+    keyword: CannKeyword
+    urls: list[CannUrl]
+    checks: list[CannCheck]
 
 
-class KeywordDetailResponse(BaseModel):
-    data: KeywordDetail
+class CannKeywordDetailResponse(BaseModel):
+    data: CannKeywordDetail

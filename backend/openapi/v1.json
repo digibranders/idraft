@@ -1829,7 +1829,7 @@
           "cited_urls": {
             "description": "What the AI Overview cites, in order.",
             "items": {
-              "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+              "$ref": "#/components/schemas/UrlRef"
             },
             "title": "Cited Urls",
             "type": "array"
@@ -3859,6 +3859,698 @@
         "title": "BulkUpdateResult",
         "type": "object"
       },
+      "CannCheck": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "ranks": {
+            "items": {
+              "$ref": "#/components/schemas/CannCheckRank"
+            },
+            "title": "Ranks",
+            "type": "array"
+          },
+          "readable": {
+            "title": "Readable",
+            "type": "boolean"
+          },
+          "sub_results": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sub Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "readable",
+          "ranks",
+          "sub_results"
+        ],
+        "title": "CannCheck",
+        "type": "object"
+      },
+      "CannCheckRank": {
+        "properties": {
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "rank"
+        ],
+        "title": "CannCheckRank",
+        "type": "object"
+      },
+      "CannCount": {
+        "properties": {
+          "before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value",
+          "before"
+        ],
+        "title": "CannCount",
+        "type": "object"
+      },
+      "CannKeyword": {
+        "properties": {
+          "checks": {
+            "title": "Checks",
+            "type": "integer"
+          },
+          "current_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Rank"
+          },
+          "current_url_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Url Id"
+          },
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "flip_flops": {
+            "title": "Flip Flops",
+            "type": "integer"
+          },
+          "group_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Group Ids",
+            "type": "array"
+          },
+          "held_now_days": {
+            "title": "Held Now Days",
+            "type": "integer"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "longest_hold_days": {
+            "title": "Longest Hold Days",
+            "type": "integer"
+          },
+          "on_target": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when no target page is set or no page ranks now.",
+            "title": "On Target"
+          },
+          "one_check_changes": {
+            "title": "One Check Changes",
+            "type": "integer"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/CannPage"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "previous_verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "likely",
+                  "co_ranking",
+                  "unstable",
+                  "none",
+                  "unranked",
+                  "insufficient"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Verdict"
+          },
+          "rank_gap": {
+            "title": "Rank Gap",
+            "type": "number"
+          },
+          "ranked_checks": {
+            "title": "Ranked Checks",
+            "type": "integer"
+          },
+          "strip": {
+            "items": {
+              "$ref": "#/components/schemas/CannStripCell"
+            },
+            "title": "Strip",
+            "type": "array"
+          },
+          "switch_rate": {
+            "title": "Switch Rate",
+            "type": "number"
+          },
+          "switches": {
+            "items": {
+              "$ref": "#/components/schemas/SwitchEvent"
+            },
+            "title": "Switches",
+            "type": "array"
+          },
+          "target_url_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url Id"
+          },
+          "together_rate": {
+            "title": "Together Rate",
+            "type": "number"
+          },
+          "tracked_keyword_id": {
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "unreadable_checks": {
+            "title": "Unreadable Checks",
+            "type": "integer"
+          },
+          "verdict": {
+            "enum": [
+              "likely",
+              "co_ranking",
+              "unstable",
+              "none",
+              "unranked",
+              "insufficient"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "keyword",
+          "group_ids",
+          "device",
+          "volume",
+          "verdict",
+          "previous_verdict",
+          "checks",
+          "unreadable_checks",
+          "ranked_checks",
+          "pages",
+          "rank_gap",
+          "switch_rate",
+          "together_rate",
+          "switches",
+          "one_check_changes",
+          "flip_flops",
+          "longest_hold_days",
+          "held_now_days",
+          "current_url_id",
+          "current_rank",
+          "target_url_id",
+          "on_target",
+          "strip"
+        ],
+        "title": "CannKeyword",
+        "type": "object"
+      },
+      "CannKeywordDetail": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/CannCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "keyword": {
+            "$ref": "#/components/schemas/CannKeyword"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/CannMeta"
+          },
+          "urls": {
+            "items": {
+              "$ref": "#/components/schemas/CannUrl"
+            },
+            "title": "Urls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "keyword",
+          "urls",
+          "checks"
+        ],
+        "title": "CannKeywordDetail",
+        "type": "object"
+      },
+      "CannKeywordDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CannKeywordDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "CannKeywordDetailResponse",
+        "type": "object"
+      },
+      "CannMeta": {
+        "properties": {
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "days": {
+            "enum": [
+              14,
+              30,
+              90
+            ],
+            "title": "Days",
+            "type": "integer"
+          },
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "has_previous": {
+            "description": "True when at least one keyword has enough checks in the period before.",
+            "title": "Has Previous",
+            "type": "boolean"
+          },
+          "method_version": {
+            "default": 2,
+            "title": "Method Version",
+            "type": "integer"
+          },
+          "min_checks": {
+            "default": 10,
+            "title": "Min Checks",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Rows matching the filters, before `limit`.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "device",
+          "date_from",
+          "date_to",
+          "has_previous",
+          "total"
+        ],
+        "title": "CannMeta",
+        "type": "object"
+      },
+      "CannPage": {
+        "properties": {
+          "best_count": {
+            "title": "Best Count",
+            "type": "integer"
+          },
+          "best_ever": {
+            "title": "Best Ever",
+            "type": "integer"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "is_sub_result": {
+            "description": "Was nested under another own result on some checks.",
+            "title": "Is Sub Result",
+            "type": "boolean"
+          },
+          "is_target": {
+            "title": "Is Target",
+            "type": "boolean"
+          },
+          "last_date": {
+            "format": "date",
+            "title": "Last Date",
+            "type": "string"
+          },
+          "last_rank": {
+            "title": "Last Rank",
+            "type": "integer"
+          },
+          "letter": {
+            "description": "A is the page to compare with; B to F follow; + for more.",
+            "title": "Letter",
+            "type": "string"
+          },
+          "median": {
+            "title": "Median",
+            "type": "number"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "ranked": {
+            "title": "Ranked",
+            "type": "integer"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "letter",
+          "is_primary",
+          "is_target",
+          "is_sub_result",
+          "ranked",
+          "share",
+          "best_count",
+          "median",
+          "best_ever",
+          "last_date",
+          "last_rank"
+        ],
+        "title": "CannPage",
+        "type": "object"
+      },
+      "CannPair": {
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/CannPairPage"
+          },
+          "a_leads": {
+            "title": "A Leads",
+            "type": "integer"
+          },
+          "b": {
+            "$ref": "#/components/schemas/CannPairPage"
+          },
+          "b_leads": {
+            "title": "B Leads",
+            "type": "integer"
+          },
+          "keywords": {
+            "title": "Keywords",
+            "type": "integer"
+          },
+          "likely": {
+            "title": "Likely",
+            "type": "integer"
+          },
+          "title_overlap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Overlap"
+          },
+          "tracked_keyword_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tracked Keyword Ids",
+            "type": "array"
+          },
+          "volume": {
+            "title": "Volume",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "keywords",
+          "likely",
+          "volume",
+          "a_leads",
+          "b_leads",
+          "title_overlap",
+          "tracked_keyword_ids"
+        ],
+        "title": "CannPair",
+        "type": "object"
+      },
+      "CannPairPage": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title"
+        ],
+        "title": "CannPairPage",
+        "type": "object"
+      },
+      "CannStripCell": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "page",
+              "none",
+              "unreadable"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "together": {
+            "title": "Together",
+            "type": "boolean"
+          },
+          "url_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Id"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "url_id",
+          "rank",
+          "together"
+        ],
+        "title": "CannStripCell",
+        "type": "object"
+      },
+      "CannUrl": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title"
+        ],
+        "title": "CannUrl",
+        "type": "object"
+      },
+      "CannWeek": {
+        "properties": {
+          "dropped": {
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "improved": {
+            "title": "Improved",
+            "type": "integer"
+          },
+          "same": {
+            "title": "Same",
+            "type": "integer"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_on",
+          "improved",
+          "same",
+          "dropped"
+        ],
+        "title": "CannWeek",
+        "type": "object"
+      },
       "CardItem": {
         "additionalProperties": false,
         "properties": {
@@ -4316,24 +5008,6 @@
           "tracked_keyword_ids"
         ],
         "title": "CheckNow",
-        "type": "object"
-      },
-      "CheckRank": {
-        "properties": {
-          "rank": {
-            "title": "Rank",
-            "type": "integer"
-          },
-          "url_id": {
-            "title": "Url Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url_id",
-          "rank"
-        ],
-        "title": "CheckRank",
         "type": "object"
       },
       "CitationCounts": {
@@ -5972,7 +6646,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -6012,17 +6686,17 @@
       "ConflictHeadline": {
         "properties": {
           "conflicts": {
-            "$ref": "#/components/schemas/Count"
+            "$ref": "#/components/schemas/CannCount"
           },
           "likely": {
-            "$ref": "#/components/schemas/Count"
+            "$ref": "#/components/schemas/CannCount"
           },
           "ranked_keywords": {
             "title": "Ranked Keywords",
             "type": "integer"
           },
           "together": {
-            "$ref": "#/components/schemas/Count"
+            "$ref": "#/components/schemas/CannCount"
           },
           "typical_rank_gap": {
             "anyOf": [
@@ -6036,7 +6710,7 @@
             "title": "Typical Rank Gap"
           },
           "unstable": {
-            "$ref": "#/components/schemas/Count"
+            "$ref": "#/components/schemas/CannCount"
           },
           "volume_at_risk": {
             "title": "Volume At Risk",
@@ -6070,13 +6744,13 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/KeywordConflict"
+              "$ref": "#/components/schemas/CannKeyword"
             },
             "title": "Items",
             "type": "array"
           },
           "meta": {
-            "$ref": "#/components/schemas/Meta"
+            "$ref": "#/components/schemas/CannMeta"
           }
         },
         "required": [
@@ -6404,31 +7078,6 @@
         ],
         "title": "CostWorkload",
         "type": "string"
-      },
-      "Count": {
-        "properties": {
-          "before": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Before"
-          },
-          "value": {
-            "title": "Value",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "value",
-          "before"
-        ],
-        "title": "Count",
-        "type": "object"
       },
       "CountrySummary": {
         "properties": {
@@ -11159,24 +11808,22 @@
         "title": "Keyword",
         "type": "object"
       },
-      "KeywordConflict": {
+      "KeywordCheck": {
+        "description": "Where the keyword's latest rank check stands, whoever asked for it (a person with Check\nnow, or a schedule). `queued` and `processing` are pending: a second Check now is refused\nwith `409 check_pending` until the check ends.",
         "properties": {
-          "checks": {
-            "title": "Checks",
-            "type": "integer"
-          },
-          "current_rank": {
+          "finished_at": {
             "anyOf": [
               {
-                "type": "integer"
+                "format": "date-time",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Current Rank"
+            "title": "Finished At"
           },
-          "current_url_id": {
+          "reason": {
             "anyOf": [
               {
                 "type": "string"
@@ -11185,181 +11832,105 @@
                 "type": "null"
               }
             ],
-            "title": "Current Url Id"
+            "description": "A failed check's error code, or why a check was inconclusive (`unattributed_results`, `no_own_entity`).",
+            "title": "Reason"
           },
-          "device": {
+          "requested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested At"
+          },
+          "status": {
+            "description": "`idle`: nothing recent. `queued`: asked for, not yet sent to the provider. `processing`: sent, answer not yet read. `completed`: the answer moved the rank. `inconclusive`: the answer was kept but cannot say if the site is absent, so the rank did not move. `failed`: the provider gave no usable answer.",
             "enum": [
-              "desktop",
-              "mobile"
+              "idle",
+              "queued",
+              "processing",
+              "completed",
+              "inconclusive",
+              "failed"
             ],
-            "title": "Device",
+            "title": "Status",
             "type": "string"
-          },
-          "flip_flops": {
-            "title": "Flip Flops",
-            "type": "integer"
-          },
-          "group_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Group Ids",
-            "type": "array"
-          },
-          "held_now_days": {
-            "title": "Held Now Days",
-            "type": "integer"
-          },
-          "keyword": {
-            "title": "Keyword",
-            "type": "string"
-          },
-          "longest_hold_days": {
-            "title": "Longest Hold Days",
-            "type": "integer"
-          },
-          "on_target": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Null when no target page is set or no page ranks now.",
-            "title": "On Target"
-          },
-          "one_check_changes": {
-            "title": "One Check Changes",
-            "type": "integer"
-          },
-          "pages": {
-            "items": {
-              "$ref": "#/components/schemas/PageFigures"
-            },
-            "title": "Pages",
-            "type": "array"
-          },
-          "previous_verdict": {
-            "anyOf": [
-              {
-                "enum": [
-                  "likely",
-                  "co_ranking",
-                  "unstable",
-                  "none",
-                  "unranked",
-                  "insufficient"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Previous Verdict"
-          },
-          "rank_gap": {
-            "title": "Rank Gap",
-            "type": "number"
-          },
-          "ranked_checks": {
-            "title": "Ranked Checks",
-            "type": "integer"
-          },
-          "strip": {
-            "items": {
-              "$ref": "#/components/schemas/StripCell"
-            },
-            "title": "Strip",
-            "type": "array"
-          },
-          "switch_rate": {
-            "title": "Switch Rate",
-            "type": "number"
-          },
-          "switches": {
-            "items": {
-              "$ref": "#/components/schemas/SwitchEvent"
-            },
-            "title": "Switches",
-            "type": "array"
-          },
-          "target_url_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Url Id"
-          },
-          "together_rate": {
-            "title": "Together Rate",
-            "type": "number"
-          },
-          "tracked_keyword_id": {
-            "title": "Tracked Keyword Id",
-            "type": "string"
-          },
-          "unreadable_checks": {
-            "title": "Unreadable Checks",
-            "type": "integer"
-          },
-          "verdict": {
-            "enum": [
-              "likely",
-              "co_ranking",
-              "unstable",
-              "none",
-              "unranked",
-              "insufficient"
-            ],
-            "title": "Verdict",
-            "type": "string"
-          },
-          "volume": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Volume"
           }
         },
         "required": [
-          "tracked_keyword_id",
-          "keyword",
-          "group_ids",
-          "device",
-          "volume",
-          "verdict",
-          "previous_verdict",
-          "checks",
-          "unreadable_checks",
-          "ranked_checks",
-          "pages",
-          "rank_gap",
-          "switch_rate",
-          "together_rate",
-          "switches",
-          "one_check_changes",
-          "flip_flops",
-          "longest_hold_days",
-          "held_now_days",
-          "current_url_id",
-          "current_rank",
-          "target_url_id",
-          "on_target",
-          "strip"
+          "status"
         ],
-        "title": "KeywordConflict",
+        "title": "KeywordCheck",
+        "type": "object"
+      },
+      "KeywordDetail": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "keyword_id": {
+            "format": "uuid",
+            "title": "Keyword Id",
+            "type": "string"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "metrics": {
+            "description": "Current metrics per location and source.",
+            "items": {
+              "$ref": "#/components/schemas/KeywordMetrics"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "normalized_text": {
+            "title": "Normalized Text",
+            "type": "string"
+          },
+          "text": {
+            "description": "As first entered: what the provider receives.",
+            "title": "Text",
+            "type": "string"
+          },
+          "tracked": {
+            "description": "Tracked variants the caller can see.",
+            "items": {
+              "$ref": "#/components/schemas/TrackedVariant"
+            },
+            "title": "Tracked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keyword_id",
+          "text",
+          "normalized_text",
+          "language_code",
+          "created_at",
+          "metrics",
+          "tracked"
+        ],
+        "title": "KeywordDetail",
+        "type": "object"
+      },
+      "KeywordDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeywordDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordDetailResponse",
         "type": "object"
       },
       "KeywordGroup": {
@@ -13396,67 +13967,6 @@
           "evidence_spans"
         ],
         "title": "MentionOut",
-        "type": "object"
-      },
-      "Meta": {
-        "properties": {
-          "date_from": {
-            "format": "date",
-            "title": "Date From",
-            "type": "string"
-          },
-          "date_to": {
-            "format": "date",
-            "title": "Date To",
-            "type": "string"
-          },
-          "days": {
-            "enum": [
-              14,
-              30,
-              90
-            ],
-            "title": "Days",
-            "type": "integer"
-          },
-          "device": {
-            "enum": [
-              "desktop",
-              "mobile"
-            ],
-            "title": "Device",
-            "type": "string"
-          },
-          "has_previous": {
-            "description": "True when at least one keyword has enough checks in the period before.",
-            "title": "Has Previous",
-            "type": "boolean"
-          },
-          "method_version": {
-            "default": 2,
-            "title": "Method Version",
-            "type": "integer"
-          },
-          "min_checks": {
-            "default": 10,
-            "title": "Min Checks",
-            "type": "integer"
-          },
-          "total": {
-            "description": "Rows matching the filters, before `limit`.",
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "days",
-          "device",
-          "date_from",
-          "date_to",
-          "has_previous",
-          "total"
-        ],
-        "title": "Meta",
         "type": "object"
       },
       "MetricCell": {
@@ -15907,99 +16417,6 @@
         "title": "PageExtras",
         "type": "object"
       },
-      "PageFigures": {
-        "properties": {
-          "best_count": {
-            "title": "Best Count",
-            "type": "integer"
-          },
-          "best_ever": {
-            "title": "Best Ever",
-            "type": "integer"
-          },
-          "is_primary": {
-            "title": "Is Primary",
-            "type": "boolean"
-          },
-          "is_sub_result": {
-            "description": "Was nested under another own result on some checks.",
-            "title": "Is Sub Result",
-            "type": "boolean"
-          },
-          "is_target": {
-            "title": "Is Target",
-            "type": "boolean"
-          },
-          "last_date": {
-            "format": "date",
-            "title": "Last Date",
-            "type": "string"
-          },
-          "last_rank": {
-            "title": "Last Rank",
-            "type": "integer"
-          },
-          "letter": {
-            "description": "A is the page to compare with; B to F follow; + for more.",
-            "title": "Letter",
-            "type": "string"
-          },
-          "median": {
-            "title": "Median",
-            "type": "number"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "ranked": {
-            "title": "Ranked",
-            "type": "integer"
-          },
-          "share": {
-            "title": "Share",
-            "type": "number"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "url": {
-            "title": "Url",
-            "type": "string"
-          },
-          "url_id": {
-            "title": "Url Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url_id",
-          "url",
-          "path",
-          "title",
-          "letter",
-          "is_primary",
-          "is_target",
-          "is_sub_result",
-          "ranked",
-          "share",
-          "best_count",
-          "median",
-          "best_ever",
-          "last_date",
-          "last_rank"
-        ],
-        "title": "PageFigures",
-        "type": "object"
-      },
       "PageFilter": {
         "additionalProperties": false,
         "description": "The Pages list's filters as a bulk body (`run` is always the latest crawl).",
@@ -16141,67 +16558,6 @@
           }
         },
         "title": "PageFilter",
-        "type": "object"
-      },
-      "PagePair": {
-        "properties": {
-          "a": {
-            "$ref": "#/components/schemas/PairPage"
-          },
-          "a_leads": {
-            "title": "A Leads",
-            "type": "integer"
-          },
-          "b": {
-            "$ref": "#/components/schemas/PairPage"
-          },
-          "b_leads": {
-            "title": "B Leads",
-            "type": "integer"
-          },
-          "keywords": {
-            "title": "Keywords",
-            "type": "integer"
-          },
-          "likely": {
-            "title": "Likely",
-            "type": "integer"
-          },
-          "title_overlap": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title Overlap"
-          },
-          "tracked_keyword_ids": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Tracked Keyword Ids",
-            "type": "array"
-          },
-          "volume": {
-            "title": "Volume",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "a",
-          "b",
-          "keywords",
-          "likely",
-          "volume",
-          "a_leads",
-          "b_leads",
-          "title_overlap",
-          "tracked_keyword_ids"
-        ],
-        "title": "PagePair",
         "type": "object"
       },
       "PageRow": {
@@ -16822,13 +17178,13 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/PagePair"
+              "$ref": "#/components/schemas/CannPair"
             },
             "title": "Items",
             "type": "array"
           },
           "meta": {
-            "$ref": "#/components/schemas/Meta"
+            "$ref": "#/components/schemas/CannMeta"
           }
         },
         "required": [
@@ -16848,41 +17204,6 @@
           "data"
         ],
         "title": "PairListResponse",
-        "type": "object"
-      },
-      "PairPage": {
-        "properties": {
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "url": {
-            "title": "Url",
-            "type": "string"
-          },
-          "url_id": {
-            "title": "Url Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url_id",
-          "url",
-          "path",
-          "title"
-        ],
-        "title": "PairPage",
         "type": "object"
       },
       "PasswordChangeRequest": {
@@ -19866,7 +20187,7 @@
           "url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -19980,7 +20301,7 @@
           "from_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -20028,7 +20349,7 @@
           "to_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -20152,7 +20473,7 @@
           },
           "urls": {
             "additionalProperties": {
-              "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+              "$ref": "#/components/schemas/UrlRef"
             },
             "title": "Urls",
             "type": "object"
@@ -20208,7 +20529,7 @@
             "type": "boolean"
           },
           "url": {
-            "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+            "$ref": "#/components/schemas/UrlRef"
           }
         },
         "required": [
@@ -22936,7 +23257,7 @@
           },
           "source_urls": {
             "items": {
-              "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+              "$ref": "#/components/schemas/UrlRef"
             },
             "title": "Source Urls",
             "type": "array"
@@ -23008,7 +23329,7 @@
             "title": "Title"
           },
           "url": {
-            "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+            "$ref": "#/components/schemas/UrlRef"
           }
         },
         "required": [
@@ -23124,7 +23445,7 @@
             "title": "Title"
           },
           "url": {
-            "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+            "$ref": "#/components/schemas/UrlRef"
           }
         },
         "required": [
@@ -24803,59 +25124,6 @@
         "title": "SparklinePoint",
         "type": "object"
       },
-      "StripCell": {
-        "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "page",
-              "none",
-              "unreadable"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "rank": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rank"
-          },
-          "together": {
-            "title": "Together",
-            "type": "boolean"
-          },
-          "url_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Url Id"
-          }
-        },
-        "required": [
-          "date",
-          "kind",
-          "url_id",
-          "rank",
-          "together"
-        ],
-        "title": "StripCell",
-        "type": "object"
-      },
       "SuggestionReason": {
         "properties": {
           "clicks": {
@@ -25373,7 +25641,7 @@
             "type": "integer"
           },
           "switches": {
-            "$ref": "#/components/schemas/Count"
+            "$ref": "#/components/schemas/CannCount"
           }
         },
         "required": [
@@ -25402,11 +25670,11 @@
             "type": "array"
           },
           "meta": {
-            "$ref": "#/components/schemas/Meta"
+            "$ref": "#/components/schemas/CannMeta"
           },
           "weeks": {
             "items": {
-              "$ref": "#/components/schemas/WeekBucket"
+              "$ref": "#/components/schemas/CannWeek"
             },
             "title": "Weeks",
             "type": "array"
@@ -27034,7 +27302,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -27796,7 +28064,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -28777,7 +29045,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
+                "$ref": "#/components/schemas/UrlRef"
               },
               {
                 "type": "null"
@@ -28873,7 +29141,7 @@
             "$ref": "#/components/schemas/RankChange"
           },
           "check": {
-            "$ref": "#/components/schemas/idraft__api__schemas__keywords__KeywordCheck"
+            "$ref": "#/components/schemas/KeywordCheck"
           },
           "consecutive_failures": {
             "title": "Consecutive Failures",
@@ -29183,6 +29451,39 @@
           "ai_answers_by_engine"
         ],
         "title": "UnitCostRow",
+        "type": "object"
+      },
+      "UrlRef": {
+        "properties": {
+          "canonical_url": {
+            "title": "Canonical Url",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "canonical_url",
+          "host",
+          "registrable_domain",
+          "path"
+        ],
+        "title": "UrlRef",
         "type": "object"
       },
       "UserRef": {
@@ -29498,35 +29799,6 @@
           }
         },
         "title": "VocabularyUpdate",
-        "type": "object"
-      },
-      "WeekBucket": {
-        "properties": {
-          "dropped": {
-            "title": "Dropped",
-            "type": "integer"
-          },
-          "improved": {
-            "title": "Improved",
-            "type": "integer"
-          },
-          "same": {
-            "title": "Same",
-            "type": "integer"
-          },
-          "starts_on": {
-            "format": "date",
-            "title": "Starts On",
-            "type": "string"
-          }
-        },
-        "required": [
-          "starts_on",
-          "improved",
-          "same",
-          "dropped"
-        ],
-        "title": "WeekBucket",
         "type": "object"
       },
       "WeekCells": {
@@ -29876,278 +30148,6 @@
           }
         },
         "title": "WorkspaceUpdate",
-        "type": "object"
-      },
-      "idraft__api__schemas__cannibalization__KeywordCheck": {
-        "properties": {
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "ranks": {
-            "items": {
-              "$ref": "#/components/schemas/CheckRank"
-            },
-            "title": "Ranks",
-            "type": "array"
-          },
-          "readable": {
-            "title": "Readable",
-            "type": "boolean"
-          },
-          "sub_results": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Sub Results",
-            "type": "array"
-          }
-        },
-        "required": [
-          "date",
-          "readable",
-          "ranks",
-          "sub_results"
-        ],
-        "title": "KeywordCheck",
-        "type": "object"
-      },
-      "idraft__api__schemas__cannibalization__KeywordDetail": {
-        "properties": {
-          "checks": {
-            "items": {
-              "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__KeywordCheck"
-            },
-            "title": "Checks",
-            "type": "array"
-          },
-          "keyword": {
-            "$ref": "#/components/schemas/KeywordConflict"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/Meta"
-          },
-          "urls": {
-            "items": {
-              "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__UrlRef"
-            },
-            "title": "Urls",
-            "type": "array"
-          }
-        },
-        "required": [
-          "meta",
-          "keyword",
-          "urls",
-          "checks"
-        ],
-        "title": "KeywordDetail",
-        "type": "object"
-      },
-      "idraft__api__schemas__cannibalization__KeywordDetailResponse": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__KeywordDetail"
-          }
-        },
-        "required": [
-          "data"
-        ],
-        "title": "KeywordDetailResponse",
-        "type": "object"
-      },
-      "idraft__api__schemas__cannibalization__UrlRef": {
-        "properties": {
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "url": {
-            "title": "Url",
-            "type": "string"
-          },
-          "url_id": {
-            "title": "Url Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url_id",
-          "url",
-          "path",
-          "title"
-        ],
-        "title": "UrlRef",
-        "type": "object"
-      },
-      "idraft__api__schemas__keywords__KeywordCheck": {
-        "description": "Where the keyword's latest rank check stands, whoever asked for it (a person with Check\nnow, or a schedule). `queued` and `processing` are pending: a second Check now is refused\nwith `409 check_pending` until the check ends.",
-        "properties": {
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "A failed check's error code, or why a check was inconclusive (`unattributed_results`, `no_own_entity`).",
-            "title": "Reason"
-          },
-          "requested_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Requested At"
-          },
-          "status": {
-            "description": "`idle`: nothing recent. `queued`: asked for, not yet sent to the provider. `processing`: sent, answer not yet read. `completed`: the answer moved the rank. `inconclusive`: the answer was kept but cannot say if the site is absent, so the rank did not move. `failed`: the provider gave no usable answer.",
-            "enum": [
-              "idle",
-              "queued",
-              "processing",
-              "completed",
-              "inconclusive",
-              "failed"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "KeywordCheck",
-        "type": "object"
-      },
-      "idraft__api__schemas__keywords__KeywordDetail": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "keyword_id": {
-            "format": "uuid",
-            "title": "Keyword Id",
-            "type": "string"
-          },
-          "language_code": {
-            "title": "Language Code",
-            "type": "string"
-          },
-          "metrics": {
-            "description": "Current metrics per location and source.",
-            "items": {
-              "$ref": "#/components/schemas/KeywordMetrics"
-            },
-            "title": "Metrics",
-            "type": "array"
-          },
-          "normalized_text": {
-            "title": "Normalized Text",
-            "type": "string"
-          },
-          "text": {
-            "description": "As first entered: what the provider receives.",
-            "title": "Text",
-            "type": "string"
-          },
-          "tracked": {
-            "description": "Tracked variants the caller can see.",
-            "items": {
-              "$ref": "#/components/schemas/TrackedVariant"
-            },
-            "title": "Tracked",
-            "type": "array"
-          }
-        },
-        "required": [
-          "keyword_id",
-          "text",
-          "normalized_text",
-          "language_code",
-          "created_at",
-          "metrics",
-          "tracked"
-        ],
-        "title": "KeywordDetail",
-        "type": "object"
-      },
-      "idraft__api__schemas__keywords__KeywordDetailResponse": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/idraft__api__schemas__keywords__KeywordDetail"
-          }
-        },
-        "required": [
-          "data"
-        ],
-        "title": "KeywordDetailResponse",
-        "type": "object"
-      },
-      "idraft__api__schemas__keywords__UrlRef": {
-        "properties": {
-          "canonical_url": {
-            "title": "Canonical Url",
-            "type": "string"
-          },
-          "host": {
-            "title": "Host",
-            "type": "string"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "registrable_domain": {
-            "title": "Registrable Domain",
-            "type": "string"
-          },
-          "url_id": {
-            "title": "Url Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url_id",
-          "canonical_url",
-          "host",
-          "registrable_domain",
-          "path"
-        ],
-        "title": "UrlRef",
         "type": "object"
       }
     }
@@ -33546,7 +33546,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/idraft__api__schemas__keywords__KeywordDetailResponse"
+                  "$ref": "#/components/schemas/KeywordDetailResponse"
                 }
               }
             },
@@ -41112,7 +41112,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__KeywordDetailResponse"
+                  "$ref": "#/components/schemas/CannKeywordDetailResponse"
                 }
               }
             },

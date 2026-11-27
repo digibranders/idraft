@@ -12,9 +12,9 @@ from idraft.api.cannibalization.service import ROWS_MAX, CannibalizationService
 from idraft.api.permissions import Permission
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.cannibalization import (
+    CannKeywordDetailResponse,
     ConflictListResponse,
     DeviceName,
-    KeywordDetailResponse,
     PairListResponse,
     SwitchKind,
     SwitchListResponse,
@@ -121,8 +121,8 @@ async def keyword(
     service: Service,
     device: Device = "desktop",
     days: Days = "30",
-) -> KeywordDetailResponse:
+) -> CannKeywordDetailResponse:
     found = await service.keyword(
         access, project_id, tracked_keyword_id, device=device, days=int(days)
     )
-    return KeywordDetailResponse(data=found)
+    return CannKeywordDetailResponse(data=found)

@@ -17,13 +17,13 @@ from idraft.api.cannibalization import model
 from idraft.api.cannibalization.repository import KeywordSeries, UrlInfo, load_series
 from idraft.api.problems import NotFoundError
 from idraft.api.schemas.cannibalization import (
+    CannKeywordDetail,
+    CannMeta,
+    CannUrl,
     ConflictList,
     DeviceName,
-    KeywordDetail,
-    Meta,
     PairList,
     SwitchList,
-    UrlRef,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.db.engine import workspace_transaction
@@ -83,8 +83,8 @@ class CannibalizationService:
     @staticmethod
     def _meta(
         window: model.Window, device: DeviceName, results: list[model.Result], total: int
-    ) -> Meta:
-        return Meta(
+    ) -> CannMeta:
+        return CannMeta(
             days=window.days,
             device=device,
             date_from=date.fromordinal(window.start + 1),
@@ -168,7 +168,7 @@ class CannibalizationService:
         device: DeviceName,
         days: int,
         today: date | None = None,
-    ) -> KeywordDetail:
+    ) -> CannKeywordDetail:
         async with self._transaction(access) as db:
             window, results, urls = await self._load(
                 db,
@@ -187,11 +187,11 @@ class CannibalizationService:
         row = model.keyword_row(result, urls, device)
         named = {int(rank.url_id) for check in checks for rank in check.ranks}
         named |= {int(page.url_id) for page in row.pages}
-        return KeywordDetail(
+        return CannKeywordDetail(
             meta=self._meta(window, device, results, 1),
             keyword=row,
             urls=[
-                UrlRef(
+                CannUrl(
                     url_id=str(page),
                     url=urls[page].url,
                     path=urls[page].path,
