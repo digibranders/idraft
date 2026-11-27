@@ -168,3 +168,96 @@ async def test_a_relink_whose_recount_does_not_run_does_not_stamp_the_version(
         await relink_crawl(worker_db, store, workspace_id=crawled.task.workspace_id, run_id=run_id)
 
     assert (await _run(migrated, run_id))["html_reader_version"] == 1
+
+
+async def test_a_relink_whose_second_job_fails_does_not_stamp_the_version(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    on_page = synthetic_site()
+    store = MemoryStore()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    await _ingest(worker_db, on_page, store, crawled.task)
+    run_id = crawled.task.run_id
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET enrich_state = 'done', html_reader_version = 1 WHERE id = $1",
+        run_id,
+    )
+
+    async def broken(*args: object, **kwargs: object) -> None:
+        raise RelinkError("the second job ended as failed")
+
+    monkeypatch.setattr(crawl_relink, "_enrich_again", broken)
+    with pytest.raises(RelinkError):
+        await relink_crawl(worker_db, store, workspace_id=crawled.task.workspace_id, run_id=run_id)
+
+    assert (await _run(migrated, run_id))["html_reader_version"] == 1
+
+
+async def test_a_relink_of_a_crawl_with_no_html_page_keeps_it_without_a_version(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = synthetic_site()
+    on_page.html = {}
+    store = MemoryStore()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    await _ingest(worker_db, on_page, store, crawled.task)
+    run_id = crawled.task.run_id
+    await execute(migrated, "UPDATE seo.crawl_runs SET enrich_state = 'done' WHERE id = $1", run_id)
+
+    await relink_crawl(worker_db, store, workspace_id=crawled.task.workspace_id, run_id=run_id)
+
+    assert (await _run(migrated, run_id))["html_reader_version"] is None
+    assert all(p["links_suspect"] is None for p in await _checks(migrated, run_id))
+
+
+async def test_a_crawl_that_was_under_way_when_the_check_began_is_stamped_as_version_one(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(crawl_ingest, "HTML_PAGES_PER_STEP", 1)
+    on_page = synthetic_site()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    run_id = crawled.task.run_id
+    store = MemoryStore()
+    for _ in range(80):
+        row = await fetchrow(
+            migrated, "SELECT ingest_phase FROM seo.crawl_runs WHERE id = $1", run_id
+        )
+        if row["ingest_phase"] == "links":
+            break
+        await crawl_ingest.ingest_run(worker_db, on_page, store, crawled.task, deadline=0.0)
+    await crawl_ingest.ingest_run(worker_db, on_page, store, crawled.task, deadline=0.0)
+    # What the earlier code left: pages read from HTML without a check, and no version.
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET html_anchors = NULL, links_read = NULL, links_suspect = NULL "
+        "WHERE run_id = $1",
+        run_id,
+    )
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET html_reader_version = NULL WHERE id = $1", run_id
+    )
+
+    await _ingest(worker_db, on_page, store, crawled.task)
+
+    assert (await _run(migrated, run_id))["html_reader_version"] == 1
+
+
+def test_a_page_with_more_links_than_a_smallint_holds_stores_a_clamped_number_and_its_verdict() -> (
+    None
+):
+    read = crawl_ingest._PageLinks(
+        url_id=1,
+        state="from_html",
+        edges=[],
+        capped=False,
+        html_anchors=40_000,
+        links_read=35_000,
+        suspect=True,
+    )
+
+    assert crawl_ingest.check_values(read) == {
+        "html_anchors": 32_767,
+        "links_read": 32_767,
+        "links_suspect": True,
+    }

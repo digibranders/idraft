@@ -6,7 +6,8 @@ from __future__ import annotations
 import httpx
 
 from idraft.api.resources import Resources
-from tests.api.auth.support import execute, make_workspace
+from idraft.crawl.integrity import HTML_READER_VERSION
+from tests.api.auth.support import execute, fetchrow, make_workspace
 from tests.api.entities.support import member
 from tests.api.internal_links.support import SeedLink, seed_crawl, set_counts
 from tests.api.keywords.support import keyword_project, project_url
@@ -86,3 +87,45 @@ async def test_a_crawl_says_how_many_variants_it_has_and_how_many_pages_count(
     row = crawls.json()["data"][0]
     # The provider counted more pages than the crawl stored: `pages` is what is stored.
     assert (row["pages_crawled"], row["pages_variant"], row["pages"]) == (10, 1, 3)
+
+
+async def test_a_crawl_read_by_an_older_html_reader_says_it_is_stale_and_counts_suspect_pages(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    base, headers, _ = await _site(resources, migrated)
+    run = (
+        await fetchrow(migrated, "SELECT id FROM seo.crawl_runs ORDER BY created_at DESC LIMIT 1")
+    )["id"]
+    url = base.replace("internal-links", "link-crawls")
+
+    async def row() -> dict[str, object]:
+        data: dict[str, object] = (await api.get(url, headers=headers)).json()["data"][0]
+        return data
+
+    # Read before the version existed, from HTML: stale.
+    await execute(
+        migrated, "UPDATE seo.crawl_pages SET links_state = 'from_html' WHERE run_id = $1", run
+    )
+    old = await row()
+    # Stamped with the current version: not stale; the count is what was stored.
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_runs SET html_reader_version = $2, pages_links_suspect = 4 WHERE id = $1",
+        run,
+        HTML_READER_VERSION,
+    )
+    current = await row()
+    # Read only from the provider's links: nothing to read again, so never stale.
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET links_state = 'from_provider' WHERE run_id = $1",
+        run,
+    )
+    await execute(
+        migrated, "UPDATE seo.crawl_runs SET html_reader_version = NULL WHERE id = $1", run
+    )
+    provider = await row()
+
+    assert (old["html_reader_stale"], old["pages_links_suspect"]) == (True, None)
+    assert (current["html_reader_stale"], current["pages_links_suspect"]) == (False, 4)
+    assert provider["html_reader_stale"] is False

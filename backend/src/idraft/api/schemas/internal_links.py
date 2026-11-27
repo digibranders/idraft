@@ -739,6 +739,15 @@ class CrawlRun(BaseModel):
     error_message: str | None
     hints: list[Literal["render_javascript"]]
     is_latest: bool = Field(description="The crawl `run=latest` reads.")
+    html_reader_stale: bool = Field(
+        description="The crawl's HTML was read by an older reader than the current one, so its "
+        "links, counts and flags may be wrong until it is read again (`relink_crawl`). False for a "
+        "crawl read only from the provider's links."
+    )
+    pages_links_suspect: int | None = Field(
+        description="Pages whose HTML holds many more links than were read from it. null when no "
+        "page was checked (a crawl read before the check existed)."
+    )
     links_available: bool = Field(
         description="False once the crawl's links were dropped (past the last four finished "
         "crawls): its pages stay, links, journeys and changes of links are gone."

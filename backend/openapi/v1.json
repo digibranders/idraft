@@ -7292,6 +7292,11 @@
             "title": "Hints",
             "type": "array"
           },
+          "html_reader_stale": {
+            "description": "The crawl's HTML was read by an older reader than the current one, so its links, counts and flags may be wrong until it is read again (`relink_crawl`). False for a crawl read only from the provider's links.",
+            "title": "Html Reader Stale",
+            "type": "boolean"
+          },
           "is_latest": {
             "description": "The crawl `run=latest` reads.",
             "title": "Is Latest",
@@ -7327,6 +7332,18 @@
             "description": "Crawled and still queued, while it runs.",
             "title": "Pages Found",
             "type": "integer"
+          },
+          "pages_links_suspect": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pages whose HTML holds many more links than were read from it. null when no page was checked (a crawl read before the check existed).",
+            "title": "Pages Links Suspect"
           },
           "pages_variant": {
             "anyOf": [
@@ -7449,6 +7466,8 @@
           "error_message",
           "hints",
           "is_latest",
+          "html_reader_stale",
+          "pages_links_suspect",
           "links_available",
           "previous_run_id",
           "enrich_state",

@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import Row, Select, func, select, tuple_, update
+from sqlalchemy import Row, Select, exists, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from idraft.api import audit
@@ -51,6 +51,7 @@ from idraft.collectors.crawl_runs import (
     queue_run,
 )
 from idraft.collectors.crawl_store import DATA_STATES, latest_run
+from idraft.crawl.integrity import HTML_READER_VERSION
 from idraft.db.engine import workspace_transaction
 from idraft.db.tables import crawl_pages, crawl_runs, users
 from idraft.domain.workloads import CostWorkload
@@ -84,6 +85,10 @@ class CrawlRecord:
     links_available: bool
     previous_run_id: UUID | None
     enrich_state: Literal["pending", "running", "done", "failed"]
+    # Read from HTML by an older reader than the current one: its links can be read again.
+    html_reader_stale: bool
+    # Pages whose HTML holds many more links than were read; None when no page was checked.
+    pages_links_suspect: int | None
 
     @property
     def hints(self) -> list[Literal["render_javascript"]]:
@@ -140,6 +145,12 @@ def _record(row: Row[tuple[object, ...]]) -> CrawlRecord:
         links_available=row.links_dropped_at is None,
         previous_run_id=row.previous_run_id,
         enrich_state=row.enrich_state,
+        html_reader_stale=(
+            row.state in DATA_STATES
+            and row.html_read
+            and (row.html_reader_version or 1) < HTML_READER_VERSION
+        ),
+        pages_links_suspect=row.pages_links_suspect,
     )
 
 
@@ -156,6 +167,14 @@ def _runs_query(workspace_id: UUID, project_id: UUID) -> Select[tuple[object, ..
             .correlate(crawl_runs)
             .scalar_subquery()
             .label("pages_counted"),
+            exists()
+            .where(
+                crawl_pages.c.workspace_id == crawl_runs.c.workspace_id,
+                crawl_pages.c.run_id == crawl_runs.c.id,
+                crawl_pages.c.links_state == "from_html",
+            )
+            .correlate(crawl_runs)
+            .label("html_read"),
             users.c.name.label("requester_name"),
             users.c.email.label("requester_email"),
         )

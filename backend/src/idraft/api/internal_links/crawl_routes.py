@@ -66,6 +66,8 @@ def crawl_view(record: CrawlRecord, latest: UUID | None) -> CrawlRun:
         links_available=record.links_available,
         previous_run_id=record.previous_run_id,
         enrich_state=record.enrich_state,
+        html_reader_stale=record.html_reader_stale,
+        pages_links_suspect=record.pages_links_suspect,
         created_at=record.created_at,
         submitted_at=record.submitted_at,
         finished_at=record.finished_at,

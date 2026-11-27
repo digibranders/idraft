@@ -231,14 +231,17 @@ async def relink_crawl(
     recounted = await recount_variants(sessions, workspace_id=workspace_id, run_id=run_id)
     if recounted is None:
         raise RelinkError("the links were replaced but the recount did not run; run it again")
-    # The version last: a relink that stopped before here never reads as current.
-    async with sessions() as db, db.begin():
-        await db.execute(
-            update(crawl_runs)
-            .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
-            .values(html_reader_version=HTML_READER_VERSION)
-        )
     await _enrich_again(sessions, store, workspace_id=workspace_id, run_id=run_id)
+    # The version last, after everything derived from the links was redone: a relink that stopped
+    # before here never reads as current, and runs again. A crawl with no page read from HTML
+    # (all from the provider) keeps no version.
+    if reads:
+        async with sessions() as db, db.begin():
+            await db.execute(
+                update(crawl_runs)
+                .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
+                .values(html_reader_version=HTML_READER_VERSION)
+            )
     _log.info("crawl relinked", run_id=str(run_id), links_before=before, links_after=after)
     return RelinkOutcome(run_id=run_id, pages=len(reads), links_before=before, links_after=after)
 

@@ -70,7 +70,7 @@ from typing import Any, Final
 from uuid import UUID
 
 import structlog
-from sqlalchemy import bindparam, case, exc, func, insert, literal, select, text, update
+from sqlalchemy import bindparam, case, exc, exists, func, insert, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as upsert
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -637,7 +637,11 @@ async def _from_html(
 ) -> _PageLinks:
     links = await asyncio.to_thread(classify, html, crawled_url)
     usable = sum(1 for link in links if is_clean(link.href))
-    anchors = await asyncio.to_thread(anchor_count, html, crawled_url)
+    try:
+        anchors: int | None = await asyncio.to_thread(anchor_count, html, crawled_url)
+    except Exception as failure:  # one page the check cannot read is unchecked, never a failure
+        anchors = None
+        _log.warning("crawl page links not checked", url_id=url_id, error=type(failure).__name__)
     # The provider's pages listing does not carry the canonical; the HTML does.
     named = await asyncio.to_thread(canonical_of, html, crawled_url)
     html_canonical = _canonical(named)
@@ -664,8 +668,8 @@ async def _from_html(
         history=kept,
         facts=await asyncio.to_thread(read_facts, html, crawled_url),
         html_anchors=anchors,
-        links_read=usable,
-        suspect=links_suspect(anchors, usable),
+        links_read=None if anchors is None else usable,
+        suspect=None if anchors is None else links_suspect(anchors, usable),
     )
 
 
@@ -867,9 +871,20 @@ async def _links(
         if read_from_html:
             # The oldest reader that read any page: a crawl read across a deploy that raised the
             # version stays old, and so is found. A crawl read only from the provider has none.
-            stamp["html_reader_version"] = func.least(
-                func.coalesce(crawl_runs.c.html_reader_version, HTML_READER_VERSION),
-                HTML_READER_VERSION,
+            # A page read from HTML that has no check was read by code from before the check
+            # (a crawl that was under way when it was deployed): the crawl is then version 1.
+            earlier = exists().where(
+                crawl_pages.c.run_id == run.id,
+                crawl_pages.c.workspace_id == run.workspace_id,
+                crawl_pages.c.links_state == "from_html",
+                crawl_pages.c.links_suspect.is_(None),
+            )
+            stamp["html_reader_version"] = case(
+                (earlier, 1),
+                else_=func.least(
+                    func.coalesce(crawl_runs.c.html_reader_version, HTML_READER_VERSION),
+                    HTML_READER_VERSION,
+                ),
             )
         await _checkpoint(db, run, links_stored=crawl_runs.c.links_stored + stored, **stamp)
         return True
