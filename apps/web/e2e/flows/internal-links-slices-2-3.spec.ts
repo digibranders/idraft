@@ -87,14 +87,15 @@ test.describe('Internal links, slices 2 and 3', () => {
     await page.getByRole('button', { name: /^Suggested tiers \d+$/ }).click();
     await expect(suggestionsTable(page)).toBeVisible();
     await page
-      .getByRole('button', { name: /^Accept the suggestion for / })
+      .getByRole('button', { name: 'Accept suggestion' })
       .first()
       .click();
     await expect(page.getByText(/^\d+ pages? moved$/)).toBeVisible();
     await expectNoEquity(page);
 
-    // The Tier flow tab reads the tier the page moved to
+    // The Tier flow tab (on Internal links, since Pages has two tabs) reads the tier the page moved to
     await page.keyboard.press('Escape');
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Internal links' }).click();
     await page.getByRole('tab', { name: 'Tier flow' }).click();
     await expect.poll(async () => tierPageCount(page, 'T2')).toBeGreaterThan(before);
   });
@@ -211,7 +212,7 @@ test.describe('Internal links, slices 2 and 3', () => {
     await page.getByRole('button', { name: 'Open in canvas' }).click();
     await expect(page).not.toHaveURL(/[?&]jv=paths/);
     await expect(canvasOf(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Focus page: .*\. Change it\.$/ })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /^Focus page: .*\. Change it\.$/ })).toBeVisible();
   });
 
   test('Export: the client summary downloads as an HTML file that names the host', async ({ page }) => {
