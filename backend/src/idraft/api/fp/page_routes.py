@@ -4,6 +4,7 @@ docs/superpowers/specs/2026-11-26-page-search-and-monitoring-design.md section 7
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import date
 from typing import Annotated, Any
 from uuid import UUID
@@ -19,6 +20,7 @@ from idraft.api.request_info import Info
 from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.fp_pages import (
     PageBreakdownResponse,
+    PageCannibalization,
     PageSearchResponse,
     SuggestionsResponse,
     TrackedIdsResponse,
@@ -87,13 +89,16 @@ CompareWith = Annotated[
     "last final day. `compare` is `previous_period` (default), `previous_year` or `none`. A page "
     "whose daily history is not stored yet has `history: loading` and no `current`, `previous`, "
     "`health` or `trend`. `queries` is read from stored counts only, and is null for a period "
-    "with none stored. `cannibalization` is reserved and always null. With `not_connected` or "
+    "with none stored. `cannibalization` counts the tracked keywords on which the page competes "
+    "with another page of the site (the Cannibalization read of the last 30 days, desktop), "
+    "and is null for a page no conflict names. With `not_connected` or "
     "`pending` the pages are listed and every number is null.",
 )
 async def list_tracked_pages(
     project_id: UUID,
     access: ReadData,
     service: Tracked,
+    resources: Annotated[Resources, Depends(get_resources)],
     start: Annotated[date | None, Query(alias="from", description="First day, included.")] = None,
     end: Annotated[date | None, Query(alias="to", description="Last day, included.")] = None,
     compare: Annotated[
@@ -104,7 +109,16 @@ async def list_tracked_pages(
         ),
     ] = "previous_period",
 ) -> TrackedPagesResponse:
-    return await service.list_pages(access, project_id, PeriodQuery(start, end, compare))
+    response = await service.list_pages(access, project_id, PeriodQuery(start, end, compare))
+    if not response.data:
+        return response
+    # The Cannibalization read of the last 30 days; a page no conflict names stays null
+    conflicts = await resources.cannibalization.page_conflicts(access, project_id)
+    for row in response.data:
+        found = conflicts.get(int(row.url_id))
+        if found is not None:
+            row.cannibalization = PageCannibalization(**asdict(found))
+    return response
 
 
 @router.get(

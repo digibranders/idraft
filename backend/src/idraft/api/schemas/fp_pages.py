@@ -139,17 +139,11 @@ class TrackedPageRow(BaseModel):
         description="The number of queries of the page in the period, from stored counts only. "
         "Null when the period has none stored, which is not 0."
     )
-    # Reserved for the Cannibalization feature (spec D22): nothing fills it until that backend
-    # is merged, so the service never reads anything for it. The join, once merged: call
-    # `CannibalizationService.page_conflicts(access, project_id)` (api/cannibalization/service.py,
-    # branch claude/cannibalization-5e62c3) once per list read and set
-    # `cannibalization=conflicts.get(page.url_id)` in `tracked._page_row`. Its `PageConflicts`
-    # (keywords, likely, co_ranking, unstable) matches this model field for field.
+    # Filled by the list route from `CannibalizationService.page_conflicts` (spec D22).
     cannibalization: PageCannibalization | None = Field(
         default=None,
-        description="Reserved for the Cannibalization feature. Always null until it fills the "
-        "field: the number of tracked keywords on which this page competes with another page "
-        "of the site, split by verdict.",
+        description="The number of tracked keywords on which this page competes with another "
+        "page of the site, split by verdict. Null for a page no conflict names.",
     )
     trend: list[int] | None = Field(
         description="The clicks of each day of the period, oldest first; 0 for a day without a row."

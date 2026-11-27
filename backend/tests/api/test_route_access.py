@@ -445,6 +445,20 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("DELETE", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes/{note_id}"): (
         "notes:write"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords"
+        "/{tracked_keyword_id}",
+    ): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/layouts/{screen}"): "member",
     ("PUT", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",

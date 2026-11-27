@@ -12,6 +12,8 @@ from typing import Any
 import httpx
 import pytest
 
+from idraft.api.cannibalization.model import PageConflicts
+from idraft.api.cannibalization.service import CannibalizationService
 from idraft.api.main import create_app
 from idraft.api.openapi import placeholder_settings
 from idraft.api.resources import Resources
@@ -268,7 +270,7 @@ async def test_a_capped_previous_is_dropped_and_does_not_flag_the_value(
     assert row["queries"] == {"value": 1300, "previous": None, "capped": False}
 
 
-async def test_cannibalization_is_reserved_and_null(
+async def test_cannibalization_is_null_for_a_page_no_conflict_names(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
     workspace, project, owner = await _world(resources, migrated)
@@ -283,7 +285,32 @@ async def test_cannibalization_is_reserved_and_null(
     field = schema["TrackedPageRow"]["properties"]["cannibalization"]
     assert {"$ref": "#/components/schemas/PageCannibalization"} in field["anyOf"]
     assert {"type": "null"} in field["anyOf"]
-    assert "reserved" in field["description"].lower()
+
+
+async def test_cannibalization_counts_come_from_the_cannibalization_read_model(
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, project, owner = await _world(resources, migrated)
+    _, pricing = await _pricing(migrated, workspace, project)
+    await _pricing_second(migrated, workspace, project)
+
+    async def conflicts(*_: object, **__: object) -> dict[int, PageConflicts]:
+        return {pricing: PageConflicts(keywords=3, likely=1, co_ranking=1, unstable=1)}
+
+    monkeypatch.setattr(CannibalizationService, "page_conflicts", conflicts)
+
+    rows = {row["path"]: row for row in (await _list(api, workspace, project, owner))["data"]}
+
+    assert rows["/pricing"]["cannibalization"] == {
+        "keywords": 3,
+        "likely": 1,
+        "co_ranking": 1,
+        "unstable": 1,
+    }
+    assert rows["/blog"]["cannibalization"] is None
 
 
 async def _pricing_second(pg: PostgresServer, workspace: Workspace, project_id: uuid.UUID) -> None:
