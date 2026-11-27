@@ -48,14 +48,17 @@ export function HistoryStrip({ history, timeZone }: { history: PageHistory; time
   const crawled = history.google?.behind === true ? history.google.crawled_at : null;
   return (
     <>
-      <dl
-        aria-label={t('strip.label')}
-        className="grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border-subtle sm:grid-cols-4"
-      >
-        {stripCells(history, timeZone).map((cell) => (
-          <Cell key={cell.id} cell={cell} t={t} />
-        ))}
-      </dl>
+      {/* The drawer is 360 to 640 px wide whatever the window is, so the columns follow the drawer, not the window */}
+      <div className="@container shrink-0">
+        <dl
+          aria-label={t('strip.label')}
+          className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border-subtle @lg:grid-cols-4"
+        >
+          {stripCells(history, timeZone).map((cell) => (
+            <Cell key={cell.id} cell={cell} t={t} />
+          ))}
+        </dl>
+      </div>
       {crawled !== null && history.last_change !== null ? (
         <div className="flex shrink-0 items-start gap-2 rounded-md bg-warning-subtle px-3 py-2">
           <Icon icon={TriangleAlert} size="sm" className="mt-0.5 shrink-0 text-warning-text" />

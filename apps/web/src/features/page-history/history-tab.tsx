@@ -23,7 +23,8 @@ export interface HistoryTabProps {
 
 function Loading({ label }: { label: string }): ReactElement {
   return (
-    <div role="status" aria-label={label} className="flex flex-col gap-3">
+    // On a surface: the drawer is the page background, where a skeleton of the subtle surface cannot be seen in light mode
+    <div role="status" aria-label={label} className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-3">
       <Skeleton shape="block" height="row" className="h-16" />
       <Skeleton shape="text-14" widthPct={100} />
       <Skeleton shape="text-14" widthPct={80} />
