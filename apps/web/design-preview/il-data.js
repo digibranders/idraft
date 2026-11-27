@@ -1,3 +1,4 @@
+/* global URL */
 /**
  * Internal links: the illustrative crawl of eventussecurity.com that the Internal links mock reads
  * (docs/superpowers/specs/2026-11-16-internal-link-tracker-design.md). Every link has a placement as section 6.3
