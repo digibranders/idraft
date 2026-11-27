@@ -21,17 +21,17 @@ from urllib.parse import urljoin, urlsplit
 # 1: the reader before the empty-comment fix of 2026-11-26. 2: the reader since.
 HTML_READER_VERSION: Final = 2
 
-_HIDDEN: Final = re.compile(
-    r"<!--(?:-?>|.*?-->)"
-    r"|<script\b.*?</script\s*>"
-    r"|<style\b.*?</style\s*>"
-    r"|<template\b.*?</template\s*>",
-    re.DOTALL | re.IGNORECASE,
-)
-# `<a` and a space, then, among the attributes, an `href` after a space (never `xlink:href`).
-_ANCHOR: Final = re.compile(
-    r"<a(?=\s)[^>]*?\shref\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s>]+))", re.I
-)
+# What the reader does not read as links: comments (and empty ones), scripts, styles, templates.
+_OPENER: Final = re.compile(r"<!--|<(script|style|template)\b", re.IGNORECASE)
+_CLOSERS: Final = {
+    name: re.compile(rf"</{name}\b[^>]*>", re.IGNORECASE)
+    for name in ("script", "style", "template")
+}
+# A tag has no `<` or `>` inside: a quoted value that has one cuts the tag early, which counts
+# fewer links (the safe direction), and a scan can never run past the next `<`, so the cost of the
+# whole page is linear whatever it holds.
+_ANCHOR: Final = re.compile(r"<a(?=\s)([^<>]*)>", re.IGNORECASE)
+_HREF: Final = re.compile(r"\shref\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s>]+))", re.IGNORECASE)
 _SCHEME: Final = re.compile(r"^[a-z][a-z0-9+.\-]*:", re.IGNORECASE)
 _KEPT_SCHEMES: Final = ("http:", "https:")
 # Lost links are an error of tens of links on a page that holds hundreds: a few are slack (a link
@@ -41,10 +41,40 @@ _SLACK_PERCENT: Final = 3
 _EMPTY_PAGE_MIN: Final = 3
 
 
+def _visible(html: str) -> str:
+    """`html` without its comments, scripts, styles and templates. A block that never closes
+    hides nothing (the reader loses the rest of such a page; this count keeps it, and shows it)."""
+    parts: list[str] = []
+    pos = 0
+    while (opener := _OPENER.search(html, pos)) is not None:
+        if opener.group(1) is None:  # a comment
+            if html.startswith(">", opener.end()):
+                end = opener.end() + 1
+            elif html.startswith("->", opener.end()):
+                end = opener.end() + 2
+            else:
+                close = html.find("-->", opener.end())
+                if close < 0:
+                    break
+                end = close + 3
+        else:
+            closer = _CLOSERS[opener.group(1).lower()].search(html, opener.end())
+            if closer is None:
+                break
+            end = closer.end()
+        parts.append(html[pos : opener.start()])
+        pos = end
+    parts.append(html[pos:])
+    return "".join(parts)
+
+
 def _own(target: str, page_url: str) -> bool:
     """Whether `target` is the page itself: the reader keeps no link from a page to itself."""
-    page = urlsplit(page_url)
-    link = urlsplit(urljoin(page_url, target))
+    try:
+        page = urlsplit(page_url)
+        link = urlsplit(urljoin(page_url, target))
+    except ValueError:
+        return False  # an address that cannot be read: the reader drops it too
     return (link.scheme, link.netloc, link.path.rstrip("/"), link.query) == (
         page.scheme,
         page.netloc,
@@ -55,11 +85,13 @@ def _own(target: str, page_url: str) -> bool:
 
 def anchor_count(html: str, page_url: str = "") -> int:
     """The links in `html` that a reader keeps: anchors with an `href` that is a path, a `//`
-    address or `http(s):` outside comments, scripts, styles and templates; with
-    `page_url`, not the page's own address."""
-    visible = _HIDDEN.sub("", html)
+    address or `http(s):`, outside comments, scripts, styles and templates; with `page_url`, not
+    the page's own address. It takes time in proportion to the size of the HTML."""
     count = 0
-    for match in _ANCHOR.finditer(visible):
+    for tag in _ANCHOR.finditer(_visible(html)):
+        match = _HREF.search(tag.group(1))
+        if match is None:
+            continue
         target = next(group for group in match.groups() if group is not None).strip()
         if not target or target.startswith("#"):
             continue

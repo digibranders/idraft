@@ -104,6 +104,7 @@ from idraft.crawl.graph import (
 )
 from idraft.crawl.head import canonical_of
 from idraft.crawl.hosts import site_hosts
+from idraft.crawl.integrity import HTML_READER_VERSION, anchor_count, links_suspect
 from idraft.crawl.page_facts import PageFacts, read_facts
 from idraft.crawl.placement import FoundLink, Placement, classify
 from idraft.crawl.scopes import LinkScope, scope_of
@@ -207,6 +208,26 @@ class _PageLinks:
     history: PageHistory | None = None
     # What the page's own HTML says; None when it was not read or the reader could not read it.
     facts: PageFacts | None = None
+    # The links the HTML holds against the links read from it, and the verdict (plan 12); None
+    # when the page was not read from HTML.
+    html_anchors: int | None = None
+    links_read: int | None = None
+    suspect: bool | None = None
+
+
+_SMALLINT_MAX: Final = 32_767
+
+
+def check_values(read: _PageLinks) -> dict[str, object]:
+    """The `crawl_pages` columns of the link check (migration 0048); none for a page that was not
+    read from HTML, which keeps them null: unchecked is never fine."""
+    if read.suspect is None or read.html_anchors is None or read.links_read is None:
+        return {}
+    return {
+        "html_anchors": min(read.html_anchors, _SMALLINT_MAX),
+        "links_read": min(read.links_read, _SMALLINT_MAX),
+        "links_suspect": read.suspect,
+    }
 
 
 def facts_values(facts: PageFacts | None) -> dict[str, object]:
@@ -615,6 +636,8 @@ async def _from_html(
     history_run: UUID | None = None,
 ) -> _PageLinks:
     links = await asyncio.to_thread(classify, html, crawled_url)
+    usable = sum(1 for link in links if is_clean(link.href))
+    anchors = await asyncio.to_thread(anchor_count, html, crawled_url)
     # The provider's pages listing does not carry the canonical; the HTML does.
     named = await asyncio.to_thread(canonical_of, html, crawled_url)
     html_canonical = _canonical(named)
@@ -640,6 +663,9 @@ async def _from_html(
         canonical=html_canonical,
         history=kept,
         facts=await asyncio.to_thread(read_facts, html, crawled_url),
+        html_anchors=anchors,
+        links_read=usable,
+        suspect=links_suspect(anchors, usable),
     )
 
 
@@ -764,6 +790,7 @@ async def _links(
         )
         stored = 0
         recorded: list[tuple[int, PageHistory]] = []
+        read_from_html = False
         for read in found:
             # A page is written once: only the step that moves it out of `waiting` stores it.
             moved = (
@@ -775,12 +802,15 @@ async def _links(
                         crawl_pages.c.url_id == read.url_id,
                         crawl_pages.c.links_state == "waiting",
                     )
-                    .values(links_state=read.state, **facts_values(read.facts))
+                    .values(
+                        links_state=read.state, **facts_values(read.facts), **check_values(read)
+                    )
                     .returning(crawl_pages.c.url_id)
                 )
             ).scalar_one_or_none()
             if moved is None:
                 continue
+            read_from_html = read_from_html or read.state == "from_html"
             if read.history is not None:
                 recorded.append((read.url_id, read.history))
             if read.canonical is not None:
@@ -833,7 +863,15 @@ async def _links(
                 pages=len(recorded),
                 error=type(failure).__name__,
             )
-        await _checkpoint(db, run, links_stored=crawl_runs.c.links_stored + stored)
+        stamp: dict[str, object] = {}
+        if read_from_html:
+            # The oldest reader that read any page: a crawl read across a deploy that raised the
+            # version stays old, and so is found. A crawl read only from the provider has none.
+            stamp["html_reader_version"] = func.least(
+                func.coalesce(crawl_runs.c.html_reader_version, HTML_READER_VERSION),
+                HTML_READER_VERSION,
+            )
+        await _checkpoint(db, run, links_stored=crawl_runs.c.links_stored + stored, **stamp)
         return True
 
 
@@ -1012,6 +1050,8 @@ _SUMMARY = text(
     """
     SELECT count(*) FILTER (WHERE in_sitemap AND variant_of_url_id IS NULL) AS sitemap_pages,
            count(*) FILTER (WHERE variant_of_url_id IS NOT NULL) AS pages_variant,
+           CASE WHEN count(*) FILTER (WHERE links_suspect IS NOT NULL) = 0 THEN NULL
+                ELSE count(*) FILTER (WHERE links_suspect) END AS pages_links_suspect,
            count(*) FILTER (WHERE variant_of_url_id IS NULL
                             AND status_code = ANY(CAST(:blocked AS integer[]))) AS pages_blocked,
            percentile_cont(0.25) WITHIN GROUP (ORDER BY equity_share)
@@ -1212,6 +1252,7 @@ async def _metrics(
                     sitemap_pages=summary.sitemap_pages,
                     pages_blocked=summary.pages_blocked,
                     pages_variant=summary.pages_variant,
+                    pages_links_suspect=summary.pages_links_suspect,
                     equity_p25=summary.equity_p25,
                 )
                 .returning(crawl_runs.c.id)
@@ -1337,6 +1378,7 @@ async def recount_variants(
                 sitemap_pages=summary.sitemap_pages,
                 pages_blocked=summary.pages_blocked,
                 pages_variant=summary.pages_variant,
+                pages_links_suspect=summary.pages_links_suspect,
                 equity_p25=summary.equity_p25,
             )
         )

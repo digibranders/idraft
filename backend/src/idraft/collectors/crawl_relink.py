@@ -32,6 +32,7 @@ from idraft.collectors.crawl_ingest import (
     _template_input,
     _url_ids,
     _write_template,
+    check_values,
     facts_values,
     lock_finished_crawl,
     page_links_from_html,
@@ -40,6 +41,7 @@ from idraft.collectors.crawl_ingest import (
 from idraft.collectors.crawl_runs import CrawlIngestTask
 from idraft.collectors.crawl_store import html_key
 from idraft.crawl.hosts import site_hosts
+from idraft.crawl.integrity import HTML_READER_VERSION
 from idraft.crawl.template import template_placements
 from idraft.db.tables import crawl_alerts, crawl_links, crawl_pages, crawl_runs, urls
 from idraft.storage.raw import ObjectStore, RawStorageError, decompress
@@ -173,7 +175,8 @@ async def relink_crawl(
         for read in reads:
             if read.canonical is not None:
                 await _store_html_canonical(db, run, read.url_id, ids[read.canonical.url_hash])
-            if read.facts is not None:
+            page_values = {**facts_values(read.facts), **check_values(read)}
+            if page_values:
                 await db.execute(
                     update(crawl_pages)
                     .where(
@@ -181,7 +184,7 @@ async def relink_crawl(
                         crawl_pages.c.workspace_id == workspace_id,
                         crawl_pages.c.url_id == read.url_id,
                     )
-                    .values(**facts_values(read.facts))
+                    .values(**page_values)
                 )
             rows = [
                 {
@@ -228,6 +231,13 @@ async def relink_crawl(
     recounted = await recount_variants(sessions, workspace_id=workspace_id, run_id=run_id)
     if recounted is None:
         raise RelinkError("the links were replaced but the recount did not run; run it again")
+    # The version last: a relink that stopped before here never reads as current.
+    async with sessions() as db, db.begin():
+        await db.execute(
+            update(crawl_runs)
+            .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
+            .values(html_reader_version=HTML_READER_VERSION)
+        )
     await _enrich_again(sessions, store, workspace_id=workspace_id, run_id=run_id)
     _log.info("crawl relinked", run_id=str(run_id), links_before=before, links_after=after)
     return RelinkOutcome(run_id=run_id, pages=len(reads), links_before=before, links_after=after)

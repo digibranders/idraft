@@ -2,8 +2,10 @@
 
 If this fails, the reader's output for the same HTML changed: raise `HTML_READER_VERSION` in
 `idraft/crawl/integrity.py` (crawls read by the old reader are then found stale), then regenerate
-the golden file with `UPDATE_READER_GOLDEN=1 uv run pytest tests/collectors/test_html_reader_pin.py`.
-It only protects the shapes below; add a shape whenever a page teaches one.
+the golden file with
+`UPDATE_READER_GOLDEN=1 uv run pytest tests/collectors/test_html_reader_pin.py`. A Python upgrade
+that changes `html.parser` can also trip it, and is a change of reader too. It only protects the
+shapes below; add a shape whenever a page teaches one.
 """
 
 from __future__ import annotations

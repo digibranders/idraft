@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from idraft.crawl.integrity import anchor_count, links_suspect
@@ -95,3 +97,21 @@ def test_the_count_agrees_with_the_reader_on_a_page_with_every_kind_of_link() ->
         + "</body>"
     )
     assert anchor_count(html, PAGE) == len(classify(html, PAGE))
+
+
+@pytest.mark.parametrize(
+    "piece", ["<!--", "<script", "<style", "<template", "<a ", "<a b", "<a href="]
+)
+def test_a_page_that_never_closes_what_it_opens_is_counted_in_linear_time(piece: str) -> None:
+    started = time.perf_counter()
+    anchor_count(piece * 200_000 + '<a href="/x">x</a>')
+    assert time.perf_counter() - started < 1.5
+
+
+def test_an_address_that_cannot_be_read_does_not_fail_the_count() -> None:
+    assert anchor_count('<a href="http://[abc/">x</a><a href="/y">y</a>', PAGE) == 2
+
+
+def test_a_block_that_never_closes_hides_nothing() -> None:
+    assert anchor_count('<!-- <a href="/a">x</a> <a href="/b">y</a>') == 2
+    assert anchor_count('<script> <a href="/a">x</a>') == 1
