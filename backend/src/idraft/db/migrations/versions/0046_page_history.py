@@ -135,4 +135,5 @@ def downgrade() -> None:
         "DROP TABLE seo.page_google_crawl, seo.page_history_runs, seo.page_checks, "
         "seo.page_snapshots"
     )
+    op.execute("DROP INDEX seo.crawl_pages_url")
     op.execute("ALTER TABLE seo.crawl_pages DROP COLUMN sitemap_lastmod")
