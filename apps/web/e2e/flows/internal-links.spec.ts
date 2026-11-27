@@ -42,6 +42,8 @@ async function pickFromMore(page: Page, item: string): Promise<void> {
 
 test.describe('Internal links (spec 11)', () => {
   test('a new project with the box ticked shows its first crawl in progress', async ({ page }) => {
+    // The mock crawl takes about 30 s to leave the queue, longer than the default test timeout
+    test.setTimeout(2 * CRAWL_WAIT);
     await signIn(page, EDITOR);
     await page.goto('/digibranders/onboarding');
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Map Test');
@@ -65,12 +67,13 @@ test.describe('Internal links (spec 11)', () => {
   });
 
   test('Crawl now runs from queued through crawling to ready', async ({ page }) => {
+    test.setTimeout(2 * CRAWL_WAIT);
     await signIn(page, EDITOR);
     await openPages(page);
     await expectPagesLoaded(page);
     await expect(page.getByText(/^Crawled .*pages?$/)).toBeVisible();
     await page.getByRole('button', { name: 'Crawl now' }).click();
-    await expect(page.getByText('Crawl started')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Crawl started' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crawling' })).toBeVisible();
     // The banner shows once the crawl leaves the queue; the tables keep showing the last crawl
     await expect(page.getByText(/Crawling now: /)).toBeVisible({ timeout: CRAWL_WAIT });
