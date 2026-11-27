@@ -12,7 +12,7 @@ Spec addendum: section 15 of `docs/superpowers/specs/2026-11-26-issues-page-desi
 
 ## What is read, and where it is kept
 
-New nullable columns of `seo.crawl_pages` (migration 0042; the worker needs `UPDATE` on each, as migration 0037 did; NULL means not read):
+New nullable columns of `seo.crawl_pages` (migration 0047; the worker needs `UPDATE` on each, as migration 0037 did; NULL means not read):
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -67,10 +67,10 @@ States: the facts checks need `need="facts"`; `slow-pages` needs `need="timing"`
 
 ### Task 2: Store the facts: migration, ingest, re-read, backfill command
 
-**Files:** create `backend/src/idraft/db/migrations/versions/0042_crawl_page_facts.py`; modify `backend/src/idraft/db/tables.py`, `backend/src/idraft/providers/dataforseo/on_page.py` (`PageItem.response_ms` from `meta`'s sibling `page_timing.duration_time`; the value must be an int between 0 and 600000, else None), `backend/src/idraft/collectors/crawl_ingest.py` (page insert writes `response_ms`; where the HTML is read, `read_facts` runs and the columns are written in the same statement that moves the page out of `waiting`), `backend/src/idraft/collectors/crawl_relink.py` (the re-read writes the facts too), a new `backend/src/idraft/collectors/crawl_facts.py` (`backfill_facts(sessions, store, workspace_id, run_id)`: reads each stored HTML of a finished crawl, writes only the facts, never touches links; pages whose HTML is gone keep NULL; returns counts read and missing), `backend/src/idraft/cli.py` (a command `crawl-facts --run-id`, as the relink command is wired; read `test_cli_relink.py`), tests beside the existing ones (`tests/collectors/test_crawl_ingest.py`, `test_crawl_relink.py`, a new `test_crawl_facts.py`, `tests/providers` for `response_ms`, `tests/db` if a migration test exists).
+**Files:** create `backend/src/idraft/db/migrations/versions/0047_crawl_page_facts.py`; modify `backend/src/idraft/db/tables.py`, `backend/src/idraft/providers/dataforseo/on_page.py` (`PageItem.response_ms` from `meta`'s sibling `page_timing.duration_time`; the value must be an int between 0 and 600000, else None), `backend/src/idraft/collectors/crawl_ingest.py` (page insert writes `response_ms`; where the HTML is read, `read_facts` runs and the columns are written in the same statement that moves the page out of `waiting`), `backend/src/idraft/collectors/crawl_relink.py` (the re-read writes the facts too), a new `backend/src/idraft/collectors/crawl_facts.py` (`backfill_facts(sessions, store, workspace_id, run_id)`: reads each stored HTML of a finished crawl, writes only the facts, never touches links; pages whose HTML is gone keep NULL; returns counts read and missing), `backend/src/idraft/cli.py` (a command `crawl-facts --run-id`, as the relink command is wired; read `test_cli_relink.py`), tests beside the existing ones (`tests/collectors/test_crawl_ingest.py`, `test_crawl_relink.py`, a new `test_crawl_facts.py`, `tests/providers` for `response_ms`, `tests/db` if a migration test exists).
 
 - [ ] Test first: ingest of a page with HTML stores its facts and `facts_read = true`; a page whose HTML the provider could not give (links from the provider) keeps `facts_read = false` and NULL facts; `response_ms` is stored from the provider item and out of range values give NULL; relink writes the facts for pages it re-reads; `backfill_facts` fills a stored crawl from its stored HTML, is repeatable, and reports missing HTML; the worker role can update the new columns (copy how 0037's grants are tested, if they are).
-- [ ] Migration: add the columns of the table above, the column grants for `app_worker` (`UPDATE` on each column), downgrade drops them. Revision `0042`, `down_revision` is the current head (check `ls backend/src/idraft/db/migrations/versions`; it was `0041`). Do not backfill in the migration.
+- [ ] Migration: add the columns of the table above, the column grants for `app_worker` (`UPDATE` on each column), downgrade drops them. Revision `0047` (0042 to 0046 belong to other branches), `down_revision` is the head of this branch (`0041`) until it is rechained at merge. Do not backfill in the migration.
 - [ ] Commit: "Issues: keep a page's HTML facts and response time in the crawl".
 
 ### Task 3: The rules, details and states

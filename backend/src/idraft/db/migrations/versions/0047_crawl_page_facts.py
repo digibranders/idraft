@@ -7,7 +7,9 @@ the provider's response time. All are null until the page's HTML is read; `facts
 The worker may update each column, as it already writes the rest of the crawl. Nothing is
 backfilled here: the `crawl_facts` worker command fills a crawl that is already stored.
 
-Revision ID: 0042
+Rechain to the head of the integration branch (0046) when merged; two heads until then.
+
+Revision ID: 0047
 Revises: 0041
 """
 
@@ -17,7 +19,7 @@ from alembic import op
 
 from idraft.db.ddl import column_grant
 
-revision: str = "0042"
+revision: str = "0047"
 down_revision: str | None = "0041"
 branch_labels: str | tuple[str, ...] | None = None
 depends_on: str | tuple[str, ...] | None = None

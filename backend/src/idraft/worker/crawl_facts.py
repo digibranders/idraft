@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     sys.stdout.write(
         f"Crawl {outcome.run_id}: facts of {outcome.read} pages written, "
-        f"{outcome.missing} pages without stored HTML.\n"
+        f"{outcome.missing} pages with stored HTML missing or unreadable.\n"
     )
     return 0
 

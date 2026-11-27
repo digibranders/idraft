@@ -1935,7 +1935,7 @@ crawl_pages = Table(
     Column("deep_only_through_auto", Boolean, nullable=False, server_default=FetchedValue()),
     Column("editorial_anchors", Integer, nullable=False, server_default=FetchedValue()),
     Column("generic_anchors", Integer, nullable=False, server_default=FetchedValue()),
-    # What the page's own HTML says (migration 0042); null until `facts_read`.
+    # What the page's own HTML says (migration 0047); null until `facts_read`.
     Column("facts_read", Boolean, nullable=False, server_default=FetchedValue()),
     Column("meta_description", Text),
     Column("h1_count", SmallInteger),

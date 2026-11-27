@@ -3,8 +3,10 @@
 `read_facts` reads the description, the headings, the words, the images, the Open Graph tags, the
 structured data, the language links and the resources a page loads over plain http, in one pass.
 Elements inside `<template>` and `<noscript>` hold nothing, as in `crawl.head`. Pure standard
-library; pages are untrusted, so it reads at most `SCAN_MAX` characters, keeps no more than a few
-numbers of what it reads, and never raises: a page it cannot read at all gives None.
+library; pages are untrusted, so it reads no page longer than `SCAN_MAX` characters, keeps only
+counts, a hash and one short description of what it reads, and never raises: a page it cannot
+read whole gives None. Inline tags (`<b>`, `<span>` and the like) join the text around them; any
+other tag ends a word.
 """
 
 from __future__ import annotations
@@ -21,7 +23,8 @@ from idraft.crawl.edges import clean_text
 from idraft.crawl.placement import without_empty_comments
 from idraft.extraction.urls import UrlRejectedError, canonicalize
 
-# shortcut: a page longer than this is read only up to it; raise it when a real page needs more.
+# shortcut: a page longer than this is not read (its facts stay unread); raise it when a real page
+# needs more.
 SCAN_MAX: Final = 4_000_000
 DESCRIPTION_MAX: Final = 1_000
 # The largest count a smallint column holds.
@@ -31,6 +34,13 @@ HREF_MAX: Final = 4_096
 ALTERNATES_MAX: Final = 1_000
 
 _HIDDEN: Final = frozenset({"template", "noscript"})
+_INLINE: Final = frozenset(
+    {
+        *("a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "dfn", "em", "i", "kbd"),
+        *("mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup", "time", "u"),
+        *("var", "wbr", "font", "img"),
+    }
+)
 _SRC_TAGS: Final = frozenset(
     {"img", "script", "iframe", "video", "audio", "source", "track", "embed"}
 )
@@ -53,9 +63,13 @@ class PageFacts:
     http_resources: int
 
 
+def _refuse_constant(name: str) -> object:
+    raise ValueError(f"{name} is not JSON")
+
+
 def _json_is_valid(content: str) -> bool:
     try:
-        json.loads(content)
+        json.loads(content, parse_constant=_refuse_constant)
     except (ValueError, RecursionError):
         return False
     return True
@@ -77,6 +91,7 @@ class _Reader(HTMLParser):
         self.h1_count = 0
         self.words = 0
         self._hasher = hashlib.blake2b(digest_size=8)
+        self._tail = ""
         self.images_without_alt = 0
         self._og: set[str] = set()
         self.jsonld_errors = 0
@@ -84,6 +99,12 @@ class _Reader(HTMLParser):
         self.http_resources = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in _INLINE:
+            self._break()
+        if tag == "body":
+            # An unclosed head, template or noscript must not hide the body, as in a browser.
+            self._hidden = 0
+            self._title = 0
         if tag in _HIDDEN:
             self._hidden += 1
             return
@@ -114,6 +135,8 @@ class _Reader(HTMLParser):
             self._json = [] if is_json else None
 
     def handle_endtag(self, tag: str) -> None:
+        if tag not in _INLINE:
+            self._break()
         if tag in _HIDDEN:
             self._hidden = max(0, self._hidden - 1)
         elif self._hidden:
@@ -138,14 +161,24 @@ class _Reader(HTMLParser):
             return
         if self._head or self._title:
             return
-        found = data.split()
+        # The last word of a chunk may go on after an inline tag (`Hel<b>lo</b>`): it waits.
+        found = (self._tail + data).split()
+        self._tail = found.pop() if found and not data[-1:].isspace() else ""
         for word in found:
-            if self.words:
-                self._hasher.update(b" ")
-            self._hasher.update(word.lower().encode("utf-8", errors="replace"))
-            self.words += 1
-        if self._h1_open and found:
+            self._count(word)
+        if self._h1_open and data.strip():
             self._h1_has_text = True
+
+    def _count(self, word: str) -> None:
+        if self.words:
+            self._hasher.update(b" ")
+        self._hasher.update(word.lower().encode("utf-8", errors="replace"))
+        self.words += 1
+
+    def _break(self) -> None:
+        if self._tail:
+            self._count(self._tail)
+            self._tail = ""
 
     def _close_h1(self) -> None:
         if self._h1_has_text:
@@ -182,11 +215,10 @@ class _Reader(HTMLParser):
         ):
             self._alternates.append((found["hreflang"].strip().lower(), found.get("href", "")))
 
-    def _is_this_page(self, href: str) -> bool:
+    def _is_this_page(self, href: str, own: bytes) -> bool:
+        if not href.strip() or len(href) > HREF_MAX:
+            return False
         try:
-            own = canonicalize(self._page_url).url_hash
-            if not href.strip() or len(href) > HREF_MAX:
-                return False
             return canonicalize(urljoin(self._page_url, href.strip())).url_hash == own
         except (UrlRejectedError, ValueError):
             return False
@@ -197,10 +229,16 @@ class _Reader(HTMLParser):
         codes = [code for code, _ in self._alternates]
         invalid = sum(1 for code in codes if code != _X_DEFAULT and not _LANGUAGE.fullmatch(code))
         repeated = len(codes) - len(set(codes))
-        has_self = any(self._is_this_page(href) for _, href in self._alternates)
+        try:
+            own = canonicalize(self._page_url).url_hash
+        except (UrlRejectedError, ValueError):
+            # A page whose own address cannot be read has no self link to look for.
+            return invalid + repeated
+        has_self = any(self._is_this_page(href, own) for _, href in self._alternates)
         return invalid + repeated + (0 if has_self else 1)
 
     def facts(self) -> PageFacts:
+        self._break()
         if self._raw is not None:
             self._close_raw()
         if self._h1_open:
@@ -222,11 +260,14 @@ class _Reader(HTMLParser):
 
 def read_facts(html: str, page_url: str) -> PageFacts | None:
     """The facts of one page's HTML, read against the page's own address (which tells whether it
-    is an https page and which language link is its own). None when the reader fails on the
-    page, so that a page it could not read is never taken for an empty one."""
+    is an https page and which language link is its own). None when the page is longer than
+    `SCAN_MAX` or the reader fails on it, so that a page it could not read whole is never taken
+    for an empty one."""
+    if len(html) > SCAN_MAX:
+        return None
     reader = _Reader(page_url)
     try:
-        reader.feed(without_empty_comments(html[:SCAN_MAX]))
+        reader.feed(without_empty_comments(html))
         reader.close()
         return reader.facts()
     except Exception:  # garbage in, so whatever the parser raises, the page's facts are unread

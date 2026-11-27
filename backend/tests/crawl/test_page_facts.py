@@ -216,10 +216,39 @@ def test_garbage_and_truncated_html_never_raise() -> None:
         assert read_facts(html, PAGE) is not None
 
 
-def test_a_page_over_the_size_bound_is_cut_and_not_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_page_over_the_size_bound_is_unread_not_read_in_part(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(page_facts, "SCAN_MAX", 200)
-    html = f"<p>{words(10)}</p>" + " " * 300 + f"<p>{words(500)}</p>"
-    assert facts(html).word_count == 10
+    assert read_facts(f"<p>{words(10)}</p>" + " " * 300 + f"<p>{words(500)}</p>", PAGE) is None
+    assert read_facts(f"<p>{words(10)}</p>", PAGE) is not None
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_json_ld_with_nan_or_infinity_is_an_error(constant: str) -> None:
+    html = f'<script type="application/ld+json">{{"price": {constant}}}</script>'
+    assert facts(html).jsonld_errors == 1
+
+
+def test_inline_tags_join_a_word_and_other_tags_end_it() -> None:
+    joined = facts("<p>Hel<b>lo</b> wor<i>ld</i></p>")
+    assert joined.word_count == 2
+    assert joined.text_hash == facts("<p>Hello world</p>").text_hash
+    assert facts("<p>Hello</p><p>world</p>").word_count == 2
+    assert facts("<div>one<br>two</div>").word_count == 2
+    assert facts("<li>one</li><li>two</li>").word_count == 2
+    assert facts("<p>a<span> b</span>c<em>d </em>e</p>").word_count == 3
+
+
+def test_an_unclosed_template_or_head_does_not_hide_the_body() -> None:
+    assert facts("<template><meta><body><p>one two</p></body>").word_count == 2
+    assert facts("<head><title>t</title><body><p>one two</p>").word_count == 2
+    assert facts("<noscript><body><h1>Title</h1></body>").h1_count == 1
+
+
+def test_a_language_tag_with_a_variant_is_counted_as_a_problem() -> None:
+    # The reader checks the usual shape only (the `shortcut:` in `_LANGUAGE`).
+    assert facts(_alt("de-1996", PAGE)).hreflang_errors == 1
 
 
 def test_counts_stop_at_the_size_of_a_smallint() -> None:

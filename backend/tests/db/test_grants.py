@@ -115,7 +115,7 @@ PAGE_WORKER_UPDATE = (
     "generic_anchors",
     # Migration 0037: the canonical page a variant folds into.
     "variant_of_url_id",
-    # Migration 0042: what a page's HTML says, and how long the page took to answer.
+    # Migration 0047: what a page's HTML says, and how long the page took to answer.
     "facts_read",
     "meta_description",
     "h1_count",

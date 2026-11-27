@@ -1,6 +1,6 @@
 """Fill the facts of a finished crawl from the raw HTML it stored, with no new crawl.
 
-A crawl read before migration 0042 has no facts (`crawl_pages.facts_read` is false). This reads
+A crawl read before migration 0047 has no facts (`crawl_pages.facts_read` is false). This reads
 each page's stored HTML with `read_facts` and writes the facts, and nothing else: it never touches
 links, counts or the second job, calls no provider and spends nothing. A page whose HTML is gone
 keeps no facts. It can be run again and gives the same result.
@@ -8,6 +8,7 @@ keeps no facts. It can be run again and gives the same result.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -60,7 +61,7 @@ async def backfill_facts(
         except (RawStorageError, KeyError):
             missing += 1
             continue
-        facts = read_facts(html, crawled_url)
+        facts = await asyncio.to_thread(read_facts, html, crawled_url)
         if facts is None:
             missing += 1
             continue
