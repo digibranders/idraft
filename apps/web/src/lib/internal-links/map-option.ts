@@ -206,7 +206,8 @@ export function mapOption(input: MapOptionInput): Record<string, unknown> {
   const { box } = frame;
   // On a big canvas the pages lie further apart, so the dots and the names grow with it; on a small one they shrink
   const grow = Math.min(1.7, Math.max(0.55, Math.sqrt(frame.sx * frame.sy) / PLAIN_SCALE));
-  const fontSize = grow > 1.25 ? 12 : grow < 0.8 ? 10 : 11;
+  // A dense map has small dots but not a small canvas: its names stay at 11 px, and shrink only on a phone
+  const fontSize = grow > 1.25 ? 12 : input.width < 700 ? 10 : 11;
   const blockNamed = view.zoom >= BLOCK_NAMES_FROM;
   // The halo behind a name is the canvas background, so a name stays readable across a link
   const halo = tokens.named?.('surface-subtle') ?? tokens.surfaceElevated;
