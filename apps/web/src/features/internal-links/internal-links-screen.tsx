@@ -1,21 +1,19 @@
 'use client';
 
-import { Ban, ListFilter, Upload } from 'lucide-react';
+import { Ban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { ContextLine } from './context-line';
+import { CrawlDialogs, useCrawlDialogs } from './crawl-dialogs';
 import { CrawlHeader } from './crawl-header';
 import { CrawlNotFound } from './crawl-not-found';
 import { CrawlPicker } from './crawl-picker';
 import { useCrawlShell, usePageExport } from './crawl-shell';
-import { ShareDialog } from './export/share-dialog';
 import { useClientSummary } from './export/use-client-summary';
 import { drawerContextOf } from './inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
-import { ImportDialog } from './rules/import-dialog';
-import { RulesDialog } from './rules/rules-dialog';
 import { AlertRulesDialog } from './settings/alert-rules-dialog';
 import { TabBadge } from './tab-badge';
 import { activeLinksTab, LINK_LEVEL_TABS, LINKS_TABS, type LinksTabContext } from './tabs';
@@ -27,8 +25,6 @@ import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { Button } from '@/components/ui/button';
-import type { MenuItemDef } from '@/components/ui/menu';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { useFocusReturn } from '@/lib/inspector/use-focus-return';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
@@ -76,20 +72,15 @@ export function InternalLinksScreen(props: InternalLinksScreenProps): ReactNode 
 function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalLinksScreenProps): ReactElement {
   const t = useTranslations('internalLinks');
   const { state, setSearch } = useLinksState();
-  // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
-  const canWrite = useCan('projects:write');
-  const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | 'share' | null>(null);
-  const ruleButtons = canWrite ? (
-    <>
-      <Button variant="secondary" size="sm" onClick={() => setDialog('rules')}>
-        {t('rules.setUp')}
-      </Button>
-      <Button variant="secondary" size="sm" onClick={() => setDialog('import')}>
-        {t('csv.open')}
-      </Button>
-    </>
-  ) : undefined;
-  const shell = useCrawlShell({ workspaceId, workspaceSlug, project, run: state.run, firstCrawlActions: ruleButtons });
+  const actions = useCrawlDialogs();
+  const { canWrite, dialog, setDialog } = actions;
+  const shell = useCrawlShell({
+    workspaceId,
+    workspaceSlug,
+    project,
+    run: state.run,
+    firstCrawlActions: actions.buttons,
+  });
   const { scope, host, view, inView, crawl, canCrawl, canEditTiers, runs } = shell;
 
   const ready = view.kind === 'ready';
@@ -126,10 +117,6 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
   const [order, setOrder] = useState<readonly string[]>([]);
   const canNote = useCan('notes:write');
-  const ruleItems: MenuItemDef[] = [
-    { id: 'rules', label: t('rules.open'), icon: ListFilter, onSelect: () => setDialog('rules') },
-    ...(canWrite ? [{ id: 'import', label: t('csv.open'), icon: Upload, onSelect: () => setDialog('import') }] : []),
-  ];
   const inspectorWords = useTranslations('internalLinks.inspector');
   const stepping = useInspectorStepping({
     inspector,
@@ -219,7 +206,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           onSummary={ready && inView.crawl !== null && !crawlNotFound ? summary.run : null}
           summaryPreparing={summary.preparing}
           onShare={ready && inView.crawl !== null && !crawlNotFound ? () => setDialog('share') : null}
-          extraItems={ruleItems}
+          extraItems={actions.items}
           settingsHref={settingsHref}
           tiersHref={tiersHref}
         />
@@ -304,21 +291,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           </>
         )}
       </div>
-      <RulesDialog
-        open={dialog === 'rules'}
-        onOpenChange={(next) => setDialog(next ? 'rules' : null)}
-        scope={scope}
-        host={host}
-        tiers={context.tiers}
-        canWrite={canWrite}
-      />
-      <ShareDialog
-        open={dialog === 'share'}
-        onOpenChange={(next) => setDialog(next ? 'share' : null)}
-        scope={scope}
-        canWrite={canWrite}
-        timeZone={project.timeZone}
-      />
+      <CrawlDialogs actions={actions} scope={scope} host={host} tiers={context.tiers} timeZone={project.timeZone} />
       {canWrite ? (
         <AlertRulesDialog
           open={dialog === 'alerts'}
@@ -326,14 +299,6 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           scope={scope}
           tierCount={shell.tierCount}
           fallbackFocus={() => document.getElementById(HEADING_ID)}
-        />
-      ) : null}
-      {canWrite ? (
-        <ImportDialog
-          open={dialog === 'import'}
-          onOpenChange={(next) => setDialog(next ? 'import' : null)}
-          scope={scope}
-          tiers={context.tiers}
         />
       ) : null}
     </InspectorLayout>

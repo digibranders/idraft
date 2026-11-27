@@ -8,7 +8,7 @@ export { THEME_STORAGE_KEY } from './internal-links';
 export const lostTable = (page: Page): Locator => page.getByRole('table', { name: 'Lost links' });
 export const opportunitiesGrid = (page: Page): Locator => page.getByRole('grid', { name: 'Link opportunities' });
 export const crawlButton = (page: Page): Locator => page.getByRole('button', { name: /^Crawled .+, \d+ pages?$/ });
-export const alertDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Alert rules' });
+export const alertDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Alert rules', exact: true });
 export const suggestionsTable = (page: Page): Locator => page.getByRole('table', { name: 'Suggested tiers' });
 export const anyRoute = (page: Page): Locator => page.getByRole('heading', { name: /^Over any link/ });
 export const editorialRoute = (page: Page): Locator =>

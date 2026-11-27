@@ -286,7 +286,7 @@ function Attention({
       action={
         found !== null && found.length > MOST_ISSUES ? (
           <Button variant="link" size="sm" onClick={() => onTab('issues')}>
-            {t('attention.seeAll')}
+            {t('attention.seeAll', { count: found.length })}
           </Button>
         ) : undefined
       }

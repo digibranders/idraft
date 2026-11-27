@@ -832,7 +832,7 @@ describe('the page inspector (spec 7.4)', () => {
       );
       renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
       const chips = within(await panelOf('/pricing')).getByRole('list', { name: 'Page facts' });
-      for (const text of ['200', 'Indexable', 'Not in sitemap', 'Parameter variant']) {
+      for (const text of ['200', 'Indexable', 'Not in the sitemap', 'Parameter variant']) {
         expect(await within(chips).findByText(text)).toBeInTheDocument();
       }
     });
@@ -938,7 +938,7 @@ describe('the page inspector (spec 7.4)', () => {
         expect(items[0]).toHaveTextContent('e1');
         expect(items[2]).toHaveTextContent('Warning');
         expect(items[4]).toHaveTextContent('Notice');
-        await user.click(within(card).getByRole('button', { name: 'See all issues' }));
+        await user.click(within(card).getByRole('button', { name: 'See all 7 issues' }));
         expect(selectedTab(panel)).toBe('Issues');
       });
 
@@ -965,10 +965,10 @@ describe('the page inspector (spec 7.4)', () => {
         ).toBeInTheDocument();
       });
 
-      it('says nothing needs attention when the page has no issue', async () => {
+      it('says no issues were found when the page has none', async () => {
         seam.current = { state: 'ready', data: [] };
         renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), OPEN);
-        expect(await screen.findByText('Nothing needs attention on this page')).toBeInTheDocument();
+        expect(await screen.findByText('No issues found on this page')).toBeInTheDocument();
       });
     });
   });

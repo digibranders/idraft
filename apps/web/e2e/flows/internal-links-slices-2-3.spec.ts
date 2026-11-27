@@ -45,7 +45,7 @@ test.describe('Internal links, slices 2 and 3', () => {
     await expectPagesLoaded(page);
     await expect(crawlButton(page)).toBeVisible();
     await crawlButton(page).click();
-    await page.getByRole('menuitemradio', { name: /7 Nov/ }).click();
+    await page.getByRole('menuitemradio', { name: /^Nov 7/ }).click();
     await expect(page).toHaveURL(/[?&]run=/);
     await expect(page.getByText('Older crawl')).toBeVisible();
     await expectPagesLoaded(page);
@@ -61,7 +61,7 @@ test.describe('Internal links, slices 2 and 3', () => {
     await expect(lostAlert(page)).toBeVisible();
     await expectNoEquity(page);
 
-    await page.getByRole('button', { name: 'Show all lost links' }).click();
+    // The list opens on the important tiers, and this crawl lost links to them, so it already has rows
     await expect(page.getByText('Lost to T1').first()).toBeVisible();
     await expect(page.getByText(/^Still linked from /).first()).toBeVisible();
 
@@ -86,15 +86,13 @@ test.describe('Internal links, slices 2 and 3', () => {
     const before = await tierPageCount(page, 'T2').catch(() => 0);
     await page.getByRole('button', { name: /^Suggested tiers \d+$/ }).click();
     await expect(suggestionsTable(page)).toBeVisible();
-    await page
-      .getByRole('button', { name: /^Accept the suggestion for / })
-      .first()
-      .click();
+    await page.getByRole('button', { name: 'Accept suggestion' }).first().click();
     await expect(page.getByText(/^\d+ pages? moved$/)).toBeVisible();
     await expectNoEquity(page);
 
-    // The Tier flow tab reads the tier the page moved to
+    // The Tier flow tab (on Internal links, since Pages has two tabs) reads the tier the page moved to
     await page.keyboard.press('Escape');
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Internal links' }).click();
     await page.getByRole('tab', { name: 'Tier flow' }).click();
     await expect.poll(async () => tierPageCount(page, 'T2')).toBeGreaterThan(before);
   });
@@ -149,7 +147,7 @@ test.describe('Internal links, slices 2 and 3', () => {
     await openTierCanvas(page);
     const canvas = canvasOf(page);
     await expect(canvas.getByRole('heading', { level: 3, name: /^T4/ })).toBeVisible();
-    await expect(canvas.getByText('No T2 page in view')).toBeVisible();
+    await expect(canvas.getByText('No T4 page in view')).toBeVisible();
 
     // A lane chip hides its lane and brings it back
     const chip = page.getByRole('group', { name: 'Tiers shown' }).getByRole('button', { name: /^T4 / });
@@ -168,7 +166,7 @@ test.describe('Internal links, slices 2 and 3', () => {
 
     // The info panel of a card
     await card(page, '/contact').hover();
-    const info = canvas.getByRole('button', { name: 'Info about /contact' });
+    const info = canvas.getByRole('button', { name: 'Info about /contact', exact: true });
     await info.click();
     await expect(info).toHaveAttribute('aria-expanded', 'true');
     await expectNoEquity(page);
@@ -211,7 +209,7 @@ test.describe('Internal links, slices 2 and 3', () => {
     await page.getByRole('button', { name: 'Open in canvas' }).click();
     await expect(page).not.toHaveURL(/[?&]jv=paths/);
     await expect(canvasOf(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Focus page: .*\. Change it\.$/ })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /^Focus page: .*\. Change it\.$/ })).toBeVisible();
   });
 
   test('Export: the client summary downloads as an HTML file that names the host', async ({ page }) => {

@@ -23,7 +23,11 @@ function pathOf(url: string): string {
 
 /** A value of the page, or "Missing" when the page does not give it. */
 function PageValue({ value, missing }: { value: string | null; missing: string }): ReactElement {
-  return value === null ? <span className="text-foreground-tertiary">{missing}</span> : <span>{value}</span>;
+  return value === null ? (
+    <span className="text-foreground-tertiary">{missing}</span>
+  ) : (
+    <span className="min-w-0 wrap-anywhere">{value}</span>
+  );
 }
 
 export function LanguagesBlock({ outline, part, open, onToggle, issueHref }: PartProps): ReactElement {
@@ -129,7 +133,7 @@ export function StructuredBlock({ outline, part, open, onToggle, issueHref }: Pa
 }
 
 const note = (children: ReactNode): ReactElement => (
-  <span className="type-meta text-foreground-secondary">{children}</span>
+  <span className="min-w-0 type-meta wrap-anywhere text-foreground-secondary">{children}</span>
 );
 
 export function ContentBlock({

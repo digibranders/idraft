@@ -9,10 +9,12 @@ import { useCallback, useState, type ReactElement, type ReactNode } from 'react'
 import { OverviewTab } from './overview-tab';
 import { usePagesState } from './use-pages-state';
 import { ContextLine } from '../context-line';
+import { CrawlDialogs, useCrawlDialogs } from '../crawl-dialogs';
 import { CrawlHeader } from '../crawl-header';
 import { CrawlNotFound } from '../crawl-not-found';
 import { CrawlPicker } from '../crawl-picker';
 import { useCrawlShell, usePageExport } from '../crawl-shell';
+import { useClientSummary } from '../export/use-client-summary';
 import type { PageDrawerContext } from '../inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from '../inspector/page-inspector';
 import type { InternalLinksProject } from '../internal-links-screen';
@@ -68,9 +70,16 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
   const t = useTranslations('pages');
   const { state, setSearch } = usePagesState();
   const router = useRouter();
-  const canWrite = useCan('projects:write');
   const canNote = useCan('notes:write');
-  const shell = useCrawlShell({ workspaceId, workspaceSlug, project, run: state.run });
+  const actions = useCrawlDialogs();
+  const { canWrite } = actions;
+  const shell = useCrawlShell({
+    workspaceId,
+    workspaceSlug,
+    project,
+    run: state.run,
+    firstCrawlActions: actions.buttons,
+  });
   const { scope, host, view, inView, crawl, canCrawl, canEditTiers, runs } = shell;
   const ready = view.kind === 'ready';
   const crawlNotFound = inView.unknown || state.invalidRun !== null;
@@ -92,6 +101,8 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
     typeNoun: inspectorWords('typeNoun'),
   });
   const { registerExport, onExport, exporting } = usePageExport();
+  const summary = useClientSummary({ scope, view: inView, host, timeZone: project.timeZone });
+  const summaryReady = ready && inView.crawl !== null && !crawlNotFound;
 
   const run = inView.run;
   // Only the crawl in view travels between the tabs, and to Internal links
@@ -204,8 +215,10 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
           onCrawlNow={() => crawl.start()}
           onExport={ready ? onExport : null}
           exporting={exporting}
-          onSummary={null}
-          onShare={null}
+          onSummary={summaryReady ? summary.run : null}
+          summaryPreparing={summary.preparing}
+          onShare={summaryReady ? () => actions.setDialog('share') : null}
+          extraItems={actions.items}
           settingsHref={shell.hrefs.settings}
           tiersHref={shell.hrefs.tiers}
         />
@@ -260,6 +273,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
         {toolbar}
         {body}
       </div>
+      <CrawlDialogs actions={actions} scope={scope} host={host} tiers={shell.tiers} timeZone={project.timeZone} />
     </InspectorLayout>
   );
 }

@@ -2,7 +2,7 @@
 
 import { FileText, Hash, Slash, TriangleAlert, User, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, RefObject } from 'react';
+import { useEffect, type ReactElement, type RefObject } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -108,12 +108,17 @@ export function NoteSuggestStatus({ kind, onRetry, retryRef, onRetryBlur }: Note
  * the rows are not focusable, the text area points at the active one.
  */
 export function NoteSuggestList({ id, suggestions, activeIndex, onPick, label }: NoteSuggestListProps): ReactElement {
+  // The arrow keys move the active row inside a list that scrolls: it must come fully into view, never half cut
+  useEffect(() => {
+    document.getElementById(suggestOptionId(id, activeIndex))?.scrollIntoView?.({ block: 'nearest' });
+  }, [id, activeIndex]);
   return (
     <div
       id={id}
       role="listbox"
       aria-label={label}
-      className={cn(POPUP_SURFACE, 'flex max-h-60 flex-col overflow-y-auto p-1')}
+      // Six rows of 2rem and the padding (12.5rem): the list stops on a row edge and leaves Add note in view
+      className={cn(POPUP_SURFACE, 'flex max-h-50 scroll-py-1 flex-col overflow-y-auto p-1')}
     >
       {suggestions.map((suggestion, index) => (
         <div

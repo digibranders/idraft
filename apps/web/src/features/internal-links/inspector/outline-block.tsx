@@ -31,7 +31,7 @@ export function OutlineBlock({ id, title, summary, tone, open, onToggle, childre
   const titleId = useId();
   const regionId = useId();
   return (
-    <section className="rounded-lg border border-border bg-surface">
+    <section className="min-w-0 rounded-lg border border-border bg-surface">
       <h3>
         <button
           type="button"
@@ -55,7 +55,7 @@ export function OutlineBlock({ id, title, summary, tone, open, onToggle, childre
         </button>
       </h3>
       <div id={regionId} role="region" aria-labelledby={titleId} hidden={!open}>
-        <div className="flex flex-col gap-3 px-4 pb-4">{children}</div>
+        <div className="flex min-w-0 flex-col gap-3 px-4 pb-4">{children}</div>
       </div>
     </section>
   );
@@ -80,7 +80,7 @@ export function OutlineFindingRow({ text, href }: { text: string; href: Route | 
 /** A label and its value; it goes inside a `dl`. */
 export function OutlineFact({ label, children }: { label: string; children: ReactNode }): ReactElement {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="type-label text-foreground-tertiary">{label}</dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 type-body wrap-anywhere">{children}</dd>
     </div>

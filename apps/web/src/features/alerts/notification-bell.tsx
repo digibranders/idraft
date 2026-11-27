@@ -113,70 +113,69 @@ export function NotificationBell({ scope, timeZone, brandName, rulesHref }: Noti
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      align="end"
-      padding="none"
-      width="notifications"
-      aria-label={t('title')}
-      trigger={
-        <span className="relative inline-flex">
-          <IconButton icon={Bell} label={label} size="icon" iconSize="md" tooltipSide="bottom" />
-          {unread.length === 0 ? null : (
-            <span
-              aria-hidden="true"
-              className={cn(
-                'pointer-events-none absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-sm px-1 num type-micro',
-                critical ? 'bg-negative-solid text-foreground-inverse' : 'bg-primary text-primary-foreground',
-              )}
+    // The button is the popover's trigger (it carries aria-haspopup); the count sits beside it, in the same frame
+    <span className="relative inline-flex">
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        align="end"
+        padding="none"
+        width="notifications"
+        aria-label={t('title')}
+        trigger={<IconButton icon={Bell} label={label} size="icon" iconSize="md" tooltipSide="bottom" />}
+        footer={
+          <div className="flex w-full px-3 py-2">
+            <TextLink render={<Link href={rulesHref} onClick={() => setOpen(false)} />}>{t('rulesLink')}</TextLink>
+          </div>
+        }
+      >
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <h2 className="type-subsection-title">{t('title')}</h2>
+          {canWrite && unread.length > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={busy}
+              onClick={() => void send(unread.slice(0, MAX_ACKNOWLEDGE).map((event) => event.id))}
             >
-              {badge}
-            </span>
+              {recent('acknowledgeAll')}
+            </Button>
+          ) : null}
+        </div>
+        {events.isError && rows.length === 0 ? (
+          <InlineError
+            title={recent('loadFailed')}
+            reason={recent('loadFailedReason')}
+            errorId={errorId}
+            onRetry={() => void events.refetch()}
+            retrying={events.isFetching}
+            retryLabel={common('retry')}
+          />
+        ) : events.isPending ? (
+          <div role="status" aria-label={common('loading')} className="flex flex-col gap-3 px-3 py-2">
+            <Skeleton shape="text-14" widthPct={72} />
+            <Skeleton shape="text-14" widthPct={100} />
+            <Skeleton shape="text-14" widthPct={56} />
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="px-3 py-6 text-center type-body text-foreground-secondary">{t('empty')}</p>
+        ) : (
+          <ul aria-label={t('list')} className="flex flex-col pb-1">
+            {rows.map(row)}
+          </ul>
+        )}
+      </Popover>
+      {unread.length === 0 ? null : (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-sm px-1 num type-micro',
+            critical ? 'bg-negative-solid text-foreground-inverse' : 'bg-primary text-primary-foreground',
           )}
+        >
+          {badge}
         </span>
-      }
-      footer={
-        <div className="flex w-full px-3 py-2">
-          <TextLink render={<Link href={rulesHref} onClick={() => setOpen(false)} />}>{t('rulesLink')}</TextLink>
-        </div>
-      }
-    >
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <h2 className="type-subsection-title">{t('title')}</h2>
-        {canWrite && unread.length > 0 ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            loading={busy}
-            onClick={() => void send(unread.slice(0, MAX_ACKNOWLEDGE).map((event) => event.id))}
-          >
-            {recent('acknowledgeAll')}
-          </Button>
-        ) : null}
-      </div>
-      {events.isError && rows.length === 0 ? (
-        <InlineError
-          title={recent('loadFailed')}
-          reason={recent('loadFailedReason')}
-          errorId={errorId}
-          onRetry={() => void events.refetch()}
-          retrying={events.isFetching}
-          retryLabel={common('retry')}
-        />
-      ) : events.isPending ? (
-        <div role="status" aria-label={common('loading')} className="flex flex-col gap-3 px-3 py-2">
-          <Skeleton shape="text-14" widthPct={72} />
-          <Skeleton shape="text-14" widthPct={100} />
-          <Skeleton shape="text-14" widthPct={56} />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="px-3 py-6 text-center type-body text-foreground-secondary">{t('empty')}</p>
-      ) : (
-        <ul aria-label={t('list')} className="flex flex-col pb-1">
-          {rows.map(row)}
-        </ul>
       )}
-    </Popover>
+    </span>
   );
 }

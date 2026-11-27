@@ -467,6 +467,21 @@ describe('the states of the tab', () => {
     expect(await screen.findByRole('heading', { name: 'No pages in this crawl' })).toBeInTheDocument();
   });
 
+  it('says a server view is empty in its own words too', async () => {
+    server.use(
+      http.get(PAGES, () =>
+        HttpResponse.json({
+          data: [],
+          page: { limit: 100, next_cursor: null, has_more: false },
+          meta: { run_id: MOCK_RUN_ID, scope: 'editorial', total: 0 },
+        }),
+      ),
+    );
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), { searchParams: '?view=redirects' });
+    expect(await screen.findByRole('heading', { name: 'No redirects' })).toBeInTheDocument();
+    expect(screen.getByText('No address of this crawl redirects to another page.')).toBeInTheDocument();
+  });
+
   it('shows a failed read with Try again, which reads again', async () => {
     let fail = true;
     server.use(

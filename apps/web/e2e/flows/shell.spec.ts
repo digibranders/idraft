@@ -75,11 +75,14 @@ test.describe('the application shell', () => {
     // A viewer reads the data, so Runs is there; Costs needs costs:read, which the role does not hold
     await expect(links).toHaveText([
       'Keywords',
+      'Pages',
       'Internal links',
       'AI visibility',
       'Prompts',
       'Citations',
+      'Insights',
       'Competitors',
+      'Reports',
       'Integrations',
       'Runs',
       'Settings',

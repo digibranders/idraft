@@ -46,7 +46,7 @@ import {
   pagesQuery,
   withRun,
 } from '@/lib/internal-links/queries';
-import type { PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
+import type { PageRow, PageRowPage, PageView, PageWorklist } from '@/lib/internal-links/types';
 import { ISSUE_COLUMNS_AVAILABLE } from '@/lib/pages/issue-source';
 import { TRACKING_AVAILABLE, useTrackedPages, useTrackPages } from '@/lib/pages/tracking';
 import { useCan } from '@/lib/permissions';
@@ -74,6 +74,26 @@ const EMPTY_KEY = {
   lost_links_top: 'lostLinksTop',
   weak_outlinks: 'weakOutlinks',
 } as const satisfies Record<PageWorklist, string>;
+
+/** The names the empty sentences of the server views keep under `pages.viewEmpty.*` (the mock's EMPTY_WORKLIST). */
+const VIEW_EMPTY_KEY = {
+  live: 'live',
+  indexable: 'indexable',
+  not_indexable: 'notIndexable',
+  redirects: 'redirects',
+  errors: 'errors',
+  client_errors: 'clientErrors',
+  server_errors: 'serverErrors',
+  blocked: 'blocked',
+  other: 'other',
+  variants: 'variants',
+  in_sitemap_indexable: 'inSitemapIndexable',
+  not_in_sitemap: 'notInSitemap',
+  sitemap_not_live: 'sitemapNotLive',
+  sitemap_not_indexable: 'sitemapNotIndexable',
+  reachable: 'reachable',
+  unreachable: 'unreachable',
+} as const satisfies Record<PageView, string>;
 
 /**
  * The Pages tab (spec 7.2, mock `il-pages.js`): the table, whose toolbar holds the View menu, the filter bar and the scope chip. The
@@ -292,6 +312,13 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
               : 'empty'
             : 'ready';
   const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
+  const viewEmpty =
+    state.view === null
+      ? null
+      : {
+          title: pagesWords(`viewEmpty.${VIEW_EMPTY_KEY[state.view]}Title`),
+          reason: pagesWords(`viewEmpty.${VIEW_EMPTY_KEY[state.view]}Reason`),
+        };
   const openRow = (row: PageRow, intent: 'inspector' | 'new-tab'): void => {
     if (intent === 'inspector') {
       context.inspect.open(row.url_id);
@@ -538,6 +565,17 @@ export function PagesTab({ context }: { context: PagesContext }): ReactElement {
               // alert setting arrives
               title={t(`worklistEmpty.${worklistEmpty}Title`, { tiers: t('worklists.importantTiers') })}
               reason={t(`worklistEmpty.${worklistEmpty}Reason`, { tiers: t('worklists.importantTiers') })}
+              headingLevel={3}
+              primaryAction={
+                <Button variant="secondary" size="sm" onClick={() => setSearch({ view: null })}>
+                  {t('pages.showAll')}
+                </Button>
+              }
+            />
+          ) : viewEmpty !== null && Object.keys(values).length === 0 && !searched ? (
+            <EmptyState
+              title={viewEmpty.title}
+              reason={viewEmpty.reason}
               headingLevel={3}
               primaryAction={
                 <Button variant="secondary" size="sm" onClick={() => setSearch({ view: null })}>
