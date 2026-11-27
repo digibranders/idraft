@@ -105,6 +105,7 @@ export function OverviewTab({
   const tip = (row: OverviewRow): string | undefined => {
     if (row.id === 'addresses') return t('strip.addressesTip');
     if (row.id === 'live') return t('strip.liveTip');
+    if (row.id === 'errors') return t('strip.errorsTip');
     return row.base === 'live' ? t('strip.liveBaseTip') : undefined;
   };
   const items: MetricStripItem[] = (model?.strip ?? [null, null, null, null, null]).map((row, index) =>

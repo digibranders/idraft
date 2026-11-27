@@ -9153,8 +9153,8 @@
         "chips": {
           "label": "Page facts",
           "indexable": "Indexable",
-          "inSitemap": "In sitemap",
-          "notInSitemap": "Not in sitemap",
+          "inSitemap": "In the sitemap",
+          "notInSitemap": "Not in the sitemap",
           "variant": "Parameter variant"
         },
         "tiles": {
@@ -9185,8 +9185,8 @@
         },
         "attention": {
           "title": "Needs attention",
-          "none": "Nothing needs attention on this page",
-          "seeAll": "See all issues"
+          "none": "No issues found on this page",
+          "seeAll": "See all {count, plural, one {# issue} other {# issues}}"
         },
         "severity": {
           "error": "Error",
@@ -9488,6 +9488,40 @@
       "opensLinks": "Opens Internal links, Links",
       "announce": "{view}: {count, plural, one {# page} other {# pages}}"
     },
+    "viewEmpty": {
+      "liveTitle": "No live pages",
+      "liveReason": "No address of this crawl answered 200 with a page.",
+      "indexableTitle": "No indexable pages",
+      "indexableReason": "No page of this crawl can be indexed by Google.",
+      "notIndexableTitle": "No pages that are not indexable",
+      "notIndexableReason": "Every live page of this crawl can be indexed by Google.",
+      "redirectsTitle": "No redirects",
+      "redirectsReason": "No address of this crawl redirects to another page.",
+      "errorsTitle": "No error pages",
+      "errorsReason": "No address of this crawl returns an error.",
+      "clientErrorsTitle": "No client errors",
+      "clientErrorsReason": "No address of this crawl returns a 4xx error.",
+      "serverErrorsTitle": "No server errors",
+      "serverErrorsReason": "No address of this crawl returns a 5xx error.",
+      "blockedTitle": "No blocked addresses",
+      "blockedReason": "The site did not refuse our crawler on any address.",
+      "otherTitle": "No other addresses",
+      "otherReason": "Every address of this crawl is a live page, a redirect or an error.",
+      "variantsTitle": "No parameter variants",
+      "variantsReason": "The crawl found no page under a second address with a query string added.",
+      "inSitemapIndexableTitle": "No indexable page is in the sitemap",
+      "inSitemapIndexableReason": "The sitemap lists none of the pages that can be indexed.",
+      "notInSitemapTitle": "No indexable page is missing from the sitemap",
+      "notInSitemapReason": "Every page that can be indexed is listed in the sitemap.",
+      "sitemapNotLiveTitle": "The sitemap lists only live pages",
+      "sitemapNotLiveReason": "No address in the sitemap redirects or returns an error.",
+      "sitemapNotIndexableTitle": "The sitemap lists only indexable pages",
+      "sitemapNotIndexableReason": "Every live page in the sitemap can be indexed by Google.",
+      "reachableTitle": "No live page can be reached by links",
+      "reachableReason": "No live page of this crawl can be reached from the home page by following links.",
+      "unreachableTitle": "Every live page can be reached by links",
+      "unreachableReason": "A visitor can get from the home page to every live page by following links."
+    },
     "strip": {
       "label": "Page counts of this crawl",
       "addresses": "Addresses crawled",
@@ -9498,7 +9532,8 @@
       "withIssue": "Pages with an issue",
       "addressesTip": "Every address the crawl read, parameter variants included",
       "liveTip": "Pages that answered 200 with HTML, of every address",
-      "liveBaseTip": "Of live pages"
+      "liveBaseTip": "Of live pages",
+      "errorsTip": "Addresses that answered with a client or server error, of every address"
     },
     "groups": {
       "page": "Page",
@@ -9869,7 +9904,7 @@
       "keywords": "Tracked keywords",
       "keywordsSource": "idraft rank tracking",
       "keywordsCaption": "Tracked keywords with their rank, places moved and searches a month",
-      "noKeywords": "No tracked keywords for this page.",
+      "noKeywords": "No tracked keywords for this page. Add keywords in Keywords to see ranks here.",
       "keyword": "Keyword",
       "rank": "Rank",
       "rankValue": "#{rank}",
