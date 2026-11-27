@@ -48,6 +48,8 @@ from idraft.api.auth.throttle import LoginThrottle
 from idraft.api.auth.tokens import derive_key
 from idraft.api.auth.totp import TotpCipher
 from idraft.api.body_limit import UPLOADS, BodyLimitMiddleware
+from idraft.api.cannibalization.routes import router as cannibalization_router
+from idraft.api.cannibalization.service import CannibalizationService
 from idraft.api.csrf import OriginCheckMiddleware
 from idraft.api.document import router as document_router
 from idraft.api.entities.candidate_routes import router as entity_candidates_router
@@ -348,6 +350,7 @@ def create_app(
                     throttle=throttle,
                 ),
                 crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
+                cannibalization=CannibalizationService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -445,6 +448,7 @@ def create_app(
     app.include_router(share_routes_router)
     app.include_router(public_summary_router)
     app.include_router(crawl_routes_router)
+    app.include_router(cannibalization_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
     app.include_router(registries_router)

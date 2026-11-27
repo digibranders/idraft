@@ -44,6 +44,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | A17 | Notes (a tab of the page drawer) | The tab that shows what the team wrote about one page, newest first, each note with its author and the time it was written. Notes belong to the page's address and stay across crawls. | Not the notes on a chart (a day marked on a chart). Not Issues. | Comments, Annotations, Remarks, Log (as the tab name) | Page drawer tabs | Safe | Owner decision 2026-11-26 |
 | A14 | Monitoring (a tab of Pages) | The tab that lists the pages you track, with their Search Console numbers for a period, the change, a health verdict and a trend. Always a noun: the name of the tab. | Not a verb. Not a state of a page: a page in it is "Tracked" (B7). Not All pages. | Performance, Watchlist, Monitored pages, Monitored | Pages tabs, page title | Safe | Firm |
 | A13 | What changed | The section of a page's search detail that lists its queries, locations and devices for the period and the period compared with, the biggest change first. | Not the health verdict. Not a list of edits to the page. | Breakdown, Segments, Dimensions | Page search detail | Safe | Firm |
+| A18 | Cannibalization (a page of the SEO group, tabs Cannibalization and Switching) | The SEO page that shows tracked keywords where two or more of your own pages compete, and when Google changed which of your pages ranks. | Not Competitors (other sites). Not a claim of cause. | Rankings, Overlap, Duplicate pages | Navigation, page title, breadcrumbs | Safe; the tab Switching is a plain verb noun | Firm |
 
 ## 2. Where we ask, and where we check
 
@@ -142,6 +143,28 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M16 | AI referral visits | Visits to your site that Google Analytics attributes to AI platforms. | Not clicks in an answer. | Referral traffic, Sessions (in plain text) | Overview card | Safe | Firm |
 | M17 | They lead / You lead / Equal | In one prompt, a brand leads when it is mentioned in at least 2 more answers than the other, over the platforms in scope, and the prompt has at least 4 valid answers. A smaller difference is Equal. | Not a win in any single answer. | Winning, Losing, Lost to (as a column) | Competitor card and drawer | Safe | Firm |
 | M18 | Health (of a tracked page; values: Lost traffic, Sharp drop, Declining, Stable, Growing, New, Not enough data, Not collected yet) | The verdict on a tracked page's Search Console clicks (impressions when the clicks are too few) in the period against the period compared with. Lost traffic: clicks before, none now. Sharp drop: down 40% or more. Declining: down 10% or more. Growing: up 10% or more. New: impressions now, none before. Not enough data (S4) and Not collected yet (S5) keep their meaning. | Not a score. Not the page's HTTP status. Not the state of a crawl. | Status, Score, Performance, Rating | Monitoring column and filter, page search detail | Safe | Firm |
+
+### 6.1 Cannibalization (added 2026-11-27, spec docs/33)
+
+| ID | Label | Definition | Is not | Banned | Where used | Status |
+|---|---|---|---|---|---|---|
+| K1 | Ranking page / Ranking pages | The measure naming the one of your pages that holds the best rank for a keyword on a check. | Not the target page. | Landing page, URL alone | Cannibalization, Switching | Firm |
+| K2 | Target page | The page you want to rank for a keyword, set on the keyword. | Not the ranking page. | Preferred URL, Canonical page | Cannibalization, Switching, Keywords | Firm |
+| K3 | Rank gap | The measure of how many places worse a keyword ranks on the checks where another of your pages is the ranking page, against the best page. Never negative. | Not a change over time. | Penalty, Loss | Cannibalization | Firm |
+| K4 | Switch / Switches | The event: the ranking page changed and the new page also ranks best on the next check. | Not one odd reading, which is a "one-check change". | Flip, Swap, Rotation | Switching | Firm |
+| K5 | Flip-flop | A switch back: the page that was replaced returns within 14 days. | Not a first switch. | Ping-pong, Oscillation | Switching | Firm |
+| K6 | Likely cannibalization, Co-ranking, Unstable page | The three verdicts. Likely: two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks. Co-ranking: two pages both in the top 20 on at least half of the checks. Unstable page: the ranking page changes often without a worse rank. | Not a cause. | Duplicate, Conflict (as the verdict name) | Cannibalization | Firm |
+| K7 | Not enough checks | State of a keyword with fewer than 10 ranked checks in the period. | Not "No data". | No data, N/A, Insufficient data | Cannibalization, Switching | Firm |
+| K8 | Sub-result | One of your pages nested under another of your results on the same check. It shares that result's rank and is never counted as competition. | Not a second result. | Sitelink, Child | Cannibalization pages list | Firm |
+| K9 | Evidence / Timeline / Pages (tabs of the keyword drawer) | The three tabs of the Cannibalization keyword drawer. Evidence: what the checks show in a sentence, three figures, Rank by page, Possible causes to check and Options. Timeline: Ranking page by day, one lane per page, and the confirmed switches. Pages: your pages for the keyword with their numbers. | Not a verdict of cause. | Overview (for this drawer), Details, History | Cannibalization drawer | Firm |
+| K10 | Possible causes to check | A list of hypotheses the page offers beside the evidence: title overlap, the section the pages are in, a target page that is not the ranking page, internal links. Always labelled "Hypotheses, not findings". | Not a finding, not a diagnosis. | Root cause, Reasons, Problems found | Cannibalization drawer | Firm |
+| K11 | Rank by page | The drawer chart of the rank of each of your pages on each check, lower is better, with a letter at the end of each line and a Table view. | Not a competitor chart. | Rank history (for this chart), Rankings | Cannibalization drawer | Firm |
+| K12 | Ranking page by day | The drawer lanes, one per page: full color on the checks the page was the ranking page, faded where it ranked beside it, outlined where Google hid the result address. | Not a rank. | Heatmap, Timeline chart | Cannibalization drawer | Firm |
+| K13 | Export (Cannibalization toolbar) | The button that saves the table in view as a CSV file, with the rows the page has read and the filters on. | Not an Excel file. Not a report. | Download, Save as | Cannibalization, Switching | Firm |
+| K14 | Reset column widths | The button that appears while a column of the table in view is not at its default width, and puts every column back. | Not Reset scope. | Restore columns, Reset layout | Cannibalization, Switching | Firm |
+| K15 | Back on target, No target set, Not involved, Not ranked, Not known | The words of a cell with nothing to show, in place of a mark: Target page cell of a switch (Left the target, Back on target, No target set, Not involved: the move was between other pages), Rank and Pages (Not ranked), Volume, Rank gap and Title overlap (Not known). | Not "N/A", not "n/a", not "No data". | N/A, n/a, No data, None (for these cells) | Cannibalization, Switching | Firm |
+| K16 | Set as target page, Clear target page, Plan a merge or redirect, Open the SERP snapshot (Options of the keyword drawer) | The four options of the Cannibalization keyword drawer. Set as target page writes the keyword's Target page to the page it names; Clear target page removes it; Plan a merge or redirect opens Internal links on the links between the two pages; Open the SERP snapshot opens the keyword on the Keywords page, on its SERP snapshots. Nothing changes until the person presses one. | Not Fix, not Resolve, not Redirect now. | Set URL, Canonical, Fix cannibalization, Open the SERP | Cannibalization drawer | Firm |
+
 
 ## 7. Brands, sites and states
 
@@ -393,6 +416,58 @@ sentences move to the Sample data badge. The same text is used for the card, its
 - What it shows: That there are answers or checks, but too few to show a number.
 - How it is counted: A rate needs at least 4 valid answers. The tooltip names how many there are.
 
+### 10.6 Cannibalization (the strip of each tab and the weekly chart; keys `cannibalization.measures.*`, `cannibalization.chart.info`)
+
+**Keywords with a conflict**
+- What it shows: How many ranked keywords have two or more of your pages in conflict.
+- How it is counted: Likely cannibalization, co-ranking and unstable page together. A keyword with fewer than 10 ranked checks in the period is not judged.
+
+**Likely cannibalization**
+- What it shows: Keywords where two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks.
+- How it is counted: Evidence of competition, not proof of cause.
+
+**Co-ranking**
+- What it shows: Keywords where two of your pages are both in the top 20 on at least half of the checks.
+- How it is counted: A page nested under another of your results (a sub-result) does not count.
+
+**Unstable page**
+- What it shows: Keywords where the ranking page changes often and the rank does not get worse for it.
+- How it is counted: The ranking page changed on at least 2 of every 10 checks, and the rank did not get worse.
+
+**Search volume at risk**
+- What it shows: Monthly searches of the keywords with likely cannibalization.
+- How it is counted: The sum of the keyword search volumes, as the provider reports them. It sizes the problem and does not estimate lost clicks.
+
+**Typical rank gap**
+- What it shows: How many places lower a keyword ranks, in the middle of the likely cases, when another page is the ranking page.
+- How it is counted: The median over the keywords with likely cannibalization in the period.
+
+**Confirmed switches**
+- What it shows: Times the ranking page changed and stayed changed.
+- How it is counted: A switch counts when the new page is also the ranking page on the next readable check. A change that lasts one check is not counted.
+
+**Keywords that switched**
+- What it shows: Ranked keywords whose ranking page changed at least once in the period.
+- How it is counted: Ranked keywords have at least 10 ranked checks in the period.
+
+**Flip-flop keywords**
+- What it shows: Keywords where a page took over and the page it replaced came back.
+- How it is counted: The page returns within 14 days. The first move shows as Moved until the page returns.
+
+**Left the target page**
+- What it shows: Switches away from the page you set as the keyword's target page.
+- How it is counted: Only keywords with a target page count.
+
+**Rank improved after, Rank dropped after**
+- What it shows: Switches after which the keyword ranked better, or worse, than before.
+- How it is counted: Compares the rank on the last check before the switch with the rank on the first check after.
+
+**Switches per week (chart)**
+- What it shows: How many confirmed switches happened each week, by what the new page did to the rank.
+- How it is counted: Each column splits a week's switches into rank improved, no change and rank dropped. Many switches across many keywords in one week can be the sign of a Google update.
+
+Live numbers in the strip tooltips (`cannibalization.measures.*.whatLive` and `howLive`): the sentences above with this period's numbers in them, for example "12 of 40 ranked keywords have a conflict." and "Median over 3 keywords with likely cannibalization, in the last 30 days." The general text is shown while the numbers load.
+
 ## 11. Change log
 
 | Date | Term | Old | New | Reason |
@@ -410,3 +485,8 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-26 | Add note (U15) | | Added as the button that saves a new note on a page | Owner added the Notes tab on 2026-11-26 |
 | 2026-11-26 | Monitoring (A14), What changed (A13), Health (M18), Track in Monitoring and Stop tracking (B13) | | Added for the Monitoring tab of Pages and the page search detail | Spec 2026-11-26 page search and monitoring, section 12 |
 | 2026-11-27 | History tab (U16 to U19) | | Added Last edited, Last change seen, First seen, Google crawled, Content change, Site-wide change | Page history feature; wording follows the owner-approved mock |
+| 2026-11-27 | Cannibalization (A18, K1 to K8) | | Added as the SEO page and its measures | Owner approved the mock of the page on 2026-11-26 (docs/33) |
+| 2026-11-27 | Cannibalization info texts (10.6) | | Added for the strips and the weekly chart | The web page of docs/33 |
+| 2026-11-27 | Cannibalization drawer (K9 to K12) | | Added for the keyword drawer: its tabs, Possible causes to check, Rank by page, Ranking page by day | The web inspector of docs/33 section 7.2 |
+| 2026-11-27 | Cannibalization Export, Reset column widths, empty-cell words (K13 to K15) | | Added | Closing the gaps of the web page against the mock (docs/33 sections 7.1 and 7.2) |
+| 2026-11-27 | Cannibalization drawer Options (K16) | | Added | Inspector part 2 of the Cannibalization web page (docs/33 section 7.2); SERP snapshot is the glossary form of the mock's Open the SERP |

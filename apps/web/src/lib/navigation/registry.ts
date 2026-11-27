@@ -4,6 +4,7 @@ import {
   FileChartColumn,
   FileText,
   Grid2x2,
+  GitCompareArrows,
   LayoutDashboard,
   ListOrdered,
   MessageSquare,
@@ -36,6 +37,7 @@ export type NavKey =
   | 'matrix'
   | 'rankings'
   | 'keywords'
+  | 'cannibalization'
   | 'pages'
   | 'internalLinks'
   | 'aiOverview'
@@ -51,7 +53,7 @@ export type NavKey =
   | 'settings';
 
 /** The labelled groups inside the first section. A group label is text, never a link. */
-export type NavGroup = 'seo' | 'ai';
+export type NavGroup = 'seo' | 'ai' | 'audit';
 export type NavSectionId = 1 | 2 | 3;
 
 export interface NavDestination {
@@ -111,18 +113,9 @@ export const NAVIGATION: readonly NavDestination[] = [
     status: 'live',
   },
   {
-    key: 'pages',
-    path: '/seo/pages',
-    icon: FileText,
-    section: 1,
-    group: 'seo',
-    permission: 'data:read',
-    status: 'live',
-  },
-  {
-    key: 'internalLinks',
-    path: '/seo/internal-links',
-    icon: Network,
+    key: 'cannibalization',
+    path: '/seo/cannibalization',
+    icon: GitCompareArrows,
     section: 1,
     group: 'seo',
     permission: 'data:read',
@@ -161,6 +154,25 @@ export const NAVIGATION: readonly NavDestination[] = [
     icon: Sparkles,
     section: 1,
     group: 'ai',
+    permission: 'data:read',
+    status: 'live',
+  },
+  // The Website audit group, after AI visibility (owner, 2026-11-27): Pages, Issues, Internal links
+  {
+    key: 'pages',
+    path: '/seo/pages',
+    icon: FileText,
+    section: 1,
+    group: 'audit',
+    permission: 'data:read',
+    status: 'live',
+  },
+  {
+    key: 'internalLinks',
+    path: '/seo/internal-links',
+    icon: Network,
+    section: 1,
+    group: 'audit',
     permission: 'data:read',
     status: 'live',
   },

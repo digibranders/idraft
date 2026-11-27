@@ -246,3 +246,81 @@ describe('BoardTable paging', () => {
     expect(onEndReached).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('BoardTable resizing', () => {
+  function setupResize(resizeOn = true) {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TooltipProvider delay={0}>
+        <BoardTable<Row>
+          caption="Cited pages"
+          columns={COLUMNS}
+          rows={ROWS}
+          rowId={(row) => row.id}
+          rowLabel={(row) => `Open ${row.name}`}
+          onOpen={vi.fn()}
+          activeId={null}
+          sort={{ key: 'citations', dir: 'desc' }}
+          onSortChange={vi.fn()}
+          resize={
+            resizeOn
+              ? {
+                  widths: { count: 140 },
+                  onChange,
+                  label: (header) => `Resize the ${header} column`,
+                  valueText: (width) => `${String(width)} pixels wide`,
+                }
+              : undefined
+          }
+        />
+      </TooltipProvider>,
+    );
+    return { onChange, user };
+  }
+
+  it('has no separators unless the table opts in', () => {
+    setupResize(false);
+    expect(screen.queryAllByRole('separator')).toHaveLength(0);
+  });
+
+  it('gives each column with a width a separator that has a value, and none to the flexible column', () => {
+    setupResize();
+    const separators = screen.getAllByRole('separator');
+    expect(separators).toHaveLength(2);
+    const count = screen.getByRole('separator', { name: 'Resize the Citations column' });
+    expect(count).toHaveAttribute('aria-valuenow', '140');
+    expect(count).toHaveAttribute('aria-valuemin', '62');
+    expect(count).toHaveAttribute('aria-valuemax', '360');
+    expect(count).toHaveAttribute('aria-valuetext', '140 pixels wide');
+    expect(screen.queryByRole('separator', { name: 'Resize the Prompts column' })).toBeNull();
+  });
+
+  it('sets the col width from the saved width', () => {
+    setupResize();
+    const cols = document.querySelectorAll('col');
+    expect(cols[0]).toHaveStyle({ width: '280px' });
+    expect(cols[1]).toHaveStyle({ width: '140px' });
+  });
+
+  it('moves with the arrow keys, 48 px with Shift, and Home, End and Enter', async () => {
+    const { onChange, user } = setupResize();
+    screen.getByRole('separator', { name: 'Resize the Citations column' }).focus();
+    await user.keyboard('{ArrowRight}');
+    expect(onChange).toHaveBeenLastCalledWith('count', 156);
+    await user.keyboard('{Shift>}{ArrowLeft}{/Shift}');
+    expect(onChange).toHaveBeenLastCalledWith('count', 92);
+    await user.keyboard('{Home}');
+    expect(onChange).toHaveBeenLastCalledWith('count', 62);
+    await user.keyboard('{End}');
+    expect(onChange).toHaveBeenLastCalledWith('count', 360);
+    await user.keyboard('{Enter}');
+    expect(onChange).toHaveBeenLastCalledWith('count', null);
+  });
+
+  it('goes back to the default on a double click and does not sort', async () => {
+    const { onChange, user } = setupResize();
+    await user.dblClick(screen.getByRole('separator', { name: 'Resize the Citations column' }));
+    expect(onChange).toHaveBeenLastCalledWith('count', null);
+  });
+});

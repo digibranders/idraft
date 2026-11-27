@@ -17,6 +17,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Overview (titles: "SEO overview", "AI visibility overview") | Dashboard, Home, Summary |
 | Keywords, Pages, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs, Settings | Rankings, Topics, Engines, Sources (as a page name) |
 | Citation opportunities (working name for the planned WP-61 page; confirm when it ships) | Sources |
+| Cannibalization (SEO page; tabs Cannibalization and Switching) | Overlap, Duplicate pages |
 | Link map (a tab of Internal links: every live page and its body links as one graph) | Site map, Network, Graph (as the tab name) |
 | Outline (a tab of the page drawer: what one page says to a search engine) | Structure, On-page, SEO audit, Content outline (as the tab name) |
 | Notes (a tab of the page drawer: what the team wrote about one page) | Comments, Annotations, Remarks, Log (as the tab name) |
@@ -36,6 +37,15 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Location ("Country" and "City" only as levels in help text and pickers); All locations | Country as a field label, Region, Market, Geo, Worldwide |
 | Depth, Beyond depth | Unranked, Over 100 |
 | Period; Compare with (values: "vs previous period", "vs same period last year", "No comparison") | Window, Date window, Date range, Benchmark |
+
+## Cannibalization
+
+| Use | Never |
+|---|---|
+| Ranking page, Target page, Rank gap | Landing page, Preferred URL, Penalty |
+| Switch (the page that ranks changed), Flip-flop (it switched back within 14 days), One-check change | Flip, Swap, Ping-pong |
+| Likely cannibalization, Co-ranking, Unstable page, Not enough checks | Duplicate, No data, N/A, Insufficient data |
+| Sub-result (your page nested under another of your results) | Sitelink, Child |
 
 ## How keywords and prompts are organised
 

@@ -1,8 +1,9 @@
 'use client';
 
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react';
-import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react';
 
+import { clampWidth, limitsOf, widthForKey, widthOfColumn, type ColumnWidths } from './board-widths';
 import { Icon } from '@/components/ui/icon';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -22,6 +23,10 @@ export interface BoardColumn<TRow> {
   tip?: string | undefined;
   /** Pixels; `null` for the one flexible column, which takes the rest of the panel down to `flexMin` (C 367 to 379). */
   width: number | null;
+  /** With `resize` on the table: the narrowest the column goes, in pixels (default 60 percent of `width`, at least 56). */
+  least?: number | undefined;
+  /** With `resize` on the table: the widest the column goes, in pixels (default double `width`, 360 to 560). */
+  widest?: number | undefined;
   /** The key the table's sort names; a column without one does not sort. */
   sortKey?: string | undefined;
   cell: (row: TRow) => ReactNode;
@@ -29,6 +34,17 @@ export interface BoardColumn<TRow> {
   cellClassName?: string | undefined;
   /** The cell's tooltip, such as "Lost on Gemini to HubSpot" (C 661). */
   cellTip?: ((row: TRow) => string | undefined) | undefined;
+}
+
+/** Opt-in column resizing: the widths in use, how a change is kept, and the words of each header's separator. */
+export interface BoardResize {
+  widths: ColumnWidths;
+  /** A width in pixels, or `null` for the column's default. */
+  onChange: (id: string, width: number | null) => void;
+  /** The separator's name: "Resize the Rank column". */
+  label: (header: string) => string;
+  /** The separator's value as a sentence: "120 pixels wide". */
+  valueText: (width: number) => string;
 }
 
 export interface BoardTableProps<TRow> {
@@ -54,6 +70,8 @@ export interface BoardTableProps<TRow> {
   onEndReached?: (() => void) | undefined;
   /** A read of new rows is under way while these stay (17 section 4). */
   busy?: boolean | undefined;
+  /** Makes the columns that have a width adjustable: drag a header's right edge, or focus it and use the keys. */
+  resize?: BoardResize | undefined;
 }
 
 const HEADER =
@@ -64,17 +82,82 @@ const PIN =
   'sticky left-0 z-(--z-pinned-cell) bg-surface group-hover:bg-surface-hover group-data-active:bg-surface-selected';
 const DEFAULT_FLEX_MIN = 280;
 
+/** The right edge of a header: a vertical separator that a pointer drags and the keys move. */
+function ResizeHandle<TRow>({
+  column,
+  width,
+  resize,
+}: {
+  column: BoardColumn<TRow>;
+  width: number;
+  resize: BoardResize;
+}): ReactElement {
+  const limits = limitsOf(column.width ?? width, column.least, column.widest);
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const move = (next: number | null): void => {
+    resize.onChange(column.id, next === null || next === limits.default ? null : next);
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    const next = widthForKey(event.key, event.shiftKey, width, limits);
+    if (next === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    move(next);
+  };
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.currentTarget.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    drag.current = { x: event.clientX, width };
+  };
+  return (
+    // A focusable separator is the WAI-ARIA window splitter: it takes the keys and carries a value, so it is interactive
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={resize.label(column.header)}
+      aria-valuemin={limits.least}
+      aria-valuemax={limits.widest}
+      aria-valuenow={width}
+      aria-valuetext={resize.valueText(width)}
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+      className="absolute inset-y-0 right-0 z-(--z-table-header) w-2 cursor-col-resize touch-none outline-none hover:bg-border focus-visible:bg-primary active:bg-primary"
+      onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      onPointerMove={(event) => {
+        if (drag.current !== null) move(clampWidth(drag.current.width + event.clientX - drag.current.x, limits));
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={() => move(null)}
+    />
+  );
+}
+
 function HeaderCell<TRow>({
   column,
   pinned,
   sort,
   onSortChange,
+  resize,
 }: {
   column: BoardColumn<TRow>;
   pinned: boolean;
   sort: BoardSort;
   onSortChange: (next: BoardSort) => void;
+  resize?: BoardResize | undefined;
 }): ReactElement {
+  const width = resize === undefined ? null : widthOfColumn(column, resize.widths);
   const sortKey = column.sortKey;
   const active = sortKey !== undefined && sort.key === sortKey;
   // The pinned corner sits above the other headers and the pinned cells (C 334 to 338)
@@ -117,6 +200,7 @@ function HeaderCell<TRow>({
           {content}
         </Tooltip>
       )}
+      {resize !== undefined && width !== null ? <ResizeHandle column={column} width={width} resize={resize} /> : null}
     </th>
   );
 }
@@ -141,6 +225,7 @@ export function BoardTable<TRow>({
   flexMin = DEFAULT_FLEX_MIN,
   onEndReached,
   busy = false,
+  resize,
 }: BoardTableProps<TRow>): ReactElement {
   const scroller = useRef<HTMLDivElement>(null);
   const end = useRef<HTMLDivElement>(null);
@@ -166,7 +251,9 @@ export function BoardTable<TRow>({
     return () => observer.disconnect();
     // A new page can leave the sentinel inside the margin: observing again delivers a fresh initial entry
   }, [rows.length]);
-  const minWidth = columns.reduce((sum, column) => sum + (column.width ?? flexMin), 0);
+  const widthOf = (column: BoardColumn<TRow>): number | null =>
+    resize === undefined ? column.width : widthOfColumn(column, resize.widths);
+  const minWidth = columns.reduce((sum, column) => sum + (widthOf(column) ?? flexMin), 0);
   const [identity, ...rest] = columns;
   return (
     <div ref={scroller} className="relative isolate min-h-0 flex-1 overflow-auto">
@@ -177,9 +264,10 @@ export function BoardTable<TRow>({
       >
         <caption className="sr-only">{caption}</caption>
         <colgroup>
-          {columns.map((column) => (
-            <col key={column.id} style={column.width === null ? undefined : { width: `${String(column.width)}px` }} />
-          ))}
+          {columns.map((column) => {
+            const width = widthOf(column);
+            return <col key={column.id} style={width === null ? undefined : { width: `${String(width)}px` }} />;
+          })}
         </colgroup>
         <thead>
           <tr>
@@ -190,6 +278,7 @@ export function BoardTable<TRow>({
                 pinned={index === 0}
                 sort={sort}
                 onSortChange={onSortChange}
+                resize={resize}
               />
             ))}
           </tr>

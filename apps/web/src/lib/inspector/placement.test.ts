@@ -26,6 +26,9 @@ describe('inspect targets', () => {
     expect(parseInspectTarget('gap-prompt:0192d1a8-c177-7000-8000-000000000001')).toMatchObject({
       type: 'gap-prompt',
     });
+    expect(parseInspectTarget('cann-keyword:0192d1a8-c177-7000-8000-000000000001')).toMatchObject({
+      type: 'cann-keyword',
+    });
   });
 
   it('opens nothing for an unknown type, an empty or spaced id, or no colon', () => {

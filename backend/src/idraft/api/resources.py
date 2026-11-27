@@ -18,6 +18,7 @@ from idraft.api.ai.sources import SourceService
 from idraft.api.ai.summary import SummaryService
 from idraft.api.auth.service import AuthService
 from idraft.api.auth.sessions import SessionStore
+from idraft.api.cannibalization.service import CannibalizationService
 from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.service import EntityService
 from idraft.api.favicons.service import FaviconService
@@ -109,6 +110,7 @@ class Resources:
     client_report: ClientReportService
     public_summary: PublicSummaryService
     crawls: CrawlService
+    cannibalization: CannibalizationService
 
 
 def get_resources(request: Request) -> Resources:
