@@ -133,7 +133,9 @@ export function OverviewTab({
   );
   const issuesHref = (severity: string): Route => withQuery(issuesPath, new URLSearchParams({ severity }).toString());
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    // `relative`: the screen reader spans (`sr-only` is absolutely placed) stay inside this scroller. Without a positioned
+    // ancestor they fall back to the page, and the document grows past the window and scrolls beside the body.
+    <div className="relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
       <MetricStrip
         size="md"
         label={t('strip.label')}

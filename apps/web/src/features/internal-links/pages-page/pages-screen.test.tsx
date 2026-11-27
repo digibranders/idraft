@@ -138,6 +138,35 @@ describe('the Pages screen, All pages', () => {
   });
 });
 
+describe('the More menu of the Pages screen', () => {
+  it.each(['overview', 'all'] as const)(
+    'offers the tier rules, the CSV import and the client summary to an editor on %s',
+    async (tab) => {
+      const { user } = renderWithProviders(pagesAs('editor', tab));
+      await user.click(await screen.findByRole('button', { name: 'More actions' }));
+      expect(await screen.findByRole('menuitem', { name: 'Tier rules' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Import tiers from CSV' })).toBeInTheDocument();
+      expect(screen.getByRole('menuitem', { name: 'Crawl settings' })).toBeInTheDocument();
+      await user.click(screen.getByRole('menuitem', { name: 'Tier rules' }));
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    },
+  );
+
+  it('leaves the CSV import out for a viewer, who still reads the tier rules', async () => {
+    const { user } = renderWithProviders(pagesAs('viewer', 'all'));
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Tier rules' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Import tiers from CSV' })).toBeNull();
+  });
+
+  it('scrolls the Overview body alone: its scroller is the positioned ancestor of what it holds', async () => {
+    const { container } = renderWithProviders(pagesAs('viewer', 'overview'));
+    await strip();
+    const scroller = container.querySelector('.overflow-y-auto');
+    expect(scroller).toHaveClass('relative', 'min-h-0', 'flex-1');
+  });
+});
+
 describe('the crawl states of the Pages screen', () => {
   it('shows the no access state without data:read', () => {
     renderWithProviders(pagesAs('billing', 'overview'));
