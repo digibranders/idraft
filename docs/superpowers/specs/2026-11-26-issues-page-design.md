@@ -526,3 +526,21 @@ Found while reading the code:
     report so that its name is true.
 16. **Thresholds** are the mock's: titles 30 to 60 characters, addresses 115 characters, 3 clicks from the home
     page.
+
+## 15. Addendum 2026-11-27: slice 2, checks read from the stored HTML
+
+Owner request of 2026-11-27: complete the page for the release. Slice 2 adds 12 checks (11 from each page's stored
+HTML, plus `slow-pages` from the provider's page timing). The facts, columns, rules, thresholds and states are in
+`docs/superpowers/plans/2026-11-27-issues-03-html-checks.md`; that plan is the authority for them. Summary:
+
+- The catalogue grows from 29 to 41 checks. Still not built: `broken-external-links` (needs one real crawl to see
+  what the provider returns for external links, and no paid call was made), `broken-images` (triples the crawl
+  price; the owner kept it in open questions on 2026-11-27), `low-ctr`, `google-not-indexed`,
+  `visits-page-broken` and `cannibalization`.
+- A fact is kept only for the page's latest read. A crawl that was stored before this release has no facts until
+  the operator runs `crawl-facts` (reads the stored HTML, no provider call, no spend). Until then the checks answer
+  `not_run` with `not_collected`.
+- Hreflang return links (does the other page link back) are not checked: only the codes, duplicates and the
+  link to the page itself.
+- Open for the owner: the thresholds (3000 ms, 200 words, duplicate text from 50 words), and that
+  `broken-images` stays out until the price is accepted.
