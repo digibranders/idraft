@@ -884,7 +884,7 @@ describe('the page inspector (spec 7.4)', () => {
       expect(within(about).getByText('Redirects to')).toBeInTheDocument();
       expect(within(about).getByText('https://example.com/new')).toBeInTheDocument();
       expect(within(about).getByText('Last crawled')).toBeInTheDocument();
-      await user.click(within(about).getByRole('button', { name: 'Copy URL' }));
+      await user.click(within(about).getByRole('button', { name: 'Copy address' }));
       expect((await screen.findAllByText('URL copied')).length).toBeGreaterThan(0);
     });
 
