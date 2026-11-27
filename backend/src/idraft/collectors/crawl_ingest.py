@@ -64,7 +64,7 @@ import asyncio
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 from uuid import UUID
@@ -98,6 +98,7 @@ from idraft.crawl.graph import (
 )
 from idraft.crawl.head import canonical_of
 from idraft.crawl.hosts import site_hosts
+from idraft.crawl.page_facts import PageFacts, read_facts
 from idraft.crawl.placement import FoundLink, Placement, classify
 from idraft.crawl.scopes import LinkScope, scope_of
 from idraft.crawl.status import BLOCKED_STATUSES, is_blocked
@@ -196,6 +197,14 @@ class _PageLinks:
     capped: bool
     # The canonical address the page's own HTML names, when its HTML was read.
     canonical: CanonicalUrl | None = None
+    # What the page's own HTML says; None when it was not read or the reader could not read it.
+    facts: PageFacts | None = None
+
+
+def facts_values(facts: PageFacts | None) -> dict[str, object]:
+    """The `crawl_pages` columns a page's facts fill (the fields are named as the columns); none
+    for a page whose HTML was not read, which keeps `facts_read` false."""
+    return {} if facts is None else {"facts_read": True, **asdict(facts)}
 
 
 type Step = Callable[
@@ -433,6 +442,7 @@ async def _pages(
                     "canonical_url_id": canonical_id,
                     "title": None if item.title is None else clean_text(item.title, limit=1000),
                     "in_sitemap": item.from_sitemap,
+                    "response_ms": item.response_ms,
                     "links_state": "waiting"
                     if item.resource_type == "html" and item.status_code == 200
                     else "none",
@@ -585,7 +595,12 @@ async def page_links_from_html(
     html_canonical = _canonical(await asyncio.to_thread(canonical_of, html, crawled_url))
     edges, capped = await asyncio.to_thread(_edges_of, links, canonicalize(canonical_url), hosts)
     return _PageLinks(
-        url_id=url_id, state="from_html", edges=edges, capped=capped, canonical=html_canonical
+        url_id=url_id,
+        state="from_html",
+        edges=edges,
+        capped=capped,
+        canonical=html_canonical,
+        facts=await asyncio.to_thread(read_facts, html, crawled_url),
     )
 
 
@@ -711,7 +726,7 @@ async def _links(
                         crawl_pages.c.url_id == read.url_id,
                         crawl_pages.c.links_state == "waiting",
                     )
-                    .values(links_state=read.state)
+                    .values(links_state=read.state, **facts_values(read.facts))
                     .returning(crawl_pages.c.url_id)
                 )
             ).scalar_one_or_none()

@@ -76,6 +76,32 @@ async def test_a_crawl_that_lost_links_is_read_again_to_what_a_fresh_ingest_give
     assert (run["enrich_state"], run["links_stored"]) == ("done", len(fresh_links))
 
 
+async def test_the_facts_of_the_pages_read_again_are_written_with_their_links(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    store, crawled, _, _ = await _stale_crawl(migrated, worker_db)
+    run_id = crawled.task.run_id  # type: ignore[attr-defined]
+    workspace_id = crawled.task.workspace_id  # type: ignore[attr-defined]
+    await execute(
+        migrated,
+        "UPDATE seo.crawl_pages SET facts_read = false, word_count = NULL, h1_count = NULL "
+        "WHERE run_id = $1",
+        run_id,
+    )
+
+    await relink_crawl(worker_db, store, workspace_id=workspace_id, run_id=run_id)
+
+    rows = await fetch(
+        migrated,
+        "SELECT links_state, facts_read, word_count FROM seo.crawl_pages WHERE run_id = $1",
+        run_id,
+    )
+    from_html = [row for row in rows if row["links_state"] == "from_html"]
+    assert from_html
+    assert all(row["facts_read"] and row["word_count"] is not None for row in from_html)
+    assert not any(row["facts_read"] for row in rows if row["links_state"] != "from_html")
+
+
 async def test_a_crawl_with_a_page_whose_html_is_gone_is_not_changed_at_all(
     migrated: PostgresServer, worker_db: Sessions
 ) -> None:

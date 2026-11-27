@@ -37,6 +37,8 @@ _COST_STEP: Final = Decimal("0.000001")
 COST_MAX: Final = Decimal("300")
 # Raw HTML above this is treated as missing: the page's links come from the provider instead.
 HTML_MAX: Final = 10 * 1024 * 1024
+# Ten minutes: more than any page takes, so a larger number is a fault of the answer.
+RESPONSE_MS_MAX: Final = 600_000
 _PROGRESS: Final = frozenset({"in_progress", "finished"})
 _LINK_TYPES: Final = {"anchor": "text", "image": "image"}
 K = ProviderErrorKind
@@ -96,6 +98,8 @@ class PageItem(_Model):
     title: str | None
     canonical: str | None
     from_sitemap: bool
+    # `page_timing.duration_time` of the answer; None when the provider gave none.
+    response_ms: int | None = None
 
 
 class PageBatch(_Model):
@@ -152,6 +156,14 @@ def _cost(value: object) -> Decimal | None:
     return number.quantize(_COST_STEP, rounding=ROUND_UP)
 
 
+def _milliseconds(value: object) -> int | None:
+    """How long a page took to answer, in milliseconds, or None: absent, not a whole number, or
+    outside 0 to `RESPONSE_MS_MAX` (a value no real page has)."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= RESPONSE_MS_MAX:
+        return None
+    return value
+
+
 def _total(found: Mapping[str, object], count: int) -> int:
     """`total_items_count` of a list answer. A list with items and no usable total is a
     mismatch: guessing it from the items would end a paged read after the first batch."""
@@ -202,6 +214,7 @@ def _page(raw: object) -> PageItem:
             "title": meta.get("title"),
             "canonical": meta.get("canonical"),
             "from_sitemap": checks.get("from_sitemap") is True,
+            "response_ms": _milliseconds(_mapping(item.get("page_timing")).get("duration_time")),
         }
     )
 

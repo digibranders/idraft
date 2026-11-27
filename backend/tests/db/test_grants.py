@@ -115,6 +115,18 @@ PAGE_WORKER_UPDATE = (
     "generic_anchors",
     # Migration 0037: the canonical page a variant folds into.
     "variant_of_url_id",
+    # Migration 0042: what a page's HTML says, and how long the page took to answer.
+    "facts_read",
+    "meta_description",
+    "h1_count",
+    "word_count",
+    "text_hash",
+    "images_without_alt",
+    "og_complete",
+    "jsonld_errors",
+    "hreflang_errors",
+    "http_resources",
+    "response_ms",
 )
 
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")
