@@ -30,6 +30,9 @@ const FILL: Readonly<Record<string, string>> = {
   'chart-other': 'bg-chart-other',
 };
 
+/** The fill class of a chart token, for a cell that carries a page's color. */
+export const pageFill = (token: string): string => FILL[token] ?? 'bg-chart-other';
+
 /**
  * A page's identity without color: its letter in a box whose border carries the page's color. The same letter and
  * color name the page in the table, the history strip and the lists (docs/33 section 7.2).
@@ -67,6 +70,26 @@ export function PageChip({ page, strong = false }: PageChipProps): ReactElement 
         </span>
       </span>
     </Tooltip>
+  );
+}
+
+/** One page as a letter mark and its whole path, wrapped rather than cut: for the lists of the keyword inspector. */
+export function PageLine({
+  page,
+  strong = false,
+}: {
+  page: Pick<CannPage, 'letter' | 'path'>;
+  strong?: boolean;
+}): ReactElement {
+  const t = useTranslations('cannibalization.cells');
+  return (
+    <span className="inline-flex min-w-0 items-start gap-1.5">
+      <PageMark letter={page.letter} />
+      <span className="sr-only">{t('pageName', { letter: page.letter })}</span>
+      <span className={cn('wrap-anywhere', strong ? 'type-body-strong text-foreground' : 'text-foreground-secondary')}>
+        {page.path}
+      </span>
+    </span>
   );
 }
 

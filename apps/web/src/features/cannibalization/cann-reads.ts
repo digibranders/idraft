@@ -5,12 +5,13 @@ import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react
 import type { CannState } from './cann-model';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiQuery } from '@/lib/api/query';
-import type { CannConflictList, CannPairList, CannSwitchList } from '@/lib/api/types';
+import type { CannConflictList, CannKeywordDetail, CannPairList, CannSwitchList } from '@/lib/api/types';
 import { useErrorId, type ErrorIdWords } from '@/lib/api/use-error-id';
 
 const BASE = '/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization';
 const PAIRS = `${BASE}/pairs` as const;
 const SWITCHES = `${BASE}/switches` as const;
+const KEYWORD = `${BASE}/keywords/{tracked_keyword_id}` as const;
 /** The most rows the API answers (it caps `limit` at this). Tables sort and filter the rows in memory. */
 export const ROWS_MAX = 500;
 
@@ -87,6 +88,29 @@ export function useSwitches(scope: CannScope, filters: ScopeFilters, enabled: bo
       select: (answer): CannSwitchList => answer.data,
       placeholderData: keepPreviousData,
       enabled,
+    }),
+  );
+}
+
+/** One keyword's checks, pages and switches over the period (the keyword inspector). The scope is the page's own. */
+export function useKeywordDetail(
+  scope: CannScope,
+  trackedKeywordId: string,
+  filters: Pick<CannState, 'device' | 'days'>,
+): CannRead<CannKeywordDetail> {
+  return useRead(
+    useQuery({
+      ...apiQuery(KEYWORD, {
+        params: {
+          path: {
+            workspace_id: scope.workspaceId,
+            project_id: scope.projectId,
+            tracked_keyword_id: trackedKeywordId,
+          },
+          query: { device: filters.device, days: String(filters.days) as '14' | '30' | '90' },
+        },
+      }),
+      select: (answer): CannKeywordDetail => answer.data,
     }),
   );
 }

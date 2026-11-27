@@ -8548,6 +8548,93 @@
       "noKeywordsTitle": "No tracked keywords yet",
       "noKeywordsReason": "Cannibalization reads the checks of the keywords you track. Add keywords to see which of your pages compete for them.",
       "addKeywords": "Go to Keywords"
+    },
+    "inspector": {
+      "typeLabel": "Keyword",
+      "typeNoun": "keyword",
+      "tabsLabel": "Keyword sections",
+      "position": "{index} of {count}",
+      "period": "Last {days} days",
+      "volume": "{count, plural, one {# search} other {# searches}} a month",
+      "loadFailed": "Could not load this keyword",
+      "loadFailedReason": "The server returned an error. The page behind this drawer is unchanged.",
+      "notFound": "This keyword has no checks in the period, or you do not have access to it.",
+      "tabs": {
+        "overview": "Evidence",
+        "timeline": "Timeline",
+        "pages": "Pages"
+      },
+      "sentence": {
+        "unranked": "None of your pages was in the top 100 in the last {days} days.",
+        "insufficient": "Only {count, plural, one {# check} other {# checks}} in this period ranked the keyword, and {min} are needed before the detector says anything.",
+        "likely": "{a} and {b} took turns as the ranking page {count, plural, one {# time} other {# times}}. When {b} ranked, the keyword sat {gap, plural, one {# place} other {# places}} lower.",
+        "coRanking": "{a} (median {aMedian}) and {b} (median {bMedian}) were both in the top 20 on {share} of checks.",
+        "unstable": "The ranking page changed {count, plural, one {# time} other {# times}} and the rank held, so the keyword did not get worse for it.",
+        "noneChanged": "{page} ranks. The ranking page changed {count, plural, one {# time} other {# times}} in this period, which is not enough to call it a conflict.",
+        "noneSteady": "{page} is the only page that ranks, and it has not changed."
+      },
+      "evidence": {
+        "title": "What the checks show",
+        "meta": "{count, plural, one {# ranked check} other {# ranked checks}}",
+        "note": "{what} This is evidence of competition between your pages, not proof of cause.",
+        "gap": "Rank gap",
+        "switches": "Switches",
+        "together": "Together"
+      },
+      "rank": {
+        "title": "Rank by page",
+        "meta": "Lower is better",
+        "header": "Check",
+        "summary": "Rank of each of your pages for {keyword} over the last {days} days. {pages}",
+        "page": "Page {letter}, {path}: median rank {median}."
+      },
+      "causes": {
+        "title": "Possible causes to check",
+        "meta": "Hypotheses, not findings",
+        "titleOverlap": "The titles share {share} of their words: {a} and {b}.",
+        "sameSection": "Both pages are under {section}, so they may answer the same question and leave Google no clear choice.",
+        "differentSections": "The pages sit in different sections, {a} and {b}. Check which one the searcher wants.",
+        "offTarget": "The target page is {target}, but {current} ranks.",
+        "coRanking": "Two pages in the top 20 can be fine: each may win a different searcher.",
+        "internalLinks": "Internal links and anchor text may point several pages at the same phrase. Check the links to each page."
+      },
+      "options": {
+        "title": "Options",
+        "meta": "Nothing here changes by itself",
+        "keywordPage": "Open this keyword on the Keywords page",
+        "note": "This drawer does not set a target page or change your tracking. Both stay as they are."
+      },
+      "timeline": {
+        "lanesTitle": "Ranking page by day",
+        "lanesMeta": "{count, plural, one {# check} other {# checks}}",
+        "lanesLabel": "Ranking page on each of the last {count} checks. {pages} The switches are listed below.",
+        "laneText": "Page {letter}, {path}: ranking page on {count, plural, one {# check} other {# checks}}.",
+        "key": "Full color: the ranking page. Faded: ranked beside it. Outlined: the result address was hidden, so the check names no page.",
+        "cellRanking": "{date}: rank {rank}, the ranking page",
+        "cellBeside": "{date}: rank {rank}, beside the ranking page",
+        "cellNone": "{date}: not in the top 100",
+        "cellUnreadable": "{date}: result address hidden, not read",
+        "switchesTitle": "Switches",
+        "switchesMeta": "{count, plural, one {# confirmed switch} other {# confirmed switches}}",
+        "caption": "Confirmed switches of the ranking page",
+        "changedTo": "changed to",
+        "emptyTitle": "No confirmed switch",
+        "emptyReason": "The ranking page did not change and stay changed in this period.",
+        "emptyOneCheck": "{count, plural, one {# one-check change} other {# one-check changes}} did not hold, so {count, plural, one {it is} other {they are}} not counted."
+      },
+      "pages": {
+        "title": "Your pages for this keyword",
+        "meta": "{count, plural, one {# page} other {# pages}}",
+        "shareLabel": "Ranked on",
+        "rankingLabel": "Ranking page on",
+        "medianLabel": "Median rank",
+        "bestLabel": "Best rank",
+        "share": "{share} of checks",
+        "rankingChecks": "{count, plural, one {# check} other {# checks}}",
+        "emptyTitle": "No page ranks",
+        "emptyReason": "None of your pages was in the top 100 in this period.",
+        "note": "A sub-result sits under another result at the same rank and is not a second result."
+      }
     }
   },
   "fanout": {

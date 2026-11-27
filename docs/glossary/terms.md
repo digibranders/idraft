@@ -144,6 +144,10 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | K6 | Likely cannibalization, Co-ranking, Unstable page | The three verdicts. Likely: two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks. Co-ranking: two pages both in the top 20 on at least half of the checks. Unstable page: the ranking page changes often without a worse rank. | Not a cause. | Duplicate, Conflict (as the verdict name) | Cannibalization | Firm |
 | K7 | Not enough checks | State of a keyword with fewer than 10 ranked checks in the period. | Not "No data". | No data, N/A, Insufficient data | Cannibalization, Switching | Firm |
 | K8 | Sub-result | One of your pages nested under another of your results on the same check. It shares that result's rank and is never counted as competition. | Not a second result. | Sitelink, Child | Cannibalization pages list | Firm |
+| K9 | Evidence / Timeline / Pages (tabs of the keyword drawer) | The three tabs of the Cannibalization keyword drawer. Evidence: what the checks show in a sentence, three figures, Rank by page, Possible causes to check and Options. Timeline: Ranking page by day, one lane per page, and the confirmed switches. Pages: your pages for the keyword with their numbers. | Not a verdict of cause. | Overview (for this drawer), Details, History | Cannibalization drawer | Firm |
+| K10 | Possible causes to check | A list of hypotheses the page offers beside the evidence: title overlap, the section the pages are in, a target page that is not the ranking page, internal links. Always labelled "Hypotheses, not findings". | Not a finding, not a diagnosis. | Root cause, Reasons, Problems found | Cannibalization drawer | Firm |
+| K11 | Rank by page | The drawer chart of the rank of each of your pages on each check, lower is better, with a letter at the end of each line and a Table view. | Not a competitor chart. | Rank history (for this chart), Rankings | Cannibalization drawer | Firm |
+| K12 | Ranking page by day | The drawer lanes, one per page: full color on the checks the page was the ranking page, faded where it ranked beside it, outlined where Google hid the result address. | Not a rank. | Heatmap, Timeline chart | Cannibalization drawer | Firm |
 
 
 ## 7. Brands, sites and states
@@ -458,3 +462,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-26 | Link map (A11) | | Added as the name of the Internal links tab that draws the whole crawl as one graph | Owner approved the tab and its name on 2026-11-26 |
 | 2026-11-27 | Cannibalization (A12, K1 to K8) | | Added as the SEO page and its measures | Owner approved the mock of the page on 2026-11-26 (docs/33) |
 | 2026-11-27 | Cannibalization info texts (10.6) | | Added for the strips and the weekly chart | The web page of docs/33 |
+| 2026-11-27 | Cannibalization drawer (K9 to K12) | | Added for the keyword drawer: its tabs, Possible causes to check, Rank by page, Ranking page by day | The web inspector of docs/33 section 7.2 |

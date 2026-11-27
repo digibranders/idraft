@@ -13,6 +13,7 @@ import { useCannState } from './cann-state';
 import { ReadError } from './cann-view-parts';
 import { ScopeToolbar, type GroupChoice } from './scope-toolbar';
 import { SwitchingView } from './switching-view';
+import { useFocusReturn } from './use-focus-return';
 import { useSearchDraft } from './use-search-draft';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
@@ -38,7 +39,7 @@ export interface CannScreenProps {
   /** The route segment: `/seo/cannibalization` or `/seo/cannibalization/switching` (docs/33 section 7.1). */
   tab: CannTab;
   /**
-   * The keyword inspector (`inspect=cann-keyword:<id>`), which another feature owns and the route composes, as the
+   * The keyword inspector (`inspect=cann-keyword:<id>`), which the route composes (`CannKeywordInspector`), as the
    * Citations route does for the prompt inspector. It reads the table's order from `CannOrderContext`.
    */
   keywordInspector?: ReactNode;
@@ -87,11 +88,14 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
 
   const inspector = useInspector();
   const [order, setOrder] = useState<readonly string[]>([]);
+  // Closing the drawer returns focus to the row that opened it
+  const rememberOpener = useFocusReturn(inspector.target !== null);
   const openKeyword = useCallback(
-    (id: string, tabId?: string): void => {
+    (id: string, opener: HTMLElement | null, tabId?: string): void => {
+      rememberOpener(opener);
       inspector.open({ type: 'cann-keyword', id }, tabId === undefined ? undefined : { tab: tabId });
     },
-    [inspector],
+    [inspector, rememberOpener],
   );
   const target = inspector.target;
   const drawer = target?.type === 'cann-keyword' ? (keywordInspector ?? null) : null;
@@ -147,7 +151,7 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
         search={searchText}
         onSearchChange={setSearchText}
         activeId={target?.type === 'cann-keyword' ? target.id : null}
-        onOpen={(id, _opener, tabId) => openKeyword(id, tabId)}
+        onOpen={openKeyword}
         onOrderChange={setOrder}
       />
     );
@@ -165,7 +169,7 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
         search={searchText}
         onSearchChange={setSearchText}
         activeId={target?.type === 'cann-keyword' ? target.id : null}
-        onOpen={(row, _opener, tabId) => openKeyword(row.tracked_keyword_id, tabId)}
+        onOpen={(row, opener, tabId) => openKeyword(row.tracked_keyword_id, opener, tabId)}
         onOrderChange={setOrder}
         keywordsHref={keywordsHref}
       />

@@ -184,3 +184,6 @@ export type CannSwitchEvent = Schemas['SwitchEvent'];
 export type CannConflictList = Schemas['ConflictList'];
 export type CannSwitchList = Schemas['SwitchList'];
 export type CannPairList = Schemas['PairList'];
+export type CannKeywordDetail = Schemas['CannKeywordDetail'];
+export type CannCheck = Schemas['CannCheck'];
+export type CannUrl = Schemas['CannUrl'];

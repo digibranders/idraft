@@ -1,5 +1,7 @@
 import type {
+  CannCheck,
   CannConflictList,
+  CannKeywordDetail,
   CannKeyword,
   CannMeta,
   CannPage,
@@ -158,4 +160,24 @@ export const cannPairs = (): CannPairList => ({
       tracked_keyword_ids: ['alpha', 'beta', 'gamma'],
     },
   ],
+});
+
+/** One check of a keyword's detail: `ranks` maps a url id to its rank on that day. */
+export const cannCheck = (
+  date: string,
+  ranks: Readonly<Record<string, number>>,
+  extra: Partial<CannCheck> = {},
+): CannCheck => ({
+  date,
+  readable: true,
+  ranks: Object.entries(ranks).map(([url_id, rank]) => ({ url_id, rank })),
+  sub_results: [],
+  ...extra,
+});
+
+export const cannDetail = (keyword: CannKeyword, checks: readonly CannCheck[] = []): CannKeywordDetail => ({
+  meta: cannMeta(30, { total: 1 }),
+  keyword,
+  urls: keyword.pages.map((page) => ({ url_id: page.url_id, url: page.url, path: page.path, title: page.title })),
+  checks: [...checks],
 });
