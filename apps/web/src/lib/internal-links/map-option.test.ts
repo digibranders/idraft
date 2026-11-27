@@ -116,18 +116,28 @@ const link = (option: Record<string, unknown>, source: string, target: string): 
   seriesOf(option).links.find((item) => item.source === source && item.target === target);
 
 describe('fitBox', () => {
-  it('keeps the proportions of the map in a canvas of another shape', () => {
+  it('keeps the proportions of the map in a canvas of nearly its shape', () => {
+    const box = fitBox({ width: 2, height: 1 }, 1272, 696);
+
+    // The room is the canvas less 72 px of width and 96 px of height: 1200 by 600, the shape of the map
+    expect([box.width, box.height]).toEqual([1200, 600]);
+    expect([box.left, box.top]).toEqual([36, 28]);
+  });
+
+  it('stretches the map to fill a canvas of another shape, by at most 1.7 times', () => {
     const wide = fitBox({ width: 2, height: 1 }, 1272, 796);
     const tall = fitBox({ width: 2, height: 1 }, 472, 996);
+    const slim = fitBox({ width: 1, height: 1 }, 1272, 596);
 
-    expect(wide.width / wide.height).toBeCloseTo(2);
-    expect(tall.width / tall.height).toBeCloseTo(2);
-    // The room is the canvas less 72 px of width and 96 px of height: 1200 by 700, then 400 by 900
-    expect([wide.width, wide.height]).toEqual([1200, 600]);
-    expect([tall.width, tall.height]).toEqual([400, 200]);
-    // Centred in the room left by the margins
+    // The room is 1200 by 700: the map is 1.17 times taller than its shape and fills it
+    expect([wide.width, wide.height]).toEqual([1200, 700]);
+    // The room is 400 by 900 and the map's own shape allows 200: it takes 1.7 times that, centred in the room
+    expect([tall.width, tall.height]).toEqual([400, 340]);
     expect(tall.left).toBe(36);
-    expect(tall.top).toBeGreaterThan(28);
+    expect(tall.top).toBe(28 + (900 - 340) / 2);
+    // A square map in a wide room: 1.7 times as wide as high, not the whole width
+    expect(slim.width).toBeCloseTo(500 * 1.7);
+    expect(slim.height).toBe(500);
   });
 });
 
