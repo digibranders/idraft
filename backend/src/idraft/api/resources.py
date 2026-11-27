@@ -36,6 +36,7 @@ from idraft.api.internal_links.route_finder import RouteFinder
 from idraft.api.internal_links.shares import ShareService
 from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_levels import TierLevelService
+from idraft.api.issues.service import IssueService
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.service import KeywordService
 from idraft.api.operations.costs import CostService
@@ -111,6 +112,7 @@ class Resources:
     public_summary: PublicSummaryService
     crawls: CrawlService
     cannibalization: CannibalizationService
+    issues: IssueService
 
 
 def get_resources(request: Request) -> Resources:

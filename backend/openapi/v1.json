@@ -11817,6 +11817,364 @@
         "title": "InvitationResponse",
         "type": "object"
       },
+      "IssueCheck": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Search Console clicks of those pages in the window; null when the check did not run or `meta.gsc.state` is not `ok`.",
+            "title": "Clicks"
+          },
+          "example_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first path in byte order among the check's pages; null when none.",
+            "title": "Example Path"
+          },
+          "found_by": {
+            "enum": [
+              "crawl",
+              "ranks",
+              "gsc",
+              "ga4",
+              "ai"
+            ],
+            "title": "Found By",
+            "type": "string"
+          },
+          "id": {
+            "enum": [
+              "status-4xx",
+              "status-5xx",
+              "clicks-page-broken",
+              "rank-page-broken",
+              "cited-page-broken",
+              "clicks-page-orphan",
+              "redirect-broken",
+              "redirect-chain",
+              "links-to-redirect",
+              "redirect-pages",
+              "canonical-broken",
+              "noindex",
+              "canonical-elsewhere",
+              "sitemap-broken",
+              "sitemap-nonindexable",
+              "not-in-sitemap",
+              "broken-internal-links",
+              "orphans",
+              "editorial-orphans",
+              "links-to-nonindexable",
+              "deep-pages",
+              "nofollow-internal",
+              "mixed-content",
+              "hreflang",
+              "slow-pages",
+              "title-missing",
+              "title-duplicate",
+              "title-long",
+              "title-short",
+              "description-missing",
+              "description-duplicate",
+              "h1-missing",
+              "h1-multiple",
+              "thin-content",
+              "duplicate-content",
+              "image-alt",
+              "schema-errors",
+              "social-tags",
+              "url-format",
+              "url-long",
+              "off-target"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pages the check found; null when it did not run.",
+            "title": "Pages"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "source_not_connected",
+                  "not_collected",
+                  "no_sitemap",
+                  "links_dropped"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the check did not run; null when it ran.",
+            "title": "Reason"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning",
+              "notice"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ran",
+              "not_run"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "tab": {
+            "enum": [
+              "technical",
+              "on_page"
+            ],
+            "title": "Tab",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tab",
+          "category",
+          "severity",
+          "found_by",
+          "state",
+          "reason",
+          "pages",
+          "clicks",
+          "example_path"
+        ],
+        "title": "IssueCheck",
+        "type": "object"
+      },
+      "IssueDetail": {
+        "description": "What a check found on one page (spec section 4, last column). The web writes the sentence.",
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "target_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Path"
+          },
+          "target_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Status"
+          }
+        },
+        "title": "IssueDetail",
+        "type": "object"
+      },
+      "IssueGsc": {
+        "properties": {
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "state",
+          "window_start",
+          "window_end"
+        ],
+        "title": "IssueGsc",
+        "type": "object"
+      },
+      "IssueListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/IssueCheck"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/IssueMeta"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/IssueSummary"
+          }
+        },
+        "required": [
+          "data",
+          "summary",
+          "meta"
+        ],
+        "title": "IssueListResponse",
+        "type": "object"
+      },
+      "IssueMeta": {
+        "properties": {
+          "crawled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crawled At"
+          },
+          "gsc": {
+            "$ref": "#/components/schemas/IssueGsc"
+          },
+          "links_available": {
+            "title": "Links Available",
+            "type": "boolean"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "crawled_at",
+          "links_available",
+          "gsc"
+        ],
+        "title": "IssueMeta",
+        "type": "object"
+      },
+      "IssueSummary": {
+        "properties": {
+          "checks_passed": {
+            "title": "Checks Passed",
+            "type": "integer"
+          },
+          "checks_ran": {
+            "title": "Checks Ran",
+            "type": "integer"
+          },
+          "pages_crawled": {
+            "description": "Every address of the crawl, variants included.",
+            "title": "Pages Crawled",
+            "type": "integer"
+          },
+          "pages_with_error": {
+            "title": "Pages With Error",
+            "type": "integer"
+          },
+          "pages_with_issue": {
+            "title": "Pages With Issue",
+            "type": "integer"
+          },
+          "pages_with_notice": {
+            "title": "Pages With Notice",
+            "type": "integer"
+          },
+          "pages_with_warning": {
+            "title": "Pages With Warning",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pages_crawled",
+          "pages_with_issue",
+          "pages_with_error",
+          "pages_with_warning",
+          "pages_with_notice",
+          "checks_ran",
+          "checks_passed"
+        ],
+        "title": "IssueSummary",
+        "type": "object"
+      },
       "JoinedWorkspace": {
         "properties": {
           "name": {
@@ -17115,6 +17473,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/GscPage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueDetail"
               },
               {
                 "type": "null"
@@ -47190,6 +47558,67 @@
             }
           },
           {
+            "description": "Only the pages one check of the Issues page found. It sets the variant handling the check needs, so `filter[include_variants]` is ignored with it.",
+            "in": "query",
+            "name": "filter[issue]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "status-4xx",
+                    "status-5xx",
+                    "clicks-page-broken",
+                    "rank-page-broken",
+                    "cited-page-broken",
+                    "clicks-page-orphan",
+                    "redirect-broken",
+                    "redirect-chain",
+                    "links-to-redirect",
+                    "redirect-pages",
+                    "canonical-broken",
+                    "noindex",
+                    "canonical-elsewhere",
+                    "sitemap-broken",
+                    "sitemap-nonindexable",
+                    "not-in-sitemap",
+                    "broken-internal-links",
+                    "orphans",
+                    "editorial-orphans",
+                    "links-to-nonindexable",
+                    "deep-pages",
+                    "nofollow-internal",
+                    "mixed-content",
+                    "hreflang",
+                    "slow-pages",
+                    "title-missing",
+                    "title-duplicate",
+                    "title-long",
+                    "title-short",
+                    "description-missing",
+                    "description-duplicate",
+                    "h1-missing",
+                    "h1-multiple",
+                    "thin-content",
+                    "duplicate-content",
+                    "image-alt",
+                    "schema-errors",
+                    "social-tags",
+                    "url-format",
+                    "url-long",
+                    "off-target"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the pages one check of the Issues page found. It sets the variant handling the check needs, so `filter[include_variants]` is ignored with it.",
+              "title": "Filter[Issue]"
+            }
+          },
+          {
             "in": "query",
             "name": "filter[view]",
             "required": false,
@@ -47322,7 +47751,7 @@
             }
           },
           {
-            "description": "Parts to add to each row as `extras`.",
+            "description": "Parts to add to each row as `extras`. `issue` is the detail of `filter[issue]` and stays null without it.",
             "in": "query",
             "name": "include",
             "required": false,
@@ -47335,7 +47764,8 @@
                       "keywords",
                       "citations",
                       "anchors",
-                      "gsc"
+                      "gsc",
+                      "issue"
                     ],
                     "type": "string"
                   },
@@ -47345,8 +47775,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Parts to add to each row as `extras`.",
-              "maxLength": 5,
+              "description": "Parts to add to each row as `extras`. `issue` is the detail of `filter[issue]` and stays null without it.",
+              "maxLength": 6,
               "title": "Include"
             }
           },
@@ -48869,6 +49299,95 @@
         "summary": "Counts of the saved worklists",
         "tags": [
           "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues": {
+      "get": {
+        "operationId": "list_issues_api_v1_workspaces__workspace_id__projects__project_id__issues_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueListResponse"
+                }
+              },
+              "text/csv": {}
+            },
+            "description": "With `format=csv`: the rows as CSV."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The checks of a crawl, with the pages each found and the totals of the strip",
+        "tags": [
+          "issues"
         ]
       }
     },

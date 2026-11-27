@@ -1,11 +1,11 @@
 # 11. Navigation
 
 Status: Accepted (design-system v2)
-Last updated: 2026-09-29
+Last updated: 2026-11-26
 
 ## 1. Navigation architecture
 
-Primary navigation stays concise: 16 sidebar items in 3 sections separated by 16 px of space (no divider lines). The first section holds Overview, Matrix and two labelled groups, SEO (3 items) and AI Visibility (4 items); the second holds Competitors and Discover (topics are reached through Topics & Prompts, [ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)); the third holds Reports, Integrations, Runs, Costs and Settings. Runs and Costs are the two operational pages: Runs lists the collection runs of the project, and Costs shows the whole workspace's spend; both open inside the project, so the sidebar never leaves the screen. Subpages use local tabs in the page header, never extra sidebar entries.
+Primary navigation stays concise: 18 sidebar items in 3 sections separated by 16 px of space (no divider lines). The first section holds Overview, Matrix and three labelled groups, SEO (2 items), Website audit (3 items) and AI Visibility (4 items); the second holds Competitors and Discover (topics are reached through Topics & Prompts, [ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)); the third holds Reports, Integrations, Runs, Costs and Settings. Runs and Costs are the two operational pages: Runs lists the collection runs of the project, and Costs shows the whole workspace's spend; both open inside the project, so the sidebar never leaves the screen. Subpages use local tabs in the page header, never extra sidebar entries.
 
 ```mermaid
 flowchart TB
@@ -14,7 +14,10 @@ flowchart TB
     P --> SEO[SEO]
     SEO --> R[Rankings]
     SEO --> K[Keywords]
-    SEO --> PG[Pages]
+    P --> WA[Website audit]
+    WA --> PG[Pages]
+    WA --> IS[Issues]
+    WA --> IL[Internal links]
     P --> AI[AI Visibility]
     AI --> AO[Overview]
     AI --> PR[Topics & Prompts]
@@ -42,7 +45,9 @@ flowchart TB
 SEO
   Rankings
   Keywords
+Website audit
   Pages
+  Issues
   Internal links
 AI Visibility
   Overview
@@ -69,8 +74,9 @@ Last run 06:12 · 1,284 keywords   <- collection status line
 | Matrix | `/matrix` | Keywords, Clusters, Pages |
 | SEO > Rankings | `/seo/rankings` | none (saved views instead) |
 | SEO > Keywords | `/seo/keywords` | Inventory, Groups, Metrics history, Imports |
-| SEO > Pages | `/seo/pages` | Overview, All pages, Monitoring (Monitoring is listed once it exists) |
-| SEO > Internal links | `/seo/internal-links` | Journey, Link map, Links, Tier flow, Changes, Opportunities (the tab list shows only once a crawl can be read; [the internal link tracker spec](../superpowers/specs/2026-11-16-internal-link-tracker-design.md) section 7) |
+| Website audit > Pages | `/seo/pages` | Overview, All pages, Monitoring (Monitoring is listed once it exists) |
+| Website audit > Issues | `/seo/issues` | Technical, On-page ([the Issues page spec](../superpowers/specs/2026-11-26-issues-page-design.md) section 7) |
+| Website audit > Internal links | `/seo/internal-links` | Journey, Link map, Links, Tier flow, Changes, Opportunities (the tab list shows only once a crawl can be read; [the internal link tracker spec](../superpowers/specs/2026-11-16-internal-link-tracker-design.md) section 7) |
 | AI Visibility > Overview | `/ai` | none |
 | AI Visibility > Topics & Prompts | `/ai/prompts` | Topics, Prompts, Panels, Versions ([ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md)) |
 | AI Visibility > Citations | `/ai/citations` | Domains, Pages, New and lost |
@@ -88,6 +94,8 @@ Other workspace-level destinations (Members, Billing, API keys) are in the works
 As built (shell move, 2026-10-06, replacing the "Workspace" group of links at the foot of the project switcher): Runs (`/{workspace}/{project}/ops/runs`, `data:read`, `Activity` icon) and Costs (`/{workspace}/{project}/costs`, `costs:read`, `Receipt` icon) are sidebar items in the third section, after Integrations and before Settings, and a role without the permission does not see the item. Both pages are in the project shell: the sidebar, the project switcher and the breadcrumb ("Runs" or "Costs" as the current item) stay on screen, and Rankings is one click back. Runs is the project's: the project is the route, the page has no project select (the old `project` URL key is gone), and the project switcher keeps Runs when another project is chosen. Runs and Costs also carry the page's query (month, tab, filters) to the other project, minus the open inspector (`inspect`, `itab`); the registry flag is `carriesQuery`, and Rankings, whose filters belong to one project, opens without a query. Costs is the workspace's whole spend whichever project's shell it opens in; its Project filter starts empty and the project in the route is no filter, so the header meta says "All projects in {workspace}" until a project is chosen in the filter. In the no-access states, "Back to Overview" goes to the project's root. The old routes `/{workspace}/costs` and `/{workspace}/ops/runs` redirect on the server to the same page of the first project the member can open (Runs honours a legacy `?project=<slug>` that the member can open; the other query keys, such as `month`, are kept). Only a member who can open no project stays in the workspace shell on those routes: Costs works without a project, and Runs says there is nothing to show. The projects list at `/{workspace}` and the workspace's own settings pages stay in the workspace shell, where no project is open. The breadcrumb has no workspace menu yet, and Members and Workspace settings are reached through Settings. Rankings is live in the sidebar and a project opens on it (the first live destination the role can open, so Costs for a billing member); SEO > Keywords and the other destinations of the table are planned.
 
 As built (Internal links, 2026-11-17): SEO > Internal links (`/{workspace}/{project}/seo/internal-links`, `data:read`, `Network` icon) is the 17th destination, live, after Pages in the SEO group (`src/lib/navigation/registry.ts` has 17 items). Its tab, link scope, worklists, sort, search and journey live in the address; a project opens on the first live destination the role can open, which stays Keywords. Starting a crawl needs `runs:trigger`; a role without it sees Crawl now disabled with its reason. The Pages tab moved to SEO > Pages > All pages on 2026-11-26, and old `?tab=pages` addresses redirect there with their query.
+
+As built (Issues, 2026-11-26): a third labelled group, Website audit, sits after AI visibility (owner order of 2026-11-27: SEO, AI visibility, Website audit): Pages, Issues, Internal links. Pages is live with its tabs Overview, All pages and Monitoring. Issues (`/{workspace}/{project}/seo/issues`, `data:read`, `ListChecks` icon) is the 18th destination and live; Pages and Internal links moved here from SEO with its path unchanged, so no address changed. SEO keeps Rankings (planned), Keywords and Cannibalization. A member without `data:read` sees no Website audit group, label and all. `src/lib/navigation/registry.ts` has 18 items; the group labels are `navigation.groups.seo`, `audit` and `ai`.
 
 Diagnostics ("Why am I losing this keyword/prompt?") are never navigation entries. Keyword diagnostics are a tab in Keyword Detail ([24-page-templates.md](24-page-templates.md) section 9.4). Prompt Detail already has the maximum of 6 tabs ([24-page-templates.md](24-page-templates.md) section 9.6), so prompt diagnostics (Phase 15) must replace or merge an existing tab rather than add a seventh (section 6).
 

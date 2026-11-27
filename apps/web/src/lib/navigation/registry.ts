@@ -6,6 +6,7 @@ import {
   Grid2x2,
   GitCompareArrows,
   LayoutDashboard,
+  ListChecks,
   ListOrdered,
   MessageSquare,
   MessageSquareText,
@@ -39,6 +40,7 @@ export type NavKey =
   | 'keywords'
   | 'cannibalization'
   | 'pages'
+  | 'issues'
   | 'internalLinks'
   | 'aiOverview'
   | 'prompts'
@@ -162,6 +164,15 @@ export const NAVIGATION: readonly NavDestination[] = [
     key: 'pages',
     path: '/seo/pages',
     icon: FileText,
+    section: 1,
+    group: 'audit',
+    permission: 'data:read',
+    status: 'live',
+  },
+  {
+    key: 'issues',
+    path: '/seo/issues',
+    icon: ListChecks,
     section: 1,
     group: 'audit',
     permission: 'data:read',

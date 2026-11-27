@@ -233,6 +233,7 @@ def _raw_page(item: PageItem) -> dict[str, object]:
         "url": item.url,
         "meta": {"title": item.title, "canonical": item.canonical},
         "checks": {"from_sitemap": item.from_sitemap},
+        "page_timing": {"duration_time": item.response_ms},
     }
 
 

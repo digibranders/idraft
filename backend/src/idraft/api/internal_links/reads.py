@@ -77,6 +77,10 @@ from idraft.api.internal_links.page_notes import notes_count
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.internal_links.status_filter import status_classes
+from idraft.api.issues.catalogue import BY_ID
+from idraft.api.issues.details import NO_DETAIL, detail_cells, issue_details
+from idraft.api.issues.rules import condition
+from idraft.api.issues.sources import read_sources
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
 from idraft.api.schemas.common import UserRef
@@ -475,6 +479,14 @@ _PAGE_CSV_HEADER: Final = (
     "in_sitemap",
     "top_anchor",
     "flags",
+)
+# Added after the Pages columns when the list is the pages of one check.
+_ISSUE_CSV_HEADER: Final = (
+    "Found address",
+    "Found status",
+    "Found count",
+    "Found reason",
+    "Clicks",
 )
 _EDGE_CSV_HEADER: Final = (
     "source_url",
@@ -934,9 +946,15 @@ async def neighbor_page(
 
 
 async def attach_extras(
-    db: AsyncSession, scope: PageScope, rows: list[PageRow], include: set[str]
+    db: AsyncSession,
+    scope: PageScope,
+    rows: list[PageRow],
+    include: set[str],
+    *,
+    issue: str | None = None,
 ) -> None:
-    """Fills `row.extras` for the parts asked for, one grouped query per part."""
+    """Fills `row.extras` for the parts asked for, one grouped query per part. `issue` is the
+    check the list is filtered by; the `issue` part is empty without it."""
     ids = [int(row.url_id) for row in rows]
     if not ids:
         return
@@ -949,6 +967,11 @@ async def attach_extras(
         else {}
     )
     gsc = await gsc_of(db, scope, ids) if "gsc" in include else {}
+    found = (
+        await issue_details(db, scope, issue, ids)
+        if "issue" in include and issue is not None
+        else None
+    )
     for row in rows:
         url = int(row.url_id)
         row.extras = PageExtras(
@@ -962,7 +985,26 @@ async def attach_extras(
                 else None
             ),
             gsc=gsc.get(url),
+            # A check with nothing to say shows an empty detail, not none.
+            issue=None if found is None else found.get(url, NO_DETAIL),
         )
+
+
+async def _page_filter_conditions(
+    db: AsyncSession, found: PageFilter, scope: PageScope, issue: str | None
+) -> list[ColumnElement[bool]]:
+    """The Pages filter, with the rule of one check of the Issues page when `issue` is set."""
+    if issue is None:
+        return page_conditions(found, scope)
+    need = BY_ID[issue].need
+    if need == "links":
+        scope.require_links()
+    # Only the one source the check joins is read.
+    sources = await read_sources(db, scope, need) if need in ("gsc", "ranks", "ai") else None
+    # The check says which variants count, so the list's own variant filter is off.
+    conditions = page_conditions(found.model_copy(update={"include_variants": True}), scope)
+    conditions.append(condition(issue, scope, sources))
+    return conditions
 
 
 class LinkReadService:
@@ -996,11 +1038,12 @@ class LinkReadService:
         cursor: str | None,
         limit: int,
         include: Sequence[str] = (),
+        issue: str | None = None,
     ) -> PageList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
-            conditions = page_conditions(found, scope)
+            conditions = await _page_filter_conditions(db, found, scope, issue)
             total = (
                 await db.execute(
                     select(func.count()).select_from(page_rows(scope)).where(*conditions)
@@ -1009,12 +1052,15 @@ class LinkReadService:
             sorter = await _sorter(db, scope, view, sort)
             column = sorter.column
             descending = sort.startswith("-")
-            cursor_scope = {
+            cursor_scope: dict[str, object] = {
                 "run": str(scope.run_id),
                 "view": view.value,
                 "sort": sort,
                 "filter": found.model_dump(mode="json"),
             }
+            # Only when asked, so the cursors of the plain Pages list keep their value.
+            if issue is not None:
+                cursor_scope["issue"] = issue
             statement = _page_select(view, sorter).where(*conditions)
             if cursor is not None:
                 value, after_id = _page_cursor(cursor, cursor_scope, sort)
@@ -1032,7 +1078,7 @@ class LinkReadService:
             )
             page_rows_out = await _page_rows(db, scope, view, tiers, rows)
             if include:
-                await attach_extras(db, scope, page_rows_out, set(include))
+                await attach_extras(db, scope, page_rows_out, set(include), issue=issue)
             return PageList(
                 rows=page_rows_out,
                 total=total,
@@ -1050,21 +1096,28 @@ class LinkReadService:
         view: LinkScope,
         found: PageFilter,
         sort: str,
+        issue: str | None = None,
     ) -> str:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
             sorter = await _sorter(db, scope, view, sort)
+            conditions = await _page_filter_conditions(db, found, scope, issue)
             rows = (
                 await db.execute(
                     _page_select(view, sorter)
-                    .where(*page_conditions(found, scope))
+                    .where(*conditions)
                     .order_by(*_page_order(sorter))
                     .limit(EXPORT_ROWS_MAX)
                 )
             ).all()
+            more = (
+                await detail_cells(db, scope, issue, [row.url_id for row in rows])
+                if issue is not None
+                else None
+            )
         return csv_text(
-            _PAGE_CSV_HEADER,
+            _PAGE_CSV_HEADER if more is None else (*_PAGE_CSV_HEADER, *_ISSUE_CSV_HEADER),
             (
                 (
                     row.canonical_url,
@@ -1080,6 +1133,7 @@ class LinkReadService:
                     row.in_sitemap,
                     row.top_anchor,
                     " ".join(_flags(row)),
+                    *(() if more is None else more[row.url_id]),
                 )
                 for row in rows
             ),

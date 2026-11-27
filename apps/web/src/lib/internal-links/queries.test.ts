@@ -242,10 +242,11 @@ describe('crawls and settings (the backend OpenAPI)', () => {
     expect(query.queryKey.slice(0, 5)).toEqual(crawlKeys(SCOPE)[0]);
   });
 
-  it('makes a crawl that turns ready stale for the crawl list, every read of the links and the settings', () => {
+  it('makes a crawl that turns ready stale for the crawl list, every read of the links, the issues and the settings', () => {
     expect(crawlFinishedKeys(SCOPE)).toEqual([
       ['ws', 'w1', 'p', 'p1', 'link-crawls'],
       ...internalLinksKeys(SCOPE),
+      ['ws', 'w1', 'p', 'p1', 'issues'],
       ['ws', 'w1', 'p', 'p1', 'settings'],
     ]);
   });

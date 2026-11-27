@@ -183,6 +183,42 @@ async def test_a_malformed_sitemap_date_is_none(api: Api, on_page: OnPage, raw: 
     assert (await on_page.pages(TASK, token=None)).items[0].sitemap_lastmod is None
 
 
+async def test_the_response_time_is_kept_only_as_a_sane_number_of_milliseconds(
+    api: Api, on_page: OnPage
+) -> None:
+    cases: list[tuple[object, int | None]] = [
+        ({"duration_time": 1234}, 1234),
+        ({"duration_time": 0}, 0),
+        ({"duration_time": 600_000}, 600_000),
+        ({"duration_time": 600_001}, None),
+        ({"duration_time": -1}, None),
+        ({"duration_time": "1234"}, None),
+        ({"duration_time": 12.5}, None),
+        ({"duration_time": True}, None),
+        ({"duration_time": None}, None),
+        ({}, None),
+        (None, None),
+        ("fast", None),
+    ]
+    items = [
+        {
+            "resource_type": "html",
+            "status_code": 200,
+            "url": f"https://example.com/{number}",
+            "meta": {},
+            "checks": {},
+            "page_timing": timing,
+        }
+        for number, (timing, _) in enumerate(cases)
+    ]
+    result = {"total_items_count": len(items), "items": items, "search_after_token": None}
+    api.answer("POST", "/v3/on_page/pages", envelope([task_answer(task_id=TASK, result=[result])]))
+
+    batch = await on_page.pages(TASK, token=None)
+
+    assert [item.response_ms for item in batch.items] == [expected for _, expected in cases]
+
+
 async def test_raw_html_and_its_absence(api: Api, on_page: OnPage) -> None:
     api.answer(
         "POST",

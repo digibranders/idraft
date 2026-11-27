@@ -19,7 +19,7 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
 
 describe('the navigation registry', () => {
   it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8) and Internal links, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(18);
+    expect(NAVIGATION).toHaveLength(19);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
@@ -29,6 +29,7 @@ describe('the navigation registry', () => {
     expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(4);
     expect(NAVIGATION.filter((item) => item.group === 'audit').map((item) => item.key)).toEqual([
       'pages',
+      'issues',
       'internalLinks',
     ]);
   });
@@ -39,7 +40,7 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Cannibalization, AI Overview, Prompts, Citations, Insights, Pages, Internal links, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Cannibalization, AI Overview, Prompts, Citations, Insights, Pages, Issues, Internal links, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
       'cannibalization',
@@ -48,6 +49,7 @@ describe('the navigation registry', () => {
       'citations',
       'insights',
       'pages',
+      'issues',
       'internalLinks',
       'competitors',
       'reports',
@@ -78,6 +80,7 @@ describe('the navigation registry', () => {
       'citations',
       'insights',
       'pages',
+      'issues',
       'internalLinks',
       'competitors',
       'reports',
@@ -93,6 +96,7 @@ describe('the navigation registry', () => {
       'citations',
       'insights',
       'pages',
+      'issues',
       'internalLinks',
       'competitors',
       'reports',
@@ -231,9 +235,9 @@ describe('the navigation registry', () => {
     expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/matrix', 'digibranders', 'fynix')).toBeNull();
   });
 
-  it('Pages is live in the Website audit group before Internal links, and both of its tabs are its destination', () => {
+  it('Pages is live in the Website audit group before Issues and Internal links, and both of its tabs are its destination', () => {
     const audit = LIVE_NAVIGATION.filter((item) => item.group === 'audit').map((item) => item.key);
-    expect(audit).toEqual(['pages', 'internalLinks']);
+    expect(audit).toEqual(['pages', 'issues', 'internalLinks']);
     for (const path of ['/seo/pages', '/seo/pages/all', '/seo/pages/monitoring']) {
       expect(destinationOf(LIVE_NAVIGATION, `/digibranders/fynix${path}`, 'digibranders', 'fynix')?.key).toBe('pages');
     }

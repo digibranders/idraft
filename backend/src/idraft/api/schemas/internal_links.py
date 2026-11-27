@@ -18,6 +18,7 @@ from pydantic import (
 
 from idraft.api.pagination import CursorPageInfo
 from idraft.api.schemas.common import Body, Patch, UserRef, printable, refuse_null
+from idraft.api.schemas.issues import IssueDetail
 from idraft.api.schemas.metrics import Usd
 
 TierName = Annotated[
@@ -422,6 +423,7 @@ class PageExtras(BaseModel):
     citations: CitationCounts | None = None
     anchors: AnchorSummary | None = None
     gsc: GscPage | None = None
+    issue: IssueDetail | None = None
 
 
 class KeywordRow(BaseModel):

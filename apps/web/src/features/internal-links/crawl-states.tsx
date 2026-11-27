@@ -46,13 +46,22 @@ export function CrawlsOffNotice({
   );
 }
 
-export function NoWebsite({ settingsHref }: { settingsHref: Route }): ReactElement {
+/** `title` and `reason` are for a page that says it in its own words (Issues); Internal links keeps its own. */
+export function NoWebsite({
+  settingsHref,
+  title,
+  reason,
+}: {
+  settingsHref: Route;
+  title?: string;
+  reason?: string;
+}): ReactElement {
   const t = useTranslations('internalLinks.states');
   return (
     <EmptyState
       icon={Globe}
-      title={t('noWebsiteTitle')}
-      reason={t('noWebsiteReason')}
+      title={title ?? t('noWebsiteTitle')}
+      reason={reason ?? t('noWebsiteReason')}
       headingLevel={2}
       primaryAction={
         <LinkButton variant="primary" size="sm" render={<Link href={settingsHref} />}>
@@ -86,12 +95,15 @@ export function FirstCrawl({
   host,
   timeZone,
   actions,
+  lead,
 }: {
   run: CrawlRun;
   host: string;
   timeZone: string;
   /** Set up tier rules and Import tiers from CSV (Task 13). */
   actions?: ReactNode;
+  /** The line under the progress, for a page that has no tiers to talk about (Issues); Internal links keeps its own. */
+  lead?: string;
 }): ReactElement {
   const t = useTranslations('internalLinks.states');
   const time = formatRelative(run.created_at, timeZone);
@@ -120,7 +132,7 @@ export function FirstCrawl({
         <div className="h-full bg-primary" style={{ width: `${String(Math.round(share * 100))}%` }} />
       </div>
       <div className="flex flex-col gap-2 border-b border-border-subtle px-4 py-3">
-        <p className="type-body text-foreground">{t('firstLead')}</p>
+        <p className="type-body text-foreground">{lead ?? t('firstLead')}</p>
         {actions === undefined ? null : <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
       <SkeletonRows />

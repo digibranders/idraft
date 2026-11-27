@@ -4,6 +4,8 @@ import { can, projectCaller, workspaceCaller, type ProjectCaller } from './acces
 import { readRun, requireLinks } from './internal-links-run';
 import { bodyError, booleanError, isRecord, notAnObject, nullErrors, queryError } from './rules';
 import {
+  gscClicksOf,
+  gscState,
   hasGenericAnchors,
   lostLinksTopIds,
   pageDelta,
@@ -11,6 +13,7 @@ import {
   pageExtras,
   worklistCounts,
 } from '../internal-links-changes-world';
+import { issueDetailOf, issuePageIds } from '../issue-rules';
 import {
   cancelCrawl,
   crawledPage,
@@ -54,6 +57,7 @@ import {
 import { checkBody, invalid, invalidField, mock, noContent, problem, unknownMembers } from '../respond';
 import { csvLines } from '@/lib/csv/csv-write';
 import type { Problem, ValidationItem } from '@/lib/api/types';
+import { isCheckId } from '@/lib/issues/types';
 import { textLength } from '@/lib/text/length';
 import { PAGE_NOTE_FILE, PAGE_NOTE_FILES } from '@/lib/internal-links/queries';
 import { NOTE_FILE_MAX_BYTES } from '@/lib/pages/note-files';
@@ -87,11 +91,14 @@ const PAGE_QUERY = [
   'filter[folder]',
   'filter[depth]',
   'filter[include_variants]',
+  'filter[issue]',
   'q',
   'sort',
   'include',
 ];
 const INCLUDES: readonly PageInclude[] = ['changes', 'keywords', 'citations', 'anchors', 'gsc'];
+/** `issue` is the detail of `filter[issue]`: it is not a part of a page row the Pages tab asks for, so it is apart. */
+const ALLOWED_INCLUDES: readonly string[] = [...INCLUDES, 'issue'];
 const includesOf = (names: readonly string[]): PageInclude[] => INCLUDES.filter((part) => names.includes(part));
 const EDGE_QUERY = [
   ...LIST_QUERY,
@@ -133,6 +140,8 @@ const PAGE_CSV_HEADER = [
   'top_anchor',
   'flags',
 ];
+// `_ISSUE_CSV_HEADER`: added after the Pages columns when the list is the pages of one check
+const ISSUE_CSV_HEADER = ['Found address', 'Found status', 'Found count', 'Found reason', 'Clicks'];
 const EDGE_CSV_HEADER = [
   'source_url',
   'source_tier',
@@ -847,14 +856,24 @@ export const internalLinkHandlers: HttpHandler[] = [
     });
     if (caller instanceof Response) return caller;
     const include = listOf(caller.url, 'include');
-    const unknownIncludes = include.filter((part) => !INCLUDES.some((known) => known === part));
-    if (unknownIncludes.length > 0 || include.length > INCLUDES.length) {
-      return invalid(request, [queryError('include', 'enum', `Allowed: ${INCLUDES.join(', ')}.`)]);
+    const unknownIncludes = include.filter((part) => !ALLOWED_INCLUDES.includes(part));
+    if (unknownIncludes.length > 0 || include.length > ALLOWED_INCLUDES.length) {
+      return invalid(request, [queryError('include', 'enum', `Allowed: ${ALLOWED_INCLUDES.join(', ')}.`)]);
+    }
+    const issue = caller.url.searchParams.get('filter[issue]');
+    if (issue !== null && !isCheckId(issue)) {
+      return invalid(request, [queryError('filter[issue]', 'enum', 'Not the id of a check of the Issues page.')]);
     }
     const refused = pageFilterErrors(caller.url);
     if (refused.length > 0) return invalid(request, refused);
     const run = readRun(request, caller.url, caller.project.project_id);
     if (run instanceof Response) return run;
+    // `nofollow-internal` reads link rows, which a crawl past the last four no longer holds
+    if (issue === 'nofollow-internal') {
+      const gone = requireLinks(request, run);
+      if (gone !== null) return gone;
+    }
+    const found = isCheckId(issue) ? issuePageIds(issue, run) : null;
     // The weak outlinks need the links, which a crawl past the last four no longer holds
     if (caller.url.searchParams.get('filter[worklist]') === 'weak_outlinks') {
       const gone = requireLinks(request, run);
@@ -866,7 +885,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     const rows = sortRows(
       crawledPages()
         .map((page) => pageRow(page, view))
-        .filter((row) => pageMatches(row, criteria, context)),
+        .filter((row) => (found === null || found.has(row.url_id)) && pageMatches(row, criteria, context)),
       caller.url.searchParams.get('sort') ?? 'path',
       (row) => {
         const page = crawledPage(row.url_id);
@@ -899,9 +918,22 @@ export const internalLinkHandlers: HttpHandler[] = [
     );
     if (caller.url.searchParams.get('format') === 'csv') {
       // The server's columns in the server's order (`_PAGE_CSV_HEADER` of reads.py); it has no equity column
+      // The pages of one check carry five more columns: the four details and the clicks
+      const issueCells = (row: PageRow): (string | number)[] => {
+        if (!isCheckId(issue)) return [];
+        const detail = issueDetailOf(issue, row.url_id);
+        const clicks = gscClicksOf({ path: row.path });
+        return [
+          detail.target_path ?? '',
+          detail.target_status ?? '',
+          detail.count ?? '',
+          detail.reason ?? '',
+          gscState() === 'ok' ? clicks : '',
+        ];
+      };
       return csv(
         [
-          PAGE_CSV_HEADER,
+          isCheckId(issue) ? [...PAGE_CSV_HEADER, ...ISSUE_CSV_HEADER] : PAGE_CSV_HEADER,
           ...rows.map((row) => [
             row.url,
             row.path,
@@ -916,6 +948,7 @@ export const internalLinkHandlers: HttpHandler[] = [
             pythonBool(row.in_sitemap),
             row.top_anchor ?? '',
             row.flags.join(' '),
+            ...issueCells(row),
           ]),
         ],
         'pages',
@@ -927,9 +960,15 @@ export const internalLinkHandlers: HttpHandler[] = [
       // The parts asked for with `include`, for the rows of this window only
       data: window.data.map((row) => {
         const page = crawledPage(row.url_id);
-        return include.length === 0 || page === undefined
-          ? row
-          : { ...row, extras: pageExtras(run, page, includesOf(include)) };
+        if (include.length === 0 || page === undefined) return row;
+        return {
+          ...row,
+          extras: {
+            ...pageExtras(run, page, includesOf(include)),
+            // `include=issue` is the detail of the check `filter[issue]` names, and null without one
+            ...(include.includes('issue') ? { issue: isCheckId(issue) ? issueDetailOf(issue, row.url_id) : null } : {}),
+          },
+        };
       }),
       meta: { run_id: run.run.run_id, scope: view, total: rows.length, links_available: run.run.links_available },
     });

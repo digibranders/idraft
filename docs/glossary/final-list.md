@@ -23,6 +23,8 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Notes (a tab of the page drawer: what the team wrote about one page) | Comments, Annotations, Remarks, Log (as the tab name) |
 | Monitoring (a tab of Pages: the pages you track, with their Search Console numbers) | Performance, Watchlist, Monitored pages |
 | What changed (the queries, locations and devices of a page for a period and the period compared with) | Breakdown, Segments |
+| Website audit (navigation group: Issues, Pages, Internal links) | Site audit, Technical SEO, Site health |
+| Issues (page; tabs Technical and On-page); Issue (what a check found) | Problems, Errors as the page name, Audit |
 
 ## Where we ask and where we check
 
@@ -67,6 +69,9 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Answer, Valid answer, Failed answer | Response, Observation, Result, Reply |
 | Run (a scheduled collection pass) | Job, Batch, Cycle |
 | Check, "Check now" (one keyword rank reading) | Read, Scan, Lookup |
+| Check (on the Issues page only: one test your website is put through; proposed, open for the owner) | Rule, Test, Scan, Hint |
+| Severity: Error, Warning, Notice (Issues; proposed, open for the owner) | Critical, High, Medium, Low, Info |
+| Found by (where a check comes from: Crawl, Rank checks, Search Console, Google Analytics, AI answers) | Source, Detected by |
 | Schedule | Panel, Cadence |
 | Screenshot (image of an AI answer) | Capture |
 | Job type (Costs and Budgets); Started by (Schedule, Manual, Backfill, Retry) | Workload, Trigger |

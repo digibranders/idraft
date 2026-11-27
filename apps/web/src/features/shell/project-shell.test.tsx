@@ -156,12 +156,14 @@ describe('ProjectShell', () => {
     expect(listed).toEqual({
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
-        'Pages /digibranders/fynix/seo/pages',
-        'Internal links /digibranders/fynix/seo/internal-links',
+        'Cannibalization /digibranders/fynix/seo/cannibalization',
         'AI visibility /digibranders/fynix/ai',
         'Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
         'Insights /digibranders/fynix/ai/insights',
+        'Pages /digibranders/fynix/seo/pages',
+        'Issues /digibranders/fynix/seo/issues',
+        'Internal links /digibranders/fynix/seo/internal-links',
         'Competitors /digibranders/fynix/competitors',
         'Reports /digibranders/fynix/reports',
         'Integrations /digibranders/fynix/integrations',
@@ -171,12 +173,14 @@ describe('ProjectShell', () => {
       ],
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
-        'Pages /digibranders/fynix/seo/pages',
-        'Internal links /digibranders/fynix/seo/internal-links',
+        'Cannibalization /digibranders/fynix/seo/cannibalization',
         'AI visibility /digibranders/fynix/ai',
         'Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
         'Insights /digibranders/fynix/ai/insights',
+        'Pages /digibranders/fynix/seo/pages',
+        'Issues /digibranders/fynix/seo/issues',
+        'Internal links /digibranders/fynix/seo/internal-links',
         'Competitors /digibranders/fynix/competitors',
         'Reports /digibranders/fynix/reports',
         'Integrations /digibranders/fynix/integrations',
@@ -185,6 +189,32 @@ describe('ProjectShell', () => {
       ],
       billing: ['Costs /digibranders/fynix/costs', 'Settings /digibranders/fynix/settings'],
     });
+  });
+
+  it('labels the groups SEO, Website audit and AI visibility, and a member without data:read sees no Website audit', async () => {
+    const { unmount } = renderWithProviders(shell('editor'));
+    await screen.findByRole('heading', { name: 'Profile' });
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    const labels = ['SEO', 'Website audit', 'AI visibility'].map((label) => primary.getAllByText(label)[0]);
+    // Their order on the page is their order in the sidebar
+    const [seo, audit, ai] = labels;
+    expect(seo?.compareDocumentPosition(audit as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(audit?.compareDocumentPosition(ai as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    unmount();
+    renderWithProviders(shell('billing'));
+    await screen.findByRole('heading', { name: 'Profile' });
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByText('Website audit')).toBeNull();
+  });
+
+  it('marks Issues as the destination of its path, and names it in the breadcrumb', async () => {
+    navigation.pathname = '/digibranders/fynix/seo/issues';
+    renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    expect(primary.getByRole('link', { name: 'Issues' })).toHaveAttribute('aria-current', 'page');
+    expect(primary.queryByRole('link', { current: 'page', name: 'Internal links' })).toBeNull();
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByText('Issues')).toHaveAttribute('aria-current', 'page');
   });
 
   it('marks Runs as the destination of its nested path, and names it in the breadcrumb', async () => {

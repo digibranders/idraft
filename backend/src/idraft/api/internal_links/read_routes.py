@@ -40,6 +40,7 @@ from idraft.api.schemas.internal_links_extra import (
     PagesOverviewResponse,
 )
 from idraft.api.schemas.internal_links_history import PageHistoryResponse
+from idraft.api.schemas.issues import CheckId
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -128,12 +129,24 @@ async def list_pages(
         None
     ),
     depth: Annotated[int | None, Query(alias="filter[depth]", ge=0, le=6)] = None,
+    issue: Annotated[
+        CheckId | None,
+        Query(
+            alias="filter[issue]",
+            description="Only the pages one check of the Issues page found. It sets the variant "
+            "handling the check needs, so `filter[include_variants]` is ignored with it.",
+        ),
+    ] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
-        list[Literal["changes", "keywords", "citations", "anchors", "gsc"]] | None,
+        list[Literal["changes", "keywords", "citations", "anchors", "gsc", "issue"]] | None,
         Commas,
-        Query(max_length=5, description="Parts to add to each row as `extras`."),
+        Query(
+            max_length=6,
+            description="Parts to add to each row as `extras`. `issue` is the detail of "
+            "`filter[issue]` and stays null without it.",
+        ),
     ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:
@@ -164,7 +177,7 @@ async def list_pages(
     link_scope = LinkScope(scope)
     if output == "csv":
         text = await reads.pages_csv(
-            access, project_id, run=_run(run), view=link_scope, found=found, sort=sort
+            access, project_id, run=_run(run), view=link_scope, found=found, sort=sort, issue=issue
         )
         return _csv(text, "pages")
     listed = await reads.pages(
@@ -177,6 +190,7 @@ async def list_pages(
         cursor=page.cursor,
         limit=page.limit,
         include=include or (),
+        issue=issue,
     )
     return PageRowPage(
         data=listed.rows,

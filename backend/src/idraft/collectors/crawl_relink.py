@@ -6,10 +6,10 @@ that made this), a crawl read before it keeps the old, wrong numbers. This puts 
 the same HTML: it calls no provider and spends nothing.
 
 It gives what a fresh ingest of the same HTML would give, because it uses the same functions:
-`page_links_from_html` for the edges, the template pass, then the recount of counts, flags,
-depth, equity and anchors, then the second job (changes, anchors, mentions). It is all or
-nothing for the links: if the HTML of any page is gone, nothing is changed, so the links of a
-crawl are never a mix of two readings. It can be run again.
+`page_links_from_html` for the edges and the page's facts, the template pass, then the recount
+of counts, flags, depth, equity and anchors, then the second job (changes, anchors, mentions). It
+is all or nothing for the links: if the HTML of any page is gone, nothing is changed, so the links
+of a crawl are never a mix of two readings. It can be run again.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from idraft.collectors.crawl_ingest import (
     _template_input,
     _url_ids,
     _write_template,
+    facts_values,
     lock_finished_crawl,
     page_links_from_html,
     recount_variants,
@@ -172,6 +173,16 @@ async def relink_crawl(
         for read in reads:
             if read.canonical is not None:
                 await _store_html_canonical(db, run, read.url_id, ids[read.canonical.url_hash])
+            if read.facts is not None:
+                await db.execute(
+                    update(crawl_pages)
+                    .where(
+                        crawl_pages.c.run_id == run_id,
+                        crawl_pages.c.workspace_id == workspace_id,
+                        crawl_pages.c.url_id == read.url_id,
+                    )
+                    .values(**facts_values(read.facts))
+                )
             rows = [
                 {
                     "run_id": run_id,

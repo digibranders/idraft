@@ -96,6 +96,8 @@ from idraft.api.internal_links.suggestion_routes import router as suggestion_rou
 from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_level_routes import router as tier_level_routes_router
 from idraft.api.internal_links.tier_levels import TierLevelService
+from idraft.api.issues.routes import router as issues_router
+from idraft.api.issues.service import IssueService
 from idraft.api.keywords.group_routes import router as keyword_groups_router
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.routes import keywords_router
@@ -333,6 +335,7 @@ def create_app(
                 page_notes=PageNoteService(sessions=sessions, issues=NoIssueChecks()),
                 page_note_files=PageNoteFileService(sessions=sessions, store=sources),
                 link_reads=link_reads,
+                issues=IssueService(sessions=sessions),
                 link_changes=link_changes,
                 public_summary=PublicSummaryService(
                     sessions=sessions, reads=link_reads, changes=link_changes, throttle=throttle
@@ -441,6 +444,7 @@ def create_app(
     app.include_router(page_note_routes_router)
     app.include_router(page_note_file_routes_router)
     app.include_router(read_routes_router)
+    app.include_router(issues_router)
     app.include_router(change_routes_router)
     app.include_router(opportunity_routes_router)
     app.include_router(suggestion_routes_router)

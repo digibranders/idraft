@@ -1980,6 +1980,18 @@ crawl_pages = Table(
     Column("editorial_anchors", Integer, nullable=False, server_default=FetchedValue()),
     Column("generic_anchors", Integer, nullable=False, server_default=FetchedValue()),
     Column("sitemap_lastmod", DateTime(timezone=True)),
+    # What the page's own HTML says (migration 0047); null until `facts_read`.
+    Column("facts_read", Boolean, nullable=False, server_default=FetchedValue()),
+    Column("meta_description", Text),
+    Column("h1_count", SmallInteger),
+    Column("word_count", Integer),
+    Column("text_hash", BigInteger),
+    Column("images_without_alt", SmallInteger),
+    Column("og_complete", Boolean),
+    Column("jsonld_errors", SmallInteger),
+    Column("hreflang_errors", SmallInteger),
+    Column("http_resources", SmallInteger),
+    Column("response_ms", Integer),
     _run_key(),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
