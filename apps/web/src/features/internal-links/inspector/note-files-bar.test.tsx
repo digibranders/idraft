@@ -1,5 +1,6 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import type { Route } from 'next';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +13,7 @@ import { pageNotesQuery } from '@/lib/internal-links/queries';
 import type { PageNoteList } from '@/lib/internal-links/types';
 import { clearAllNoteDrafts, noteDraftPending } from '@/lib/pages/note-drafts';
 import { MOCK_WORKSPACE, mockUser } from '@/mocks/fixtures';
+import { change as changeStoredNote, uploadFile as storeFile } from '@/mocks/internal-links-notes';
 import { EVENTUS } from '@/mocks/internal-links-world';
 import { SESSION_COOKIE } from '@/mocks/session';
 import { axeWithNoteBox } from '@/test/axe-note-box';
@@ -659,6 +661,94 @@ describe('a saved note with files', () => {
     const sent = await changed(1);
     expect(sent.body).toBe('Shots again');
     expect('attachment_ids' in sent).toBe(false);
+  });
+
+  describe('a note that changed in another tab during the edit', () => {
+    const EDITOR = {
+      id: mockUser('editor').user_id,
+      name: mockUser('editor').name,
+      role: 'editor',
+      writes: true,
+    } as const;
+    /** What another tab does to the stored note: it holds exactly `ids` afterwards. */
+    const elsewhere = (item: HTMLElement, ids: string[]): void => {
+      const result = changeStoredNote(
+        EVENTUS.project_id,
+        PRICING,
+        item.dataset.noteId ?? '',
+        EDITOR,
+        'Shots',
+        undefined,
+        ids,
+      );
+      if (!result.ok) throw new Error('The other tab was refused');
+    };
+    /** A file another tab uploads and attaches next to `keep`; gives its id. */
+    const addedElsewhere = (item: HTMLElement, keep: string): string => {
+      const stored = storeFile(MOCK_WORKSPACE.workspace_id, EVENTUS.project_id, PRICING, EDITOR, {
+        name: 'other.png',
+        type: 'image/png',
+        bytes: new Uint8Array(8).fill(66),
+      });
+      if (!stored.ok) throw new Error('The other tab upload was refused');
+      elsewhere(item, [keep, stored.file.id]);
+      return stored.file.id;
+    };
+
+    it('keeps the file the edit never showed when the user removes the one it began with', async () => {
+      const { container, user } = renderWithProviders(<Tab />);
+      const item = await addNote(container, user, 'Shots', [png('one.png')]);
+      const keep = idOf(item, /^one\.png/);
+      await edit(user, item);
+      const other = addedElsewhere(item, keep);
+      await user.click(within(editing()).getByRole('button', { name: 'Remove one.png' }));
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect((await changed(1)).attachment_ids).toEqual([other]);
+    });
+
+    it('keeps the file the edit never showed when the user adds another', async () => {
+      const { container, user } = renderWithProviders(<Tab />);
+      const item = await addNote(container, user, 'Shots', [png('one.png')]);
+      const keep = idOf(item, /^one\.png/);
+      await edit(user, item);
+      const other = addedElsewhere(item, keep);
+      choose(editing(), [png('added.png')]);
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      const ids = (await changed(1)).attachment_ids;
+      expect(Array.isArray(ids) ? ids.slice(0, 2) : []).toEqual([keep, other]);
+      expect(Array.isArray(ids) ? ids : []).toHaveLength(3);
+    });
+
+    it('does not re-send a file the server dropped meanwhile and the user kept', async () => {
+      const { container, user } = renderWithProviders(<Tab />);
+      const item = await addNote(container, user, 'Shots', [png('one.png'), png('two.png')]);
+      const gone = idOf(item, /^one\.png/);
+      const stays = idOf(item, /^two\.png/);
+      await edit(user, item);
+      elsewhere(item, [stays]);
+      await user.type(within(editing()).getByRole('combobox', { name: 'Edit your note' }), ' again');
+      choose(editing(), [png('added.png')]);
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      const ids = (await changed(1)).attachment_ids;
+      expect(Array.isArray(ids) ? ids : []).not.toContain(gone);
+      expect(Array.isArray(ids) ? ids[0] : null).toBe(stays);
+    });
+
+    it('refuses the save with a line and writes nothing when the note cannot be read again', async () => {
+      const { container, user } = renderWithProviders(<Tab />);
+      const item = await addNote(container, user, 'Shots', [png('one.png')]);
+      await edit(user, item);
+      server.use(
+        http.get(
+          '*/api/v1/workspaces/:w/projects/:p/internal-links/pages/:id/notes',
+          () => new HttpResponse(null, { status: 500 }),
+        ),
+      );
+      await user.click(within(editing()).getByRole('button', { name: 'Remove one.png' }));
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await within(editing()).findByText('The note changed elsewhere. Reopen it to edit.')).toBeInTheDocument();
+      expect(patches).toEqual([]);
+    });
   });
 
   it.each([

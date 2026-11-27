@@ -4,7 +4,15 @@ import { http, HttpResponse } from 'msw';
 import { type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { NOTE_COUNT_FROM, NOTE_MAX, attachmentIdsOf, usePageNotes, usePageNoteWrites, type NotesRead } from './notes';
+import {
+  NOTE_COUNT_FROM,
+  NOTE_MAX,
+  attachmentIdsOf,
+  reconcileFiles,
+  usePageNotes,
+  usePageNoteWrites,
+  type NotesRead,
+} from './notes';
 import { ApiProblem } from '@/lib/api/problem';
 import { makeQueryClient } from '@/lib/api/query-client';
 import { pageDetailQuery } from '@/lib/internal-links/queries';
@@ -305,6 +313,20 @@ describe('usePageNoteWrites', () => {
 
     it('is empty only when the note had files and the box has none', () => {
       expect(attachmentIdsOf({ held: [A], next: [] })).toEqual([]);
+    });
+  });
+
+  describe('reconcileFiles', () => {
+    const [A, B, C] = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+    it('keeps a live file the edit never showed, whatever the user removed or added', () => {
+      expect(reconcileFiles({ held: [A], next: [] }, [A, B])).toEqual({ next: [B], gone: false });
+      expect(reconcileFiles({ held: [A], next: [A, C] }, [A, B])).toEqual({ next: [A, B, C], gone: false });
+    });
+
+    it('does not send a file again that is no longer live, and says it was kept', () => {
+      expect(reconcileFiles({ held: [A, B], next: [A, B] }, [B])).toEqual({ next: [B], gone: true });
+      expect(reconcileFiles({ held: [A, B], next: [B] }, [B])).toEqual({ next: [B], gone: false });
     });
   });
 

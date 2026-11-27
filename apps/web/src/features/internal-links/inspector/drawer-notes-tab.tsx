@@ -24,7 +24,7 @@ import {
   setNoteDraftPending,
 } from '@/lib/pages/note-drafts';
 import { keptMentions, type NoteMention } from '@/lib/pages/note-mentions';
-import { attachmentIdsOf, usePageNoteWrites, usePageNotes } from '@/lib/pages/notes';
+import { attachmentIdsOf, reconcileFiles, usePageNoteWrites, usePageNotes, type NoteFileEdit } from '@/lib/pages/notes';
 
 export interface DrawerNotesTabProps {
   context: PageDrawerContext;
@@ -153,12 +153,26 @@ function NotesPanel({ context, urlId, path, active }: DrawerNotesTabProps): Reac
       endEdit(noteId);
       return;
     }
+    let edit: NoteFileEdit = { held, next };
+    let gone = false;
+    if (attachmentIdsOf(edit) !== undefined) {
+      // The key replaces the files of the note for good: re-read them, and keep any the edit never showed
+      const live = await writes.liveFiles(noteId).catch(() => null);
+      if (live === null) {
+        box.setNotice(t('changedElsewhere'));
+        return;
+      }
+      const reconciled = reconcileFiles(edit, live);
+      edit = { held: live, next: reconciled.next };
+      gone = reconciled.gone;
+    }
     try {
-      await writes.change(noteId, body, { mentions: keptMentions(body, picked), files: { held, next } });
+      await writes.change(noteId, body, { mentions: keptMentions(body, picked), files: edit });
     } catch {
       toast({ type: 'error', title: t('saveFailed') });
       return;
     }
+    if (gone) toast({ type: 'info', title: t('fileGone') });
     announce(t('saved'));
     endEdit(noteId);
   };

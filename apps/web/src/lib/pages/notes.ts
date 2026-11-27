@@ -74,6 +74,32 @@ export function attachmentIdsOf({ held, next }: NoteFileEdit): string[] | undefi
   return same ? undefined : next.map((file) => file.id);
 }
 
+/** The files of an edit set against the live files of the note: what to send, and whether a kept file is gone. */
+export interface ReconciledFiles {
+  /** The live files the user kept or never saw, then the new ones. */
+  next: readonly FileRef[];
+  /** A file the edit began with, and the user kept, no longer exists. */
+  gone: boolean;
+}
+
+/**
+ * A change sends the EXACT list of files afterwards, and the server drops every live file that is not in it for good.
+ * So a live file the edit never showed (it began without it) is kept, and a file the edit began with that is not live
+ * any more is not sent again (the server would refuse it).
+ */
+export function reconcileFiles({ held, next }: NoteFileEdit, live: readonly FileRef[]): ReconciledFiles {
+  const began = new Set(held.map((file) => file.id));
+  const liveIds = new Set(live.map((file) => file.id));
+  const nextIds = new Set(next.map((file) => file.id));
+  return {
+    next: [
+      ...live.filter((file) => nextIds.has(file.id) || !began.has(file.id)),
+      ...next.filter((file) => !liveIds.has(file.id) && !began.has(file.id)),
+    ],
+    gone: next.some((file) => began.has(file.id) && !liveIds.has(file.id)),
+  };
+}
+
 /** What a write carries besides the body: the mentions the text still holds. */
 export interface NoteWriteExtras {
   mentions?: readonly NoteMention[] | undefined;
@@ -101,6 +127,11 @@ export interface PageNoteWrites {
   add: (body: string, extras?: NoteWriteExtras) => Promise<PageNote>;
   /** `extras.files` left out, or an edit that leaves the files as they were, keeps the files of the note. */
   change: (noteId: string, body: string, extras?: NoteChangeExtras) => Promise<PageNote>;
+  /**
+   * The files the note holds now, read again from the API (every loaded page). `null` when the note is no longer in
+   * the list; rejects when the read fails.
+   */
+  liveFiles: (noteId: string) => Promise<readonly PageNoteFile[] | null>;
   /** The note leaves the list at once; it comes back when the API refuses. */
   remove: (noteId: string) => Promise<void>;
   /** Undo of `remove`: the API allows it only for the one who deleted the note. */
@@ -216,6 +247,10 @@ export function usePageNoteWrites(scope: LinksScope, urlId: string): PageNoteWri
       } finally {
         refresh();
       }
+    },
+    liveFiles: async (noteId) => {
+      await queryClient.refetchQueries({ queryKey: notesKey, exact: true }, { throwOnError: true });
+      return locate(queryClient.getQueryData(notesKey), noteId)?.note.attachments ?? null;
     },
     remove: async (noteId) => {
       await queryClient.cancelQueries({ queryKey: notesKey });

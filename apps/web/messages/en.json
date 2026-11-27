@@ -9289,6 +9289,8 @@
         "deleteFailed": "The note could not be deleted",
         "restoreFailed": "The note could not be restored",
         "saveNoText": "A note needs text or a file.",
+        "changedElsewhere": "The note changed elsewhere. Reopen it to edit.",
+        "fileGone": "A file you kept was removed elsewhere, so it was not saved.",
         "files": {
           "attach": "Attach files",
           "remove": "Remove {name}",
