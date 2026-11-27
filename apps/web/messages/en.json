@@ -10411,6 +10411,7 @@
     },
     "inspector": {
       "typeLabel": "Page",
+      "redirectBadge": "Redirect",
       "typeNoun": "page",
       "back": "Back to Internal links",
       "tier": "Tier",
@@ -10521,6 +10522,9 @@
       "other": "pages",
       "search": "Search pages",
       "openJourney": "Open {path} in journey",
+      "redirectBadge": "Redirect",
+      "redirectsTo": "Redirects to {path}",
+      "redirectsFromHost": "{host} redirects to {path}",
       "noIssues": "No issues",
       "emptyTitle": "No pages in this crawl",
       "emptyReason": "The crawl found no page. Check the website in the project settings, then crawl again.",

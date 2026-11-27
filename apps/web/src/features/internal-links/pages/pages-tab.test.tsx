@@ -66,6 +66,15 @@ function pageReads(): () => URLSearchParams[] {
 }
 
 describe('the Pages tab (spec 7.2)', () => {
+  it('says where a redirect row leads and marks it as a Redirect instead of an Untiered tier', async () => {
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    const row = await within(await grid()).findByRole('row', { name: /\/services\/penetration-testing/ });
+    expect(row).toHaveTextContent('Redirects to /services/vapt');
+    // The Tier cell and the Flags cell both say Redirect
+    expect(within(row).getAllByText('Redirect')).toHaveLength(2);
+    expect(within(row).queryByText('Untiered')).toBeNull();
+  });
+
   it('lists the pages with the slice 1 columns, and never an equity column, option or word', async () => {
     const { container, user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
     const table = await grid();

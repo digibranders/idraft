@@ -9,6 +9,7 @@ import { useState, type ReactElement } from 'react';
 
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { TierBadge } from '@/components/app/tier/tier-badge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TextLink } from '@/components/ui/text-link';
@@ -16,6 +17,7 @@ import type { Direction } from '@/lib/internal-links/journey-layout';
 import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { READ_LIMIT } from '@/lib/internal-links/journey-layout';
 import { neighborsQuery } from '@/lib/internal-links/queries';
+import { otherHost } from '@/lib/internal-links/redirect-rows';
 import type { LinkScope } from '@/lib/internal-links/scopes';
 import type { LinksScope } from '@/lib/internal-links/types';
 
@@ -24,6 +26,8 @@ export interface NeighborSectionProps {
   urlId: string;
   direction: Direction;
   linkScope: LinkScope;
+  /** The site's host: a neighbor on another host (the www form) names it. */
+  host: string;
   /** The crawl read: `null` for the latest. */
   run: string | null;
   /** False for a crawl whose links are no longer stored: no neighbors are read. */
@@ -42,10 +46,11 @@ function NeighborRows({
   urlId,
   direction,
   linkScope,
+  host,
   run,
   offset,
   onOpen,
-}: Pick<NeighborSectionProps, 'scope' | 'urlId' | 'direction' | 'linkScope' | 'run' | 'onOpen'> & {
+}: Pick<NeighborSectionProps, 'scope' | 'urlId' | 'direction' | 'linkScope' | 'host' | 'run' | 'onOpen'> & {
   offset: number;
 }): ReactElement {
   const t = useTranslations('internalLinks.inspector');
@@ -85,6 +90,13 @@ function NeighborRows({
           >
             {item.path}
           </button>
+          {/* A redirect or the www form shares its path with a real page, so it says what it is */}
+          {otherHost(item.url, host) === null ? null : (
+            <span className="shrink-0 type-meta text-foreground-secondary">{otherHost(item.url, host)}</span>
+          )}
+          {item.status_code !== null && item.status_code >= 300 && item.status_code < 400 ? (
+            <Badge className="shrink-0">{t('redirectBadge')}</Badge>
+          ) : null}
         </li>
       ))}
     </>
