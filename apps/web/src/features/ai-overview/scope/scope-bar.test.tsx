@@ -64,6 +64,16 @@ describe('the scope bar', () => {
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
+  it('does not display the Branded chip while the choice is the default, and displays it for another choice', async () => {
+    await page();
+    expect((await chip('Branded: Excluded. Edit filter')).closest('.hidden')).not.toBeNull();
+  });
+
+  it('displays the Branded chip when a link brings another choice', async () => {
+    await page('?branded=only');
+    expect((await chip('Branded: Only. Edit filter')).closest('.hidden')).toBeNull();
+  });
+
   it('gives the selects one fixed width from 640 px, so a longer choice moves nothing', async () => {
     await page();
     for (const name of ['Platform: All platforms', 'Group: All groups']) {

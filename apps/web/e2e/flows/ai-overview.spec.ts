@@ -206,9 +206,6 @@ test.describe('the AI visibility Overview', () => {
       await page.getByRole('option', { name: /Technical SEO$/ }).click();
       await expect.poll(() => paramsOf(page).get('topic')).toBe(MOCK_TERM_IDS.technicalSeo);
 
-      await page.getByRole('button', { name: 'Remove filter Branded: Excluded' }).click();
-      await expect.poll(() => paramsOf(page).get('branded')).toBe('included');
-
       await top.getByRole('combobox', { name: 'Location: All locations' }).click();
       await page.getByRole('option', { name: 'Germany', exact: true }).click();
       await expect.poll(() => paramsOf(page).get('country')).toBe('DE');
@@ -219,7 +216,6 @@ test.describe('the AI visibility Overview', () => {
       cmp: 'off',
       engine: 'gemini_web',
       topic: MOCK_TERM_IDS.technicalSeo,
-      branded: 'included',
       country: 'DE',
     };
     /** The controls read the address back: the scope is the URL's, and nothing of it was kept anywhere else. */

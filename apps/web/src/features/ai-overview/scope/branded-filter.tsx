@@ -12,9 +12,9 @@ import type { FilterField, FilterValues } from '@/components/app/filters/types';
 export const PAGE_CONTROLS = '(width >= 48rem)';
 
 /**
- * The Branded filter of the page: the chip "Branded: Excluded" from the default, and "+ Filter" to bring it back. It
- * is its own piece, so the toolbar can place it beside the actions and keep the scope row to the selects (the row is
- * then two lines at 1280 px, not three); on a phone it sits in the Filters sheet with the selects.
+ * The Branded filter of the page: a chip that shows only while the choice is not the default (owner, 2026-11-27: the
+ * "Branded: Excluded" chip was always on and broke the header row). It is its own piece, so the toolbar can place it
+ * beside the actions; on a phone it sits in the Filters sheet with the selects.
  */
 export function BrandedFilter(): ReactElement {
   const t = useTranslations('aiOverview.scope');
@@ -31,8 +31,11 @@ export function BrandedFilter(): ReactElement {
   );
   const fields = useMemo((): FilterField[] => [branded], [branded]);
   const values = useMemo((): FilterValues => brandedValues(scope.branded), [scope.branded]);
+  // The default (branded prompts left out) needs no chip: an always-on chip took a row of the header for nothing. The
+  // filter stays mounted and is only not displayed, so nothing else moves; it shows when a link brought another choice,
+  // so the scope is never changed out of sight, and removing the chip goes back to the default.
   return (
-    <div className="min-w-0">
+    <div className={scope.branded === 'excluded' ? 'hidden' : 'min-w-0'}>
       <FilterBar
         fields={fields}
         values={values}
