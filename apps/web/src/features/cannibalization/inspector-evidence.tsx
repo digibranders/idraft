@@ -13,7 +13,7 @@ import { Icon } from '@/components/ui/icon';
 import type { CannKeywordDetail } from '@/lib/api/types';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
-import { EMPTY_VALUE, formatChartDate, formatInteger, formatPercent } from '@/lib/format';
+import { formatChartDate, formatInteger, formatPercent } from '@/lib/format';
 
 export interface InspectorEvidenceProps {
   detail: CannKeywordDetail;
@@ -40,11 +40,11 @@ export function InspectorEvidence({ detail, days, keywordHref }: InspectorEviden
         <div className="flex flex-col gap-3">
           <p className="type-body text-foreground">{t(`sentence.${sentence.key}`, sentence.values)}</p>
           <dl className="grid grid-cols-3 gap-3">
-            <Figure label={t('evidence.gap')} value={gap > 0 ? `+${formatInteger(gap)}` : EMPTY_VALUE} />
+            <Figure label={t('evidence.gap')} value={gap > 0 ? `+${formatInteger(gap)}` : '0'} />
             <Figure label={t('evidence.switches')} value={formatInteger(keyword.switches.length)} />
             <Figure
               label={t('evidence.together')}
-              value={keyword.together_rate > 0 ? formatPercent(keyword.together_rate, { decimals: 0 }) : EMPTY_VALUE}
+              value={keyword.together_rate > 0 ? formatPercent(keyword.together_rate, { decimals: 0 }) : '0%'}
             />
           </dl>
           <p className="type-meta">{t('evidence.note', { what: verdicts(`${keyword.verdict}.what`) })}</p>

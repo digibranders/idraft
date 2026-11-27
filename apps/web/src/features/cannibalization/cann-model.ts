@@ -255,5 +255,5 @@ export function pagesColumnWidth(rows: readonly CannKeyword[]): number {
     );
   });
   // 24 px of cell padding, 4 for the button, 26 for the chevron
-  return Math.min(380, Math.max(176, Math.ceil(Math.max(0, ...need) + 54)));
+  return Math.min(260, Math.max(176, Math.ceil(Math.max(0, ...need) + 54)));
 }

@@ -201,11 +201,11 @@ describe('pages and strips', () => {
 
 describe('pagesColumnWidth', () => {
   const wide = (path: string): CannPage => ({ ...page('x', 'A'), path });
-  it('is at least 176 and grows with the paths shown, up to 380', () => {
+  it('is at least 176 and grows with the paths shown, up to 260', () => {
     expect(pagesColumnWidth([])).toBe(176);
     const some = keyword('k', 'likely', { pages: [wide('/a-longer-path-of-a-page'), page('b', 'B')] });
     expect(pagesColumnWidth([some])).toBeGreaterThan(176);
     const huge = keyword('k', 'likely', { pages: [wide('/'.padEnd(120, 'x')), wide('/'.padEnd(120, 'y'))] });
-    expect(pagesColumnWidth([huge])).toBe(380);
+    expect(pagesColumnWidth([huge])).toBe(260);
   });
 });

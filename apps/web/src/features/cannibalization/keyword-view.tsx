@@ -90,7 +90,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
       {
         id: 'keyword',
         header: t('columns.keyword'),
-        width: 216,
+        width: 176,
         sortKey: 'keyword',
         cell: (row) => <KeywordCell row={row} />,
       },
@@ -98,7 +98,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         id: 'status',
         header: t('columns.status'),
         tip: t('tips.status'),
-        width: 112,
+        width: 100,
         sortKey: 'status',
         cell: (row) => <VerdictBadge verdict={row.verdict} />,
       },
@@ -113,7 +113,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         id: 'rank',
         header: t('columns.rank'),
         tip: t('tips.rank'),
-        width: 72,
+        width: 64,
         sortKey: 'rank',
         cellClassName: 'num text-foreground',
         cell: (row) => (row.current_rank === null ? EMPTY_VALUE : formatInteger(row.current_rank)),
@@ -122,7 +122,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         id: 'gap',
         header: t('columns.gap'),
         tip: t('tips.gap'),
-        width: 88,
+        width: 84,
         sortKey: 'gap',
         cellClassName: 'num',
         cell: (row) => <GapCell gap={row.rank_gap} />,
@@ -131,7 +131,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         id: 'switches',
         header: t('columns.switches'),
         tip: t('tips.switches'),
-        width: 92,
+        width: 72,
         sortKey: 'switches',
         cellClassName: 'num text-foreground',
         cell: (row) => formatInteger(row.switches.length),
@@ -140,21 +140,21 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         id: 'together',
         header: t('columns.together'),
         tip: t('tips.together'),
-        width: 92,
+        width: 72,
         sortKey: 'together',
         cellClassName: 'num',
         cell: (row) =>
           row.together_rate > 0 ? (
             <span className="text-foreground">{formatPercent(row.together_rate, { decimals: 0 })}</span>
           ) : (
-            <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>
+            <span className="text-foreground-tertiary">0%</span>
           ),
       },
       {
         id: 'volume',
         header: t('columns.volume'),
         tip: t('tips.volume'),
-        width: 84,
+        width: 72,
         sortKey: 'volume',
         cellClassName: 'num text-foreground-secondary',
         cell: (row) => (row.volume === null ? EMPTY_VALUE : formatInteger(row.volume)),
@@ -324,7 +324,7 @@ function KeywordCell({ row }: { row: CannKeyword }): ReactElement {
 
 function GapCell({ gap }: { gap: number }): ReactElement {
   const t = useTranslations('cannibalization.cells');
-  if (gap <= 0) return <span className="text-foreground-tertiary">{EMPTY_VALUE}</span>;
+  if (gap <= 0) return <span className="text-foreground-tertiary">0</span>;
   const places = Math.round(gap);
   return (
     <Tooltip content={t('gapTip', { count: places })} purpose="label">

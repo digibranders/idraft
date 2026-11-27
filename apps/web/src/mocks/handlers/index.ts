@@ -1,6 +1,7 @@
 import type { HttpHandler } from 'msw';
 
 import { authHandlers } from './auth';
+import { cannibalizationHandlers } from './cannibalization';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
 import { integrationHandlers } from './integrations';
@@ -123,6 +124,7 @@ export const handlers: readonly HttpHandler[] = [
   ...trackedKeywordHandlers,
   ...rankEventsHandlers,
   ...keywordQuotaHandlers,
+  ...cannibalizationHandlers,
   ...rankHistoryHandlers,
   ...serpHandlers,
   ...keywordGroupHandlers,
