@@ -1829,7 +1829,7 @@
           "cited_urls": {
             "description": "What the AI Overview cites, in order.",
             "items": {
-              "$ref": "#/components/schemas/UrlRef"
+              "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
             },
             "title": "Cited Urls",
             "type": "array"
@@ -4318,6 +4318,24 @@
         "title": "CheckNow",
         "type": "object"
       },
+      "CheckRank": {
+        "properties": {
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "rank"
+        ],
+        "title": "CheckRank",
+        "type": "object"
+      },
       "CitationCounts": {
         "properties": {
           "ai_mode": {
@@ -5954,7 +5972,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -5989,6 +6007,97 @@
           "change_reason"
         ],
         "title": "ConfigVersion",
+        "type": "object"
+      },
+      "ConflictHeadline": {
+        "properties": {
+          "conflicts": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "likely": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "ranked_keywords": {
+            "title": "Ranked Keywords",
+            "type": "integer"
+          },
+          "together": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "typical_rank_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typical Rank Gap"
+          },
+          "unstable": {
+            "$ref": "#/components/schemas/Count"
+          },
+          "volume_at_risk": {
+            "title": "Volume At Risk",
+            "type": "integer"
+          },
+          "volume_keywords": {
+            "title": "Volume Keywords",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ranked_keywords",
+          "conflicts",
+          "likely",
+          "together",
+          "unstable",
+          "volume_at_risk",
+          "volume_keywords",
+          "typical_rank_gap"
+        ],
+        "title": "ConflictHeadline",
+        "type": "object"
+      },
+      "ConflictList": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/VerdictCounts"
+          },
+          "headline": {
+            "$ref": "#/components/schemas/ConflictHeadline"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordConflict"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "meta",
+          "headline",
+          "counts",
+          "items"
+        ],
+        "title": "ConflictList",
+        "type": "object"
+      },
+      "ConflictListResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConflictList"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ConflictListResponse",
         "type": "object"
       },
       "Connection": {
@@ -6295,6 +6404,31 @@
         ],
         "title": "CostWorkload",
         "type": "string"
+      },
+      "Count": {
+        "properties": {
+          "before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value",
+          "before"
+        ],
+        "title": "Count",
+        "type": "object"
       },
       "CountrySummary": {
         "properties": {
@@ -11025,129 +11159,207 @@
         "title": "Keyword",
         "type": "object"
       },
-      "KeywordCheck": {
-        "description": "Where the keyword's latest rank check stands, whoever asked for it (a person with Check\nnow, or a schedule). `queued` and `processing` are pending: a second Check now is refused\nwith `409 check_pending` until the check ends.",
+      "KeywordConflict": {
         "properties": {
-          "finished_at": {
+          "checks": {
+            "title": "Checks",
+            "type": "integer"
+          },
+          "current_rank": {
             "anyOf": [
               {
-                "format": "date-time",
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Rank"
+          },
+          "current_url_id": {
+            "anyOf": [
+              {
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Finished At"
+            "title": "Current Url Id"
           },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "A failed check's error code, or why a check was inconclusive (`unattributed_results`, `no_own_entity`).",
-            "title": "Reason"
-          },
-          "requested_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Requested At"
-          },
-          "status": {
-            "description": "`idle`: nothing recent. `queued`: asked for, not yet sent to the provider. `processing`: sent, answer not yet read. `completed`: the answer moved the rank. `inconclusive`: the answer was kept but cannot say if the site is absent, so the rank did not move. `failed`: the provider gave no usable answer.",
+          "device": {
             "enum": [
-              "idle",
-              "queued",
-              "processing",
-              "completed",
-              "inconclusive",
-              "failed"
+              "desktop",
+              "mobile"
             ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "title": "KeywordCheck",
-        "type": "object"
-      },
-      "KeywordDetail": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
+            "title": "Device",
             "type": "string"
           },
-          "keyword_id": {
-            "format": "uuid",
-            "title": "Keyword Id",
-            "type": "string"
+          "flip_flops": {
+            "title": "Flip Flops",
+            "type": "integer"
           },
-          "language_code": {
-            "title": "Language Code",
-            "type": "string"
-          },
-          "metrics": {
-            "description": "Current metrics per location and source.",
+          "group_ids": {
             "items": {
-              "$ref": "#/components/schemas/KeywordMetrics"
+              "type": "string"
             },
-            "title": "Metrics",
+            "title": "Group Ids",
             "type": "array"
           },
-          "normalized_text": {
-            "title": "Normalized Text",
+          "held_now_days": {
+            "title": "Held Now Days",
+            "type": "integer"
+          },
+          "keyword": {
+            "title": "Keyword",
             "type": "string"
           },
-          "text": {
-            "description": "As first entered: what the provider receives.",
-            "title": "Text",
-            "type": "string"
+          "longest_hold_days": {
+            "title": "Longest Hold Days",
+            "type": "integer"
           },
-          "tracked": {
-            "description": "Tracked variants the caller can see.",
+          "on_target": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when no target page is set or no page ranks now.",
+            "title": "On Target"
+          },
+          "one_check_changes": {
+            "title": "One Check Changes",
+            "type": "integer"
+          },
+          "pages": {
             "items": {
-              "$ref": "#/components/schemas/TrackedVariant"
+              "$ref": "#/components/schemas/PageFigures"
             },
-            "title": "Tracked",
+            "title": "Pages",
             "type": "array"
+          },
+          "previous_verdict": {
+            "anyOf": [
+              {
+                "enum": [
+                  "likely",
+                  "co_ranking",
+                  "unstable",
+                  "none",
+                  "unranked",
+                  "insufficient"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Verdict"
+          },
+          "rank_gap": {
+            "title": "Rank Gap",
+            "type": "number"
+          },
+          "ranked_checks": {
+            "title": "Ranked Checks",
+            "type": "integer"
+          },
+          "strip": {
+            "items": {
+              "$ref": "#/components/schemas/StripCell"
+            },
+            "title": "Strip",
+            "type": "array"
+          },
+          "switch_rate": {
+            "title": "Switch Rate",
+            "type": "number"
+          },
+          "switches": {
+            "items": {
+              "$ref": "#/components/schemas/SwitchEvent"
+            },
+            "title": "Switches",
+            "type": "array"
+          },
+          "target_url_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Url Id"
+          },
+          "together_rate": {
+            "title": "Together Rate",
+            "type": "number"
+          },
+          "tracked_keyword_id": {
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "unreadable_checks": {
+            "title": "Unreadable Checks",
+            "type": "integer"
+          },
+          "verdict": {
+            "enum": [
+              "likely",
+              "co_ranking",
+              "unstable",
+              "none",
+              "unranked",
+              "insufficient"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
           }
         },
         "required": [
-          "keyword_id",
-          "text",
-          "normalized_text",
-          "language_code",
-          "created_at",
-          "metrics",
-          "tracked"
+          "tracked_keyword_id",
+          "keyword",
+          "group_ids",
+          "device",
+          "volume",
+          "verdict",
+          "previous_verdict",
+          "checks",
+          "unreadable_checks",
+          "ranked_checks",
+          "pages",
+          "rank_gap",
+          "switch_rate",
+          "together_rate",
+          "switches",
+          "one_check_changes",
+          "flip_flops",
+          "longest_hold_days",
+          "held_now_days",
+          "current_url_id",
+          "current_rank",
+          "target_url_id",
+          "on_target",
+          "strip"
         ],
-        "title": "KeywordDetail",
-        "type": "object"
-      },
-      "KeywordDetailResponse": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/KeywordDetail"
-          }
-        },
-        "required": [
-          "data"
-        ],
-        "title": "KeywordDetailResponse",
+        "title": "KeywordConflict",
         "type": "object"
       },
       "KeywordGroup": {
@@ -13184,6 +13396,67 @@
           "evidence_spans"
         ],
         "title": "MentionOut",
+        "type": "object"
+      },
+      "Meta": {
+        "properties": {
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "days": {
+            "enum": [
+              14,
+              30,
+              90
+            ],
+            "title": "Days",
+            "type": "integer"
+          },
+          "device": {
+            "enum": [
+              "desktop",
+              "mobile"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "has_previous": {
+            "description": "True when at least one keyword has enough checks in the period before.",
+            "title": "Has Previous",
+            "type": "boolean"
+          },
+          "method_version": {
+            "default": 2,
+            "title": "Method Version",
+            "type": "integer"
+          },
+          "min_checks": {
+            "default": 10,
+            "title": "Min Checks",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Rows matching the filters, before `limit`.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "device",
+          "date_from",
+          "date_to",
+          "has_previous",
+          "total"
+        ],
+        "title": "Meta",
         "type": "object"
       },
       "MetricCell": {
@@ -15634,6 +15907,99 @@
         "title": "PageExtras",
         "type": "object"
       },
+      "PageFigures": {
+        "properties": {
+          "best_count": {
+            "title": "Best Count",
+            "type": "integer"
+          },
+          "best_ever": {
+            "title": "Best Ever",
+            "type": "integer"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "is_sub_result": {
+            "description": "Was nested under another own result on some checks.",
+            "title": "Is Sub Result",
+            "type": "boolean"
+          },
+          "is_target": {
+            "title": "Is Target",
+            "type": "boolean"
+          },
+          "last_date": {
+            "format": "date",
+            "title": "Last Date",
+            "type": "string"
+          },
+          "last_rank": {
+            "title": "Last Rank",
+            "type": "integer"
+          },
+          "letter": {
+            "description": "A is the page to compare with; B to F follow; + for more.",
+            "title": "Letter",
+            "type": "string"
+          },
+          "median": {
+            "title": "Median",
+            "type": "number"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "ranked": {
+            "title": "Ranked",
+            "type": "integer"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "letter",
+          "is_primary",
+          "is_target",
+          "is_sub_result",
+          "ranked",
+          "share",
+          "best_count",
+          "median",
+          "best_ever",
+          "last_date",
+          "last_rank"
+        ],
+        "title": "PageFigures",
+        "type": "object"
+      },
       "PageFilter": {
         "additionalProperties": false,
         "description": "The Pages list's filters as a bulk body (`run` is always the latest crawl).",
@@ -15775,6 +16141,67 @@
           }
         },
         "title": "PageFilter",
+        "type": "object"
+      },
+      "PagePair": {
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/PairPage"
+          },
+          "a_leads": {
+            "title": "A Leads",
+            "type": "integer"
+          },
+          "b": {
+            "$ref": "#/components/schemas/PairPage"
+          },
+          "b_leads": {
+            "title": "B Leads",
+            "type": "integer"
+          },
+          "keywords": {
+            "title": "Keywords",
+            "type": "integer"
+          },
+          "likely": {
+            "title": "Likely",
+            "type": "integer"
+          },
+          "title_overlap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Overlap"
+          },
+          "tracked_keyword_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tracked Keyword Ids",
+            "type": "array"
+          },
+          "volume": {
+            "title": "Volume",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "keywords",
+          "likely",
+          "volume",
+          "a_leads",
+          "b_leads",
+          "title_overlap",
+          "tracked_keyword_ids"
+        ],
+        "title": "PagePair",
         "type": "object"
       },
       "PageRow": {
@@ -16389,6 +16816,73 @@
           "tier_id"
         ],
         "title": "PageTierSet",
+        "type": "object"
+      },
+      "PairList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PagePair"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "meta",
+          "items"
+        ],
+        "title": "PairList",
+        "type": "object"
+      },
+      "PairListResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PairList"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PairListResponse",
+        "type": "object"
+      },
+      "PairPage": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title"
+        ],
+        "title": "PairPage",
         "type": "object"
       },
       "PasswordChangeRequest": {
@@ -19372,7 +19866,7 @@
           "url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -19486,7 +19980,7 @@
           "from_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -19534,7 +20028,7 @@
           "to_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -19658,7 +20152,7 @@
           },
           "urls": {
             "additionalProperties": {
-              "$ref": "#/components/schemas/UrlRef"
+              "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
             },
             "title": "Urls",
             "type": "object"
@@ -19714,7 +20208,7 @@
             "type": "boolean"
           },
           "url": {
-            "$ref": "#/components/schemas/UrlRef"
+            "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
           }
         },
         "required": [
@@ -22442,7 +22936,7 @@
           },
           "source_urls": {
             "items": {
-              "$ref": "#/components/schemas/UrlRef"
+              "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
             },
             "title": "Source Urls",
             "type": "array"
@@ -22514,7 +23008,7 @@
             "title": "Title"
           },
           "url": {
-            "$ref": "#/components/schemas/UrlRef"
+            "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
           }
         },
         "required": [
@@ -22630,7 +23124,7 @@
             "title": "Title"
           },
           "url": {
-            "$ref": "#/components/schemas/UrlRef"
+            "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
           }
         },
         "required": [
@@ -24309,6 +24803,59 @@
         "title": "SparklinePoint",
         "type": "object"
       },
+      "StripCell": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "page",
+              "none",
+              "unreadable"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "together": {
+            "title": "Together",
+            "type": "boolean"
+          },
+          "url_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Id"
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "url_id",
+          "rank",
+          "together"
+        ],
+        "title": "StripCell",
+        "type": "object"
+      },
       "SuggestionReason": {
         "properties": {
           "clicks": {
@@ -24749,6 +25296,220 @@
           "may_be_incomplete"
         ],
         "title": "SummaryWorklist",
+        "type": "object"
+      },
+      "SwitchEvent": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "from_url_id": {
+            "title": "From Url Id",
+            "type": "string"
+          },
+          "held_days": {
+            "title": "Held Days",
+            "type": "integer"
+          },
+          "is_flip_flop": {
+            "title": "Is Flip Flop",
+            "type": "boolean"
+          },
+          "rank_after": {
+            "title": "Rank After",
+            "type": "integer"
+          },
+          "rank_before": {
+            "title": "Rank Before",
+            "type": "integer"
+          },
+          "to_url_id": {
+            "title": "To Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "from_url_id",
+          "to_url_id",
+          "rank_before",
+          "rank_after",
+          "held_days",
+          "is_flip_flop"
+        ],
+        "title": "SwitchEvent",
+        "type": "object"
+      },
+      "SwitchHeadline": {
+        "properties": {
+          "dropped": {
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "flip_flop_keywords": {
+            "title": "Flip Flop Keywords",
+            "type": "integer"
+          },
+          "improved": {
+            "title": "Improved",
+            "type": "integer"
+          },
+          "keywords": {
+            "title": "Keywords",
+            "type": "integer"
+          },
+          "left_target": {
+            "title": "Left Target",
+            "type": "integer"
+          },
+          "one_check_changes": {
+            "title": "One Check Changes",
+            "type": "integer"
+          },
+          "ranked_keywords": {
+            "title": "Ranked Keywords",
+            "type": "integer"
+          },
+          "switches": {
+            "$ref": "#/components/schemas/Count"
+          }
+        },
+        "required": [
+          "ranked_keywords",
+          "switches",
+          "keywords",
+          "flip_flop_keywords",
+          "left_target",
+          "improved",
+          "dropped",
+          "one_check_changes"
+        ],
+        "title": "SwitchHeadline",
+        "type": "object"
+      },
+      "SwitchList": {
+        "properties": {
+          "headline": {
+            "$ref": "#/components/schemas/SwitchHeadline"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SwitchRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/WeekBucket"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "headline",
+          "weeks",
+          "items"
+        ],
+        "title": "SwitchList",
+        "type": "object"
+      },
+      "SwitchListResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SwitchList"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SwitchListResponse",
+        "type": "object"
+      },
+      "SwitchRow": {
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/SwitchEvent"
+          },
+          "from_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Title"
+          },
+          "from_url": {
+            "title": "From Url",
+            "type": "string"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          },
+          "left_target": {
+            "title": "Left Target",
+            "type": "boolean"
+          },
+          "rank_change": {
+            "description": "Places gained (positive) or lost (negative).",
+            "title": "Rank Change",
+            "type": "integer"
+          },
+          "to_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Title"
+          },
+          "to_url": {
+            "title": "To Url",
+            "type": "string"
+          },
+          "tracked_keyword_id": {
+            "title": "Tracked Keyword Id",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "tracked_keyword_id",
+          "keyword",
+          "volume",
+          "event",
+          "rank_change",
+          "left_target",
+          "from_title",
+          "to_title",
+          "from_url",
+          "to_url"
+        ],
+        "title": "SwitchRow",
         "type": "object"
       },
       "TagChangeResponse": {
@@ -26273,7 +27034,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -27035,7 +27796,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -28016,7 +28777,7 @@
           "target_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/UrlRef"
+                "$ref": "#/components/schemas/idraft__api__schemas__keywords__UrlRef"
               },
               {
                 "type": "null"
@@ -28112,7 +28873,7 @@
             "$ref": "#/components/schemas/RankChange"
           },
           "check": {
-            "$ref": "#/components/schemas/KeywordCheck"
+            "$ref": "#/components/schemas/idraft__api__schemas__keywords__KeywordCheck"
           },
           "consecutive_failures": {
             "title": "Consecutive Failures",
@@ -28424,39 +29185,6 @@
         "title": "UnitCostRow",
         "type": "object"
       },
-      "UrlRef": {
-        "properties": {
-          "canonical_url": {
-            "title": "Canonical Url",
-            "type": "string"
-          },
-          "host": {
-            "title": "Host",
-            "type": "string"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "registrable_domain": {
-            "title": "Registrable Domain",
-            "type": "string"
-          },
-          "url_id": {
-            "title": "Url Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "url_id",
-          "canonical_url",
-          "host",
-          "registrable_domain",
-          "path"
-        ],
-        "title": "UrlRef",
-        "type": "object"
-      },
       "UserRef": {
         "properties": {
           "email": {
@@ -28507,6 +29235,54 @@
           "message"
         ],
         "title": "ValidationItem",
+        "type": "object"
+      },
+      "VerdictCounts": {
+        "properties": {
+          "all": {
+            "title": "All",
+            "type": "integer"
+          },
+          "co_ranking": {
+            "title": "Co Ranking",
+            "type": "integer"
+          },
+          "conflicts": {
+            "title": "Conflicts",
+            "type": "integer"
+          },
+          "insufficient": {
+            "title": "Insufficient",
+            "type": "integer"
+          },
+          "likely": {
+            "title": "Likely",
+            "type": "integer"
+          },
+          "none": {
+            "title": "None",
+            "type": "integer"
+          },
+          "unranked": {
+            "title": "Unranked",
+            "type": "integer"
+          },
+          "unstable": {
+            "title": "Unstable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all",
+          "conflicts",
+          "likely",
+          "co_ranking",
+          "unstable",
+          "none",
+          "unranked",
+          "insufficient"
+        ],
+        "title": "VerdictCounts",
         "type": "object"
       },
       "VerifyEmailRequest": {
@@ -28722,6 +29498,35 @@
           }
         },
         "title": "VocabularyUpdate",
+        "type": "object"
+      },
+      "WeekBucket": {
+        "properties": {
+          "dropped": {
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "improved": {
+            "title": "Improved",
+            "type": "integer"
+          },
+          "same": {
+            "title": "Same",
+            "type": "integer"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_on",
+          "improved",
+          "same",
+          "dropped"
+        ],
+        "title": "WeekBucket",
         "type": "object"
       },
       "WeekCells": {
@@ -29071,6 +29876,278 @@
           }
         },
         "title": "WorkspaceUpdate",
+        "type": "object"
+      },
+      "idraft__api__schemas__cannibalization__KeywordCheck": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "ranks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRank"
+            },
+            "title": "Ranks",
+            "type": "array"
+          },
+          "readable": {
+            "title": "Readable",
+            "type": "boolean"
+          },
+          "sub_results": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sub Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "readable",
+          "ranks",
+          "sub_results"
+        ],
+        "title": "KeywordCheck",
+        "type": "object"
+      },
+      "idraft__api__schemas__cannibalization__KeywordDetail": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__KeywordCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "keyword": {
+            "$ref": "#/components/schemas/KeywordConflict"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "urls": {
+            "items": {
+              "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__UrlRef"
+            },
+            "title": "Urls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "keyword",
+          "urls",
+          "checks"
+        ],
+        "title": "KeywordDetail",
+        "type": "object"
+      },
+      "idraft__api__schemas__cannibalization__KeywordDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__KeywordDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordDetailResponse",
+        "type": "object"
+      },
+      "idraft__api__schemas__cannibalization__UrlRef": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title"
+        ],
+        "title": "UrlRef",
+        "type": "object"
+      },
+      "idraft__api__schemas__keywords__KeywordCheck": {
+        "description": "Where the keyword's latest rank check stands, whoever asked for it (a person with Check\nnow, or a schedule). `queued` and `processing` are pending: a second Check now is refused\nwith `409 check_pending` until the check ends.",
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A failed check's error code, or why a check was inconclusive (`unattributed_results`, `no_own_entity`).",
+            "title": "Reason"
+          },
+          "requested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested At"
+          },
+          "status": {
+            "description": "`idle`: nothing recent. `queued`: asked for, not yet sent to the provider. `processing`: sent, answer not yet read. `completed`: the answer moved the rank. `inconclusive`: the answer was kept but cannot say if the site is absent, so the rank did not move. `failed`: the provider gave no usable answer.",
+            "enum": [
+              "idle",
+              "queued",
+              "processing",
+              "completed",
+              "inconclusive",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "KeywordCheck",
+        "type": "object"
+      },
+      "idraft__api__schemas__keywords__KeywordDetail": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "keyword_id": {
+            "format": "uuid",
+            "title": "Keyword Id",
+            "type": "string"
+          },
+          "language_code": {
+            "title": "Language Code",
+            "type": "string"
+          },
+          "metrics": {
+            "description": "Current metrics per location and source.",
+            "items": {
+              "$ref": "#/components/schemas/KeywordMetrics"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "normalized_text": {
+            "title": "Normalized Text",
+            "type": "string"
+          },
+          "text": {
+            "description": "As first entered: what the provider receives.",
+            "title": "Text",
+            "type": "string"
+          },
+          "tracked": {
+            "description": "Tracked variants the caller can see.",
+            "items": {
+              "$ref": "#/components/schemas/TrackedVariant"
+            },
+            "title": "Tracked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keyword_id",
+          "text",
+          "normalized_text",
+          "language_code",
+          "created_at",
+          "metrics",
+          "tracked"
+        ],
+        "title": "KeywordDetail",
+        "type": "object"
+      },
+      "idraft__api__schemas__keywords__KeywordDetailResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/idraft__api__schemas__keywords__KeywordDetail"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "KeywordDetailResponse",
+        "type": "object"
+      },
+      "idraft__api__schemas__keywords__UrlRef": {
+        "properties": {
+          "canonical_url": {
+            "title": "Canonical Url",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "canonical_url",
+          "host",
+          "registrable_domain",
+          "path"
+        ],
+        "title": "UrlRef",
         "type": "object"
       }
     }
@@ -32469,7 +33546,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KeywordDetailResponse"
+                  "$ref": "#/components/schemas/idraft__api__schemas__keywords__KeywordDetailResponse"
                 }
               }
             },
@@ -39821,6 +40898,480 @@
         "summary": "What extraction would count in a text, with today's aliases",
         "tags": [
           "entities"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization": {
+      "get": {
+        "description": "One row per tracked keyword on the device with its verdict over the period, the pages involved, rank gap, confirmed switches and a one-cell-per-check history. The headline carries the figures of the period before when the history allows. A verdict needs `min_checks` ranked checks, else it is `insufficient`.",
+        "operationId": "conflicts_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop and mobile are never mixed.",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "default": "desktop",
+              "description": "Desktop and mobile are never mixed.",
+              "enum": [
+                "desktop",
+                "mobile"
+              ],
+              "title": "Device",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period in days.",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": "30",
+              "description": "The period in days.",
+              "enum": [
+                "14",
+                "30",
+                "90"
+              ],
+              "title": "Days",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verdict",
+            "required": false,
+            "schema": {
+              "default": "conflicts",
+              "enum": [
+                "conflicts",
+                "all",
+                "likely",
+                "co_ranking",
+                "unstable",
+                "none",
+                "unranked",
+                "insufficient"
+              ],
+              "title": "Verdict",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A keyword group, with the groups under it.",
+            "in": "query",
+            "name": "group_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A keyword group, with the groups under it.",
+              "title": "Group Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Tracked keywords where two or more of the site's own pages compete",
+        "tags": [
+          "cannibalization"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}": {
+      "get": {
+        "operationId": "keyword_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_keywords__tracked_keyword_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tracked_keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tracked Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop and mobile are never mixed.",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "default": "desktop",
+              "description": "Desktop and mobile are never mixed.",
+              "enum": [
+                "desktop",
+                "mobile"
+              ],
+              "title": "Device",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period in days.",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": "30",
+              "description": "The period in days.",
+              "enum": [
+                "14",
+                "30",
+                "90"
+              ],
+              "title": "Days",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/idraft__api__schemas__cannibalization__KeywordDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One tracked keyword: its row and the page that ranked on each check",
+        "tags": [
+          "cannibalization"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs": {
+      "get": {
+        "operationId": "pairs_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_pairs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop and mobile are never mixed.",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "default": "desktop",
+              "description": "Desktop and mobile are never mixed.",
+              "enum": [
+                "desktop",
+                "mobile"
+              ],
+              "title": "Device",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period in days.",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": "30",
+              "description": "The period in days.",
+              "enum": [
+                "14",
+                "30",
+                "90"
+              ],
+              "title": "Days",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A keyword group, with the groups under it.",
+            "in": "query",
+            "name": "group_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A keyword group, with the groups under it.",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Pairs of own pages that compete on several keywords",
+        "tags": [
+          "cannibalization"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches": {
+      "get": {
+        "description": "A switch is confirmed when the new page also holds the best rank on the next ranked check; one-check changes are only counted. `kind` narrows the rows, not the headline or the weeks.",
+        "operationId": "switches_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_switches_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Desktop and mobile are never mixed.",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "default": "desktop",
+              "description": "Desktop and mobile are never mixed.",
+              "enum": [
+                "desktop",
+                "mobile"
+              ],
+              "title": "Device",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period in days.",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": "30",
+              "description": "The period in days.",
+              "enum": [
+                "14",
+                "30",
+                "90"
+              ],
+              "title": "Days",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "flip_flop",
+                "improved",
+                "dropped",
+                "left_target"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A keyword group, with the groups under it.",
+            "in": "query",
+            "name": "group_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A keyword group, with the groups under it.",
+              "title": "Group Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwitchListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Confirmed changes of the ranking page, with the weekly count",
+        "tags": [
+          "cannibalization"
         ]
       }
     },
