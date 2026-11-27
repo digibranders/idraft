@@ -313,6 +313,80 @@ async def test_a_source_rule_tests_a_set_built_once_and_not_a_probe_per_page(
     assert subplans == set(re.findall(r"hashed SubPlan (\d+)", plan)), plan
 
 
+@pytest.mark.parametrize(
+    "check_id", ["title-duplicate", "description-duplicate", "duplicate-content"]
+)
+async def test_a_shared_set_rule_tests_a_set_built_once_and_not_a_probe_per_page(
+    check_id: str, migrated: PostgresServer
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    run_id, _ = await audit_site(migrated, workspace, project)
+    statement = select(condition(check_id, PageScope(workspace.id, project, run_id, None)))
+    dialect = postgresql.asyncpg.dialect()  # type: ignore[no-untyped-call]
+    sql = str(
+        statement.select_from(crawl_pages).compile(
+            dialect=dialect, compile_kwargs={"literal_binds": True}
+        )
+    )
+
+    plan = "\n".join(row[0] for row in await fetch(migrated, f"EXPLAIN (VERBOSE) {sql}"))
+
+    assert " IN (SELECT" in sql, sql
+    subplans = set(re.findall(r"SubPlan (\d+)", plan))
+    assert subplans, plan
+    assert subplans == set(re.findall(r"hashed SubPlan (\d+)", plan)), plan
+
+
+@pytest.mark.parametrize(
+    ("unread", "need"),
+    [("facts_read = false", "facts"), ("response_ms = NULL", "timing")],
+)
+async def test_a_check_does_not_run_when_the_crawl_has_none_of_what_it_reads(
+    unread: str,
+    need: str,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    response = await _read(
+        api,
+        resources,
+        migrated,
+        prepare=f"UPDATE seo.crawl_pages SET {unread} WHERE run_id = $1",
+    )
+
+    rows = _rows(response)
+    needing = [check.id for check in CHECKS if check.need == need]
+    assert needing
+    for check_id in needing:
+        assert rows[check_id]["state"] == "not_run", check_id
+        assert rows[check_id]["reason"] == "not_collected", check_id
+        assert rows[check_id]["pages"] is None, check_id
+        assert rows[check_id]["example_path"] is None, check_id
+    assert response.json()["summary"]["checks_ran"] == len(EXPECTED) - len(needing)
+    others = [check_id for check_id in EXPECTED if check_id not in needing]
+    assert all(rows[check_id]["state"] == "ran" for check_id in others)
+
+
+async def test_one_page_with_facts_is_enough_for_the_checks_to_run(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    rows = _rows(
+        await _read(
+            api,
+            resources,
+            migrated,
+            prepare="UPDATE seo.crawl_pages SET facts_read = false WHERE run_id = $1 "
+            "AND url_id <> (SELECT url_id FROM seo.crawl_pages WHERE run_id = $1 "
+            "ORDER BY url_id LIMIT 1)",
+        )
+    )
+
+    assert rows["h1-missing"]["state"] == "ran"
+    assert rows["mixed-content"]["state"] == "ran"
+
+
 async def test_the_example_path_is_the_first_in_byte_order(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:
@@ -365,9 +439,11 @@ async def test_a_crawl_without_pages_passes_every_check(
     summary = response.json()["summary"]
     assert summary["pages_crawled"] == 0
     assert summary["pages_with_issue"] == 0
-    assert summary["checks_ran"] == len(EXPECTED)
-    assert summary["checks_passed"] == len(EXPECTED)
-    for check_id in EXPECTED:
+    # No page was read, so the checks of the HTML and of the timing have nothing to run on.
+    runs = [check_id for check_id in EXPECTED if BY_ID[check_id].need not in ("facts", "timing")]
+    assert summary["checks_ran"] == len(runs)
+    assert summary["checks_passed"] == len(runs)
+    for check_id in runs:
         row = _rows(response)[check_id]
         assert row["state"] == "ran", check_id
         assert row["pages"] == 0, check_id

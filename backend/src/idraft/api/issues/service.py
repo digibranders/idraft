@@ -14,6 +14,7 @@ from idraft.api.internal_links.page_filter import PageScope
 from idraft.api.internal_links.page_sort import extra_sort
 from idraft.api.internal_links.reads import read_scope
 from idraft.api.issues.catalogue import BY_ID, CHECKS, Check
+from idraft.api.issues.collected import Collected, read_collected
 from idraft.api.issues.rules import condition
 from idraft.api.issues.sources import Sources, read_sources
 from idraft.api.schemas.issues import (
@@ -30,11 +31,20 @@ from idraft.db.tables import crawl_pages, crawl_runs, urls
 
 
 def _not_run_reason(
-    check: Check, *, has_sitemap: bool, links_dropped: bool, sources: Sources
+    check: Check,
+    *,
+    has_sitemap: bool,
+    links_dropped: bool,
+    sources: Sources,
+    collected: Collected,
 ) -> NotRunReason | None:
     """Why a check cannot be evaluated on this crawl; None when it can."""
     if check.need == "sitemap" and not has_sitemap:
         return "no_sitemap"
+    if (check.need == "facts" and not collected.facts) or (
+        check.need == "timing" and not collected.timing
+    ):
+        return "not_collected"
     if check.need == "links" and links_dropped:
         return "links_dropped"
     if check.need == "gsc" and sources.gsc.state == "not_connected":
@@ -136,12 +146,14 @@ class IssueService:
                 )
             ).one()
             sources = await read_sources(db, scope)
+            collected = await read_collected(db, scope)
             reasons = {
                 check.id: _not_run_reason(
                     check,
                     has_sitemap=(crawl.sitemap_pages or 0) > 0,
                     links_dropped=scope.links_dropped,
                     sources=sources,
+                    collected=collected,
                 )
                 for check in CHECKS
             }

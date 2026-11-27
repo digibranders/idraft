@@ -134,6 +134,33 @@ async def test_a_sitemap_check_finds_nothing_when_no_sitemap_was_found(
     assert await _paths(api, url, viewer.headers, check_id) == []
 
 
+@pytest.mark.parametrize(
+    ("unread", "check_id"),
+    [
+        ("facts_read = false", "h1-missing"),
+        ("facts_read = false", "thin-content"),
+        ("facts_read = false", "mixed-content"),
+        ("facts_read = false", "duplicate-content"),
+        ("response_ms = NULL", "slow-pages"),
+    ],
+)
+async def test_a_check_on_a_crawl_with_nothing_collected_matches_nothing(
+    unread: str,
+    check_id: str,
+    api: httpx.AsyncClient,
+    resources: Resources,
+    migrated: PostgresServer,
+) -> None:
+    workspace = await make_workspace(migrated)
+    viewer = await member(resources, migrated, workspace, "viewer")
+    project = await keyword_project(migrated, workspace)
+    run_id, _ = await audit_site(migrated, workspace, project)
+    await execute(migrated, f"UPDATE seo.crawl_pages SET {unread} WHERE run_id = $1", run_id)
+    url = project_url(workspace, project, "internal-links", "pages")
+
+    assert await _paths(api, url, viewer.headers, check_id) == []
+
+
 async def test_a_cursor_of_one_check_is_refused_on_another(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

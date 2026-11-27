@@ -11,7 +11,7 @@ import pytest
 from idraft.api.resources import Resources
 from tests.api.auth.support import execute, make_workspace
 from tests.api.entities.support import member, problem
-from tests.api.issues.support import LONG_PATH, SHARED_TITLE, audit_site
+from tests.api.issues.support import LONG_PATH, PATH_115, SHARED_TITLE, audit_site
 from tests.api.keywords.support import keyword_project, project_url
 from tests.conftest import PostgresServer
 
@@ -67,6 +67,31 @@ CASES = [
     ("title-missing", "/lost", NONE),
     ("status-5xx", "/error", NONE),
     ("sitemap-broken", "/gone", NONE),
+    ("mixed-content", "/", _detail(count=2)),
+    ("hreflang", "/hidden", _detail(count=3)),
+    ("slow-pages", "/About", _detail(count=9000)),
+    ("slow-pages", "/a/b/c/d", _detail(count=3001)),
+    ("description-missing", "/title-30", NONE),
+    ("h1-missing", "/aa_x", NONE),
+    ("h1-multiple", "/canon-redirect", _detail(count=5)),
+    ("thin-content", "/a/b/c/d", _detail(count=199)),
+    ("thin-content", PATH_115, _detail(count=0)),
+    ("image-alt", "/Plans_Old", _detail(count=3)),
+    ("social-tags", "/depth-3", NONE),
+    ("schema-errors", "/a/b/c/d", _detail(count=4)),
+    # Three pages share a description (a page that is not indexable and a 404 have it too, and
+    # do not count). Byte order is /Zulu-dup, /alpha-dup, /mike-dup.
+    ("description-duplicate", "/Zulu-dup", _detail(count=2, target_path="/alpha-dup")),
+    ("description-duplicate", "/alpha-dup", _detail(count=2, target_path="/Zulu-dup")),
+    ("description-duplicate", "/mike-dup", _detail(count=2, target_path="/Zulu-dup")),
+    # Two pages whose descriptions differ by case and edge spaces.
+    ("description-duplicate", "/About", _detail(count=1, target_path="/caf%C3%A9-menu")),
+    ("description-duplicate", "/caf%C3%A9-menu", _detail(count=1, target_path="/About")),
+    # Two pages share a text; a page that is not indexable and a variant have it too.
+    ("duplicate-content", "/pricing", _detail(count=1, target_path="/services")),
+    ("duplicate-content", "/services", _detail(count=1, target_path="/pricing")),
+    ("duplicate-content", "/About", _detail(count=1, target_path="/caf%C3%A9-menu")),
+    ("duplicate-content", "/caf%C3%A9-menu", _detail(count=1, target_path="/About")),
 ]
 
 

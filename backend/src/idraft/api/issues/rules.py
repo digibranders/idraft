@@ -29,7 +29,16 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import aliased
 
-from idraft.api.issues.catalogue import BY_ID, DEPTH_MAX, PATH_MAX, TITLE_MAX, TITLE_MIN
+from idraft.api.issues.catalogue import (
+    BY_ID,
+    DEPTH_MAX,
+    DUPLICATE_MIN_WORDS,
+    PATH_MAX,
+    SLOW_MS,
+    THIN_WORDS,
+    TITLE_MAX,
+    TITLE_MIN,
+)
 from idraft.crawl.status import BLOCKED_STATUSES
 from idraft.db.tables import (
     ai_citations,
@@ -108,12 +117,17 @@ _TRIMMED: Final = " \t\n\r\f\v" + chr(0xA0)
 _EDGE_SPACE: Final = f"^[{_TRIMMED}]+|[{_TRIMMED}]+$"
 
 
-def _trimmed_title(page: FromClause) -> ColumnElement[str]:
-    """The title with its edge whitespace removed; empty when there is no title. The one
-    expression that the key and the length of a title are both read from. It removes the
+def _trimmed(text: ColumnElement[str]) -> ColumnElement[str]:
+    """The text with its edge whitespace removed; empty when there is none. It removes the
     space, tab, line feed, carriage return, form feed, vertical tab and the non-breaking
     space (U+00A0), and nothing else."""
-    return func.regexp_replace(func.coalesce(page.c.title, ""), _EDGE_SPACE, "", "g")
+    return func.regexp_replace(func.coalesce(text, ""), _EDGE_SPACE, "", "g")
+
+
+def _trimmed_title(page: FromClause) -> ColumnElement[str]:
+    """The title trimmed: the one expression that the key and the length of a title are both
+    read from."""
+    return _trimmed(page.c.title)
 
 
 def title_key(page: FromClause) -> ColumnElement[str]:
@@ -142,6 +156,60 @@ def _shared_titles(crawl: CrawlRef) -> Select[Any]:
         .group_by(key)
         .having(func.count() > 1)
     )
+
+
+def description_key(page: FromClause) -> ColumnElement[str]:
+    """The description trimmed as a title is, and lower-cased; empty when there is none."""
+    return func.lower(_trimmed(page.c.meta_description))
+
+
+def described(page: FromClause) -> ColumnElement[bool]:
+    """A page whose description can be shared: live, indexable, read, with a description."""
+    return and_(_live(page), page.c.is_indexable, page.c.facts_read, description_key(page) != "")
+
+
+def _shared_descriptions(crawl: CrawlRef) -> Select[Any]:
+    other = aliased(crawl_pages)
+    key = description_key(other)
+    return (
+        select(key)
+        .where(
+            other.c.workspace_id == crawl.workspace_id,
+            other.c.run_id == crawl.run_id,
+            described(other),
+        )
+        .group_by(key)
+        .having(func.count() > 1)
+    )
+
+
+def texted(page: FromClause) -> ColumnElement[bool]:
+    """A page whose text can be a copy of another: live, indexable, read, with enough words."""
+    return and_(
+        _live(page),
+        page.c.is_indexable,
+        page.c.facts_read,
+        page.c.word_count >= DUPLICATE_MIN_WORDS,
+    )
+
+
+def _shared_texts(crawl: CrawlRef) -> Select[Any]:
+    other = aliased(crawl_pages)
+    return (
+        select(other.c.text_hash)
+        .where(
+            other.c.workspace_id == crawl.workspace_id,
+            other.c.run_id == crawl.run_id,
+            texted(other),
+        )
+        .group_by(other.c.text_hash)
+        .having(func.count() > 1)
+    )
+
+
+def _read(page: FromClause) -> ColumnElement[bool]:
+    """Live, and its HTML was read: the facts of the page mean something."""
+    return and_(_live(page), page.c.facts_read)
 
 
 _PATH_NO_ESCAPES: Final = func.regexp_replace(urls.c.path, "%[0-9A-Fa-f]{2}", "", "g")
@@ -222,6 +290,24 @@ _RULES: Final[dict[str, Rule]] = {
     ),
     "url-format": lambda _: and_(_live(crawl_pages), or_(HAS_CAPITALS, HAS_UNDERSCORES)),
     "url-long": lambda _: and_(_live(crawl_pages), PATH_LENGTH > PATH_MAX),
+    # The checks that read the page's own HTML (`crawl.page_facts`). A page whose HTML was not
+    # read has `facts_read` false, so none of them finds it.
+    "mixed-content": lambda _: and_(_read(crawl_pages), crawl_pages.c.http_resources > 0),
+    "hreflang": lambda _: and_(_read(crawl_pages), crawl_pages.c.hreflang_errors > 0),
+    "slow-pages": lambda _: and_(_live(crawl_pages), crawl_pages.c.response_ms > SLOW_MS),
+    "description-missing": lambda _: and_(_read(crawl_pages), description_key(crawl_pages) == ""),
+    "description-duplicate": lambda crawl: and_(
+        described(crawl_pages), description_key(crawl_pages).in_(_shared_descriptions(crawl))
+    ),
+    "h1-missing": lambda _: and_(_read(crawl_pages), crawl_pages.c.h1_count == 0),
+    "h1-multiple": lambda _: and_(_read(crawl_pages), crawl_pages.c.h1_count > 1),
+    "thin-content": lambda _: and_(_read(crawl_pages), crawl_pages.c.word_count < THIN_WORDS),
+    "duplicate-content": lambda crawl: and_(
+        texted(crawl_pages), crawl_pages.c.text_hash.in_(_shared_texts(crawl))
+    ),
+    "image-alt": lambda _: and_(_read(crawl_pages), crawl_pages.c.images_without_alt > 0),
+    "schema-errors": lambda _: and_(_read(crawl_pages), crawl_pages.c.jsonld_errors > 0),
+    "social-tags": lambda _: and_(_read(crawl_pages), crawl_pages.c.og_complete.is_(False)),
 }
 
 

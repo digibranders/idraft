@@ -4,10 +4,10 @@ module only reads the value next to them, for the ids on one page of the Pages l
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, Final
 
-from sqlalchemy import ColumnElement, Select, and_, case, func, select
+from sqlalchemy import ColumnElement, FromClause, Select, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -21,9 +21,12 @@ from idraft.api.issues.rules import (
     NOFOLLOW_LINKS,
     PATH_LENGTH,
     CrawlRef,
+    described,
+    description_key,
     off_target_keywords,
     own_citations,
     ranked_keywords,
+    texted,
     title_key,
     title_length,
     titled,
@@ -57,6 +60,13 @@ _COUNT: Final[dict[str, ColumnElement[Any]]] = {
     "title-long": title_length(crawl_pages),
     "title-short": title_length(crawl_pages),
     "url-long": PATH_LENGTH,
+    "mixed-content": crawl_pages.c.http_resources,
+    "hreflang": crawl_pages.c.hreflang_errors,
+    "slow-pages": crawl_pages.c.response_ms,
+    "h1-multiple": crawl_pages.c.h1_count,
+    "thin-content": crawl_pages.c.word_count,
+    "image-alt": crawl_pages.c.images_without_alt,
+    "schema-errors": crawl_pages.c.jsonld_errors,
     "nofollow-internal": select(func.count())
     .select_from(crawl_links)
     .where(NOFOLLOW_LINKS)
@@ -71,6 +81,19 @@ _REASON: Final[dict[str, ColumnElement[Any]]] = {
         (HAS_CAPITALS, "capitals"),
         (HAS_UNDERSCORES, "underscores"),
     ),
+}
+# Checks on a value that pages share: how to read the value of a page and which pages can share.
+_SHARED: Final[
+    dict[
+        str,
+        tuple[
+            Callable[[FromClause], ColumnElement[Any]], Callable[[FromClause], ColumnElement[bool]]
+        ],
+    ]
+] = {
+    "title-duplicate": (title_key, titled),
+    "description-duplicate": (description_key, described),
+    "duplicate-content": (lambda page: page.c.text_hash, texted),
 }
 NO_DETAIL: Final = IssueDetail()
 # Rows of the CSV whose details and clicks are read in one go.
@@ -109,15 +132,21 @@ def _target_rows(crawl: CrawlRef, ids: Sequence[int], check_id: str) -> Rows:
     )
 
 
-def _duplicate_rows(crawl: CrawlRef, ids: Sequence[int]) -> Rows:
-    """For a page with a shared title: how many other pages share it, and the first of them in
-    byte order. The pages of the crawl are ranked once per title, so a title shared by many
-    pages is read once."""
+def _duplicate_rows(
+    crawl: CrawlRef,
+    ids: Sequence[int],
+    key_of: Callable[[FromClause], ColumnElement[Any]],
+    member: Callable[[FromClause], ColumnElement[bool]],
+) -> Rows:
+    """For a page with a shared title, description or text (`key_of` reads the shared value and
+    `member` says which pages can share it): how many other pages share it, and the first of
+    them in byte order. The pages of the crawl are ranked once per value, so a value shared by
+    many pages is read once."""
     other = aliased(crawl_pages)
     other_url = aliased(urls)
-    key = title_key(other)
+    key = key_of(other)
     path = other_url.c.path.collate("C")
-    wanted = _rows_of(crawl, ids, title_key(crawl_pages).label("key")).subquery("wanted")
+    wanted = _rows_of(crawl, ids, key_of(crawl_pages).label("key")).subquery("wanted")
     ranked = (
         select(
             key.label("key"),
@@ -129,7 +158,7 @@ def _duplicate_rows(crawl: CrawlRef, ids: Sequence[int]) -> Rows:
         .where(
             other.c.workspace_id == crawl.workspace_id,
             other.c.run_id == crawl.run_id,
-            titled(other),
+            member(other),
             key.in_(select(wanted.c.key)),
         )
         .subquery("ranked")
@@ -147,7 +176,7 @@ def _duplicate_rows(crawl: CrawlRef, ids: Sequence[int]) -> Rows:
     # The page itself is one of the pages that share the title: name the first one that is not.
     other_path = case((shared.c.first == urls.c.path, shared.c.second), else_=shared.c.first)
     return _rows_of(crawl, ids, other_path, shared.c.size - 1).outerjoin(
-        shared, and_(shared.c.key == title_key(crawl_pages), titled(crawl_pages))
+        shared, and_(shared.c.key == key_of(crawl_pages), member(crawl_pages))
     )
 
 
@@ -190,8 +219,9 @@ async def issue_details(
         return {
             url: IssueDetail(target_path=path, target_status=status) for url, path, status in rows
         }
-    if check_id == "title-duplicate":
-        rows = await db.execute(_duplicate_rows(crawl, ids))
+    if check_id in _SHARED:
+        key_of, member = _SHARED[check_id]
+        rows = await db.execute(_duplicate_rows(crawl, ids, key_of, member))
         return {url: IssueDetail(target_path=path, count=count) for url, path, count in rows}
     if check_id in ("rank-page-broken", "off-target", "cited-page-broken"):
         rows = await db.execute(_source_counts(crawl, ids, check_id))

@@ -134,6 +134,101 @@ _COLUMNS: Final[dict[str, dict[str, object]]] = {
         "in_sitemap": False,
     },
 }
+SHARED_DESCRIPTION: Final = "Same description for three pages here"
+PAIR_DESCRIPTION: Final = "Shared description of two pages"
+# Hashes of the text of a page: three pages that share the first, two that share the second
+# with 50 words, and two that share the third with 49 words.
+SAME_TEXT: Final = 111
+PAIR_TEXT: Final = 222
+SHORT_TEXT: Final = 333
+# What a page has when its HTML was never read, and what a page that is not a check's to find
+# has (a 404, a variant, a page read from no HTML) that would fire every check if it counted.
+_NO_FACTS: Final[dict[str, object]] = {
+    "facts_read": False,
+    "meta_description": None,
+    "h1_count": None,
+    "word_count": None,
+    "text_hash": None,
+    "images_without_alt": None,
+    "og_complete": None,
+    "jsonld_errors": None,
+    "hreflang_errors": None,
+    "http_resources": None,
+}
+_BAD_FACTS: Final[dict[str, object]] = {
+    "meta_description": "",
+    "h1_count": 0,
+    "word_count": 5,
+    "text_hash": SAME_TEXT,
+    "images_without_alt": 2,
+    "og_complete": False,
+    "jsonld_errors": 1,
+    "hreflang_errors": 2,
+    "http_resources": 3,
+    "response_ms": 5000,
+}
+# The facts columns that differ from the default of a page: facts read, a description no other
+# page has, one H1, 300 words, a text no other page has, no image without alt, Open Graph
+# complete, no error, 200 ms.
+_FACTS: Final[dict[str, dict[str, object]]] = {
+    "/": {"http_resources": 2},
+    "/services": {"jsonld_errors": 1, "hreflang_errors": 1, "text_hash": SAME_TEXT},
+    "/pricing": {"http_resources": 1, "text_hash": SAME_TEXT},
+    "/Plans_Old": {"images_without_alt": 3},
+    # Not live: every check must pass over it.
+    "/gone": {**_BAD_FACTS, "meta_description": SHARED_DESCRIPTION, "http_resources": 5},
+    "/old": {"jsonld_errors": 2, "hreflang_errors": 2},
+    # Live but not indexable: not a member of the shared sets.
+    "/hidden": {
+        "meta_description": SHARED_DESCRIPTION,
+        "text_hash": SAME_TEXT,
+        "hreflang_errors": 3,
+        "images_without_alt": 1,
+    },
+    # A variant: not counted.
+    "/services-copy": {**_BAD_FACTS, "http_resources": 3, "response_ms": 6000},
+    # HTML never read: the facts are not read, so bad values mean nothing.
+    "/lost": {
+        **_NO_FACTS,
+        "h1_count": 0,
+        "word_count": 10,
+        "http_resources": 4,
+        "images_without_alt": 6,
+        "og_complete": False,
+        "jsonld_errors": 1,
+        "hreflang_errors": 1,
+        "meta_description": "",
+    },
+    "/no-depth": _NO_FACTS,
+    # 199 and 200 words, 3001 and 3000 ms.
+    "/a/b/c/d": {"word_count": 199, "jsonld_errors": 4, "response_ms": 3001},
+    "/depth-3": {"word_count": 200, "og_complete": False, "response_ms": 3000},
+    # Two pages of 50 words with one text (a description that differs by case and spaces),
+    # two of 49 words with one text, and a page with no text at all.
+    "/About": {
+        "word_count": 50,
+        "text_hash": PAIR_TEXT,
+        "meta_description": PAIR_DESCRIPTION,
+        "response_ms": 9000,
+    },
+    "/caf%C3%A9-menu": {
+        "word_count": 50,
+        "text_hash": PAIR_TEXT,
+        "meta_description": "  " + PAIR_DESCRIPTION.upper() + "\t",
+    },
+    "/old_page": {"word_count": 49, "text_hash": SHORT_TEXT, "h1_count": 2},
+    "/canon-redirect": {"word_count": 49, "text_hash": SHORT_TEXT, "h1_count": 5},
+    PATH_115: {"word_count": 0, "text_hash": None},
+    "/Zed_page": {"h1_count": 0},
+    "/aa_x": {"h1_count": 0},
+    # No description: empty, and only blanks. Neither is a description that can be shared.
+    "/long-title": {"meta_description": ""},
+    "/title-60": {"meta_description": ""},
+    "/title-30": {"meta_description": " \t ", "og_complete": False},
+    "/Zulu-dup": {"meta_description": SHARED_DESCRIPTION},
+    "/alpha-dup": {"meta_description": SHARED_DESCRIPTION},
+    "/mike-dup": {"meta_description": SHARED_DESCRIPTION},
+}
 # path -> column that holds a URL id -> path of the page it names
 _TARGETS: Final[dict[str, dict[str, str]]] = {
     "/old": {"redirect_url_id": "/older"},
@@ -181,6 +276,31 @@ EXPECTED: Final[dict[str, list[str]]] = {
     "title-short": ["/services"],
     "url-format": ["/About", "/Plans_Old", "/Zed_page", "/Zulu-dup", "/aa_x", "/old_page"],
     "url-long": [LONG_PATH],
+    "mixed-content": ["/", "/pricing"],
+    "hreflang": ["/hidden", "/services"],
+    "slow-pages": ["/About", "/a/b/c/d"],
+    "description-missing": ["/long-title", "/title-30", "/title-60"],
+    "description-duplicate": [
+        "/About",
+        "/Zulu-dup",
+        "/alpha-dup",
+        "/caf%C3%A9-menu",
+        "/mike-dup",
+    ],
+    "h1-missing": ["/Zed_page", "/aa_x"],
+    "h1-multiple": ["/canon-redirect", "/old_page"],
+    "thin-content": [
+        PATH_115,
+        "/About",
+        "/a/b/c/d",
+        "/caf%C3%A9-menu",
+        "/canon-redirect",
+        "/old_page",
+    ],
+    "duplicate-content": ["/About", "/caf%C3%A9-menu", "/pricing", "/services"],
+    "image-alt": ["/Plans_Old", "/hidden"],
+    "social-tags": ["/depth-3", "/title-30"],
+    "schema-errors": ["/a/b/c/d", "/services"],
 }
 
 _UPDATE: Final = "UPDATE seo.crawl_pages SET {sets} WHERE run_id = $1 AND url_id = $2"
@@ -199,8 +319,20 @@ async def audit_site(
             "in_sitemap": True,
             "is_indexable": True,
             "click_depth": 1,
+            "facts_read": True,
+            "meta_description": f"A unique description number {number:03d} of the page",
+            "h1_count": 1,
+            "word_count": 300,
+            "text_hash": 10_000 + number,
+            "images_without_alt": 0,
+            "og_complete": True,
+            "jsonld_errors": 0,
+            "hreflang_errors": 0,
+            "http_resources": 0,
+            "response_ms": 200,
         }
         values.update(_COLUMNS.get(path, {}))
+        values.update(_FACTS.get(path, {}))
         values.update({column: targets[found] for column, found in _TARGETS.get(path, {}).items()})
         sets = ", ".join(f"{column} = ${position}" for position, column in enumerate(values, 3))
         await execute(pg, _UPDATE.format(sets=sets), run_id, ids[path], *values.values())
