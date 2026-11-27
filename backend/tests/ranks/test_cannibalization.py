@@ -176,3 +176,25 @@ def test_same_page_at_two_ranks_keeps_the_best_rank_only() -> None:
         day=0, is_valid=True, depth_requested=100, ranks=[6, 2], url_ids=[A, A]
     )
     assert check.ranks == ((A, 2),)
+
+
+def test_a_change_on_the_last_check_is_not_confirmed() -> None:
+    result = analyse(series([A] * 11 + [B]))
+    assert result.events == ()
+    assert result.flickers == 1
+
+
+def test_a_single_move_is_none_and_chains() -> None:
+    result = analyse(series([A] * 6 + [B] * 6))
+    assert result.verdict == "none"
+    chained = analyse(series([A] * 4 + [B] * 4 + [C] * 4)).events
+    assert chained[1].from_page == chained[0].to_page
+
+
+def test_held_now_without_a_switch_is_in_days() -> None:
+    assert analyse(series([A] * 12)).held_now == 11
+
+
+def test_together_marks_the_strip_cell() -> None:
+    checks = [Check(day=d, readable=True, ranks=((A, 4), (B, 9))) for d in range(3)]
+    assert analyse(checks).strip[0].together is True

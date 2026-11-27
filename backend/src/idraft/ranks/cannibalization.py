@@ -202,7 +202,10 @@ def analyse(checks: Sequence[Check]) -> Analysis:
     candidates = [s for s in pages if s.best_count >= PRIMARY_MIN_BEST]
     primary: int | None
     if candidates:
-        primary = min(candidates, key=lambda s: (median(best_ranks_of[s.page]), s.page)).page
+        primary = min(
+            candidates,
+            key=lambda s: (median(best_ranks_of[s.page]), -s.best_count, -s.ranked, s.page),
+        ).page
     else:
         primary = pages[0].page if pages else None
     primary_ranks = [c.best[1] for c in ranked if c.best and c.best[0] == primary]
@@ -243,7 +246,7 @@ def analyse(checks: Sequence[Check]) -> Analysis:
     if last is not None and events:
         held_now = last.day - events[-1].day
     elif last is not None:
-        held_now = len(ranked)
+        held_now = last.day - ranked[0].day
     else:
         held_now = 0
     strip = tuple(
