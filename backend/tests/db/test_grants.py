@@ -559,8 +559,19 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT, DELETE", UPDATE=("is_primary", "status")),
         READ,
     ),
-    # Page totals from Search Console, replaced by the worker a day at a time.
-    "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
+    # Page totals from Search Console, replaced by the worker a day at a time (migration 0045: the
+    # API stores a page's history it fetched on demand; both roles may correct a row).
+    "fp.gsc_page_daily": (
+        access("SELECT, INSERT, UPDATE"),
+        access("SELECT, INSERT, UPDATE, DELETE"),
+    ),
+    # Migration 0045: page search detail. The worker learns the address forms; the API and the
+    # worker both store (INSERT ... ON CONFLICT DO UPDATE needs UPDATE) and prune what a page
+    # fetch brings; the API tracks and untracks pages.
+    "fp.gsc_page_forms": (READ, access("SELECT, INSERT, UPDATE")),
+    "fp.gsc_page_fetches": (CRUD, CRUD),
+    "fp.gsc_page_breakdown": (CRUD, CRUD),
+    "core.tracked_pages": (access("SELECT, INSERT, DELETE"), READ),
     # Migration 0041: the referrer rules are global and read only; the worker replaces the
     # classified AI referral numbers a window at a time.
     "fp.ai_referrer_rules": (READ, READ),

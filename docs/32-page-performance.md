@@ -1,7 +1,7 @@
 # 32. Page Performance (Search Console health per URL)
 
-Status: Draft for the product owner's review; requirement received 2026-10-27
-Last updated: 2026-10-27
+Status: Draft for the product owner's review; requirement received 2026-10-27. Superseded in part by [the page search and Monitoring design](superpowers/specs/2026-11-26-page-search-and-monitoring-design.md) (2026-11-26)
+Last updated: 2026-11-26
 Related: [18-first-party-integrations.md](18-first-party-integrations.md) sections 3, 4 and 12; [04-data-model.md](04-data-model.md) section 10; [19-api-specification.md](19-api-specification.md) sections 2.6 and 11.4; [20-frontend-specification.md](20-frontend-specification.md) sections 5.5 and 5.15; [16-metrics-methodology.md](16-metrics-methodology.md); [17-statistical-methodology.md](17-statistical-methodology.md); [24-security.md](24-security.md) sections 3.2 and 6; [29-phase-roadmap.md](29-phase-roadmap.md) section 1.1; design system [15-data-visualization.md](design-system/15-data-visualization.md), [13-filters-search.md](design-system/13-filters-search.md), [16-drawers-dialogs-popovers.md](design-system/16-drawers-dialogs-popovers.md)
 
 Labels as in doc 18: **(verified date)** marks a fact read on a primary page, **INFERRED** marks our reasoning, **UNVERIFIED** marks a claim to confirm in a spike, **Decision** marks a design choice.
@@ -70,17 +70,15 @@ Permissions follow doc 24 section 3.2: `data:read` to view; a new key `pages:wri
 
 ### 5.1 Where it lives
 
-The sidebar destination **Pages** (`/seo/pages`) gets two tabs: **Landing pages** (Page Intelligence, doc 20 section 5.5) and **Performance** (this feature). Routes, all under `[workspace]/[project]/seo/pages`:
+The sidebar destination **Pages** (`/seo/pages`) has the tabs **Overview**, **All pages** and **Monitoring**. The **Landing pages** tab is removed (product owner, 2026-11-26). The page's search detail is the **Search** tab of the page drawer, open for every page, not only tracked ones. **Monitoring** lists only the tracked pages. Routes as built, under `[workspace]/[project]/seo/pages`:
 
 | Route | Content |
 |---|---|
-| `performance` | Watchlist table with the filter bar; the page detail opens as a drawer, state in `?page=<urlId>` |
-| `performance/[urlId]` | The same detail as a full page, for sharing and for a wider chart |
-| `[urlId]` (existing) | Page Intelligence gains a "Search performance" section that mounts the same detail component |
+| `monitoring` | Tracked pages table with its filters; a row opens the page drawer on its Search tab, state in `?inspect=page:<urlId>` |
 
-**Decision D-PP-2:** one detail component with two shells (drawer and page), so there is one implementation and one set of tests. The static `performance` segment wins over the dynamic `[urlId]` segment in Next.js routing; a URL id can never be the string `performance` because ids are numbers.
+There is no `performance` route and no full-page detail: the drawer is the one shell for the detail (D-PP-2, changed). The Pages and All pages tabs belong to the Pages session.
 
-Phase gating follows doc 20 section 3.10: the Performance tab is hidden until Search Console is connected on the project, then shows; before that the tab shows the connect state (5.9).
+Phase gating follows doc 20 section 3.10: Monitoring shows the connect state (5.9) until Search Console is connected on the project.
 
 ### 5.2 The list
 
@@ -91,7 +89,7 @@ Phase gating follows doc 20 section 3.10: the Performance tab is hidden until Se
 | Date [Last 28 days v]  Compare [Previous period v]  Country [All v]  Device [All v]           |
 | Search type [Web v]   + Group [All v]                         Data through 2026-10-24 (PT)    |
 |-----------------------------------------------------------------------------------------------|
-| 41 pages   Declining 6   Growing 9   Stable 24   Low data 2          [Add pages] [Export CSV] |
+| 41 pages   Declining 6   Growing 9   Stable 24   Not enough data 2   [Add pages] [Export CSV] |
 |-----------------------------------------------------------------------------------------------|
 | [] Page                       Group    Health      Clicks         Impr.        CTR     Position|
 | [] /pricing                   Money    Sharp drop  317  -23.0%    41.2K +4%    0.8% -0.2  5.9 v 2.1 |
@@ -101,11 +99,11 @@ Phase gating follows doc 20 section 3.10: the Performance tab is hidden until Se
 ```
 
 - The summary line counts pages by health and filters the table when a count is clicked.
-- Columns: Page (path first, host muted), Group, Health chip, Clicks, Impressions, CTR, Position (each with current value, the change, and for position the words "improved" or "slipped"), a 28-point clicks sparkline (current period), and the Indexing status of the page (D-PP-8). Column chooser per doc 20 section 4.
+- Columns: Page (path first, host muted), Tier (replaces Group, product owner 2026-11-26), Health chip, Clicks, Impressions, CTR, Average position (each with current value, the change, and for position the words "improved" or "slipped"), then **Queries** (the stored count of different queries that gave the page an impression in the period, with its change; spec D21) and, once the Cannibalization work fills the API field, **Cannibalization** (spec D22, reserved: hidden while every row has `null`). Column chooser per doc 20 section 4.
 - **Default sort: attention first.** Sharp drop, then Declining by absolute click loss, then the rest by clicks. This is the opposite of Search Console's default (clicks descending) and is the point of the screen. The sort is a normal column sort that the user can change; the URL keeps it.
-- Rows are selectable for bulk actions: set group, remove from watchlist, export selection.
+- Rows are selectable for bulk actions: set tier, stop tracking, export selection.
 - Row click opens the drawer. Keyboard follows the grid model of doc 20 section 4.8.
-- Client-side table mode (the watchlist is capped at 200 pages by default, section 9), with the server computing all metrics for the chosen filters.
+- Client-side table mode (tracked pages are capped at 200 per project, section 9), with the server computing all metrics for the chosen period.
 
 ### 5.3 The detail (drawer or page)
 
@@ -155,14 +153,14 @@ Parts in order:
 |---|---|---|---|---|
 | Period | A month picker (default: the last complete month), quick ranges (Last 7 days, Last 28 days, Last 3 months, Whole history) and a custom range of two dates | Stored | Date | Ends on the last final day by default (5.5). D-PP-7 |
 | Compare | Previous period (default), Same period last year, Previous month, Custom range, None | Stored | Compare | "Previous month" appears when the range is one calendar month |
-| Country | Multi-select, searchable, shows countries with data first | Stored | Country | ISO 3166-1 alpha-3 internally, names shown |
+| Location | Multi-select, searchable, shows locations with data first (detail only, first build: a breakdown tab, not a filter) | Stored | Country | ISO 3166-1 alpha-3 internally, names shown |
 | Device | Desktop, Mobile, Tablet; multi-select | Stored | Device | |
 | Search type | Web (default), Image, Video, News, Discover, Google News | Stored | Search type | Web multimodal is UI-only in Google and is not available (doc 18 section 4.2) |
-| Group | Our watchlist groups | Stored | none | Our addition; filters the list |
+| Tier | The project's page tiers (replaces Group) | Stored | none | Our addition; filters the list. In the first build there is no location, device, search type or query filter on the list (spec D14) |
 | Query | contains, does not contain, equals, matches regex | Live | Query | Detail only. Works on the Queries tab and on the tiles and chart (section 7.5) |
 | Search appearance | Google's list for the page (FAQ, videos and so on) | Live | Search appearance | Detail only; slice 2. Needs the two-step query of doc 18 section 4.2 |
 
-**Not offered, by design.** The Page filter (the watchlist and the group filter replace it) and Web multimodal. Every other Search Console filter has a row above. The detail also drills down: clicking a row in the What changed tables applies that country, device or query as a filter chip, so the next question is one click away.
+**Not offered, by design.** The Page filter (the tracked pages and the tier filter replace it) and Web multimodal. Every other Search Console filter has a row above. The detail also drills down: clicking a row in the What changed tables applies that country, device or query as a filter chip, so the next question is one click away.
 
 All filter values live in the query string with the `nuqs` parsers of doc 20 section 3.6; defaults are omitted from the URL.
 
@@ -214,13 +212,12 @@ The tabs list the items that moved the chosen metric (the first checked tile). E
 
 ### 5.9 Adding pages
 
-Dialog **Add pages**, with three sources:
+Dialog **Add pages**, with two sources (spec section 10.2):
 
-1. **Paste URLs** (one per line, up to 500). The API validates each: the host must belong to the connected property; the URL is canonicalized through `core.urls` (doc 04 section 5.1); duplicates are reported. For each URL the dialog shows the result of a probe against Search Console: "Found, 1,240 clicks in the last 28 days", "Found in 2 forms (with and without trailing slash), they will be added together", or "No search data in the last 28 days" (allowed; the page shows "No data yet").
-2. **Suggested from Search Console.** The 25 pages with the most clicks in the last 28 days that are not yet watched, from one live call. Tick and add.
-3. **From a sitemap URL** (slice 2). Fetched with the SSRF controls of doc 24 section 7.3, with a preview and a count. Import from CSV reuses the import wizard (slice 2).
+1. **Paste addresses** (one per line, up to 500). The API checks each line (a dry run) and the dialog shows one outcome per line: found with its clicks, already tracked, or refused. Only pages the crawl has found can be tracked (spec D9); a page with no search data is allowed and reads "Not collected yet".
+2. **Suggested from Search Console.** The 25 pages with the most clicks in the last 28 days that are not yet tracked, from one live call. Tick and add.
 
-Also: a **Watch this page** button on Page Intelligence and on the keyword and ranking-URL surfaces (the rank columns already show ranking URLs), all opening the same dialog with the URL filled in.
+The sitemap and CSV sources are not built. A "Track in Monitoring" action on All pages belongs to the Pages session, using the API's ids and track reads (spec section 11).
 
 **URL forms.** Google may report one page under several strings (with and without a trailing slash, `http` and `https`, `www`). When a page is added, the probe lists the exact strings Google uses and stores them in `core.watched_pages.gsc_page_forms`. Pulls ask for each form and the ingest sums them (doc 18 section 4.7 collapse rule, with the collapse count logged). A nightly job re-checks the forms for pages whose clicks fall to zero (a changed URL form is a classic cause) and reports it as a flag on the page.
 
@@ -229,11 +226,11 @@ Also: a **Watch this page** button on Page Intelligence and on the keyword and r
 | State | Shown | Next step offered |
 |---|---|---|
 | Search Console not connected | Empty state with a one-line value statement and a "Connect Search Console" button (owner or admin); others see "Ask an owner or admin to connect Search Console" | Connect |
-| Connected, no pages watched | Empty state: "Add the pages that matter" with the three sources of 5.9 | Add pages |
+| Connected, no pages tracked | Empty state: "Add the pages that matter" with the two sources of 5.9 | Add pages |
 | First sync running | Banner "Loading your history, 14 of 486 days" and the list shows pages with a progress cell | Wait; the last 28 days load first (doc 18 section 4.3 ordering) |
 | `reauth_required` | The doc 18 banner "Sync paused since <date>", existing data stays visible | Reconnect |
-| Page has no data in range | Row shows "No data"; detail explains "Google reported no impressions for this page in these filters" and offers to widen the filters | Clear filters |
-| Low data | Health chip "Low data" with the counts | None needed |
+| Page has no data in range | Row shows "Not collected yet"; detail explains "Google reported no impressions for this page in this period" and offers another period | Change the period |
+| Not enough data | Health chip "Not enough data" with the counts | None needed |
 | Live query rate limited | Inline "Google is busy. Retrying in 20 s" with a retry button; stored tabs keep working | Retry |
 | Permission missing | The Add and Remove actions are absent, not disabled (doc 20 section 3.9) | None |
 
@@ -280,6 +277,8 @@ The **basis metric** is clicks when the two periods together have at least 30 cl
 Template per verdict with the numbers filled in, then up to two flag sentences, longest-impact first. Example: `Clicks are down 23% (412 to 317) against 28 Aug to 24 Sep.` plus `Mobile in India explains most of it.` plus `Average position slipped 2.1 places.` All text comes from the message catalog with ICU placeholders; the API returns codes and numbers, never English (doc 20 section 3.11). A unit test per verdict and per flag pins the output.
 
 ## 7. Data design
+
+> The tables and storage built are those of sections 5 and 6 of [the page search and Monitoring design](superpowers/specs/2026-11-26-page-search-and-monitoring-design.md), with the reasons in its section 3. What follows is the 2026-10-27 draft and is kept for history.
 
 ### 7.1 Why a watchlist makes this cheap
 
@@ -375,6 +374,8 @@ The data is Google's, so correctness is agreement with it:
 
 ## 8. API (extends the first-party routes `{P}/fp/...` of doc 19; `{P}` is `/api/v1/workspaces/{w}/projects/{p}`)
 
+> The routes built are `{P}/fp/tracked-pages` and `{P}/fp/page-search`, specified in section 7 of [the page search and Monitoring design](superpowers/specs/2026-11-26-page-search-and-monitoring-design.md). The table below is the 2026-10-27 draft and is superseded.
+
 All metric values are `MetricValue` objects with `observation_class: 'first_party'`, `source: 'gsc_api'`, `data_state` and `coverage` (doc 19 section 2.6). A comparison is a pair of values and a `delta`, with `delta.is_detectable` set by the health rules (not by a confidence interval; these are census counts, doc 18 principle 5). Responses carry codes and numbers, never English.
 
 | Method | Path | Permission | Request | Response |
@@ -454,13 +455,13 @@ Estimates (INFERRED, to be revised after the spikes): slice 1 backend about 3 en
 
 | ID | Decision | Section |
 |---|---|---|
-| D-PP-1 | New permission `pages:write` | 4 |
-| D-PP-2 | One detail component, drawer and full page shells | 5.1 |
+| D-PP-1 | Dropped: tracking uses `projects:write` (spec D11), no new permission | 4 |
+| D-PP-2 | Changed: one detail, the Search tab of the page drawer, for every page; no full-page shell | 5.1 |
 | D-PP-3 | Default range ends on the last final day; provisional days excluded unless switched on | 5.5 |
-| D-PP-4 | Queries are live and cached in the first release | 5.8, 7.5 |
+| D-PP-4 | Widened: queries, locations and devices are live for one page and one period, then cached (spec D3) | 5.8, 7.5 |
 | D-PP-5 | Health thresholds are method constants (`page_health_v1`) | 6.1 |
 | D-PP-6 | Pull the Search Console connection and its parts forward from Phase 12 | 10 |
 | D-PP-7 | The period control opens on the last complete month against the month before; a range menu is one click away (product owner, 2026-10-27) | 5.4, 5.5 |
-| D-PP-8 | "Health" means the search trend plus the index status of the page (product owner, 2026-10-27); page speed is not part of it | 5.3, 6, 10 |
+| D-PP-8 | Deferred: "health" is the search trend only for now; the index status is not part of the verdict in the first build (spec D12) | 5.3, 6, 10 |
 | D-PP-9 | Extra metrics (share of site, tracked keyword rank, AI citations, GA4 sessions and conversions) are selectable and off by default (product owner, 2026-10-27) | 5.3 |
 | D-PP-10 | The detail is cut to what decides something: one verdict card with the index status inside, search type and query behind "More filters", no overlay chart, the provisional-days and unequal-length notes as one quiet line under the chart. The page drawer is 720 px wide by default and can be resized (480 px up to the window less 56 px, remembered), as the inspector of doc 16 section 2.2 (product owner, 2026-10-27) | 5.3, 5.4, 5.7 |

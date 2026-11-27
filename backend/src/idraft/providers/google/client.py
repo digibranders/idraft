@@ -76,6 +76,17 @@ _CLIENT_ERRORS = frozenset(
 
 type Sleep = Callable[[float], Awaitable[None]]
 type Dimension = Literal["date", "query", "page", "country", "device"]
+type FilterOperator = Literal["equals", "contains", "includingRegex"]
+
+
+@dataclass(frozen=True, slots=True)
+class DimensionFilter:
+    """One condition on a dimension of `searchAnalytics.query`. Conditions of a call are all
+    required together."""
+
+    dimension: Dimension
+    operator: FilterOperator
+    expression: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -387,26 +398,45 @@ class GoogleClient:
         data_state: Literal["final", "all"] = "final",
         aggregation: Literal["auto", "byProperty", "byPage"] = "auto",
         search_type: str = "web",
+        filters: Sequence[DimensionFilter] = (),
         start_row: int = 0,
         row_limit: int = SEARCH_ANALYTICS_ROW_LIMIT,
+        timeout_seconds: float | None = None,
     ) -> list[AnalyticsRow]:
         """One page of `searchAnalytics.query` (docs/18 section 4.2). Dates are Pacific Time
         calendar days. An empty list is the end of the results; the caller pages with
-        `start_row`."""
+        `start_row`. `filters` are all required together. `timeout_seconds` replaces the HTTP
+        client's own timeout for this call: a read of 25,000 rows is a few megabytes."""
+        body: dict[str, Any] = {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "dimensions": list(dimensions),
+            "dataState": data_state,
+            "aggregationType": aggregation,
+            "type": search_type,
+            "rowLimit": row_limit,
+            "startRow": start_row,
+        }
+        if filters:
+            body["dimensionFilterGroups"] = [
+                {
+                    "groupType": "and",
+                    "filters": [
+                        {
+                            "dimension": item.dimension,
+                            "operator": item.operator,
+                            "expression": item.expression,
+                        }
+                        for item in filters
+                    ],
+                }
+            ]
         response = await self._send(
             "POST",
             f"{SITES_URL}/{quote(site_url, safe='')}/searchAnalytics/query",
             headers=_bearer(access_token),
-            json={
-                "startDate": start_date.isoformat(),
-                "endDate": end_date.isoformat(),
-                "dimensions": list(dimensions),
-                "dataState": data_state,
-                "aggregationType": aggregation,
-                "type": search_type,
-                "rowLimit": row_limit,
-                "startRow": start_row,
-            },
+            json=body,
+            **({} if timeout_seconds is None else {"timeout": timeout_seconds}),
         )
         _raise_for_api(response)
         rows = _parse(_AnalyticsBody, response).rows

@@ -42,6 +42,8 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | A15 | All pages (a tab of Pages) | The tab that lists every page the crawl in view found on your website, one row a page, with its status, indexing, search and link numbers. | Not Overview (the counts and charts of the same crawl). Not Monitoring (only the pages you track). | Inventory, URL list, Site pages, Crawled pages (as the tab name) | Pages tabs, links from the Overview ("Opens All pages") | Safe | Owner decision 2026-11-26 |
 | A16 | Outline (a tab of the page drawer) | The tab that shows what one page says to a search engine, read from the stored HTML of the latest crawl: its search listing, headings, language versions, sharing tags, structured data and content size. | Not Issues (the checks a page fails, across the site). Not the page's Overview tab. | Structure, On-page, SEO audit, Content outline (as the tab name) | Page drawer tabs | Safe | Owner decision 2026-11-26 |
 | A17 | Notes (a tab of the page drawer) | The tab that shows what the team wrote about one page, newest first, each note with its author and the time it was written. Notes belong to the page's address and stay across crawls. | Not the notes on a chart (a day marked on a chart). Not Issues. | Comments, Annotations, Remarks, Log (as the tab name) | Page drawer tabs | Safe | Owner decision 2026-11-26 |
+| A14 | Monitoring (a tab of Pages) | The tab that lists the pages you track, with their Search Console numbers for a period, the change, a health verdict and a trend. Always a noun: the name of the tab. | Not a verb. Not a state of a page: a page in it is "Tracked" (B7). Not All pages. | Performance, Watchlist, Monitored pages, Monitored | Pages tabs, page title | Safe | Firm |
+| A13 | What changed | The section of a page's search detail that lists its queries, locations and devices for the period and the period compared with, the biggest change first. | Not the health verdict. Not a list of edits to the page. | Breakdown, Segments, Dimensions | Page search detail | Safe | Firm |
 
 ## 2. Where we ask, and where we check
 
@@ -135,6 +137,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M15 | Impressions, Clicks | As Google Search Console defines them. | Not AI numbers. | Views, Visits (for clicks) | Pages, performance | Follow Google's local wording | Firm |
 | M16 | AI referral visits | Visits to your site that Google Analytics attributes to AI platforms. | Not clicks in an answer. | Referral traffic, Sessions (in plain text) | Overview card | Safe | Firm |
 | M17 | They lead / You lead / Equal | In one prompt, a brand leads when it is mentioned in at least 2 more answers than the other, over the platforms in scope, and the prompt has at least 4 valid answers. A smaller difference is Equal. | Not a win in any single answer. | Winning, Losing, Lost to (as a column) | Competitor card and drawer | Safe | Firm |
+| M18 | Health (of a tracked page; values: Lost traffic, Sharp drop, Declining, Stable, Growing, New, Not enough data, Not collected yet) | The verdict on a tracked page's Search Console clicks (impressions when the clicks are too few) in the period against the period compared with. Lost traffic: clicks before, none now. Sharp drop: down 40% or more. Declining: down 10% or more. Growing: up 10% or more. New: impressions now, none before. Not enough data (S4) and Not collected yet (S5) keep their meaning. | Not a score. Not the page's HTTP status. Not the state of a crawl. | Status, Score, Performance, Rating | Monitoring column and filter, page search detail | Safe | Firm |
 
 ## 7. Brands, sites and states
 
@@ -152,6 +155,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | B10 | Project / Projects | One brand and its site, with its keywords, prompts, competitors and schedules. | Not a workspace. Not a client. | Client, Site, Campaign, Property, Account | Everywhere | Safe | Firm |
 | B11 | Workspace / Workspaces | A team's account: its members and its projects. | Not a project. | Organisation, Team, Account, Agency | Sign-in, settings, switcher | Often kept in English | Firm |
 | B12 | Client | Not a product level. Allowed only in example text. | | Client (as a level, filter or page) | Role help text | Safe | D22 |
+| B13 | Track in Monitoring / Stop tracking | The two actions on a page. Track in Monitoring adds it to the Monitoring tab (at most 200 pages in a project). Stop tracking takes it out; the numbers stored for it are kept, so adding it again shows them. | Stop tracking is not Pause and not Archive: nothing is deleted and nothing stops being collected for the site. | Monitor, Watch, Unwatch, Untrack, Remove from Monitoring | All pages, Monitoring bulk bar | Safe | Firm |
 
 ## 8. Data states and statistics
 
@@ -400,3 +404,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-26 | Outline (A16) | | Added as the name of the page drawer tab that shows what one page says to a search engine | Owner added the tab on 2026-11-26 |
 | 2026-11-26 | Notes (A17) | | Added as the name of the page drawer tab that shows what the team wrote about one page | Owner added the tab on 2026-11-26 |
 | 2026-11-26 | Add note (U15) | | Added as the button that saves a new note on a page | Owner added the Notes tab on 2026-11-26 |
+| 2026-11-26 | Monitoring (A14), What changed (A13), Health (M18), Track in Monitoring and Stop tracking (B13) | | Added for the Monitoring tab of Pages and the page search detail | Spec 2026-11-26 page search and monitoring, section 12 |

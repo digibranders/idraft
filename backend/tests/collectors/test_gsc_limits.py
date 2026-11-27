@@ -117,6 +117,27 @@ def test_a_bucket_does_not_refill_backwards_when_the_clock_steps_back() -> None:
     assert bucket.wait_for_token() == pytest.approx(0.5)
 
 
+def test_try_acquire_takes_a_token_when_all_three_buckets_have_one() -> None:
+    limiter = _limiter(Time(), site=60.0)
+
+    assert limiter.try_acquire(user="u", site="s") == 0.0
+
+
+def test_try_acquire_says_how_long_to_wait_and_charges_nothing() -> None:
+    time = Time()
+    limiter = _limiter(time, user=60.0, site=6.0)  # a burst of 10 for the user, 1 for a site
+    assert limiter.try_acquire(user="u", site="s") == 0.0
+
+    # The site has no token (one every 10 s). Refused calls charge the user nothing.
+    for _ in range(5):
+        assert limiter.try_acquire(user="u", site="s") == pytest.approx(10.0)
+    # So the user still has 9 tokens, for other sites, and then none.
+    for number in range(9):
+        assert limiter.try_acquire(user="u", site=f"other-{number}") == 0.0
+    assert limiter.try_acquire(user="u", site="other-9") == pytest.approx(1.0)
+    assert time.slept == []
+
+
 def test_a_budget_is_a_positive_number() -> None:
     with pytest.raises(ValueError, match="positive"):
         Budgets(site_per_minute=0)

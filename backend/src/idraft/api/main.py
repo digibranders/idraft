@@ -59,6 +59,7 @@ from idraft.api.exports.routes import router as exports_router
 from idraft.api.favicons.fetch import SafeFetcher
 from idraft.api.favicons.routes import router as favicons_router
 from idraft.api.favicons.service import FaviconService
+from idraft.api.fp.page_routes import router as fp_page_router
 from idraft.api.fp.routes import router as fp_router
 from idraft.api.health import router as health_router
 from idraft.api.imports.routes import router as imports_router
@@ -428,6 +429,7 @@ def create_app(
     app.include_router(quotas_router)
     app.include_router(favicons_router)
     app.include_router(fp_router)
+    app.include_router(fp_page_router)
     app.include_router(integrations_router)
     app.include_router(engine_routes_router)
     app.include_router(prompt_routes_router)

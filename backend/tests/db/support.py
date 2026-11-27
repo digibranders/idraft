@@ -94,6 +94,10 @@ TENANT_TABLES: dict[str, str] = {
     "ops.alert_cursors": "workspace_id",
     "fp.gsc_page_daily": "workspace_id",
     "fp.ai_referral_daily": "workspace_id",
+    "fp.gsc_page_forms": "workspace_id",
+    "fp.gsc_page_fetches": "workspace_id",
+    "fp.gsc_page_breakdown": "workspace_id",
+    "core.tracked_pages": "workspace_id",
 }
 
 
@@ -472,8 +476,9 @@ async def seed_search_console(
     owner_id: uuid.UUID,
 ) -> uuid.UUID:
     """One row in every Search Console table: a secret, the connection that holds it, a property
-    linked to the project, a query and one day of numbers, and one AI referral row filed under
-    that integration (WP-69). Returns the integration's id."""
+    linked to the project, a query and one day of numbers, one AI referral row filed under that
+    integration (WP-69), and one row each of the page search detail tables and one tracked page.
+    Returns the integration's id."""
     secret_id: uuid.UUID = await db.fetchval(
         "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
         "fingerprint) VALUES ($1, 'oauth_refresh_token', $2, $3, 1, 'abcd') RETURNING id",
@@ -530,6 +535,36 @@ async def seed_search_console(
         project_id,
         integration_id,
         workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_forms (integration_id, url_id, page, workspace_id, last_seen) "
+        "VALUES ($1, 1, 'https://example.com/a', $2, current_date)",
+        integration_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
+        "workspace_id, project_id, row_count, query_count) "
+        "VALUES ($1, 1, 'query', current_date - 27, current_date - 1, $2, $3, 1, 1)",
+        integration_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_breakdown (integration_id, url_id, date_from, date_to, dimension, "
+        "key, workspace_id, project_id, clicks, impressions, position_sum) "
+        "VALUES ($1, 1, current_date - 27, current_date - 1, 'query', 'crm software', $2, $3, "
+        "3, 40, 120.5)",
+        integration_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO core.tracked_pages (project_id, url_id, workspace_id, added_by) "
+        "VALUES ($1, 1, $2, $3)",
+        project_id,
+        workspace_id,
+        owner_id,
     )
     return integration_id
 

@@ -20,6 +20,8 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Link map (a tab of Internal links: every live page and its body links as one graph) | Site map, Network, Graph (as the tab name) |
 | Outline (a tab of the page drawer: what one page says to a search engine) | Structure, On-page, SEO audit, Content outline (as the tab name) |
 | Notes (a tab of the page drawer: what the team wrote about one page) | Comments, Annotations, Remarks, Log (as the tab name) |
+| Monitoring (a tab of Pages: the pages you track, with their Search Console numbers) | Performance, Watchlist, Monitored pages |
+| What changed (the queries, locations and devices of a page for a period and the period compared with) | Breakdown, Segments |
 
 ## Where we ask and where we check
 
@@ -90,6 +92,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Search volume ("Volume" in a column), Keyword difficulty, CPC, Impressions, Clicks | SV, Demand, Competition |
 | AI referral visits | Referral traffic, Sessions in plain text |
 | They lead, You lead, Equal | Winning, Losing |
+| Health (of a tracked page): Lost traffic, Sharp drop, Declining, Stable, Growing, New | Status, Score |
 
 ## Brands, sites and states
 
@@ -99,6 +102,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Your brand, Your site, Your pages (sentences, empty states, info texts); tables, legends, exports and reports show the real brand name | Own brand, Own domain, Owned pages, Client brand |
 | Competitor; Watched brand; Alias | Rival, Watched entity, Variant |
 | Tracked, Not tracked, Paused, Archived | Monitored, Active, Disabled, Hidden |
+| Track in Monitoring, Stop tracking (the two actions on a page) | Monitor, Watch, Untrack |
 | Project (one brand and its site), Workspace (a team's account); Client is never a level | Site, Account, Organisation, Agency |
 
 ## Data states and statistics

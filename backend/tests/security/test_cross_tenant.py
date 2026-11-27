@@ -336,6 +336,13 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    # Page search detail and Monitoring: a url id of the tenant's own, so the writes would do
+    # something if they were let through.
+    ("POST", _W + "/projects/{project_id}/fp/tracked-pages"): {
+        "urls": ["{page_url}"],
+        "url_ids": ["{url_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/fp/tracked-pages/remove"): {"url_ids": ["{url_id}"]},
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     # Internal links tracker (plan 02): tiers, rules, tiers and tags on pages. The tier is the
@@ -554,6 +561,10 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     ("GET", _W + "/projects/{project_id}/fp/ai-referrals"): {
         "compare": "previous_period",
         "group_by": "origin",
+    },
+    # A tenant's own page: the dimension is required, and `query` is the widest read.
+    ("GET", _W + "/projects/{project_id}/fp/page-search/{url_id}/breakdown"): {
+        "dimension": "query"
     },
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
@@ -1289,6 +1300,46 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         tiers[1],
         owner.id,
     )
+    # Page search detail: the address form, a fetch marker, a breakdown row and a tracked page.
+    await execute(
+        pg,
+        "INSERT INTO fp.gsc_page_forms (integration_id, url_id, page, workspace_id, last_seen) "
+        "VALUES ($1, $2, $3, $4, current_date)",
+        integration["id"],
+        crawl_ids[pricing],
+        f"https://example.com{pricing}",
+        workspace.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
+        "workspace_id, project_id, row_count, query_count) "
+        "VALUES ($1, $2, 'query', current_date - 27, current_date - 1, $3, $4, 1, 1)",
+        integration["id"],
+        crawl_ids[pricing],
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.gsc_page_breakdown (integration_id, url_id, date_from, date_to, "
+        "dimension, key, workspace_id, project_id, clicks, impressions, position_sum) "
+        "VALUES ($1, $2, current_date - 27, current_date - 1, 'query', $3, $4, $5, 3, 40, 120.5)",
+        integration["id"],
+        crawl_ids[pricing],
+        f"{label} page query",
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.tracked_pages (project_id, url_id, workspace_id, added_by) "
+        "VALUES ($1, $2, $3, $4)",
+        project_id,
+        crawl_ids[pricing],
+        workspace.id,
+        owner.id,
+    )
     tag_vocabulary = await fetchrow(
         pg,
         "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name) "
@@ -1675,6 +1726,11 @@ _TENANT_ROWS = {
     # WP-68 llm-advanced
     # WP-69 first-party-signals
     "fp.ai_referral_daily": "workspace_id",
+    # Page search detail and Monitoring
+    "fp.gsc_page_forms": "workspace_id",
+    "fp.gsc_page_fetches": "workspace_id",
+    "fp.gsc_page_breakdown": "workspace_id",
+    "core.tracked_pages": "workspace_id",
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
 }

@@ -14,6 +14,7 @@ import { keywordImportHandlers } from './keyword-imports';
 import { keywordQuotaHandlers } from './keyword-quota';
 import { keywordHandlers } from './keywords';
 import { meHandlers } from './me';
+import { pageSearchHandlers } from './page-search';
 import { pendingHandlers } from './pending';
 import { projectEntityHandlers } from './project-entities';
 import { projectHandlers } from './projects';
@@ -211,6 +212,8 @@ export const handlers: readonly HttpHandler[] = [
   ...internalLinkChangeHandlers,
   ...internalLinkOpportunityHandlers,
   ...internalLinkShareHandlers,
+  // Page search and tracked pages (page search and Monitoring plan 02)
+  ...pageSearchHandlers,
   ...pendingHandlers,
 ];
 
