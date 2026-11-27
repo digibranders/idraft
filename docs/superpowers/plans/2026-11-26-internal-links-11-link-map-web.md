@@ -2247,3 +2247,16 @@ Built on 2026-11-26 by one Sonnet session, one task at a time. Reviews were by S
 - The mock graph (`mocks/fixtures/link-graph.ts`) has ids 1 to 15 and its own paths, not the pages of the mock crawl, so "Page details" in the mock API opens a not found inspector. The browser flow only checks the address.
 - Full screen does not hold the keyboard inside the panel; Enter on a search frames pages a legend switch has hidden; a stale `mpage` from another crawl has no card and the first Escape clears it.
 - The real Eventus numbers (389 pages, 385 editorial links, 133 in the largest group, 232 with no link) were not checked: there was no local API with that crawl and none was seeded. The real tab shows the mock numbers (15 pages, 13 editorial links, 11 in the largest group, 4 with no link), and the design preview mock shows the Eventus numbers from its own data.
+
+## Tuned for dense data (2026-11-27)
+
+After the relink the real Eventus crawl has 387 pages and 2,514 editorial links (3,772 with auto-generated links), about 7 times the mock: hubs of 100 to 200 links, 332 linked pages. The first release drew a hairball. The changes, each measured on that data and on a synthetic graph of the same shape (`mocks/fixtures/dense-link-graph.ts`, no content of the customer's crawl in the repository):
+
+- **Why `hideOverlap` did not hold:** the ECharts `LabelLayout` feature was not registered (`echarts/features`), so `labelLayout` was ignored in the app. It worked in the mock, which loads all of ECharts. `link-map-chart.tsx` registers it now, and a test holds that.
+- **Names are chosen, not left to the canvas** (`map-labels.ts`): by rank, kept only where the box clears the boxes kept and the lines of the block, at most 48 at 100 percent and `48 x step^1.6` at each zoom step (50, 100, 150, 200, 300, 400, 600, 800, 1,200 percent). `MAP_REPAINT_AT` repaints the canvas at each step. Names stay at 11 px on a laptop and drop to 10 px under 700 px.
+- **Links** thin out with the density, arrowheads only below 4 links per 100 by 100 px or on a selection (doc 15 section 13.1 has the numbers).
+- **Dots** are capped at 30 px at 100 percent.
+- **Layout:** from 150 to 300 linked pages the numbers blend from the mock's to the dense ones (`dense()` in `map-layout.ts`); separation rounds are 120 up to 600 pages and fall to 30 by 1,000. The block is 12 columns wide and stands 130 units from the map (it was 14 and 250): the names keep clear of its text by themselves.
+- **Fit:** `fitBox` stretches the map up to 1.7 times along one axis to fill the canvas, and the canvas position of a dot is `canvasPoint(frameOf(...))`, held to what ECharts does by `map-frame.test.ts`. The block's title and the room its longest line needs are sized in pixels.
+
+Numbers on the real crawl, 1,350 by 596 px canvas (the stage of a 1,600 by 900 window), measured in Chromium on the SVG the option gives (real glyphs, Helvetica for the stub font): see the report of the tuning session; the committed tests (`map-density.test.ts`) hold the same limits on the synthetic graph.
