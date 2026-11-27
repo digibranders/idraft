@@ -26,9 +26,10 @@ export function useCannState(tab: CannTab): CannStateResult {
   const state = useMemo(() => parseCann(search, tab), [search, tab]);
   const set = useCallback(
     (patch: Partial<CannState>): void => {
-      void setSearch(writeCann({ ...state, ...patch }, tab), { history: 'replace' });
+      // Built from the latest address, so two patches close together do not overwrite each other
+      void setSearch((latest) => writeCann({ ...parseCann(latest, tab), ...patch }, tab), { history: 'replace' });
     },
-    [state, tab, setSearch],
+    [tab, setSearch],
   );
   const resetScope = useCallback((): void => set({ device: 'desktop', group: 'all', days: 30 }), [set]);
   return { state, set, resetScope, isDefaultScope: isDefaultScope(state) };
