@@ -52,6 +52,7 @@ export function PeriodControls({
       />
       <Select
         size="sm"
+        className="w-72 max-w-full"
         value={compare}
         onValueChange={onCompareChange}
         options={options}

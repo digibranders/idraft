@@ -258,9 +258,9 @@ function MonitoringContent({
   const date = finalThrough === null ? null : formatBusinessDate(finalThrough);
   const context =
     date === null || meta === null ? undefined : (
-      <Tooltip content={t('contextTip', { property: meta.property ?? '', date })}>
+      <Tooltip content={t('contextTip', { host: project.host ?? project.name, property: meta.property ?? '', date })}>
         <span {...TAB_STOP} className="type-meta text-foreground-secondary outline-none focus-visible:focus-ring">
-          {t('context', { host: project.host ?? project.name, date })}
+          {t('context', { date })}
         </span>
       </Tooltip>
     );
@@ -327,6 +327,16 @@ function MonitoringContent({
         <PageToolbar
           title={t('title')}
           tabs={tabs}
+          filters={
+            state === 'not_connected' ? undefined : (
+              <MonitoringFilters
+                periodControls={periodControls}
+                fields={shownFields}
+                values={values}
+                onChange={setValues}
+              />
+            )
+          }
           status={context}
           actions={
             <>
@@ -351,12 +361,6 @@ function MonitoringContent({
           <NotConnectedState workspaceSlug={workspaceSlug} projectSlug={project.slug} />
         ) : (
           <>
-            <MonitoringFilters
-              periodControls={periodControls}
-              fields={shownFields}
-              values={values}
-              onChange={setValues}
-            />
             <DataTable<TrackedPageRow>
               caption={t('caption')}
               itemNoun={{ one: t('one'), other: t('other') }}

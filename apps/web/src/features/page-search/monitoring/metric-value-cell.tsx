@@ -39,7 +39,7 @@ export interface MetricValueCellProps {
  */
 export function MetricValueCell({ value, valueTip, change }: MetricValueCellProps): ReactElement {
   return (
-    <span className="flex min-w-0 items-baseline gap-1.5">
+    <span className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
       {valueTip === undefined ? (
         <span className="num">{value}</span>
       ) : (

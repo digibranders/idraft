@@ -10897,7 +10897,7 @@
       "perDay": "Counted per day, because the two periods differ in length.",
       "positionSlipped": "Average position slipped {places} places.",
       "positionImproved": "Average position improved {places} places.",
-      "ctrFellImpressionsRose": "Impressions rose but fewer people clicked. Check the title and the snippet."
+      "ctrFellImpressionsRose": "Impressions rose but fewer people clicked. Check the title and the snippet, and whether an AI answer now sits above the result."
     },
     "states": {
       "notConnected": "Connect Search Console to see how your pages perform.",
@@ -10915,8 +10915,8 @@
   },
   "monitoring": {
     "title": "Monitoring",
-    "context": "{host}, final data to {date}",
-    "contextTip": "Search Console property {property}. Final data to {date}, Pacific Time.",
+    "context": "Final data to {date}",
+    "contextTip": "{host}, Search Console property {property}. Final data to {date}, Pacific Time.",
     "export": "Export CSV",
     "addPages": "Add pages",
     "tier": "Tier",
