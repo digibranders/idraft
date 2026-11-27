@@ -1,5 +1,7 @@
 import base64
 import hashlib
+import json
+from datetime import UTC, date, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -7,11 +9,16 @@ import pytest
 
 from idraft.providers.google.client import (
     ACCOUNT_SUMMARIES_URL,
+    ANALYTICS_DATA_URL,
     ANALYTICS_SCOPE,
     CONNECT_SCOPES,
     REVOKE_URL,
     SEARCH_CONSOLE_SCOPE,
     SITES_URL,
+    URL_INSPECTION_URL,
+    DimensionFilter,
+    Ga4Report,
+    Ga4Row,
     GoogleClient,
     authorization_url,
     new_pkce,
@@ -376,3 +383,443 @@ async def test_the_analytics_admin_api_maps_a_disabled_api_to_a_permission_error
 
     with pytest.raises(GooglePermissionError):
         await _client(httpx.MockTransport(answer)).list_analytics_properties("ya29.x")
+
+
+PROPERTY = "properties/111"
+GA4_DIMENSIONS = ["date", "sessionSource"]
+GA4_METRICS = ["sessions", "engagedSessions"]
+GA4_ROWS: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
+    (("20261120", "chatgpt.com"), ("12", "9")),
+    (("20261120", "perplexity.ai"), ("3", "2")),
+    (("20261121", "chatgpt.com"), ("7", "5")),
+    (("20261121", "gemini.google.com"), ("1", "0")),
+    (("20261122", "chatgpt.com"), ("4", "4")),
+]
+
+
+async def _ga4_report(
+    transport: httpx.AsyncBaseTransport, token: str = "ya29.x", *, offset: int = 0, limit: int = 100
+) -> Ga4Report:
+    return await _client(transport).run_report(
+        token,
+        PROPERTY,
+        start_date=date(2026, 11, 20),
+        end_date=date(2026, 11, 22),
+        dimensions=GA4_DIMENSIONS,
+        metrics=GA4_METRICS,
+        offset=offset,
+        limit=limit,
+    )
+
+
+async def _ga4_fake() -> tuple[FakeGoogle, str]:
+    fake = FakeGoogle(REDIRECT)
+    account = fake.account("person@example.com")
+    token = await _analytics_token(fake, _client(fake.transport), account.refresh_token)
+    return fake, token
+
+
+async def test_a_ga4_report_page_is_parsed_with_its_total_and_the_quota_left() -> None:
+    fake, token = await _ga4_fake()
+    fake.ga4_rows[PROPERTY] = GA4_ROWS[:2]
+    fake.ga4_tokens_remaining = 38_000
+
+    report = await _ga4_report(fake.transport, token)
+
+    assert report == Ga4Report(
+        rows=(
+            Ga4Row(("20261120", "chatgpt.com"), ("12", "9")),
+            Ga4Row(("20261120", "perplexity.ai"), ("3", "2")),
+        ),
+        row_count=2,
+        quota_remaining=38_000,
+    )
+
+
+async def test_a_ga4_report_with_no_row_is_empty() -> None:
+    fake, token = await _ga4_fake()
+
+    report = await _ga4_report(fake.transport, token)
+
+    assert report == Ga4Report(rows=(), row_count=0, quota_remaining=39_995)
+
+
+async def test_a_ga4_report_is_paged_with_a_string_offset_and_the_total_row_count() -> None:
+    fake, token = await _ga4_fake()
+    fake.ga4_rows[PROPERTY] = GA4_ROWS
+
+    pages = [await _ga4_report(fake.transport, token, offset=n, limit=2) for n in (0, 2, 4, 6)]
+
+    assert [len(page.rows) for page in pages] == [2, 2, 1, 0]
+    assert {page.row_count for page in pages} == {5}
+    assert [row for page in pages for row in page.rows] == [Ga4Row(*row) for row in GA4_ROWS]
+    sent = [call.json_body for call in fake.calls if call.json_body]
+    assert [(body["offset"], body["limit"]) for body in sent] == [
+        ("0", "2"),
+        ("2", "2"),
+        ("4", "2"),
+        ("6", "2"),
+    ]
+
+
+async def test_a_ga4_report_request_has_the_documented_body_address_and_bearer_header() -> None:
+    fake, token = await _ga4_fake()
+
+    await _ga4_report(fake.transport, token)
+
+    (call,) = [c for c in fake.calls if c.url.startswith(ANALYTICS_DATA_URL)]
+    assert call.method == "POST"
+    assert call.url == f"{ANALYTICS_DATA_URL}/{PROPERTY}:runReport"
+    assert call.authorization == f"Bearer {token}"
+    assert call.json_body == {
+        "dateRanges": [{"startDate": "2026-11-20", "endDate": "2026-11-22"}],
+        "dimensions": [{"name": "date"}, {"name": "sessionSource"}],
+        "metrics": [{"name": "sessions"}, {"name": "engagedSessions"}],
+        "offset": "0",
+        "limit": "100",
+        "returnPropertyQuota": True,
+    }
+
+
+async def test_a_ga4_report_without_a_quota_member_has_no_quota_figure() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"rows": [], "rowCount": 0, "propertyQuota": {}})
+
+    report = await _ga4_report(httpx.MockTransport(answer))
+    assert report.quota_remaining is None
+
+
+async def test_a_ga4_report_without_a_row_count_counts_its_rows() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        row = {
+            "dimensionValues": [{"value": "a"}, {"value": "b"}],
+            "metricValues": [{"value": "1"}] * 2,
+        }
+        return httpx.Response(200, json={"rows": [row]})
+
+    assert (await _ga4_report(httpx.MockTransport(answer))).row_count == 1
+
+
+async def test_a_ga4_token_google_does_not_know_is_unauthorized() -> None:
+    fake, _ = await _ga4_fake()
+    with pytest.raises(GoogleUnauthorizedError):
+        await _ga4_report(fake.transport, "ya29.stale")
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "error"),
+    [
+        (401, {"error": {"status": "UNAUTHENTICATED"}}, GoogleUnauthorizedError),
+        (
+            429,
+            {"error": {"status": "RESOURCE_EXHAUSTED", "message": "slow down"}},
+            GoogleQuotaError,
+        ),
+        (
+            403,
+            {"error": {"status": "RESOURCE_EXHAUSTED", "message": "Exhausted property tokens"}},
+            GoogleQuotaError,
+        ),
+        (403, {"error": {"message": "Exhausted: quota for this property"}}, GoogleQuotaError),
+        (
+            403,
+            {"error": {"status": "PERMISSION_DENIED", "message": "User cannot access property"}},
+            GooglePermissionError,
+        ),
+        (403, "<html>", GooglePermissionError),
+    ],
+)
+async def test_ga4_report_errors_are_mapped_and_never_retried(
+    status: int, body: object, error: type[Exception]
+) -> None:
+    seen = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen += 1
+        if isinstance(body, str):
+            return httpx.Response(status, text=body)
+        return httpx.Response(status, json=body)
+
+    with pytest.raises(error):
+        await _ga4_report(httpx.MockTransport(answer))
+    assert seen == 1
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"dimensionValues": [{"value": "a"}], "metricValues": [{"value": "1"}, {"value": "2"}]},
+        {"dimensionValues": [{"value": "a"}, {"value": "b"}], "metricValues": [{"value": "1"}]},
+        {"dimensionValues": [{"value": "a"}, {"value": "b"}], "metricValues": "nope"},
+        {"dimensionValues": [{"value": "a"}, {"value": "b"}]},
+    ],
+)
+async def test_a_ga4_row_that_does_not_match_the_request_writes_nothing(row: object) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"rows": [row], "rowCount": 1})
+
+    with pytest.raises(GoogleResponseError) as error:
+        await _ga4_report(httpx.MockTransport(answer), "ya29.secret")
+    assert "ya29" not in str(error.value)
+
+
+@pytest.mark.parametrize("text", ["<html>not json</html>", "", "[]", '{"rows": "nope"}'])
+async def test_a_ga4_answer_that_is_not_documented_is_a_response_error(text: str) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=text)
+
+    with pytest.raises(GoogleResponseError) as error:
+        await _ga4_report(httpx.MockTransport(answer), "ya29.secret")
+    assert "ya29" not in str(error.value)
+
+
+async def test_a_ga4_server_error_is_retried_and_then_unavailable() -> None:
+    seen = 0
+    pause = Pause()
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen += 1
+        return httpx.Response(503, text="unavailable")
+
+    with pytest.raises(GoogleUnavailableError):
+        await _client(httpx.MockTransport(answer), pause=pause).run_report(
+            "ya29.x",
+            PROPERTY,
+            start_date=date(2026, 11, 20),
+            end_date=date(2026, 11, 22),
+            dimensions=GA4_DIMENSIONS,
+            metrics=GA4_METRICS,
+        )
+    assert seen == 3
+    assert pause.waits == [0.5, 1.0]
+
+
+@pytest.mark.parametrize("name", ["properties/1/../x", "properties/1?x=1", "properties/abc", "x"])
+async def test_a_malformed_ga4_property_is_refused_before_any_request(name: str) -> None:
+    seen = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen += 1
+        return httpx.Response(200, json={})
+
+    with pytest.raises(ValueError, match="properties/"):
+        await _client(httpx.MockTransport(answer)).run_report(
+            "ya29.x",
+            name,
+            start_date=date(2026, 11, 20),
+            end_date=date(2026, 11, 22),
+            dimensions=GA4_DIMENSIONS,
+            metrics=GA4_METRICS,
+        )
+    assert seen == 0
+
+
+async def _search_bodies(**changes: object) -> list[dict[str, object]]:
+    bodies: list[dict[str, object]] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={})
+
+    await _client(httpx.MockTransport(answer)).search_analytics(
+        "ya29.x",
+        "sc-domain:a.example",
+        start_date=date(2026, 11, 1),
+        end_date=date(2026, 11, 7),
+        dimensions=("date",),
+        **changes,  # type: ignore[arg-type]
+    )
+    return bodies
+
+
+async def test_search_analytics_gives_one_call_its_own_timeout_and_no_other_call() -> None:
+    reads: list[object] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        reads.append(request.extensions["timeout"]["read"])
+        return httpx.Response(200, json={})
+
+    client = _client(httpx.MockTransport(answer))
+    for changes in ({}, {"timeout_seconds": 45.0}):
+        await client.search_analytics(
+            "ya29.x",
+            "sc-domain:a.example",
+            start_date=date(2026, 11, 1),
+            end_date=date(2026, 11, 7),
+            dimensions=("date",),
+            **changes,  # type: ignore[arg-type]
+        )
+
+    # The first call keeps the client's own timeout (httpx's default, 5 s, for this client).
+    assert reads == [5.0, 45.0]
+
+
+async def test_search_analytics_sends_a_filter_group_only_when_filters_are_given() -> None:
+    (filtered,) = await _search_bodies(
+        filters=(
+            DimensionFilter("page", "includingRegex", "^https://a\\.example/x$"),
+            DimensionFilter("query", "contains", "crm"),
+        )
+    )
+    assert filtered["dimensionFilterGroups"] == [
+        {
+            "groupType": "and",
+            "filters": [
+                {
+                    "dimension": "page",
+                    "operator": "includingRegex",
+                    "expression": "^https://a\\.example/x$",
+                },
+                {"dimension": "query", "operator": "contains", "expression": "crm"},
+            ],
+        }
+    ]
+    assert filtered["aggregationType"] == "auto"
+
+    (plain,) = await _search_bodies()
+    assert "dimensionFilterGroups" not in plain
+    assert plain["aggregationType"] == "auto"
+
+
+INSPECT_SITE = "sc-domain:acme.example"
+INSPECT_PAGE = "https://acme.example/pricing"
+
+
+async def _inspect_fake() -> tuple[FakeGoogle, GoogleClient, str]:
+    fake = FakeGoogle(REDIRECT)
+    account = fake.account("person@example.com", sites=[(INSPECT_SITE, "siteOwner")])
+    google = _client(fake.transport)
+    return fake, google, (await google.refresh(account.refresh_token)).access_token
+
+
+async def test_an_inspection_gives_the_last_crawl_in_utc_and_the_coverage_state() -> None:
+    fake, google, token = await _inspect_fake()
+    fake.inspections[INSPECT_PAGE] = ("2026-11-20T08:15:30.123456Z", "Submitted and indexed")
+
+    found = await google.inspect_url(token, site_url=INSPECT_SITE, page_url=INSPECT_PAGE)
+
+    assert found.last_crawl_time == datetime(2026, 11, 20, 8, 15, 30, 123456, tzinfo=UTC)
+    assert found.last_crawl_time is not None
+    assert found.last_crawl_time.utcoffset() == timedelta(0)
+    assert found.coverage_state == "Submitted and indexed"
+    call = fake.called(URL_INSPECTION_URL)[0]
+    assert call.json_body == {"inspectionUrl": INSPECT_PAGE, "siteUrl": INSPECT_SITE}
+    assert call.authorization == f"Bearer {token}"
+
+
+async def test_an_inspection_with_an_offset_is_converted_to_utc() -> None:
+    fake, google, token = await _inspect_fake()
+    fake.inspections[INSPECT_PAGE] = ("2026-11-20T10:00:00+02:00", "Crawled")
+
+    found = await google.inspect_url(token, site_url=INSPECT_SITE, page_url=INSPECT_PAGE)
+
+    assert found.last_crawl_time == datetime(2026, 11, 20, 8, 0, tzinfo=UTC)
+    assert found.last_crawl_time is not None
+    assert found.last_crawl_time.utcoffset() == timedelta(0)
+
+
+async def test_a_page_google_never_crawled_has_no_crawl_time_and_is_not_an_error() -> None:
+    _, google, token = await _inspect_fake()
+
+    found = await google.inspect_url(token, site_url=INSPECT_SITE, page_url=INSPECT_PAGE)
+
+    assert found.last_crawl_time is None
+    assert found.coverage_state == "URL is unknown to Google"
+
+
+async def test_an_inspection_with_no_status_member_has_nothing_to_say() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"inspectionResult": {}})
+
+    found = await _client(httpx.MockTransport(answer)).inspect_url(
+        "ya29.x", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+    )
+
+    assert (found.last_crawl_time, found.coverage_state) == (None, None)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        [],
+        "text",
+        {"inspectionResult": "nope"},
+        {"inspectionResult": {"indexStatusResult": {"lastCrawlTime": "yesterday"}}},
+        {"inspectionResult": {"indexStatusResult": {"lastCrawlTime": "2026-11-20T08:00:00"}}},
+        {"inspectionResult": {"indexStatusResult": {"coverageState": 7}}},
+    ],
+)
+async def test_an_inspection_that_is_not_documented_writes_nothing(body: object) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    with pytest.raises(GoogleResponseError) as error:
+        await _client(httpx.MockTransport(answer)).inspect_url(
+            "ya29.secret", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+        )
+    assert "ya29" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "error"),
+    [
+        (401, {"error": {"status": "UNAUTHENTICATED"}}, GoogleUnauthorizedError),
+        (
+            429,
+            {"error": {"status": "RESOURCE_EXHAUSTED", "message": "slow down"}},
+            GoogleQuotaError,
+        ),
+        (403, {"error": {"message": "Quota exceeded for quota metric"}}, GoogleQuotaError),
+        (
+            403,
+            {"error": {"message": "User does not have sufficient permission"}},
+            GooglePermissionError,
+        ),
+        (403, "<html>", GooglePermissionError),
+        (404, {"error": {"message": "not found"}}, GoogleResponseError),
+    ],
+)
+async def test_inspection_errors_are_mapped_and_never_retried(
+    status: int, body: object, error: type[Exception]
+) -> None:
+    seen = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen += 1
+        if isinstance(body, str):
+            return httpx.Response(status, text=body)
+        return httpx.Response(status, json=body)
+
+    with pytest.raises(error):
+        await _client(httpx.MockTransport(answer)).inspect_url(
+            "ya29.x", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+        )
+    assert seen == 1
+
+
+async def test_an_inspection_of_a_property_the_account_does_not_have_is_a_permission_error() -> (
+    None
+):
+    _, google, token = await _inspect_fake()
+    with pytest.raises(GooglePermissionError):
+        await google.inspect_url(token, site_url="sc-domain:other.example", page_url=INSPECT_PAGE)
+
+
+async def test_an_inspection_server_error_is_retried_and_then_unavailable() -> None:
+    attempts = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503)
+
+    with pytest.raises(GoogleUnavailableError):
+        await _client(httpx.MockTransport(answer)).inspect_url(
+            "ya29.x", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+        )
+    assert attempts == 3

@@ -10,6 +10,7 @@ import type { TrackedKeywordRow, TrackedKeywordState } from '@/lib/api/types';
 import { MOCK_ENTITY_IDS } from '@/mocks/entity-fixtures';
 import { MOCK_KEYWORDS, MOCK_TRACKED_KEYWORDS } from '@/mocks/keyword-fixtures';
 import { KEYWORD_TABLE } from '@/mocks/keyword-table';
+import { mockId } from '@/mocks/mock-ids';
 import { rankStateOf } from '@/mocks/rank-state';
 import { FAILED_IDS, FAILING_IDS } from '@/mocks/serp-world';
 import { mswPath, problem } from '@/mocks/respond';
@@ -1382,6 +1383,118 @@ describe('Rankings link to the keyword page', () => {
     await waitFor(() => expect(url.latest().get('inspect')).toMatch(/^keyword:/));
     expect(await screen.findByRole('complementary', { name: 'seo agency' })).toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
+  });
+});
+
+describe('The keyword drawer lays over the table', () => {
+  const headerOf = (grid: HTMLElement, keyword: string): HTMLElement => {
+    const header = within(grid)
+      .getAllByRole('rowheader')
+      .find((cell) => cell.querySelector('.truncate')?.textContent === keyword);
+    if (header === undefined) throw new Error(`No row for ${keyword}`);
+    return header;
+  };
+  const rowOf = (header: HTMLElement): HTMLElement => {
+    const row = header.closest<HTMLElement>('[role="row"]');
+    if (row === null) throw new Error('The row header is in no row');
+    return row;
+  };
+  /** The class and inline style of the grid and every ancestor: a drawer that took room from the table changes one. */
+  const layoutAround = (grid: HTMLElement): string[] => {
+    const layout: string[] = [];
+    for (let node: HTMLElement | null = grid; node !== null && node !== document.body; node = node.parentElement) {
+      layout.push(`${node.className}|${node.getAttribute('style') ?? ''}`);
+    }
+    return layout;
+  };
+  const tableGrid = (): HTMLElement => screen.getByRole('grid', { name: 'Tracked keywords' });
+
+  it('opens a keyword over the table without narrowing it', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    const before = layoutAround(grid);
+    await user.click(headerOf(grid, 'seo agency'));
+    const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
+    expect(drawer).toHaveClass('fixed');
+    expect(layoutAround(tableGrid())).toEqual(before);
+  });
+
+  it('swaps the drawer when another row is clicked, with one aside throughout', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await user.click(headerOf(grid, 'seo agency'));
+    const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
+    expect(rowOf(headerOf(grid, 'seo agency'))).toHaveAttribute('aria-current', 'true');
+    await user.click(headerOf(tableGrid(), 'backlink checker'));
+    await waitFor(() => expect(drawer).toHaveAccessibleName('backlink checker'));
+    expect(screen.getAllByRole('complementary')).toEqual([drawer]);
+    expect(rowOf(headerOf(tableGrid(), 'backlink checker'))).toHaveAttribute('aria-current', 'true');
+    expect(rowOf(headerOf(tableGrid(), 'seo agency'))).not.toHaveAttribute('aria-current');
+  });
+
+  it('asks before a row click replaces a drawer with unsaved edits', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    await user.click(headerOf(grid, 'seo agency'));
+    const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
+    await user.click(await within(drawer).findByRole('button', { name: 'Edit Tracking' }));
+    await user.type(within(drawer).getByRole('textbox', { name: /Target URL/ }), 'https://fynix.io/x');
+    await user.click(headerOf(tableGrid(), 'backlink checker'));
+    const question = await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    expect(drawer).toHaveAccessibleName('seo agency');
+    await user.click(within(question).getByRole('button', { name: 'Keep editing' }));
+    expect(within(drawer).getByRole('textbox', { name: /Target URL/ })).toHaveValue('https://fynix.io/x');
+    await user.click(headerOf(tableGrid(), 'backlink checker'));
+    await user.click(
+      within(await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' })).getByRole('button', {
+        name: 'Discard changes',
+      }),
+    );
+    await waitFor(() => expect(drawer).toHaveAccessibleName('backlink checker'));
+    expect(within(drawer).queryByRole('textbox', { name: /Target URL/ })).toBeNull();
+  });
+
+  it('steps with ArrowDown and ArrowUp from the title and keeps the "N of M" line', async () => {
+    const { user } = renderWithProviders(as('viewer'));
+    const grid = await loadedGrid();
+    await user.click(headerOf(grid, 'seo agency'));
+    const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
+    expect(within(drawer).getByText(/^1 of \d+$/)).toBeInTheDocument();
+    await waitFor(() => expect(within(drawer).getByRole('heading', { level: 2 })).toHaveFocus());
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(drawer).toHaveAccessibleName('backlink checker'));
+    expect(within(drawer).getByText(/^2 of \d+$/)).toBeInTheDocument();
+    await user.keyboard('{ArrowUp}');
+    await waitFor(() => expect(drawer).toHaveAccessibleName('seo agency'));
+    expect(within(drawer).getByText(/^1 of \d+$/)).toBeInTheDocument();
+  });
+
+  it('asks before ArrowDown leaves a keyword with unsaved edits', async () => {
+    const { user } = renderWithProviders(as('editor'));
+    const grid = await loadedGrid();
+    await user.click(headerOf(grid, 'seo agency'));
+    const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
+    await user.click(await within(drawer).findByRole('button', { name: 'Edit Tracking' }));
+    await user.type(within(drawer).getByRole('textbox', { name: /Target URL/ }), 'https://fynix.io/x');
+    await user.click(within(drawer).getByRole('heading', { level: 2 }));
+    await user.keyboard('{ArrowDown}');
+    await screen.findByRole('alertdialog', { name: 'Discard unsaved changes?' });
+    expect(drawer).toHaveAccessibleName('seo agency');
+  });
+
+  it('returns focus to the row of the keyword when Escape closes its drawer', async () => {
+    // Opened by the link: the test URL cannot go "back", so Close replaces the URL, as it does for a shared link
+    const tracked = mockId(
+      'tracked',
+      KEYWORD_TABLE.findIndex((row) => row.text === 'seo agency' && row.device === 'desktop') + 1,
+    );
+    const { user } = renderWithProviders(as('viewer'), { searchParams: `?inspect=keyword:${tracked}` });
+    const drawer = await screen.findByRole('complementary', { name: 'seo agency' });
+    await loadedGrid();
+    await waitFor(() => expect(within(drawer).getByRole('heading', { level: 2 })).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    await waitFor(() => expect(headerOf(tableGrid(), 'seo agency')).toHaveFocus());
   });
 });
 

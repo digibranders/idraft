@@ -8,11 +8,11 @@ connection (migration 0015).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from sqlalchemy import CursorResult, delete, select, update
@@ -74,8 +74,10 @@ class Replaced:
 
 
 async def load_integration(
-    db: AsyncSession, workspace_id: UUID, integration_id: UUID
+    db: AsyncSession, workspace_id: UUID, integration_id: UUID, kind: str = "gsc"
 ) -> IntegrationFacts | None:
+    """The integration of `kind` ("gsc" or "ga4"), or None where the workspace has no such one.
+    For GA4 `site_url` holds the property, `properties/123`."""
     row = (
         await db.execute(
             select(
@@ -97,7 +99,7 @@ async def load_integration(
             .where(
                 integrations.c.workspace_id == workspace_id,
                 integrations.c.id == integration_id,
-                integrations.c.kind == "gsc",
+                integrations.c.kind == kind,
                 integrations.c.project_id.is_not(None),
             )
         )
@@ -218,10 +220,16 @@ async def _insert_chunks(db: AsyncSession, statement: Any, values: list[dict[str
         await db.execute(statement(values[offset : offset + INSERT_CHUNK]))
 
 
+class StateWriter(Protocol):
+    """A pull's state: Search Console's `PullState` or GA4's `Ga4PullState`."""
+
+    def write(self, backfill_state: Mapping[str, Any] | None) -> dict[str, Any]: ...
+
+
 async def save_state(
     db: AsyncSession,
     facts: IntegrationFacts,
-    state: PullState,
+    state: StateWriter,
     *,
     last_error: str | None,
     succeeded_at: datetime | None = None,

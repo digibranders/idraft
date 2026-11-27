@@ -20,6 +20,7 @@ from idraft.storage.raw import (
     compress,
     decompress,
     digest,
+    inflate_head,
     object_key,
     open_raw_store,
     read_payload,
@@ -89,6 +90,18 @@ def test_a_frame_that_does_not_say_its_size_is_refused() -> None:
 
     with pytest.raises(RawStorageError, match="does not say its size"):
         decompress(unsized)
+
+
+def test_the_head_of_a_payload_is_read_without_unpacking_the_rest() -> None:
+    assert inflate_head(compress(b"a" * 100), 10) == (b"a" * 10, True)
+    assert inflate_head(compress(b"abc"), 10) == (b"abc", False)
+    # A limit equal to the size holds the whole payload: nothing was cut.
+    assert inflate_head(compress(b"a" * 10), 10) == (b"a" * 10, False)
+
+
+def test_the_head_of_what_is_not_a_compressed_payload_is_refused() -> None:
+    with pytest.raises(RawStorageError, match="not a compressed payload"):
+        inflate_head(b"not zstd", 10)
 
 
 def test_a_key_is_made_only_for_a_retention_class() -> None:

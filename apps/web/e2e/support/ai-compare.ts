@@ -82,7 +82,7 @@ export const topicsGrid = (page: Page): Locator => page.getByRole('treegrid', { 
 export const promptsGrid = (page: Page): Locator => page.getByRole('grid', { name: 'Prompts' });
 export const compareSelect = (page: Page): Locator => page.getByRole('combobox', { name: 'Compare with' });
 
-/** The inspector of the first prompt: beside the table on a wide window, a sheet over it on a narrow one. */
+/** The inspector of the first prompt: a card over the table from 900 px, a sheet below. */
 export const inspectorOf = (page: Page): Locator =>
   page.getByRole('complementary', { name: FIRST_PROMPT }).or(page.getByRole('dialog', { name: FIRST_PROMPT }));
 

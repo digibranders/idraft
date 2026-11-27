@@ -16,16 +16,17 @@ export const FAVICON: FaviconMode = 'show';
 
 /**
  * The widest the identity cell of a row grows (a class, so the table's other columns stay in view): a table cell does
- * not shrink its text by itself, and the inspector holds 370 px of table (322 in the sheet of a phone) whatever the
- * window, so there is no wider step for a wide window.
+ * not shrink its text by itself. The drawer is 480 to 960 px wide, so the cap steps with the width of the table's box
+ * (a container query on the box that holds the table) and a wider card shows more of the domain or the path.
  */
-export const IDENTITY_WIDTH = 'max-w-32';
+export const IDENTITY_WIDTH = 'max-w-32 @md:max-w-48 @xl:max-w-64 @3xl:max-w-96';
 
 /**
- * The cited page of an answer shares 322 px with the date and the Others count, and its path keeps 16 characters
- * in view whatever the width, so on a phone it is capped under `IDENTITY_WIDTH` (the path is whole in its tooltip).
+ * The cited page of an answer shares the table with the date and the Others count, and its path keeps 16 characters
+ * in view on a phone, so there it is capped under `IDENTITY_WIDTH` (the path is whole in its tooltip); from a tablet
+ * it steps with the table's box as the identity cell does.
  */
-export const ANSWER_PAGE_WIDTH = 'max-w-20 sm:max-w-32';
+export const ANSWER_PAGE_WIDTH = 'max-w-20 sm:max-w-32 @md:max-w-48 @xl:max-w-64 @3xl:max-w-96';
 
 /** The lists name the five most cited. */
 export const TOP_LIMIT = 5;

@@ -213,16 +213,21 @@ test.describe('costs and runs', () => {
     const inspector = page.getByRole('complementary', { name: 'Keyword metrics' });
     await expect(inspector.getByText('Running')).toBeVisible();
 
+    // The card lays over the row's Actions button, so the run is cancelled once it is closed
+    await page.keyboard.press('Escape');
+    await expect(inspector).toBeHidden();
     await grid.getByRole('button', { name: /^Actions for / }).click();
     await page.getByRole('menuitem', { name: 'Cancel run' }).click();
     const dialog = page.getByRole('alertdialog', { name: 'Cancel this run?' });
     await expectAccessible(page);
     await dialog.getByRole('button', { name: 'Cancel run' }).click();
     await expect(page.getByText('Run cancelled')).toBeVisible();
-    // The run is no longer running, so the filter leaves it out; the open inspector says it is cancelled
+    // The run is no longer running, so the filter leaves it out; the inspector of its row says it is cancelled
     await expect(page.getByText('No runs match these filters in October 2026')).toBeVisible();
-    await expect(inspector.getByText('Cancelled', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: 'Remove filter Status: Running' }).click();
-    await expect(grid.getByRole('row', { name: /Cancelled/ })).toBeVisible();
+    const cancelled = grid.getByRole('row', { name: /Cancelled/ });
+    await expect(cancelled).toBeVisible();
+    await cancelled.getByRole('rowheader').click();
+    await expect(inspector.getByText('Cancelled', { exact: true }).first()).toBeVisible();
   });
 });

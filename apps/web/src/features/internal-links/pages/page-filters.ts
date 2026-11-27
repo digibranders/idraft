@@ -1,10 +1,11 @@
 import type { FilterField, FilterValues } from '@/components/app/filters/types';
 import type { DownloadQuery } from '@/lib/api/download';
 import { enumValuesOf } from '@/lib/filters/filter-values';
+import { searchPathOf } from '@/lib/internal-links/pasted-url';
 import { pageParams, type PageQuery } from '@/lib/internal-links/queries';
 import type { PageFlagFilter, PageTier, StatusClass } from '@/lib/internal-links/types';
 import type { LinksTranslate } from '../tabs';
-import type { LinksState } from '../url-state';
+import type { PagesState } from '@/lib/pages/url-state';
 
 /** The tier filter's value for pages with no tier (`filter[tier]=none`, `PageFilter.tier_ids`). */
 export const UNTIERED_VALUE = 'none';
@@ -14,6 +15,8 @@ export const UNTIERED_QUERY = `tier=${UNTIERED_VALUE}`;
 /** The most ids the API takes for each list filter (a workspace has 8 tiers and Untiered, so the tier cap cannot bite). */
 export const MAX_TIERS = 9;
 export const MAX_TAGS = 50;
+/** The longest `filter[folder]` the API takes. */
+const MAX_FOLDER = 200;
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STATUSES: readonly StatusClass[] = ['2xx', '3xx', '4xx', '5xx', 'blocked'];
@@ -44,6 +47,7 @@ export function pageFilterFields(
   tiers: readonly PageTier[],
   tags: readonly { termId: string; name: string }[],
   tagsLoading: boolean,
+  folders: { sections: readonly string[]; loading: boolean; label: string },
 ): FilterField[] {
   return [
     {
@@ -73,6 +77,15 @@ export function pageFilterFields(
       options: STATUSES.map((value) => ({ value, label: value === 'blocked' ? t('filters.blocked') : value })),
     },
     {
+      id: 'folder',
+      kind: 'enum',
+      multi: false,
+      label: folders.label,
+      // The sections of the Overview read, largest first; a section is its own label
+      options: folders.sections.map((section) => ({ value: section, label: section })),
+      optionsLoading: folders.loading,
+    },
+    {
       id: 'idx',
       kind: 'enum',
       multi: false,
@@ -97,8 +110,15 @@ export function pageFilterFields(
  * id that is not one the API takes is left out (the filter bar keeps an id from the address while its options load),
  * so a hand-edited address never makes the request a 422.
  */
-export function pageQueryOf(state: LinksState, values: FilterValues, cursor: string | null, limit: number): PageQuery {
+export function pageQueryOf(
+  state: Pick<PagesState, 'scope' | 'view' | 'worklist' | 'sort' | 'q' | 'depth' | 'variants'>,
+  values: FilterValues,
+  cursor: string | null,
+  limit: number,
+  host = '',
+): PageQuery {
   const idx = enumValuesOf(values.idx)[0];
+  const [folder] = enumValuesOf(values.folder);
   return {
     scope: state.scope,
     tierIds: enumValuesOf(values.tier)
@@ -113,7 +133,11 @@ export function pageQueryOf(state: LinksState, values: FilterValues, cursor: str
     indexable: idx === 'yes' ? true : idx === 'no' ? false : null,
     flags: enumValuesOf(values.flag).filter((value): value is PageFlagFilter => FLAGS.some(([flag]) => flag === value)),
     worklist: state.worklist,
-    q: state.q,
+    view: state.view,
+    folder: folder !== undefined && folder.startsWith('/') && folder.length <= MAX_FOLDER ? folder : null,
+    depth: state.depth,
+    includeVariants: state.variants,
+    q: searchPathOf(state.q, host),
     sort: state.sort,
     include: [],
     cursor,
@@ -141,9 +165,4 @@ export function pageExportQuery(query: PageQuery): DownloadQuery {
     if (key !== 'limit' && value !== undefined && value !== null) wanted[key] = value;
   }
   return { ...wanted, format: 'csv' };
-}
-
-/** The filter values with only the Parameter variant flag on: what the variants count beside the total opens. */
-export function variantsOnly(values: FilterValues): FilterValues {
-  return { ...values, flag: { kind: 'enum', values: ['variant'] } };
 }

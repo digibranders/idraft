@@ -21,8 +21,8 @@ export interface AddCardSlotProps {
 }
 
 // The spans of `SPAN_CLASS.third` and `.half` (layout-grid.tsx, which imports this file and so cannot be imported here)
-const THIRD = 'col-span-12 md:col-span-6 xl:col-span-4';
-const HALF = 'col-span-12 md:col-span-6';
+const THIRD = 'col-span-12 @2xl:col-span-6 @4xl:col-span-4';
+const HALF = 'col-span-12 @2xl:col-span-6';
 
 /** A third of the row when a third is what the last row leaves at the wide breakpoint, else half a row. */
 export function addSlotClass(cards: readonly CardItem[]): string {

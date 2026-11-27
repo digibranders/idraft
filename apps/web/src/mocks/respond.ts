@@ -127,6 +127,7 @@ const PROBLEMS = {
   cycle_detected: [422, 'Would make a cycle'],
   too_many_matches: [422, 'Too many matches'],
   window_too_large: [422, 'The window is too large'],
+  not_available: [422, 'Not available yet'],
   not_an_ai_run: [422, 'Not an AI run'],
   // The mocks' own: what a browser changed no longer fits in its cookie
   mock_state_full: [422, 'Mock state is full'],
@@ -141,6 +142,8 @@ const PROBLEMS = {
   property_not_accessible: [422, 'The account cannot read this property'],
   integration_not_configured: [503, 'The integration is not set up'],
   google_unavailable: [503, 'Service unavailable'],
+  // Page search (backend api/fp/live.py): the API's own budget for live Search Console calls, or Google's quota, is spent
+  gsc_busy: [429, 'Search Console is busy'],
 } as const satisfies Record<string, readonly [number, string]>;
 
 export type MockProblemCode = keyof typeof PROBLEMS;
@@ -199,6 +202,8 @@ export interface BodyRules {
   optional?: readonly string[];
   /** Exactly one of these must be given (text, not null), as for a code or a recovery code. */
   exactlyOne?: readonly string[];
+  /** Members that may be present with any value: the handler judges them (a list, as `mentions` of a note). */
+  structured?: readonly string[];
 }
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
@@ -211,8 +216,8 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
  */
 export function checkBody(request: Request, body: unknown, rules: BodyRules): HttpResponse<Problem> | null {
   if (!isRecord(body)) return invalidField(request, '', 'model_attributes_type', 'Input should be an object');
-  const { required = [], optional = [], exactlyOne = [] } = rules;
-  const allowed = new Set([...required, ...optional, ...exactlyOne]);
+  const { required = [], optional = [], exactlyOne = [], structured = [] } = rules;
+  const allowed = new Set([...required, ...optional, ...exactlyOne, ...structured]);
   const errors: ValidationItem[] = [];
   for (const name of Object.keys(body)) {
     if (!allowed.has(name)) {

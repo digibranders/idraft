@@ -1,8 +1,8 @@
-import { queryOptions, type UseQueryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions, type UseQueryOptions } from '@tanstack/react-query';
 
 import { api, unwrap } from '@/lib/api/client';
 import { apiQuery, type ApiQueryOptions } from '@/lib/api/query';
-import { projectKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
+import { projectKey, queryKey, workspaceKey, type QueryKey } from '@/lib/api/keys';
 import type { paths } from '@/lib/api/schema';
 import { READ_LIMIT, type Direction } from './journey-layout';
 import type { LinkScope, Placement } from './scopes';
@@ -20,8 +20,10 @@ import type {
   PageFilter,
   PageFlagFilter,
   PageInclude,
+  PageNoteList,
   PageRowPage,
   PageSort,
+  PageView,
   PageWorklist,
   StatusClass,
   TierRulePreview,
@@ -37,9 +39,18 @@ const W = '/api/v1/workspaces/{workspace_id}';
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const PAGES = `${P}/internal-links/pages` as const;
 const PAGE = `${P}/internal-links/pages/{url_id}` as const;
+const PAGE_SEARCH = `${P}/internal-links/pages/{url_id}/search` as const;
+const PAGE_OUTLINE = `${P}/internal-links/pages/{url_id}/outline` as const;
+export const PAGE_NOTES = `${P}/internal-links/pages/{url_id}/notes` as const;
+export const PAGE_NOTE = `${P}/internal-links/pages/{url_id}/notes/{note_id}` as const;
+/** Upload of one note file (multipart, so `uploadForm` sends it, not the typed client) and the bytes of a stored one. */
+export const PAGE_NOTE_FILES = `${P}/internal-links/pages/{url_id}/note-attachments` as const;
+export const PAGE_NOTE_FILE = `${P}/internal-links/pages/{url_id}/note-attachments/{attachment_id}` as const;
+const OVERVIEW = `${P}/internal-links/overview` as const;
 const EDGES = `${P}/internal-links/edges` as const;
 const NEIGHBORS = `${P}/internal-links/neighbors` as const;
 const FLOW = `${P}/internal-links/tier-flow` as const;
+const GRAPH = `${P}/internal-links/graph` as const;
 const WORKLISTS = `${P}/internal-links/worklists` as const;
 const CHANGES_SUMMARY = `${P}/internal-links/changes/summary` as const;
 const CHANGES_LINKS = `${P}/internal-links/changes/links` as const;
@@ -69,7 +80,7 @@ export const withRun = <T extends object>(params: T, run: string | null): T & { 
   run === null ? params : { ...params, run };
 
 /** A CSV download of a selection: the same query without its window (`offset`, `limit`), as `format=csv`. */
-const csvOf = (params: object): DownloadQuery => {
+export const csvOf = (params: object): DownloadQuery => {
   const wanted: Record<string, DownloadQuery[string]> = {};
   for (const [key, value] of Object.entries(params)) {
     if (key !== 'limit' && key !== 'offset' && value !== undefined && value !== null) wanted[key] = value;
@@ -127,6 +138,10 @@ export function checkUrlId(urlId: string): string {
   return urlId;
 }
 
+/** Where the browser posts a note file of one page. */
+export const noteFilesPath = (scope: LinksScope, urlId: string): `/api/v1/${string}` =>
+  `/api/v1/workspaces/${scope.workspaceId}/projects/${scope.projectId}/internal-links/pages/${checkUrlId(urlId)}/note-attachments`;
+
 export interface PageQuery {
   scope: LinkScope;
   tierIds: readonly string[];
@@ -135,6 +150,11 @@ export interface PageQuery {
   indexable: boolean | null;
   flags: readonly PageFlagFilter[];
   worklist: PageWorklist | null;
+  /** A server view (spec 7.2); never together with `worklist`. */
+  view: PageView | null;
+  folder: string | null;
+  depth: number | null;
+  includeVariants: boolean;
   q: string | null;
   sort: PageSort;
   /** The parts to add to each row as `extras`, from `moreIncludes`. */
@@ -165,6 +185,10 @@ export const DEFAULT_PAGE_QUERY: PageQuery = {
   indexable: null,
   flags: [],
   worklist: null,
+  view: null,
+  folder: null,
+  depth: null,
+  includeVariants: false,
   q: null,
   sort: '-linking_pages',
   include: [],
@@ -174,6 +198,9 @@ export const DEFAULT_PAGE_QUERY: PageQuery = {
 
 /** The query values of the pages list; anything unset is left out, as the address leaves it out. */
 export function pageParams(query: PageQuery): PagesParams {
+  if (query.view !== null && query.worklist !== null) {
+    throw new Error('A pages query has a view or a worklist, not both');
+  }
   return {
     scope: query.scope,
     sort: query.sort,
@@ -184,6 +211,10 @@ export function pageParams(query: PageQuery): PagesParams {
     ...(query.indexable === null ? {} : { 'filter[indexable]': query.indexable }),
     ...(query.flags.length === 0 ? {} : { 'filter[flags]': [...query.flags] }),
     ...(query.worklist === null ? {} : { 'filter[worklist]': query.worklist }),
+    ...(query.view === null ? {} : { 'filter[view]': query.view }),
+    ...(query.folder === null ? {} : { 'filter[folder]': query.folder }),
+    ...(query.depth === null ? {} : { 'filter[depth]': query.depth }),
+    ...(query.includeVariants ? { 'filter[include_variants]': true } : {}),
     ...(query.q === null ? {} : { q: query.q }),
     ...(query.include.length === 0 ? {} : { include: [...query.include] }),
     ...(query.cursor === null ? {} : { cursor: query.cursor }),
@@ -199,16 +230,20 @@ export function pageFilterOf(query: PageQuery): PageFilter {
     ...(query.indexable === null ? {} : { indexable: query.indexable }),
     ...(query.flags.length === 0 ? {} : { flags: [...query.flags] }),
     ...(query.worklist === null ? {} : { worklist: query.worklist }),
+    ...(query.view === null ? {} : { view: query.view }),
+    ...(query.folder === null ? {} : { folder: query.folder }),
+    ...(query.depth === null ? {} : { depth: query.depth }),
     ...(query.q === null ? {} : { q: query.q }),
-    // Variants are left out; asking for the `variant` flag lists only them
-    include_variants: false,
+    // Variants are left out unless asked for; asking for the `variant` flag lists only them
+    include_variants: query.includeVariants,
   };
 }
 
 export const pagesQuery = (scope: LinksScope, query: PageQuery, run: string | null): ApiQueryOptions<typeof PAGES> =>
   apiQuery(PAGES, { params: { path: pathOf(scope), query: withRun(pageParams(query), run) } });
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 /**
  * The pages list's 200 declares a JSON body and a CSV body in the OpenAPI, so the generated type of its answer is
@@ -254,6 +289,52 @@ export const pageDetailQuery = (
   apiQuery(PAGE, {
     params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({ scope: linkScope }, run) },
   });
+
+/** The Overview of the pages of a crawl (the latest when `run` is null). */
+export const overviewQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof OVERVIEW> =>
+  apiQuery(OVERVIEW, { params: { path: pathOf(scope), query: withRun({}, run) } });
+
+/** One page's Search Console days. Throws `UrlIdError` for an id that is no url id. */
+export const pageSearchQuery = (
+  scope: LinksScope,
+  urlId: string,
+  run: string | null,
+): ApiQueryOptions<typeof PAGE_SEARCH> =>
+  apiQuery(PAGE_SEARCH, {
+    params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({}, run) },
+  });
+
+/** One page's outline, read from its stored HTML (no crawl chosen). Throws `UrlIdError` for a bad id. */
+export const pageOutlineQuery = (scope: LinksScope, urlId: string): ApiQueryOptions<typeof PAGE_OUTLINE> =>
+  apiQuery(PAGE_OUTLINE, { params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) } } });
+
+/**
+ * One page's notes, newest first, as an infinite read: "show older notes" asks for the next cursor page. Notes belong
+ * to the address, not to a crawl, so there is no `run`. Throws `UrlIdError` for a bad id.
+ */
+export const pageNotesQuery = (scope: LinksScope, urlId: string) => {
+  const path = { ...pathOf(scope), url_id: checkUrlId(urlId) };
+  return infiniteQueryOptions({
+    queryKey: queryKey(PAGE_NOTES, path),
+    queryFn: ({ pageParam, signal }) =>
+      unwrap(
+        api.GET(PAGE_NOTES, {
+          params: { path, query: pageParam === null ? {} : { cursor: pageParam } },
+          signal,
+        }),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: PageNoteList): string | null => (last.meta.has_more ? last.meta.next_cursor : null),
+  });
+};
+
+/** Every read of one page by any crawl: the prefix of its detail, notes, search and outline keys. */
+export const pageKey = (scope: LinksScope, urlId: string): QueryKey => [
+  ...projectKey(scope.workspaceId, scope.projectId),
+  'internal-links',
+  'pages',
+  checkUrlId(urlId),
+];
 
 export interface EdgeQuery {
   scope: LinkScope;
@@ -345,6 +426,21 @@ export const tierFlowQuery = (
   run: string | null,
 ): ApiQueryOptions<typeof FLOW> =>
   apiQuery(FLOW, { params: { path: pathOf(scope), query: withRun({ scope: linkScope }, run) } });
+
+/** The most pages the Link map draws (plan 11, W3): the canvas stays smooth to about this many. */
+export const MAP_MAX_PAGES = 3000;
+
+/** The whole crawl as the Link map's nodes and edges. A finished crawl never changes, so the answer is kept. */
+export const linkGraphQuery = (
+  scope: LinksScope,
+  includeAuto: boolean,
+  run: string | null,
+): ApiQueryOptions<typeof GRAPH> => ({
+  ...apiQuery(GRAPH, {
+    params: { path: pathOf(scope), query: withRun({ include_auto: includeAuto, max_pages: MAP_MAX_PAGES }, run) },
+  }),
+  staleTime: run === null ? 60_000 : Number.POSITIVE_INFINITY,
+});
 
 export const worklistsQuery = (scope: LinksScope, run: string | null): ApiQueryOptions<typeof WORKLISTS> =>
   apiQuery(WORKLISTS, { params: { path: pathOf(scope), query: withRun({}, run) } });
@@ -546,11 +642,21 @@ export function internalLinksKeys(scope: LinksScope): QueryKey[] {
 }
 
 /**
- * What a crawl turning ready makes stale: the crawl list, every read of the links (a new crawl is the latest one)
- * and the project settings document (which holds the internal links settings).
+ * The Issues list of the project. The pages of one check are a read of the internal links pages, so
+ * `internalLinksKeys` reaches them; only the list of checks needs a key of its own.
+ */
+export const issueKeys = (scope: LinksScope): QueryKey[] => [
+  [...projectKey(scope.workspaceId, scope.projectId), 'issues'],
+];
+
+/**
+ * What a crawl turning ready makes stale: the crawl list, every read of the links (a new crawl is the latest one),
+ * the list of Issues (its checks run on the latest crawl) and the project settings document (which holds the
+ * internal links settings).
  */
 export const crawlFinishedKeys = (scope: LinksScope): QueryKey[] => [
   ...crawlKeys(scope),
   ...internalLinksKeys(scope),
+  ...issueKeys(scope),
   [...projectKey(scope.workspaceId, scope.projectId), 'settings'],
 ];

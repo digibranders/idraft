@@ -1,7 +1,7 @@
 /**
  * Where the inspector goes and how wide it is (16-drawers-dialogs-popovers.md sections 2.2, 2.6 and 2.7):
- * the object types it opens, their default widths, and the rule that docks it beside the list, lays it over
- * the list, or makes it a full-screen sheet.
+ * the object types it opens, its one width range, and the rule that lays it over the page as a card or makes it
+ * a full-width sheet.
  */
 
 /** The objects the inspector opens, as `inspect=<type>:<id>` names them (16 section 2.7, 25 deviation 36). */
@@ -21,6 +21,8 @@ export const INSPECTOR_TYPES = [
   // The Citations page's drawers (WP-77): a cited page by its url_id, a prompt of the gap analysis
   'cited-page',
   'gap-prompt',
+  // The Cannibalization page's keyword drawer (docs/33 section 7.2), by tracked keyword id
+  'cann-keyword',
   'run',
   'candidate',
 ] as const;
@@ -32,30 +34,19 @@ export interface InspectorTarget {
   id: string;
 }
 
-/** Widths in pixels: 400 by default, 440 for the wordier objects, resizable from 360 to 640. */
-export const INSPECTOR_WIDTH = { min: 360, max: 640, default: 400, wide: 440 } as const;
-/** The main column never gets narrower than this while the inspector docks. */
-export const MIN_MAIN_COLUMN = 720;
+/** Widths in pixels: 640 by default, resizable from 480 to 960 and never past 60% of the viewport. */
+export const INSPECTOR_WIDTH = { min: 480, max: 960, default: 640 } as const;
+/** The most of the viewport, or of a boxed preview, the drawer may cover. */
+export const INSPECTOR_VIEWPORT_SHARE = 0.6;
 /** The card's distance from the window's right and bottom edges and from the top bar. */
 export const INSPECTOR_EDGE = 12;
-/** Below this viewport width the inspector is a full-screen sheet. */
-export const SHEET_BELOW = 768;
-/** In overlay mode the inspector leaves at least this much of the page visible. */
-const OVERLAY_GUTTER = 56;
+/** Below this viewport width the inspector is a full-width sheet. */
+export const SHEET_BELOW = 900;
 /** Dragged widths snap to this many pixels. */
 const SNAP = 8;
 /** An id is an opaque token of the API: no spaces, and not longer than this. */
 const MAX_ID_LENGTH = 200;
 
-const WIDE_TYPES: ReadonlySet<InspectorType> = new Set([
-  'prompt',
-  'topic',
-  'citation',
-  'answer',
-  'competitor',
-  'cited-page',
-  'gap-prompt',
-]);
 const TYPES: ReadonlySet<string> = new Set(INSPECTOR_TYPES);
 
 const isInspectorType = (value: string): value is InspectorType => TYPES.has(value);
@@ -73,16 +64,19 @@ export function parseInspectTarget(value: string | null | undefined): InspectorT
 
 export const formatInspectTarget = ({ type, id }: InspectorTarget): string => `${type}:${id}`;
 
-export const defaultInspectorWidth = (type: InspectorType): number =>
-  WIDE_TYPES.has(type) ? INSPECTOR_WIDTH.wide : INSPECTOR_WIDTH.default;
-
 /** A width kept between the minimum and `max`, on the 8 px grid. */
 export function fitInspectorWidth(width: number, max: number): number {
   const snapped = Math.round(width / SNAP) * SNAP;
   return Math.min(Math.max(snapped, INSPECTOR_WIDTH.min), Math.max(max, INSPECTOR_WIDTH.min));
 }
 
-export type InspectorMode = 'docked' | 'overlay' | 'sheet';
+/** The widest the drawer may be in a frame this wide, on the 8 px grid. */
+export function inspectorMaxWidth(frameWidth: number): number {
+  const share = Math.min(INSPECTOR_WIDTH.max, frameWidth * INSPECTOR_VIEWPORT_SHARE);
+  return Math.max(INSPECTOR_WIDTH.min, Math.floor(share / SNAP) * SNAP);
+}
+
+export type InspectorMode = 'overlay' | 'sheet';
 
 export interface InspectorPlacement {
   mode: InspectorMode;
@@ -93,26 +87,19 @@ export interface InspectorPlacement {
 }
 
 /**
- * The docking rule of 16 section 2.6. `areaWidth` is the width beside the sidebar (the viewport less the
- * sidebar), which the layout measures; `preferred` is the remembered or default width. The inspector
- * docks when the main column keeps 720 px and the inspector gets at least its minimum, overlays the list
- * from 768 px otherwise, and is a sheet below that.
+ * Where the inspector goes: a sheet below 900 px, otherwise a card over the page at the preferred width, kept to
+ * what the frame allows. `frameWidth` is the viewport unless the inspector sits in a boxed preview.
  */
 export function inspectorPlacement({
-  areaWidth,
   viewportWidth,
+  frameWidth = viewportWidth,
   preferred,
 }: {
-  areaWidth: number;
   viewportWidth: number;
+  frameWidth?: number;
   preferred: number;
 }): InspectorPlacement {
   if (viewportWidth < SHEET_BELOW) return { mode: 'sheet', width: viewportWidth, maxWidth: viewportWidth };
-  const available = areaWidth - MIN_MAIN_COLUMN - INSPECTOR_EDGE;
-  if (available >= INSPECTOR_WIDTH.min) {
-    const maxWidth = Math.min(INSPECTOR_WIDTH.max, available);
-    return { mode: 'docked', width: fitInspectorWidth(Math.min(preferred, available), maxWidth), maxWidth };
-  }
-  const maxWidth = Math.min(INSPECTOR_WIDTH.max, viewportWidth - OVERLAY_GUTTER);
+  const maxWidth = inspectorMaxWidth(frameWidth);
   return { mode: 'overlay', width: fitInspectorWidth(preferred, maxWidth), maxWidth };
 }

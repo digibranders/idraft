@@ -15,6 +15,7 @@ import {
   tierIdOf, tierKeys, tierLabel, tierPosition, tierSuggestions, tiers, worklistCount,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
+import { searchPathOf } from './il-data.js';
 
 const HOST_URL = 'https://eventussecurity.com';
 const CELL = 'border-b border-border-subtle px-3 align-middle';
@@ -124,7 +125,7 @@ const SORT = {
 
 function visiblePages() {
   const list = state.worklist ? WORKLISTS.find((candidate) => candidate.key === state.worklist) : null;
-  const query = state.search.trim().toLowerCase();
+  const query = searchPathOf(state.search).toLowerCase();
   const items = activePages()
     .filter((page) => !list || list.test(page))
     .filter(matchesFilters)

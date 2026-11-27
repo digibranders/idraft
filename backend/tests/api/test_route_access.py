@@ -445,6 +445,20 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("DELETE", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/notes/{note_id}"): (
         "notes:write"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"): (
+        "data:read"
+    ),
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords"
+        "/{tracked_keyword_id}",
+    ): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/layouts/{screen}"): "member",
     ("PUT", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
     ("DELETE", "/api/v1/workspaces/{workspace_id}/me/layouts/{screen}"): "member",
@@ -517,9 +531,51 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues"): "data:read",
     (
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/search",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/outline",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes",
+    ): "data:read",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes",
+    ): "notes:write",
+    (
+        "PATCH",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}",
+    ): "notes:write",
+    (
+        "DELETE",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}",
+    ): "notes:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore",
+    ): "notes:write",
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments",
+    ): "notes:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"
+        "/history",
     ): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
         "data:read"
@@ -527,10 +583,16 @@ EXPECTED: dict[tuple[str, str], str] = {
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors"): (
         "data:read"
     ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/graph"): (
+        "data:read"
+    ),
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"): (
         "data:read"
     ),
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/worklists"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/overview"): (
         "data:read"
     ),
     (
@@ -701,6 +763,36 @@ EXPECTED: dict[tuple[str, str], str] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"): (
+        "data:read"
+    ),
+    # Page search detail and Monitoring: tracked pages.
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages"): (
+        "data:read"
+    ),
+    ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/ids"): (
+        "data:read"
+    ),
+    ("POST", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages"): (
+        "projects:write"
+    ),
+    (
+        "POST",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/remove",
+    ): "projects:write",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/suggestions",
+    ): "data:read",
+    # Page search detail: one page.
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}",
+    ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}/breakdown",
+    ): "data:read",
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/citation-overview"): (
@@ -812,6 +904,8 @@ PATH_PARAMETERS = {
     "screen",
     # Inside one project, after `{project_id}`: the service reads the note within it.
     "note_id",
+    # A file of a page note, after `{project_id}` and the page: found within that page's notes.
+    "attachment_id",
     # WP-11 layouts-api
     # WP-12 summary-lane
     # WP-13 prompts-lane

@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import type { Read } from '../data/read-state';
+import type { CardInfo } from '@/components/app/chart/card-info';
 import { ChartFrame, type ChartEmpty, type ChartError, type ChartHeight } from '@/components/app/chart/chart-frame';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 
@@ -46,6 +47,8 @@ export interface ChartCardProps {
   isEmpty: boolean;
   fileName: string;
   meta?: string | undefined;
+  /** What the chart shows and how it is counted, behind its "i" button. */
+  info: CardInfo;
 }
 
 export type CardStatus =
@@ -100,6 +103,7 @@ export function ChartCard({
   isEmpty,
   fileName,
   meta,
+  info,
 }: ChartCardProps): ReactElement {
   const state = useCardStatus(reads, isEmpty);
   const shared = {
@@ -113,6 +117,7 @@ export function ChartCard({
     height,
     variant: 'panel' as const,
     meta,
+    info,
     menu: { fileName, csv: true },
     ...(kind === 'bar' ? { extendOption: nameEveryBar } : {}),
     ...(stacked === undefined ? {} : { stacked }),

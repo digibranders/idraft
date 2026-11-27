@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi.exceptions import RequestValidationError
 
 from idraft.api.internal_links.reads import EdgeQuery, LinkReadService
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
@@ -16,6 +17,7 @@ from idraft.api.resources import Resources, get_resources
 from idraft.api.schemas.internal_links import (
     EdgeRowPage,
     EdgeWorklist,
+    LinkGraphResponse,
     LinkScopeName,
     ListMeta,
     NeighborList,
@@ -24,6 +26,7 @@ from idraft.api.schemas.internal_links import (
     PageFlag,
     PageRowPage,
     PageSort,
+    PageView,
     PageWorklist,
     PlacementName,
     StatusClass,
@@ -31,6 +34,13 @@ from idraft.api.schemas.internal_links import (
     UrlId,
     WorklistsResponse,
 )
+from idraft.api.schemas.internal_links_extra import (
+    PageOutlineResponse,
+    PageSearchDailyResponse,
+    PagesOverviewResponse,
+)
+from idraft.api.schemas.internal_links_history import PageHistoryResponse
+from idraft.api.schemas.issues import CheckId
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -114,15 +124,43 @@ async def list_pages(
     flags: Flags = None,
     include_variants: Annotated[bool, Query(alias="filter[include_variants]")] = False,
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
+    view: Annotated[PageView | None, Query(alias="filter[view]")] = None,
+    folder: Annotated[str | None, Query(alias="filter[folder]", min_length=1, max_length=200)] = (
+        None
+    ),
+    depth: Annotated[int | None, Query(alias="filter[depth]", ge=0, le=6)] = None,
+    issue: Annotated[
+        CheckId | None,
+        Query(
+            alias="filter[issue]",
+            description="Only the pages one check of the Issues page found. It sets the variant "
+            "handling the check needs, so `filter[include_variants]` is ignored with it.",
+        ),
+    ] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
-        list[Literal["changes", "keywords", "citations", "anchors", "gsc"]] | None,
+        list[Literal["changes", "keywords", "citations", "anchors", "gsc", "issue"]] | None,
         Commas,
-        Query(max_length=5, description="Parts to add to each row as `extras`."),
+        Query(
+            max_length=6,
+            description="Parts to add to each row as `extras`. `issue` is the detail of "
+            "`filter[issue]` and stays null without it.",
+        ),
     ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:
+    if view is not None and worklist is not None:
+        # A `ValueError` of the model here would be a 500: this is the caller's mistake.
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", "filter[view]"),
+                    "type": "view_with_worklist",
+                    "msg": "Give `filter[view]` or `filter[worklist]`, not both.",
+                }
+            ]
+        )
     found = PageFilter(
         tier_ids=tiers,
         tag_ids=tags,
@@ -131,24 +169,28 @@ async def list_pages(
         flags=flags,
         include_variants=include_variants,
         worklist=worklist,
+        view=view,
+        folder=folder,
+        depth=depth,
         q=q,
     )
-    view = LinkScope(scope)
+    link_scope = LinkScope(scope)
     if output == "csv":
         text = await reads.pages_csv(
-            access, project_id, run=_run(run), view=view, found=found, sort=sort
+            access, project_id, run=_run(run), view=link_scope, found=found, sort=sort, issue=issue
         )
         return _csv(text, "pages")
     listed = await reads.pages(
         access,
         project_id,
         run=_run(run),
-        view=view,
+        view=link_scope,
         found=found,
         sort=sort,
         cursor=page.cursor,
         limit=page.limit,
         include=include or (),
+        issue=issue,
     )
     return PageRowPage(
         data=listed.rows,
@@ -179,6 +221,40 @@ async def get_page(
         access, project_id, run=_run(run), url_id=url_id, view=LinkScope(scope)
     )
     return PageDetailResponse(data=detail)
+
+
+@router.get(
+    "/pages/{url_id}/search", summary="One page: Search Console clicks and impressions by day"
+)
+async def page_search(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads, run: Run = "latest"
+) -> PageSearchDailyResponse:
+    return PageSearchDailyResponse(
+        data=await reads.page_search(access, project_id, run=_run(run), url_id=url_id)
+    )
+
+
+@router.get(
+    "/pages/{url_id}/outline",
+    summary="One page: its outline, read from the stored HTML of the latest crawl",
+    description="Title, description, canonical, robots, headings, language versions, sharing tags, "
+    "structured data and content size. Read on demand; nothing is stored. Always the latest crawl.",
+)
+async def page_outline(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
+) -> PageOutlineResponse:
+    return PageOutlineResponse(data=await reads.page_outline(access, project_id, url_id=url_id))
+
+
+@router.get(
+    "/pages/{url_id}/history",
+    summary="One page: when its content changed",
+    description="Reads the latest crawl; `404` when the URL is not in it.",
+)
+async def get_page_history(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
+) -> PageHistoryResponse:
+    return PageHistoryResponse(data=await reads.page_history(access, project_id, url_id=url_id))
 
 
 @router.get(
@@ -287,8 +363,39 @@ async def tier_flow(
     return TierFlowResponse(data=flow)
 
 
+@router.get(
+    "/graph",
+    summary="The whole crawl as a graph, for the Link map",
+    description="Every live page that counts as a node and one edge per page pair that links in "
+    "the body (and by auto-generated blocks with `include_auto`). A link to a redirect is a link "
+    "to the page it leads to. Menu and footer links are not edges: `sitewide_from` on a node says "
+    "how many pages have one, when that is at least half. Over `max_pages` the pages with the "
+    "most edges are kept and `truncated` is true.",
+)
+async def graph(
+    project_id: UUID,
+    access: ReadData,
+    reads: Reads,
+    run: Run = "latest",
+    include_auto: Annotated[bool, Query()] = False,
+    max_pages: Annotated[int, Query(ge=100, le=5_000)] = 3_000,
+) -> LinkGraphResponse:
+    return LinkGraphResponse(
+        data=await reads.graph(
+            access, project_id, run=_run(run), include_auto=include_auto, max_pages=max_pages
+        )
+    )
+
+
 @router.get("/worklists", summary="Counts of the saved worklists")
 async def worklists(
     project_id: UUID, access: ReadData, reads: Reads, run: Run = "latest"
 ) -> WorklistsResponse:
     return WorklistsResponse(data=await reads.worklists(access, project_id, run=_run(run)))
+
+
+@router.get("/overview", summary="Counts of a crawl's pages for the Pages overview")
+async def overview(
+    project_id: UUID, access: ReadData, reads: Reads, run: Run = "latest"
+) -> PagesOverviewResponse:
+    return PagesOverviewResponse(data=await reads.overview(access, project_id, run=_run(run)))

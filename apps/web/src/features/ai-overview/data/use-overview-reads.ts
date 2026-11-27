@@ -21,7 +21,7 @@ import {
 } from './overview-queries';
 import { mapRead, useRead, type Gate, type Read } from './read-state';
 import type { EngineCode, ProjectEngine, PromptsSummary, Schemas } from '@/lib/api/types';
-import { isKeywordLevelEngine } from '@/lib/engines/keyword-level';
+import { hasSummaryAnswers, isKeywordLevelEngine } from '@/lib/engines/keyword-level';
 import { withBrandMentionShare } from '@/lib/rates/brand-mention-share';
 
 /**
@@ -76,8 +76,13 @@ export interface OverviewSchedule {
 }
 
 export type OverviewEngines = Read<readonly ProjectEngine[]> & {
-  /** The engines that are on, in the order the API lists them. */
+  /** The engines that are on and are asked per prompt, in the order the API lists them. */
   enabled: readonly EngineCode[];
+  /**
+   * `enabled` and the keyword level platform whose answers the prompts summary carries (Google AI Overview), when it is
+   * on. Only a read of that summary may ask for these; every other read takes `enabled`.
+   */
+  answered: readonly EngineCode[];
 };
 
 const enginesOf = (page: { data: ProjectEngine[] }): readonly ProjectEngine[] => page.data;
@@ -95,12 +100,18 @@ function scheduleOf(page: Schemas['SchedulePage']): OverviewSchedule {
   return { nextRunAt, paused: page.data.length > 0 && active.length === 0 };
 }
 
-// A keyword level platform (Google AI Overview) has no answers, so it is not one the answer based reads ask: choosing
-// it as the Platform leaves no platform asked, and the cards say they do not measure it. The by-platform card and
-// the Platform select read the engine list itself and still show it.
+// A keyword level platform (Google AI Overview) is not asked per prompt, and the metrics, competitors, sources and
+// fan-out reads hold no answers of it, so `enabled` leaves it out: choosing it as the Platform leaves no platform
+// asked there, and the cards say they do not measure it. The by-platform card and the Platform select read the
+// engine list itself and still show it. The prompts summary does carry its answers, so `answered` names it.
 const enabledOf = (engines: readonly ProjectEngine[]): readonly EngineCode[] =>
   engines
     .filter((engine) => engine.is_enabled && !isKeywordLevelEngine(engine.engine))
+    .map((engine) => engine.engine.engine_code);
+
+const answeredOf = (engines: readonly ProjectEngine[]): readonly EngineCode[] =>
+  engines
+    .filter((engine) => engine.is_enabled && (!isKeywordLevelEngine(engine.engine) || hasSummaryAnswers(engine.engine)))
     .map((engine) => engine.engine.engine_code);
 
 /** `GET engines`: the same request and key as `useLayoutCapabilities`, so the engines are one request. */
@@ -108,7 +119,11 @@ export function useOverviewEngines(project: ProjectRef): OverviewEngines {
   const read = useRead(useQuery(overviewEnginesQuery(project)));
   return useMemo(() => {
     const engines = mapRead(read, enginesOf);
-    return { ...engines, enabled: engines.data === undefined ? [] : enabledOf(engines.data) };
+    return {
+      ...engines,
+      enabled: engines.data === undefined ? [] : enabledOf(engines.data),
+      answered: engines.data === undefined ? [] : answeredOf(engines.data),
+    };
   }, [read]);
 }
 

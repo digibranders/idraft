@@ -180,7 +180,7 @@ class IntegrationService:
                 "Google did not accept this installation's OAuth client."
             ) from None
         except GoogleError as error:
-            raise _unavailable(error) from None
+            raise unavailable_problem(error) from None
         async with self._transaction(access.workspace_id) as db:
             await repository.note_refresh(
                 db, workspace_id=access.workspace_id, connection_id=connection_id
@@ -197,13 +197,13 @@ class IntegrationService:
         try:
             return await self._google().list_sites(access_token)
         except GoogleError as error:
-            raise _unavailable(error) from None
+            raise unavailable_problem(error) from None
 
     async def _analytics_properties(self, access_token: str) -> list[GoogleAnalyticsProperty]:
         try:
             return await self._google().list_analytics_properties(access_token)
         except GoogleError as error:
-            raise _unavailable(error) from None
+            raise unavailable_problem(error) from None
 
     # -- start --------------------------------------------------------------------------------
 
@@ -639,7 +639,7 @@ def _scope_missing_detail(kind: IntegrationKind) -> str:
     )
 
 
-def _unavailable(error: GoogleError) -> ServiceUnavailableError:
+def unavailable_problem(error: GoogleError) -> ServiceUnavailableError:
     if isinstance(error, GoogleQuotaError):
         return ServiceUnavailableError(
             "Google is limiting requests. Try again in a few minutes.", code="google_rate_limited"

@@ -9,6 +9,7 @@ import { useCompetitors } from '../competitors-context';
 import { ReadFailed } from '../competitors-states';
 import { bucketCounts, keywordTable, type KeywordRow } from '../model/seo-model';
 import { ChartCard } from './chart-card';
+import { useChartInfo } from './chart-info';
 import { DonutCard } from './donut-card';
 import { toSlices } from './donut-model';
 import { countItem, FILE, ID, stripOf, textItem, valueItem } from './strip-items';
@@ -36,6 +37,7 @@ const rankText = (rank: number | null): string => (rank === null ? '-' : formatI
  */
 export function SeoTab(): ReactElement {
   const t = useTranslations('competitors');
+  const info = useChartInfo();
   const { reads, workspaceSlug, project } = useCompetitors();
   const { keywords } = reads;
   const model = useMemo(() => (keywords.data === undefined ? null : keywordTable(keywords.data)), [keywords.data]);
@@ -147,10 +149,11 @@ export function SeoTab(): ReactElement {
           ),
         ])}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 @4xl:grid-cols-3">
         <DonutCard
           title={t('seo.donutTitle')}
           summary={t('seo.donutSummary')}
+          info={info('seoRankSplit')}
           slices={rankSlices}
           centerValue={formatPercent(ownTopTenShare, { decimals: 0 })}
           centerLabel={t('seo.donutCenter')}
@@ -170,6 +173,7 @@ export function SeoTab(): ReactElement {
           reads={[keywords]}
           isEmpty={entities.length === 0}
           fileName={FILE.keywordsTop10}
+          info={info('seoTop10')}
         />
         <ChartCard
           title={t('seo.chartBuckets')}
@@ -188,6 +192,7 @@ export function SeoTab(): ReactElement {
           reads={[keywords]}
           isEmpty={entities.length === 0}
           fileName={FILE.rankDistribution}
+          info={info('seoBuckets')}
         />
       </div>
       <PlainTable

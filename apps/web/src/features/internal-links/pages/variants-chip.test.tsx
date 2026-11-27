@@ -1,44 +1,61 @@
-import { fireEvent, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WorklistChips } from './worklist-chips';
-import { PermissionProvider } from '@/lib/permissions';
-import { membershipFactory } from '@/mocks/factories/identity';
 import { pageFlags, type FlaggedPage } from '@/lib/internal-links/page-flags';
-import { MOCK_WORKSPACE } from '@/mocks/fixtures';
-import { EVENTUS } from '@/mocks/internal-links-world';
+import { crawledPages, MOCK_RUN_ID, pageRow } from '@/mocks/internal-links-world';
+import { overviewOf } from '@/mocks/internal-links-inventory';
+import { mswPath } from '@/mocks/respond';
+import { EVENTUS_LINKS } from '@/test/internal-links-harness';
+import { server } from '@/test/msw';
+import { pagesAs } from '@/test/pages-harness';
+import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
-const SCOPE = { workspaceId: MOCK_WORKSPACE.workspace_id, projectId: EVENTUS.project_id };
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/digibranders/eventus-security/seo/pages/all',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
-const chips = (variants: number | null, onShowVariants = vi.fn()): ReturnType<typeof vi.fn> => {
-  renderWithProviders(
-    <PermissionProvider membership={membershipFactory('editor')}>
-      <WorklistChips
-        scope={SCOPE}
-        run={null}
-        linksAvailable
-        current={null}
-        onPick={vi.fn()}
-        onPickEdges={vi.fn()}
-        variants={variants}
-        onShowVariants={onShowVariants}
-      />
-    </PermissionProvider>,
+const OVERVIEW = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/overview');
+
+beforeEach(() => stubWideScreen());
+afterEach(() => restoreWideScreen());
+
+/** The overview of the fixture crawl with `variants` parameter variants counted. */
+function withVariants(variants: number): void {
+  const base = overviewOf(
+    crawledPages().map((page) => pageRow(page, 'all')),
+    { run_id: MOCK_RUN_ID, finished_at: null, sitemap: true },
   );
-  return onShowVariants;
-};
+  server.use(
+    http.get(OVERVIEW, () => HttpResponse.json({ data: { ...base, status: { ...base.status, variant: variants } } })),
+  );
+}
 
 describe('parameter variants', () => {
-  it('shows the count beside the page total and opens the list of them', () => {
-    const open = chips(148);
-    fireEvent.click(screen.getByRole('button', { name: '148 parameter variants' }));
-    expect(open).toHaveBeenCalledTimes(1);
+  it('lists the count in the View menu and opens the list of them', async () => {
+    withVariants(148);
+    const updates: string[] = [];
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      onUrlUpdate: ({ queryString }) => updates.push(queryString),
+    });
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    const item = await screen.findByRole('menuitemradio', { name: 'Parameter variants' });
+    await waitFor(() => expect(item).toHaveAccessibleDescription('148'));
+    await user.click(item);
+    await waitFor(() => expect(updates.at(-1)).toContain('view=variants'));
+    expect(await screen.findByRole('button', { name: 'View: Parameter variants' })).toBeInTheDocument();
   });
 
-  it.each([[0], [null]])('shows nothing when the count is %s', (variants) => {
-    chips(variants);
-    expect(screen.queryByText(/parameter variant/)).toBeNull();
+  it('is not listed when none was counted', async () => {
+    withVariants(0);
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await user.click(await screen.findByRole('button', { name: 'View: All pages' }));
+    const live = await screen.findByRole('menuitemradio', { name: 'Live pages' });
+    await waitFor(() => expect(live).toHaveAccessibleDescription(/\d/));
+    expect(screen.queryByRole('menuitemradio', { name: 'Parameter variants' })).toBeNull();
   });
 
   it('flags a variant row in neutral, not as a problem', () => {

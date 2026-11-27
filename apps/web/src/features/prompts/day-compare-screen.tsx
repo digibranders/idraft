@@ -37,7 +37,7 @@ export interface DayCompareScreenProps {
 }
 
 /**
- * The page of one prompt (16-drawers-dialogs-popovers.md section 1.1: the study that the 440 px inspector cannot hold).
+ * The page of one prompt (16-drawers-dialogs-popovers.md section 1.1: the study that the drawer cannot hold).
  * It opens with Compare days: one platform, the last four days with a valid answer side by side, each built from the
  * answer's own detail. It needs `data:read`, as every AI read does.
  */
@@ -160,14 +160,16 @@ function DayCompareContent({
     );
   } else if (engines.isPending || (engineCode !== null && answers.isPending) || columns === null) {
     body = (
-      <div
-        className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
-        role="status"
-        aria-label={common('loading')}
-      >
-        {Array.from({ length: DAY_COLUMNS }, (_, index) => (
-          <Skeleton key={index} shape="block" height="chart-280" />
-        ))}
+      <div className="@container">
+        <div
+          className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @4xl:grid-cols-4"
+          role="status"
+          aria-label={common('loading')}
+        >
+          {Array.from({ length: DAY_COLUMNS }, (_, index) => (
+            <Skeleton key={index} shape="block" height="chart-280" />
+          ))}
+        </div>
       </div>
     );
   } else if (columns.length === 0) {

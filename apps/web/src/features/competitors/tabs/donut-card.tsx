@@ -8,6 +8,7 @@ import type { Read } from '../data/read-state';
 import { useCardStatus } from './chart-card';
 import { shareOf, type DonutSlice } from './donut-model';
 import { donutOption } from './donut-option';
+import { CardInfoButton, useCardInfo, type CardInfo } from '@/components/app/chart/card-info';
 import { ChartLegend, type LegendItem } from '@/components/app/chart/chart-legend';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
@@ -40,6 +41,8 @@ export interface DonutCardProps {
   showShare?: boolean | undefined;
   /** Under the legend: how to read the shares. */
   note?: string | undefined;
+  /** What the donut shows and how it is counted, behind its "i" button. */
+  info: CardInfo;
 }
 
 /**
@@ -57,9 +60,11 @@ export function DonutCard({
   isEmpty,
   showShare = false,
   note,
+  info,
 }: DonutCardProps): ReactElement {
   const t = useTranslations('competitors.states');
   const state = useCardStatus(reads, isEmpty);
+  const infoMode = useCardInfo();
   const option = useCallback(
     (tokens: ChartTokens) => donutOption({ slices, tokens, formatValue }),
     [slices, formatValue],
@@ -104,7 +109,14 @@ export function DonutCard({
       aria-busy={state.status === 'refetching' || undefined}
       className="flex h-full min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3"
     >
-      <h3 className="type-section-title">{title}</h3>
+      {infoMode ? (
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="type-section-title">{title}</h3>
+          <CardInfoButton title={title} info={info} />
+        </div>
+      ) : (
+        <h3 className="type-section-title">{title}</h3>
+      )}
       {body}
     </section>
   );

@@ -3,8 +3,10 @@ import { delay, http, HttpResponse } from 'msw';
 import { Suspense, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PromptInspector } from './prompt-inspector';
 import { aiKey, enginesKey, promptsKey, type PromptScope } from './prompt-queries';
 import { PromptsScreen } from './prompts-screen';
+import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import type { ObservationSummary, Role } from '@/lib/api/types';
 import { projectKey } from '@/lib/api/keys';
 import { PermissionProvider } from '@/lib/permissions';
@@ -24,8 +26,9 @@ import '@/test/topic-drawer-harness';
 
 // jsdom has no canvas: the History tab's chart is a frame with a table beside it here
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: router.push, replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/fynix/ai/prompts',
   useSearchParams: () => new URLSearchParams(''),
 }));
@@ -643,9 +646,13 @@ describe('the prompt inspector: Run now and Archive are for those who may', () =
     const inspector = await panel();
     await within(inspector).findByText('English');
     expect(within(inspector).queryByRole('button', { name: 'Run now' }) !== null).toBe(runNow);
+    // With no action to offer the More button is not drawn at all: the menu is not a width control any more
+    if (!archive) {
+      expect(within(inspector).queryByRole('button', { name: /^More actions/ })).toBeNull();
+      return;
+    }
     await user.click(within(inspector).getByRole('button', { name: /^More actions/ }));
-    expect((await screen.findAllByRole('menuitem')).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('menuitem', { name: 'Archive' }) !== null).toBe(archive);
+    expect(await screen.findByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
   });
 });
 
@@ -975,13 +982,62 @@ describe('the prompt inspector: Archive', () => {
     const stored = promptsOf(fynix.project_id).prompts.find((prompt) => prompt.prompt_id === first.prompt_id);
     if (stored === undefined) throw new Error('The stored prompt is missing');
     stored.is_active = false;
-    const { user } = renderOn('editor', openedOn('history'));
+    renderOn('editor', openedOn('history'));
     const inspector = await panel();
     expect(await within(inspector).findByText('Archived')).toBeInTheDocument();
     expect(within(inspector).queryByRole('button', { name: 'Run now' })).toBeNull();
-    await user.click(within(inspector).getByRole('button', { name: /^More actions/ }));
-    expect((await screen.findAllByRole('menuitem')).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('menuitem', { name: 'Archive' })).toBeNull();
+    // Archive is the only action it had: with it gone the More button is not drawn
+    expect(within(inspector).queryByRole('button', { name: /^More actions/ })).toBeNull();
     expect(await within(inspector).findByRole('table', { name: 'Answers to this prompt' })).toBeInTheDocument();
+  });
+});
+
+describe('the prompt inspector: Open page', () => {
+  beforeEach(() => router.push.mockClear());
+
+  it("opens the prompt's page from the header when it has one", async () => {
+    const { user } = renderOn('viewer', opened);
+    const inspector = await panel();
+    await user.click(within(inspector).getByRole('button', { name: 'Open page' }));
+    expect(router.push).toHaveBeenCalledExactlyOnceWith(`/${MOCK_WORKSPACE.slug}/fynix/ai/prompts/${first.prompt_id}`);
+  });
+
+  it('has no Open page button where the host knows no page for the prompt', async () => {
+    document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser('viewer').user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
+    renderWithProviders(
+      <PermissionProvider membership={membershipFactory('viewer')}>
+        <InspectorLayout
+          inspector={
+            <PromptInspector
+              scope={SCOPE}
+              promptId={first.prompt_id}
+              timeZone="Europe/Berlin"
+              range={{ from: '2026-10-16', to: '2026-11-12' }}
+              engines={[]}
+              allEngines={[]}
+              counts={{
+                status: 'ready',
+                row: undefined,
+                entities: [],
+                brandedIncluded: false,
+                errorId: null,
+                retry: vi.fn(),
+                retrying: false,
+              }}
+              positionText={null}
+              navigation={null}
+              onStep={undefined}
+              tab="latest"
+              onTabChange={vi.fn()}
+              onClose={vi.fn()}
+            />
+          }
+        >
+          <main />
+        </InspectorLayout>
+      </PermissionProvider>,
+    );
+    await panel();
+    expect(screen.queryByRole('button', { name: 'Open page' })).toBeNull();
   });
 });

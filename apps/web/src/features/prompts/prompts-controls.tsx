@@ -1,8 +1,6 @@
 'use client';
 
-import { use, type CSSProperties, type ReactElement, type ReactNode } from 'react';
-
-import { InspectorOverlayContext, useViewportWidth } from '@/components/app/inspector/inspector-layout';
+import type { ReactElement, ReactNode } from 'react';
 
 export interface PromptsControlsProps {
   /** The Platform select. */
@@ -18,19 +16,15 @@ export interface PromptsControlsProps {
 /**
  * The first row of the Prompts page, every control at one height (the preview's row 1): the Platform select and
  * Compare at fixed widths, the filters taking the room that is left, the status and the actions at the right edge.
- * Nothing here changes size with the data. The layout follows the width of the row itself, not the window's, so a
- * docked inspector (which takes 440 px of the main column) wraps it the way a narrow window does, and no control is
- * left under the drawer. Under 672 px the two selects share a line of their own and the filters and the actions follow;
- * from 672 px the selects and the filters share the first line and the actions have the next; from 792 px the selects
- * and the actions share the first line and the filters have the next; from 900 px it is one line. An inspector laid over the list covers the right side of it: the row ends before the card begins.
+ * Nothing here changes size with the data. The layout follows the width of the row itself, not the window's: under
+ * 672 px the two selects share a line of their own and the filters and the actions follow; from 672 px the selects and
+ * the filters share the first line and the actions have the next; from 792 px the selects and the actions share the
+ * first line and the filters have the next; from 900 px it is one line. A drawer lays over the right end of the row
+ * and the row does not change for it, as no page header does.
  */
 export function PromptsControls({ platform, compare, filters, trailing }: PromptsControlsProps): ReactElement {
-  const overlayLeft = use(InspectorOverlayContext);
-  const viewport = useViewportWidth();
-  const clear: CSSProperties | undefined =
-    overlayLeft === null ? undefined : { marginRight: `${String(Math.max(0, viewport - overlayLeft))}px` };
   return (
-    <div className="@container min-w-0" style={clear}>
+    <div className="@container min-w-0">
       <div
         data-slot="prompts-controls"
         className="flex w-full min-w-0 flex-wrap items-center gap-2 @[56.25rem]:flex-nowrap"

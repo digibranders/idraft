@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleDashed, Clock, Table2 } from 'lucide-react';
+import { CircleDashed, Clock, Grid3x3, Table2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import {
@@ -21,8 +21,8 @@ import { ChartMenu, type ChartMenuAction } from './chart-menu';
 import { GhostTrend } from './ghost-trend';
 import { InlineError, type InlineErrorProps } from '@/components/app/status/inline-error';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { IconButton } from '@/components/ui/icon-button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { categoryChartOption, lineSymbolOf, seriesColor, type CategorySeries } from '@/lib/charts/category-chart';
@@ -150,8 +150,6 @@ export interface CategoryFrameProps extends ChartFrameCommon {
   legendValues?: Readonly<Record<string, string>> | undefined;
   /** A line chart's legend shows each line's marker shape (20-accessibility.md section 12.2), not a dot. */
   legendMarkers?: boolean | undefined;
-  /** A small table icon on the Table button, for a card whose view toggle is an icon button elsewhere. */
-  tableIcon?: boolean | undefined;
   menu?: CategoryChartMenu | undefined;
 }
 
@@ -201,7 +199,7 @@ export function ChartFrame(props: ChartFrameProps): ReactElement {
 
 function CategoryFrame(props: CategoryProps): ReactElement {
   const { kind, categories, categoryHeader, series, formatValue, cellText, stacked, extendOption, menu } = props;
-  const { legendValues, legendMarkers, tableIcon } = props;
+  const { legendValues, legendMarkers } = props;
   const { title, meta, notice, height } = props;
   const t = useTranslations('chart');
   const summaryId = useId();
@@ -270,7 +268,6 @@ function CategoryFrame(props: CategoryProps): ReactElement {
       views={{
         patterns: kind === 'bar' ? { on: patterns, onToggle: () => setPatterns((on) => !on) } : null,
         table: { on: table, onToggle: () => setTable((on) => !on) },
-        tableIcon: tableIcon === true,
         fileName: menu?.fileName ?? '',
         actions,
       }}
@@ -416,8 +413,6 @@ interface ViewsProps {
   /** `null` where the chart has no patterns. */
   patterns: { on: boolean; onToggle: () => void } | null;
   table: { on: boolean; onToggle: () => void };
-  /** The Table button carries a table icon. */
-  tableIcon?: boolean | undefined;
   /** The menu's file name and actions; no menu when `actions` has none. */
   fileName: string;
   actions: ChartMenuAction;
@@ -528,7 +523,7 @@ function FrameShell({
   const header = (
     <>
       {/* The title keeps a readable measure: the legend and the views wrap to the next line before it narrows */}
-      <div className="flex min-w-0 shrink grow basis-64 flex-col">
+      <div className="flex min-w-0 shrink grow basis-56 flex-col">
         <div className="flex items-center gap-2">
           <Title id={titleId} className={inspector ? 'type-subsection-title' : 'type-section-title'}>
             {title}
@@ -662,7 +657,6 @@ function ChartViews({
   title,
   patterns,
   table,
-  tableIcon,
   fileName,
   actions,
   alignEnd,
@@ -674,21 +668,11 @@ function ChartViews({
       aria-label={t('views', { title })}
       className={cn('flex items-center gap-1', alignEnd && 'ml-auto')}
     >
-      {/* Toggle buttons: pressed reads as the secondary fill, released as ghost */}
+      {/* Icon toggles, named by their tooltip: pressed reads as the secondary fill, released as ghost */}
       {patterns !== null && !table.on ? (
-        <Button size="sm" variant="ghost" aria-pressed={patterns.on} onClick={patterns.onToggle}>
-          {t('patterns')}
-        </Button>
+        <IconButton icon={Grid3x3} label={t('patterns')} aria-pressed={patterns.on} onClick={patterns.onToggle} />
       ) : null}
-      <Button
-        size="sm"
-        variant="ghost"
-        icon={tableIcon === true ? Table2 : undefined}
-        aria-pressed={table.on}
-        onClick={table.onToggle}
-      >
-        {t('table')}
-      </Button>
+      <IconButton icon={Table2} label={t('table')} aria-pressed={table.on} onClick={table.onToggle} />
       <ChartMenu title={title} fileName={fileName} actions={actions} />
     </div>
   );

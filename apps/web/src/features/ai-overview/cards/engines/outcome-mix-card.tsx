@@ -17,6 +17,7 @@ import { EngineLogo } from '@/components/app/engine/engine-logo';
 import { PlainTable, type PlainColumn } from '@/components/app/table/plain-table';
 import type { CardProps } from '@/features/layouts';
 import { safeText, type CsvTable } from '@/lib/csv/csv-write';
+import { hasSummaryAnswers } from '@/lib/engines/keyword-level';
 import { formatInteger, formatList, formatPercent } from '@/lib/format';
 
 const PART_WORDS = {
@@ -45,7 +46,7 @@ type Ok = Extract<EngineOutcome, { state: 'ok' }>;
 export default function OutcomeMixCard({ item, live }: CardProps): ReactElement {
   const t = useTranslations('aiOverview.engines.outcomeSplit');
   const common = useTranslations('aiOverview.engines.common');
-  const data = useCardData({ previous: 'none', subscribed: live });
+  const data = useCardData({ previous: 'none', withKeywordLevel: true, subscribed: live });
   const title = t('title');
   const unavailable = useScopeUnavailable(title);
 
@@ -54,6 +55,16 @@ export default function OutcomeMixCard({ item, live }: CardProps): ReactElement 
   const shown = mixes.filter((mix): mix is Ok => mix.state === 'ok');
   const nameOf = (code: string): string => engineLabel(code) ?? common('unknownEngine');
   const single = singlePlatform(data.scope);
+  // A platform read from the rank checks of linked keywords has one answer for each prompt: its caption says so
+  const keywordLevel = useMemo(
+    () =>
+      new Set(
+        (data.engines.data ?? [])
+          .filter((engine) => hasSummaryAnswers(engine.engine))
+          .map((engine) => engine.engine.engine_code),
+      ),
+    [data.engines.data],
+  );
 
   const segments: OutcomeSegment[] = OUTCOME_PARTS.map((part) => ({
     id: part,
@@ -65,6 +76,7 @@ export default function OutcomeMixCard({ item, live }: CardProps): ReactElement 
     label: nameOf(mix.engineCode),
     icon: <EngineLogo engine={mix.engineCode} name="" />,
     answersText: t('answers', { count: mix.answers }),
+    answersTip: keywordLevel.has(mix.engineCode) ? t('keywordAnswersTip') : undefined,
     // Mentioned or cited: 100% minus the answers that did neither
     center: formatPercent(1 - (mix.shares.find((entry) => entry.part === 'neither')?.share ?? 0), { decimals: 0 }),
     shares: mix.shares.map((entry) => ({

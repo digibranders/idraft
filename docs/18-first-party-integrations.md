@@ -95,7 +95,7 @@ All calls: `POST https://www.googleapis.com/webmasters/v3/sites/{siteUrl}/search
 | B (detail) | Query analysis: the numbers of a keyword (changed 2026-11-05, was `[date, query, page, country, device]`) | `[date, query, country, device]` | `auto` (resolves to by-property) | `startRow` 0, 25000, 50000, ... until a response returns 0 rows | `fp.gsc_search_analytics`, `fp.gsc_queries` |
 | C (page totals) | Honest page totals including anonymized-query traffic | `[date, page]` | `byPage` | `startRow` until empty | `fp.gsc_page_daily` |
 
-**Watched pages.** The per-URL feature of [32-page-performance.md](32-page-performance.md) adds shape D, `[date, country, device]` filtered to one watched page (stored in `fp.gsc_watched_page_daily`), and live shapes for queries. It needs only the connection of 4.1, shape A and the freshness rules of 4.4, so it ships before the full ingest below.
+**Tracked pages.** Shape C now also stores `position_sum` (position times impressions) and the address forms Google reported, and is kept 16 months. The page search detail and Monitoring add two filtered reads, both with a page filter and no page dimension: the page history (`[date]`, once per page, 16 months) and the page breakdown (`[query]`, `[country]` and `[device]` for one page and one period, kept briefly). See section 5 of [the page search and Monitoring design](superpowers/specs/2026-11-26-page-search-and-monitoring-design.md). The earlier shape D of [32-page-performance.md](32-page-performance.md) is not built.
 
 Why three daily shapes:
 - Grouping by `page` or `query` "may drop some data"; accurate totals need a query without them (verified 2026-09-29). Shape A is the only source for site totals.
@@ -418,6 +418,18 @@ Core quotas for a standard property (verified 2026-09-29): 200,000 tokens per pr
 - Target use: incremental sync under 2,000 tokens per property per day; backfill under 7,000 tokens per property per hour (50% of the cap), 14 months in monthly date ranges with daily rows, spread across hours. Actual token cost per request is measured in FP-S6 before the defaults are set.
 - Concurrency 1 per property. A circuit breaker stops a property for the rest of the hour after 3 server errors, well under the limit of 10.
 - `429 RESOURCE_EXHAUSTED` retries at the top of the next hour (hourly quotas) or at 00:05 PT (daily). `invalid_grant` follows 3.2.
+
+### 7.6 As built (WP-69 slice 1)
+
+Built on 2026-11-26 by [the WP-69 plan](superpowers/plans/2026-11-26-ai-wp-69-ga4-referrals.md), for the Overview card "AI referral visits" (route contract: [ai-visibility/contracts/fp-ai-referrals.md](ai-visibility/contracts/fp-ai-referrals.md)):
+
+- One `runReport` per run, not R1 and R2: dimensions `date`, `sessionSource`, `sessionMedium`, `sessionManualSource`, `sessionDefaultChannelGroup`, metrics `sessions`, `engagedSessions`, `keyEvents`, `totalRevenue`, no filter, paged with `offset`. The classification (both classifiers of 7.3) runs in our code, and only the rows that are AI under a classifier are stored.
+- The first run pulls the last 90 days; every later run re-pulls the last 3 days. The window is replaced in one transaction together with the pull state in `fp.integrations.backfill_state["ga4"]` (`through`, `since`), so a run that stops leaves the numbers of the run before.
+- Only `fp.ai_referral_daily` is written (migration 0041, with the seeded `fp.ai_referrer_rules`). There is no `fp.metric_observations`, and `landing_url_id` is always 0 (all pages).
+- The schedule is the `ops.schedules` row "Daily GA4 sync" (job type `ga4_sync`), made by a planner tick for each live GA4 property: daily at 06:00 America/Los_Angeles, as Search Console. The date basis is Pacific, because the property's own time zone is not stored yet.
+- Quota: a run stops before it asks for another page when the property has fewer than 12,000 of its 40,000 hourly tokens left (30%), and tries again after a wait that grows.
+- Not built: the landing page report (R2) and `group_by=landing_page`, the ambiguous referrer rules (stored in `fp.ai_referrer_rules` with their confidence, never matched), the Redis quota record shared across workers (`ga4:prop:{id}`), the per project hourly cap, the concurrency limit and circuit breaker of 7.5, `GET /api/v1/fp/referrer-rules`, and the Cloudflare and server log origins of `own_rules`.
+- The response shape of `runReport` is from the public API reference and is UNVERIFIED against a live account until the first real run.
 
 ## 8. Cloudflare AI Crawl Control
 

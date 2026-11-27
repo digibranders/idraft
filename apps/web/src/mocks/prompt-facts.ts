@@ -270,7 +270,7 @@ export function promptEngineFacts(piece: EnginePiece, latestOf: (newest: NewestA
   return {
     position: piece.position,
     sentiment: piece.sentiment,
-    recommended: piece.recommendedK === null ? null : cell(piece.recommendedK, valid, observations),
+    recommended: recommendedOf(piece),
     other_brands: piece.others.map((brand): OtherBrand => ({
       name: brand.name,
       mentioned: cell(brand.k, valid, observations),
@@ -279,6 +279,41 @@ export function promptEngineFacts(piece: EnginePiece, latestOf: (newest: NewestA
     latest: piece.latest === null ? null : latestOf(piece.latest),
   };
 }
+
+/**
+ * The facts a weekly point of a series carries (`include=series` with the facts): the places of the own brand, the
+ * recommendation rate and the tones of the answers the point holds, built as the row's own are. `pieces` are those of
+ * the row's prompts that have an answer in the weeks the point holds; with none the places are zeros and the rate
+ * and the tones are null, as the API sends them for a week without an answer.
+ */
+export function weekFactsOf(
+  code: string,
+  pieces: readonly EnginePiece[],
+  topic: boolean,
+): { position: PositionCounts; sentiment: SentimentCounts | null; recommended: MetricCell | null } {
+  const [only] = pieces;
+  if (only === undefined) {
+    return {
+      position: { rank_sum: 0, ordered_answers: 0, mentions: 0, answers: 0 },
+      sentiment: null,
+      recommended: null,
+    };
+  }
+  const facts = topic
+    ? topicEngineFacts(code, pieces)
+    : { position: only.position, sentiment: only.sentiment, recommended: recommendedOf(only) };
+  const { rank_sum, ordered_answers, mentions, answers } = facts.position ?? only.position;
+  const tones = facts.sentiment ?? null;
+  const judged = tones === null ? 0 : tones.positive + tones.neutral + tones.negative + tones.mixed;
+  return {
+    position: { rank_sum, ordered_answers, mentions, answers },
+    sentiment: judged > 0 ? tones : null,
+    recommended: facts.recommended ?? null,
+  };
+}
+
+const recommendedOf = (piece: EnginePiece): MetricCell | null =>
+  piece.recommendedK === null ? null : cell(piece.recommendedK, piece.valid, piece.observations);
 
 /** The facts of a topic row's engine from the pieces of its prompts that have an answer on it: prompt weighted. */
 export function topicEngineFacts(code: string, pieces: readonly EnginePiece[]): EngineFacts {

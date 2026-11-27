@@ -110,15 +110,17 @@ function DayCard({
 /** The columns side by side, oldest day first; one under the other below the medium width. */
 export function DayColumns({ columns, timeZone }: { columns: readonly DayColumn[]; timeZone: string }): ReactElement {
   return (
-    <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
-      {columns.map((column, index) => (
-        <DayCard
-          key={column.observationId}
-          column={column}
-          previous={index > 0 ? (columns[index - 1] ?? null) : null}
-          timeZone={timeZone}
-        />
-      ))}
+    <div className="@container">
+      <div className="grid grid-cols-1 items-start gap-3 @2xl:grid-cols-2 @4xl:grid-cols-4">
+        {columns.map((column, index) => (
+          <DayCard
+            key={column.observationId}
+            column={column}
+            previous={index > 0 ? (columns[index - 1] ?? null) : null}
+            timeZone={timeZone}
+          />
+        ))}
+      </div>
     </div>
   );
 }

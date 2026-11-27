@@ -60,7 +60,6 @@ export function GroupSelect({ tree, groups, pending, selected, onChange, classNa
           type="button"
           className={cn(buttonVariants({ variant: 'secondary' }), 'justify-start type-body', className)}
         >
-          <span className="shrink-0 text-foreground-secondary">{t('group')}:</span>
           {unnamed ? (
             <Skeleton shape="text-14" className="w-24" />
           ) : (

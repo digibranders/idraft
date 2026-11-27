@@ -13,14 +13,17 @@ from pydantic import BaseModel
 
 from idraft.api.body_limit import (
     JSON_BODY_MAX_BYTES,
+    NOTE_FILE_PATH,
     UPLOAD_FRAMING_BYTES,
     UPLOAD_MAX_BYTES,
     UPLOAD_PATH,
+    UPLOADS,
     BodyLimitMiddleware,
     LargerLimit,
     Limit,
 )
 from idraft.api.problems import register_problem_handlers
+from idraft.storage.file_sniff import NOTE_FILE_MAX_BYTES
 from tests.conftest import BASE_URL
 
 LIMIT = 64
@@ -138,6 +141,50 @@ def test_only_the_import_upload_path_is_larger() -> None:
         "/api/v1/workspaces/w/keyword-imports/upload",
     ):
         assert not UPLOAD_PATH.fullmatch(other)
+
+
+def test_only_a_post_to_the_note_attachments_path_has_the_note_file_limit() -> None:
+    page = "/api/v1/workspaces/w/projects/p/internal-links/pages/12"
+
+    assert NOTE_FILE_PATH.fullmatch(f"{page}/note-attachments")
+    for other in (
+        f"{page}/notes",
+        f"{page}/note-attachments/more",
+        f"{page}/note-attachments/abc",
+        "/api/v1/workspaces/w/projects/p/internal-links/pages/x/note-attachments",
+        "/api/v1/workspaces/w/internal-links/pages/12/note-attachments",
+    ):
+        assert not NOTE_FILE_PATH.fullmatch(other)
+    limits = {route.path: route for route in UPLOADS}
+    assert limits[NOTE_FILE_PATH].method == "POST"
+    assert limits[NOTE_FILE_PATH].limit.max_bytes == NOTE_FILE_MAX_BYTES + UPLOAD_FRAMING_BYTES
+
+
+async def test_the_application_gives_a_note_file_11_mb_and_every_other_method_and_path_1_mb(
+    api: httpx.AsyncClient,
+) -> None:
+    path = "/api/v1/workspaces/w/projects/p/internal-links/pages/12/note-attachments"
+    detail = "A note file is at most 10 MB."
+
+    within = await api.post(path, content=b"x" * (2 * 1024 * 1024))
+    above = await api.post(path, content=b"x" * (NOTE_FILE_MAX_BYTES + UPLOAD_FRAMING_BYTES + 1))
+    get = await api.get(path)
+    patch = await api.patch(
+        path,
+        content=_body(JSON_BODY_MAX_BYTES + 1),
+        headers={"content-type": "application/json"},
+    )
+    notes = await api.post(
+        path.replace("note-attachments", "notes"),
+        content=_body(JSON_BODY_MAX_BYTES + 1),
+        headers={"content-type": "application/json"},
+    )
+
+    assert within.status_code != 413
+    assert (above.status_code, above.json()["detail"]) == (413, detail)
+    assert get.status_code != 413
+    assert (patch.status_code, patch.json()["detail"]) == (413, "A request body is at most 1 MB.")
+    assert (notes.status_code, notes.json()["detail"]) == (413, "A request body is at most 1 MB.")
 
 
 async def test_the_application_allows_an_upload_of_2_mb_and_refuses_one_over_50_mb(

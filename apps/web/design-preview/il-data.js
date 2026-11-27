@@ -1,3 +1,4 @@
+/* global URL */
 /**
  * Internal links: the illustrative crawl of eventussecurity.com that the Internal links mock reads
  * (docs/superpowers/specs/2026-11-16-internal-link-tracker-design.md). Every link has a placement as section 6.3
@@ -248,3 +249,19 @@ export const mentions = [
   { page: 'banking', phrase: 'PCI DSS', target: 'pci', context: 'Card issuers and acquirers in India must prove PCI DSS controls to their partner banks each year.' },
   { page: 'b3', phrase: 'VAPT services', target: 'vapt', context: 'Our VAPT services follow this checklist and add a free retest once the critical fixes are done.' },
 ];
+
+/** The path of a pasted address of this site (scheme and `www.` optional, query and fragment dropped); any other text as it is. */
+export function searchPathOf(text) {
+  const trimmed = text.trim();
+  if (/\s/.test(trimmed)) return trimmed;
+  const address = /^https?:\/\//i.test(trimmed) ? trimmed : /^(www\.)?[^/]+\.[^/]+\//i.test(trimmed) ? `https://${trimmed}` : null;
+  if (address === null) return trimmed;
+  try {
+    const url = new URL(address);
+    const bare = (host) => host.toLowerCase().replace(/^www\./, '');
+    if (bare(url.hostname) !== bare(HOST)) return trimmed;
+    return url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
+  } catch {
+    return trimmed;
+  }
+}

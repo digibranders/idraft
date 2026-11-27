@@ -10,13 +10,14 @@ import {
   UNTIERED_QUERY,
   UNTIERED_VALUE,
 } from './page-filters';
-import { parseLinksSearch } from '../url-state';
+import { parsePagesSearch } from '@/lib/pages/url-state';
 import { DEFAULT_PAGE_QUERY } from '@/lib/internal-links/queries';
 import type { PageTier } from '@/lib/internal-links/types';
 import messages from '../../../../messages/en.json';
 
 const t = createTranslator({ locale: 'en', messages, namespace: 'internalLinks' });
 
+const NO_FOLDERS = { sections: [], loading: false, label: 'Folder' };
 const TIER = '0192e4a0-2000-7000-8000-000000000001';
 const TAG = '0192e4a0-4000-7000-8000-000000000001';
 
@@ -34,7 +35,7 @@ const tier = (position: number): PageTier => ({
 
 describe('pageQueryOf', () => {
   it('reads the filter bar values, the worklist, the scope, the sort and the search into one query', () => {
-    const state = parseLinksSearch({ scope: 'all', view: 'orphans', sort: 'path', q: '/blog' });
+    const state = parsePagesSearch({ scope: 'all', view: 'orphans', sort: 'path', q: '/blog' });
     const query = pageQueryOf(
       state,
       {
@@ -55,6 +56,10 @@ describe('pageQueryOf', () => {
       indexable: false,
       flags: ['orphan'],
       worklist: 'orphans',
+      view: null,
+      folder: null,
+      depth: null,
+      includeVariants: false,
       q: '/blog',
       sort: 'path',
       include: [],
@@ -63,13 +68,24 @@ describe('pageQueryOf', () => {
     });
   });
 
+  it('searches a pasted address of the site as its path', () => {
+    const state = parsePagesSearch({ q: 'https://www.eventussecurity.com/blog/?utm=x' });
+    expect(pageQueryOf(state, {}, null, 100, 'eventussecurity.com').q).toBe('/blog');
+    expect(pageQueryOf(state, {}, null, 100).q).toBe('https://www.eventussecurity.com/blog/?utm=x');
+  });
+
   it('is the default read for an address with no filters', () => {
-    expect(pageQueryOf(parseLinksSearch({}), {}, null, 100)).toEqual(DEFAULT_PAGE_QUERY);
+    expect(pageQueryOf(parsePagesSearch({ sort: '-linking_pages' }), {}, null, 100)).toEqual(DEFAULT_PAGE_QUERY);
+  });
+
+  it('passes the server view, the depth and the variants of the address through', () => {
+    const query = pageQueryOf(parsePagesSearch({ view: 'redirects', depth: '3', variants: '1' }), {}, null, 100);
+    expect(query).toMatchObject({ view: 'redirects', worklist: null, depth: 3, includeVariants: true, folder: null });
   });
 
   it('keeps only ids the API takes, so a hand-edited tier or tag in the address never makes a 422', () => {
     const query = pageQueryOf(
-      parseLinksSearch({}),
+      parsePagesSearch({}),
       {
         tier: { kind: 'enum', values: [TIER, 'none', 'T1', 'NONE', '../x'] },
         tag: { kind: 'enum', values: ['t', TAG] },
@@ -82,10 +98,10 @@ describe('pageQueryOf', () => {
   });
 
   it('reads the yes of Indexable as true and anything else as no choice', () => {
-    expect(pageQueryOf(parseLinksSearch({}), { idx: { kind: 'enum', values: ['yes'] } }, null, 100).indexable).toBe(
+    expect(pageQueryOf(parsePagesSearch({}), { idx: { kind: 'enum', values: ['yes'] } }, null, 100).indexable).toBe(
       true,
     );
-    expect(pageQueryOf(parseLinksSearch({}), { idx: { kind: 'enum', values: ['maybe'] } }, null, 100).indexable).toBe(
+    expect(pageQueryOf(parsePagesSearch({}), { idx: { kind: 'enum', values: ['maybe'] } }, null, 100).indexable).toBe(
       null,
     );
   });
@@ -94,7 +110,7 @@ describe('pageQueryOf', () => {
 describe('the Untiered filter', () => {
   it('is the value the summary strip links to: the link and the filter bar agree', () => {
     expect(UNTIERED_QUERY).toBe(`tier=${UNTIERED_VALUE}`);
-    const fields = pageFilterFields(t, [tier(1), tier(2)], [], false);
+    const fields = pageFilterFields(t, [tier(1), tier(2)], [], false, NO_FOLDERS);
     const tierField = fields.find((field) => field.id === 'tier');
     expect(tierField?.kind).toBe('enum');
     if (tierField?.kind !== 'enum') return;
@@ -104,9 +120,9 @@ describe('the Untiered filter', () => {
 
 describe('pageFilterFields', () => {
   it('offers only the allow-listed statuses and flags, and no equity anywhere', () => {
-    const fields = pageFilterFields(t, [tier(1)], [{ termId: TAG, name: 'Launch' }], false);
+    const fields = pageFilterFields(t, [tier(1)], [{ termId: TAG, name: 'Launch' }], false, NO_FOLDERS);
     const options = fields.flatMap((field) => (field.kind === 'enum' ? field.options.map((o) => o.value) : []));
-    expect(fields.map((field) => field.id)).toEqual(['tier', 'tag', 'status', 'idx', 'flag']);
+    expect(fields.map((field) => field.id)).toEqual(['tier', 'tag', 'status', 'folder', 'idx', 'flag']);
     expect(options).toEqual(
       expect.arrayContaining([
         '2xx',
@@ -125,10 +141,54 @@ describe('pageFilterFields', () => {
   });
 
   it('keeps a value from the address while the tiers or tags have not loaded', () => {
-    const fields = pageFilterFields(t, [], [], true);
+    const fields = pageFilterFields(t, [], [], true, { ...NO_FOLDERS, loading: true });
     const byId = new Map(fields.map((field) => [field.id, field]));
     expect(byId.get('tier')).toMatchObject({ optionsLoading: true });
     expect(byId.get('tag')).toMatchObject({ optionsLoading: true });
+    expect(byId.get('folder')).toMatchObject({ optionsLoading: true });
+  });
+
+  it('offers the folder as a single choice with one option per section, in the order given', () => {
+    const fields = pageFilterFields(t, [], [], false, {
+      sections: ['/blog/', '/docs/', '/'],
+      loading: false,
+      label: 'Folder',
+    });
+    const folder = fields.find((field) => field.id === 'folder');
+    expect(folder).toMatchObject({ kind: 'enum', multi: false, label: 'Folder', optionsLoading: false });
+    expect(folder?.kind === 'enum' ? folder.options : []).toEqual([
+      { value: '/blog/', label: '/blog/' },
+      { value: '/docs/', label: '/docs/' },
+      { value: '/', label: '/' },
+    ]);
+  });
+});
+
+describe('the folder of the query', () => {
+  const folderOf = (value: string): string | null =>
+    pageQueryOf(parsePagesSearch({}), { folder: { kind: 'enum', values: [value] } }, null, 100).folder;
+
+  it('is a section of the filter, and nothing that is not a path of at most 200 characters', () => {
+    expect(folderOf('/blog/')).toBe('/blog/');
+    expect(folderOf('blog')).toBeNull();
+    expect(folderOf(`/${'a'.repeat(200)}`)).toBeNull();
+    expect(folderOf(`/${'a'.repeat(199)}`)).toBe(`/${'a'.repeat(199)}`);
+    expect(pageQueryOf(parsePagesSearch({}), {}, null, 100).folder).toBeNull();
+  });
+
+  it('goes to the export beside the view and the depth', () => {
+    const query = pageQueryOf(
+      parsePagesSearch({ view: 'live', depth: '3' }),
+      { folder: { kind: 'enum', values: ['/blog/'] } },
+      null,
+      100,
+    );
+    expect(pageExportQuery(query)).toMatchObject({
+      'filter[view]': 'live',
+      'filter[folder]': '/blog/',
+      'filter[depth]': 3,
+      format: 'csv',
+    });
   });
 });
 
@@ -152,7 +212,7 @@ describe('capTags', () => {
 describe('pageExportQuery (decision W13)', () => {
   it('is the current filter and sort as CSV, without a cursor or a page size', () => {
     const query = pageQueryOf(
-      parseLinksSearch({ scope: 'all', sort: '-outlinks', q: 'x' }),
+      parsePagesSearch({ scope: 'all', sort: '-outlinks', q: 'x' }),
       { tier: { kind: 'enum', values: ['none'] }, idx: { kind: 'enum', values: ['no'] } },
       'c9',
       200,

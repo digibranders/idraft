@@ -72,6 +72,8 @@ TENANT_TABLES: dict[str, str] = {
     "core.tier_rules": "workspace_id",
     "core.project_pages": "workspace_id",
     "core.page_terms": "workspace_id",
+    "core.page_notes": "workspace_id",
+    "core.page_note_attachments": "workspace_id",
     "seo.crawl_runs": "workspace_id",
     "seo.crawl_pages": "workspace_id",
     "seo.crawl_links": "workspace_id",
@@ -81,6 +83,10 @@ TENANT_TABLES: dict[str, str] = {
     "seo.crawl_page_changes": "workspace_id",
     "seo.crawl_alerts": "workspace_id",
     "seo.crawl_mentions": "workspace_id",
+    "seo.page_snapshots": "workspace_id",
+    "seo.page_checks": "workspace_id",
+    "seo.page_history_runs": "workspace_id",
+    "seo.page_google_crawl": "workspace_id",
     "core.link_opportunity_decisions": "workspace_id",
     "core.tier_suggestion_dismissals": "workspace_id",
     "core.client_summary_shares": "workspace_id",
@@ -91,6 +97,11 @@ TENANT_TABLES: dict[str, str] = {
     "ops.alert_events": "workspace_id",
     "ops.alert_cursors": "workspace_id",
     "fp.gsc_page_daily": "workspace_id",
+    "fp.ai_referral_daily": "workspace_id",
+    "fp.gsc_page_forms": "workspace_id",
+    "fp.gsc_page_fetches": "workspace_id",
+    "fp.gsc_page_breakdown": "workspace_id",
+    "core.tracked_pages": "workspace_id",
 }
 
 
@@ -469,7 +480,9 @@ async def seed_search_console(
     owner_id: uuid.UUID,
 ) -> uuid.UUID:
     """One row in every Search Console table: a secret, the connection that holds it, a property
-    linked to the project, a query and one day of numbers. Returns the integration's id."""
+    linked to the project, a query and one day of numbers, one AI referral row filed under that
+    integration (WP-69), and one row each of the page search detail tables and one tracked page.
+    Returns the integration's id."""
     secret_id: uuid.UUID = await db.fetchval(
         "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
         "fingerprint) VALUES ($1, 'oauth_refresh_token', $2, $3, 1, 'abcd') RETURNING id",
@@ -518,6 +531,44 @@ async def seed_search_console(
         integration_id,
         workspace_id,
         project_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.ai_referral_daily (project_id, integration_id, metric_date, origin, "
+        "classifier, rules_version, assistant_code, workspace_id, unit, sessions) "
+        "VALUES ($1, $2, current_date, 'ga4', 'own_rules', 1, 'chatgpt', $3, 'sessions', 5)",
+        project_id,
+        integration_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_forms (integration_id, url_id, page, workspace_id, last_seen) "
+        "VALUES ($1, 1, 'https://example.com/a', $2, current_date)",
+        integration_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
+        "workspace_id, project_id, row_count, query_count) "
+        "VALUES ($1, 1, 'query', current_date - 27, current_date - 1, $2, $3, 1, 1)",
+        integration_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO fp.gsc_page_breakdown (integration_id, url_id, date_from, date_to, dimension, "
+        "key, workspace_id, project_id, clicks, impressions, position_sum) "
+        "VALUES ($1, 1, current_date - 27, current_date - 1, 'query', 'crm software', $2, $3, "
+        "3, 40, 120.5)",
+        integration_id,
+        workspace_id,
+        project_id,
+    )
+    await db.execute(
+        "INSERT INTO core.tracked_pages (project_id, url_id, workspace_id, added_by) "
+        "VALUES ($1, 1, $2, $3)",
+        project_id,
+        workspace_id,
+        owner_id,
     )
     return integration_id
 
@@ -674,6 +725,26 @@ async def seed_internal_links(
         term_id,
         workspace_id,
     )
+    await db.execute(
+        "INSERT INTO core.page_notes (workspace_id, project_id, url_id, author_id, body) "
+        "VALUES ($1, $2, $3, $4, 'Rewrite the intro before the launch.')",
+        workspace_id,
+        project_id,
+        url_id,
+        owner_id,
+    )
+    attachment_id = uuid.uuid4()
+    await db.execute(
+        "INSERT INTO core.page_note_attachments (id, workspace_id, project_id, url_id, "
+        "uploaded_by, storage_key, original_name, size_bytes, content_type) "
+        "VALUES ($1, $2, $3, $4, $5, $6, 'brief.pdf', 1024, 'application/pdf')",
+        attachment_id,
+        workspace_id,
+        project_id,
+        url_id,
+        owner_id,
+        f"notes/v1/{workspace_id}/{project_id}/{attachment_id}.zst",
+    )
     run_id: uuid.UUID = await db.fetchval(
         "INSERT INTO seo.crawl_runs (workspace_id, project_id, trigger, state, target_host, "
         "settings, ceiling, finished_at) VALUES ($1, $2, 'manual', 'ready', 'example.com', "
@@ -783,6 +854,40 @@ async def seed_internal_links(
         workspace_id,
         project_id,
         owner_id,
+    )
+    snapshot_id: int = await db.fetchval(
+        "INSERT INTO seo.page_snapshots (workspace_id, project_id, url_id, run_id, taken_at, "
+        "words, links_all, links_editorial, main_hash, full_hash) "
+        "VALUES ($1, $2, $3, $4, now(), 300, 12, 8, $5, $5) RETURNING id",
+        workspace_id,
+        project_id,
+        url_id,
+        run_id,
+        run_id.bytes,
+    )
+    await db.execute(
+        "INSERT INTO seo.page_checks (run_id, url_id, workspace_id, project_id, main_hash, "
+        "full_hash, snapshot_id) VALUES ($1, $2, $3, $4, $5, $5, $6)",
+        run_id,
+        url_id,
+        workspace_id,
+        project_id,
+        run_id.bytes,
+        snapshot_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.page_history_runs (run_id, workspace_id, pages_checked, "
+        "pages_main_changed, pages_site_wide, site_wide, declared_unreliable) "
+        "VALUES ($1, $2, 1, 1, 0, false, false)",
+        run_id,
+        workspace_id,
+    )
+    await db.execute(
+        "INSERT INTO seo.page_google_crawl (project_id, url_id, workspace_id, inspected_at) "
+        "VALUES ($1, $2, $3, now())",
+        project_id,
+        url_id,
+        workspace_id,
     )
     await seed_alerts(db, workspace_id, project_id)
     return run_id

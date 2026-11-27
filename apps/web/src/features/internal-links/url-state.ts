@@ -12,17 +12,23 @@ import {
   type LayoutMode,
 } from '@/lib/internal-links/journey-codec';
 import type { Direction } from '@/lib/internal-links/journey-layout';
+import { parseLens, type MapLens } from '@/lib/internal-links/map-focus';
+import type { MapColourMode } from '@/lib/internal-links/map-graph';
 import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
+import { searchText } from '@/lib/internal-links/search-text';
 import { parseLinkScope, type LinkScope } from '@/lib/internal-links/scopes';
-import type { ChangeScope, EdgeWorklist, OpportunityStatus, PageSort, PageWorklist } from '@/lib/internal-links/types';
+import type { ChangeScope, EdgeWorklist, OpportunityStatus } from '@/lib/internal-links/types';
+
+export { PAGE_SORTS } from '@/lib/internal-links/page-sorts';
+export { searchText } from '@/lib/internal-links/search-text';
 
 /**
  * What Internal links keeps in its address (the URL state table of plan 03): the tab, the link scope, the
- * worklists, the sort and searches, and the journey. The filter bars keep their own keys (`useUrlFilters`).
+ * link worklists, the searches, and the journey. The filter bars keep their own keys (`useUrlFilters`).
  * `parseLinksSearch` is pure; `useLinksState` only reads and writes the address.
  */
 
-export type LinksTabId = 'pages' | 'links' | 'journey' | 'flow' | 'changes' | 'opportunities';
+export type LinksTabId = 'journey' | 'map' | 'links' | 'flow' | 'changes' | 'opportunities';
 
 export type LinksKey =
   | 'tab'
@@ -33,10 +39,7 @@ export type LinksKey =
   | 'ot'
   | 'oq'
   | 'scope'
-  | 'view'
   | 'lview'
-  | 'sort'
-  | 'q'
   | 'lq'
   | 'src'
   | 'tgt'
@@ -49,6 +52,12 @@ export type LinksKey =
   | 'grp'
   | 'more'
   | 'topen'
+  // The Link map: search, auto-generated links drawn, colour, highlight and the selected page
+  | 'mq'
+  | 'mauto'
+  | 'mcol'
+  | 'mhl'
+  | 'mpage'
   // The inspector's own keys: a write that leaves the page's list (Open in journey) closes the inspector with it
   | 'inspect'
   | 'itab';
@@ -56,58 +65,16 @@ export type LinkStatus = 'active' | 'lost' | 'all';
 const LINK_STATUSES: readonly LinkStatus[] = ['active', 'lost', 'all'];
 export type LinksSearch = Readonly<Partial<Record<LinksKey, string | null | undefined>>>;
 
-const TABS: readonly LinksTabId[] = ['pages', 'links', 'journey', 'flow', 'changes', 'opportunities'];
+const TABS: readonly LinksTabId[] = ['journey', 'map', 'links', 'flow', 'changes', 'opportunities'];
 const OPPORTUNITY_STATUSES: readonly OpportunityStatus[] = ['open', 'accepted', 'dismissed'];
 const OPPORTUNITY_TIERS: readonly string[] = ['1', '2', '3', '4', '5', '6', '7', '8', 'none'];
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const WORKLISTS: readonly PageWorklist[] = [
-  'under_linked_t1',
-  'orphans',
-  'editorial_orphans',
-  'deep_only_through_auto',
-  'lost_links_top',
-  'weak_outlinks',
-];
 const EDGE_WORKLISTS: readonly EdgeWorklist[] = ['broken_and_redirected', 'links_to_non_indexable'];
-export const PAGE_SORTS: readonly PageSort[] = [
-  'path',
-  '-path',
-  'status_code',
-  '-status_code',
-  'click_depth',
-  '-click_depth',
-  'linking_pages',
-  '-linking_pages',
-  'outlinks',
-  '-outlinks',
-  'change',
-  '-change',
-  'rank',
-  '-rank',
-  'citations',
-  '-citations',
-  'anchor',
-  '-anchor',
-  'tier',
-  '-tier',
-  'clicks',
-  '-clicks',
-  'indexable',
-  '-indexable',
-  'in_sitemap',
-  '-in_sitemap',
-];
-export const DEFAULT_SORT: PageSort = '-linking_pages';
-/** The longest search text the API takes (1 to 200 characters). */
-const MAX_SEARCH_LENGTH = 200;
 
 export interface LinksState {
   tab: LinksTabId;
   scope: LinkScope;
-  worklist: PageWorklist | null;
   edgeWorklist: EdgeWorklist | null;
-  sort: PageSort;
-  q: string | null;
   lq: string | null;
   /**
    * The Links tab narrowed to the links from or to one page (the inspector's "View all in Links"), and the
@@ -147,13 +114,10 @@ export interface LinksState {
   groups: Set<string>;
   more: Map<string, number>;
   treeOpen: Set<string>;
+  /** The Link map (plan 11, W12): the search, auto-generated links drawn, colour, highlight and the selected page. */
+  map: { query: string; includeAuto: boolean; colour: MapColourMode; lens: MapLens; selected: string | null };
 }
 
-/** A search as the address and the API hold it: trimmed, 1 to 200 characters, or `null` for none. */
-export const searchText = (value: string | null | undefined): string | null => {
-  const trimmed = value?.trim() ?? '';
-  return trimmed === '' ? null : trimmed.slice(0, MAX_SEARCH_LENGTH);
-};
 const text = searchText;
 
 /**
@@ -189,7 +153,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
   const tgt = readUrlId(search.tgt);
   const focus = readUrlId(search.focus);
   const run = readRunId(search.run);
-  const tab = TABS.find((candidate) => candidate === search.tab) ?? 'pages';
+  const tab = TABS.find((candidate) => candidate === search.tab) ?? 'journey';
   const edgeWorklist = EDGE_WORKLISTS.find((list) => list === search.lview) ?? null;
   // The link worklists count links of every scope, so a hand typed address that names none reads All links. Editorial
   // is then written out (`scope=editorial`) by the scope menu, so choosing it is still possible.
@@ -197,10 +161,7 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
   return {
     tab,
     scope: tab === 'links' && edgeWorklist !== null && scopeUnset ? 'all' : parseLinkScope(search.scope),
-    worklist: WORKLISTS.find((list) => list === search.view) ?? null,
     edgeWorklist,
-    sort: PAGE_SORTS.find((sort) => sort === search.sort) ?? DEFAULT_SORT,
-    q: text(search.q),
     lq: text(search.lq),
     source: src.id,
     target: tgt.id,
@@ -220,6 +181,13 @@ export function parseLinksSearch(search: LinksSearch): LinksState {
     groups: parseKeySet(search.grp),
     more: parseMore(search.more),
     treeOpen: parseKeySet(search.topen),
+    map: {
+      query: text(search.mq) ?? '',
+      includeAuto: search.mauto === '1',
+      colour: search.mcol === 'section' ? 'section' : 'tier',
+      lens: parseLens(search.mhl),
+      selected: readUrlId(search.mpage).id,
+    },
   };
 }
 
@@ -232,10 +200,7 @@ const PARSERS = {
   ot: parseAsString,
   oq: parseAsString,
   scope: parseAsString,
-  view: parseAsString,
   lview: parseAsString,
-  sort: parseAsString,
-  q: parseAsString,
   lq: parseAsString,
   src: parseAsString,
   tgt: parseAsString,
@@ -248,6 +213,11 @@ const PARSERS = {
   grp: parseAsString,
   more: parseAsString,
   topen: parseAsString,
+  mq: parseAsString,
+  mauto: parseAsString,
+  mcol: parseAsString,
+  mhl: parseAsString,
+  mpage: parseAsString,
   inspect: parseAsString,
   itab: parseAsString,
 } satisfies Record<LinksKey, typeof parseAsString>;

@@ -504,6 +504,7 @@ function SteppingSpecimen(): ReactElement {
   return (
     <div className="flex h-120 overflow-hidden rounded-lg border border-border-subtle">
       <InspectorLayout
+        boxed
         inspector={
           open === null ? null : (
             <Inspector

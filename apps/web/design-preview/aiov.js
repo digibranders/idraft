@@ -14,7 +14,6 @@ import { createSelect, groupOptions, platformOptions, readUrl, setScope, state, 
 import { initCompetitorDrawer, openCompetitor, refreshCompetitorDrawer } from './aiov-competitor.js';
 import { createCustomizer } from './aiov-customize.js';
 import { cardFrame, el, emptyBody, engineName, icon } from './aiov-parts.js';
-import { insightsBox } from './aiov-insights.js';
 import { cardDef } from './aiov-registry.js';
 
 const ui = window.PreviewUI;
@@ -23,7 +22,7 @@ const view = ui.$('[data-view="ai"]');
 // -------------------------------------------------------------------------------------------------
 // Static parts: header, scope bar, the grid
 
-const grid = el('div', 'grid grid-cols-1 md:grid-cols-12 gap-4');
+const grid = el('div', 'grid grid-cols-1 @2xl:grid-cols-12 gap-4');
 const custom = createCustomizer({ grid, onChange: () => render() });
 
 // As in the app, the page name is in the top bar; the heading stays for screen readers only (11 section 3)
@@ -42,8 +41,8 @@ actions.append(custom.presetsButton, custom.toggle, exportButton);
 
 const scopeBar = el('div', 'grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:flex-wrap sm:items-center');
 scopeBar.setAttribute('aria-label', 'Scope');
-const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-60' });
-const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-60' });
+const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => setScope({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-48' });
+const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => setScope({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-48' });
 const compareSelect = createSelect({
   name: 'Compare with',
   options: [
@@ -54,7 +53,7 @@ const compareSelect = createSelect({
   get: () => (!state.compare ? 'off' : state.compareKind === 'year' ? 'year' : 'prev'),
   set: (id) => setScope({ compare: id !== 'off', compareKind: id === 'year' ? 'year' : 'previous' }),
   width: 'min-w-52',
-  triggerWidth: 'sm:w-60',
+  triggerWidth: 'sm:w-52',
 });
 // Icon only and always in its place (invisible, not removed, while the scope is the default), so it never moves the row
 const reset = el('button', 'size-control shrink-0 rounded-md flex items-center justify-center text-foreground-secondary hover:bg-surface-hover hover:text-foreground');
@@ -74,8 +73,7 @@ toolbar.setAttribute('aria-label', 'Scope and actions');
 const right = el('div', 'flex items-center gap-x-4 min-w-0 xl:ml-auto');
 right.append(status, actions);
 toolbar.append(title, scopeBar, right);
-const insights = el('div', 'min-w-0');
-view.replaceChildren(toolbar, insights, grid, footnote, custom.bar, custom.live);
+view.replaceChildren(toolbar, grid, footnote, custom.bar, custom.live);
 
 // -------------------------------------------------------------------------------------------------
 // Drawing
@@ -102,10 +100,9 @@ function render() {
   custom.updateBar();
 
   grid.replaceChildren();
-  insights.replaceChildren(...(model.prompts.length === 0 || custom.customizing() ? [] : [insightsBox()]));
   if (model.prompts.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'No prompts in this scope', body: emptyBody('Nothing to show', 'No prompts match this group and branded setting. Reset the scope.') });
-    empty.className += ' md:col-span-12';
+    empty.className += ' @2xl:col-span-12';
     grid.append(empty);
     return;
   }
@@ -120,7 +117,7 @@ function render() {
   if (custom.customizing()) grid.append(custom.addSlot());
   else if (items.length === 0) {
     const empty = cardFrame({ key: 'empty', title: 'This page has no cards', body: emptyBody('Nothing on the page', 'Choose Customize, then Start from a preset or Add card.') });
-    empty.className += ' md:col-span-12';
+    empty.className += ' @2xl:col-span-12';
     grid.append(empty);
   }
 }

@@ -293,6 +293,18 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-31 settings-engines
     # WP-32 overview-aggregates
     # WP-38 notes-annotations
+    # Notes on a page (spec 9.7, 9.8): the page and its files.
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes"): {
+        "body": "Planted note"
+    },
+    ("PATCH", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}"): {
+        "body": "Taken over"
+    },
+    (
+        "POST",
+        _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore",
+    ): {},
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments"): {},
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
@@ -324,6 +336,13 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    # Page search detail and Monitoring: a url id of the tenant's own, so the writes would do
+    # something if they were let through.
+    ("POST", _W + "/projects/{project_id}/fp/tracked-pages"): {
+        "urls": ["{page_url}"],
+        "url_ids": ["{url_id}"],
+    },
+    ("POST", _W + "/projects/{project_id}/fp/tracked-pages/remove"): {"url_ids": ["{url_id}"]},
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     # Internal links tracker (plan 02): tiers, rules, tiers and tags on pages. The tier is the
@@ -405,8 +424,29 @@ SCREENSHOT_ROUTES = {
         "no_screenshot",
     ),
 }
+# What a member inside their own scope is answered for the seeded page note, which another user
+# wrote and nobody deleted: only its author changes it, and only a deleted note is restored. Its
+# file has a row and no stored object in this suite, so a read of it is not found.
+NOTE_ROUTES = {
+    (
+        "GET",
+        _W
+        + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}",
+    ): (404, "not_found"),
+    ("PATCH", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}"): (
+        403,
+        "forbidden",
+    ),
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore"): (
+        404,
+        "not_found",
+    ),
+}
 # Routes that take a file instead of JSON.
-UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
+UPLOADS = {
+    ("POST", _W + "/projects/{project_id}/keyword-imports/upload"),
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments"),
+}
 # Query parameters a route requires, so that it answers for its path and not for a missing
 # parameter.
 QUERIES: dict[tuple[str, str], dict[str, str]] = {
@@ -517,6 +557,15 @@ QUERIES: dict[tuple[str, str], dict[str, str]] = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    # Both windows and `origin`, so the whole grouped read is scanned.
+    ("GET", _W + "/projects/{project_id}/fp/ai-referrals"): {
+        "compare": "previous_period",
+        "group_by": "origin",
+    },
+    # A tenant's own page: the dimension is required, and `query` is the widest read.
+    ("GET", _W + "/projects/{project_id}/fp/page-search/{url_id}/breakdown"): {
+        "dimension": "query"
+    },
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
     # The gap reads take 1 to 5 competitors the project tracks (`competitor_id`).
@@ -967,9 +1016,6 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # rows under its own line (docs/ai-visibility/MASTER-PLAN.md section 3.6).
     more_ids: dict[str, str] = {}
     # WP-03 contract-pack
-    # No notes table yet: a note id that names nothing. WP-38 seeds a real note under its own
-    # line and removes this one.
-    more_ids["note_id"] = str(uuid.uuid4())
 
     # WP-11 layouts-api
     # The owner's own layout and the team default of the screen the suite fills in (`WORDS`).
@@ -1089,6 +1135,28 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # WP-68 llm-advanced
 
     # WP-69 first-party-signals
+    # A live GA4 integration that finished a sync today, so the referral read has rows to read.
+    ga4_integration = await fetchrow(
+        pg,
+        "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_account, "
+        "external_property, connection_id, scopes, backfill_state) VALUES ($1, $2, 'ga4', $3, "
+        "'properties/123', $4, '{openid}', jsonb_build_object('ga4', jsonb_build_object("
+        "'version', 1, 'through', current_date::text, 'complete', true, 'failures', 0))) "
+        "RETURNING id",
+        workspace.id,
+        project_id,
+        account.email,
+        connection["id"],
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.ai_referral_daily (project_id, integration_id, metric_date, origin, "
+        "classifier, rules_version, assistant_code, workspace_id, unit, sessions) "
+        "VALUES ($1, $2, current_date, 'ga4', 'own_rules', 1, 'chatgpt', $3, 'sessions', 5)",
+        project_id,
+        ga4_integration["id"],
+        workspace.id,
+    )
 
     # WP-70 geo-readiness
 
@@ -1232,6 +1300,46 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         tiers[1],
         owner.id,
     )
+    # Page search detail: the address form, a fetch marker, a breakdown row and a tracked page.
+    await execute(
+        pg,
+        "INSERT INTO fp.gsc_page_forms (integration_id, url_id, page, workspace_id, last_seen) "
+        "VALUES ($1, $2, $3, $4, current_date)",
+        integration["id"],
+        crawl_ids[pricing],
+        f"https://example.com{pricing}",
+        workspace.id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.gsc_page_fetches (integration_id, url_id, kind, date_from, date_to, "
+        "workspace_id, project_id, row_count, query_count) "
+        "VALUES ($1, $2, 'query', current_date - 27, current_date - 1, $3, $4, 1, 1)",
+        integration["id"],
+        crawl_ids[pricing],
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO fp.gsc_page_breakdown (integration_id, url_id, date_from, date_to, "
+        "dimension, key, workspace_id, project_id, clicks, impressions, position_sum) "
+        "VALUES ($1, $2, current_date - 27, current_date - 1, 'query', $3, $4, $5, 3, 40, 120.5)",
+        integration["id"],
+        crawl_ids[pricing],
+        f"{label} page query",
+        workspace.id,
+        project_id,
+    )
+    await execute(
+        pg,
+        "INSERT INTO core.tracked_pages (project_id, url_id, workspace_id, added_by) "
+        "VALUES ($1, $2, $3, $4)",
+        project_id,
+        crawl_ids[pricing],
+        workspace.id,
+        owner.id,
+    )
     tag_vocabulary = await fetchrow(
         pg,
         "INSERT INTO core.taxonomy_vocabularies (workspace_id, kind, name) "
@@ -1253,6 +1361,31 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         crawl_ids[pricing],
         tag_term["id"],
         workspace.id,
+    )
+    page_note = await fetchrow(
+        pg,
+        "INSERT INTO core.page_notes (workspace_id, project_id, url_id, author_id, body) "
+        "VALUES ($1, $2, $3, $4, 'Rewrite the intro before the launch.') RETURNING id",
+        workspace.id,
+        project_id,
+        crawl_ids[pricing],
+        owner.id,
+    )
+    more_ids["note_id"] = str(page_note["id"])
+    attachment_id = uuid.uuid4()
+    more_ids["attachment_id"] = str(attachment_id)
+    await execute(
+        pg,
+        "INSERT INTO core.page_note_attachments (id, workspace_id, project_id, url_id, note_id, "
+        "uploaded_by, storage_key, original_name, size_bytes, content_type) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, 'brief.pdf', 1024, 'application/pdf')",
+        attachment_id,
+        workspace.id,
+        project_id,
+        crawl_ids[pricing],
+        page_note["id"],
+        owner.id,
+        f"notes/v1/{workspace.id}/{project_id}/{attachment_id}.zst",
     )
     async with workspace_transaction(resources.sessions, workspace.id) as flow_db:
         await recompute_tier_flow(flow_db, workspace_id=workspace.id, run_id=crawl_run)
@@ -1544,6 +1677,8 @@ _TENANT_ROWS = {
     "core.tier_rules": "workspace_id",
     "core.project_pages": "workspace_id",
     "core.page_terms": "workspace_id",
+    "core.page_notes": "workspace_id",
+    "core.page_note_attachments": "workspace_id",
     "seo.crawl_runs": "workspace_id",
     "seo.crawl_pages": "workspace_id",
     "seo.crawl_links": "workspace_id",
@@ -1590,6 +1725,12 @@ _TENANT_ROWS = {
     # WP-67 engine-expansion
     # WP-68 llm-advanced
     # WP-69 first-party-signals
+    "fp.ai_referral_daily": "workspace_id",
+    # Page search detail and Monitoring
+    "fp.gsc_page_forms": "workspace_id",
+    "fp.gsc_page_fetches": "workspace_id",
+    "fp.gsc_page_breakdown": "workspace_id",
+    "core.tracked_pages": "workspace_id",
     # WP-70 geo-readiness
     # WP-76 citations-v2-api
 }
@@ -1735,6 +1876,8 @@ async def test_a_project_outside_the_members_scope_is_not_found(
         assert _problem(inside) == (409, "crawl_in_progress")
     elif (method, path) in SCREENSHOT_ROUTES:
         assert _problem(inside) == SCREENSHOT_ROUTES[(method, path)]
+    elif (method, path) in NOTE_ROUTES:
+        assert _problem(inside) == NOTE_ROUTES[(method, path)]
     elif (method, path) in NOT_BUILT:
         # Inside the member's scope a published contract answers that its body is not built.
         assert _problem(inside) == (501, "not_implemented")
@@ -1794,6 +1937,8 @@ async def test_a_list_holds_nothing_of_another_workspace(
 INTERNAL_LINK_READS = [
     ("/internal-links/pages", {}, True),
     ("/internal-links/pages/{url_id}", {}, True),
+    # The seeded page's check, snapshot and Google row (a first version of the seeded page).
+    ("/internal-links/pages/{url_id}/history", {}, False),
     ("/internal-links/edges", {"scope": "all"}, True),
     ("/internal-links/neighbors", {"direction": "in", "scope": "all", "url_id": "{url_id}"}, True),
     # The seeded page has no link out, so there is nothing of its own to name.
@@ -1803,6 +1948,8 @@ INTERNAL_LINK_READS = [
         False,
     ),
     ("/internal-links/tier-flow", {"scope": "all"}, False),
+    # The Link map's graph (plan 10): the seeded pages are its nodes.
+    ("/internal-links/graph", {"include_auto": "true"}, True),
     ("/internal-links/worklists", {}, False),
     ("/internal-links/changes/summary", {}, False),
     # The seeded crawl holds one lost link, from the seeded home page to the seeded pricing page.
@@ -1850,6 +1997,9 @@ async def test_the_pages_and_links_of_a_project_hold_nothing_of_another_workspac
     if names_pages:
         own_site = a.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
         assert f"{own_site}-" in response.text
+        # Routes that show a path and no address (the graph) cannot leak B's full URL
+        other_site = b.ids()["page_url"].removeprefix("https://example.com").split("-")[0]
+        assert f"{other_site}-" not in response.text
 
 
 async def test_the_crawls_and_settings_of_a_project_show_only_its_own_workspace(

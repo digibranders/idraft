@@ -52,7 +52,6 @@ export function PlatformSelect({ platforms, selected, onChange, className }: Pla
       placeholder={t('allPlatforms')}
       options={options}
       aria-label={t('platformLabel', { platform: current?.label ?? t('allPlatforms') })}
-      triggerPrefix={<>{t('platform')}:</>}
       className={cn('hover:bg-surface-hover data-popup-open:bg-surface-selected', className)}
     />
   );

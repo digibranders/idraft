@@ -670,14 +670,7 @@
   .bar-cylinder {
     height: 0.875rem;
     border-radius: 9999px;
-    background: linear-gradient( to bottom, var(--bar-color) 0%, var(--bar-color) 45%, var(--bar-color) 100% );
-    @supports (color: color-mix(in lab, red, red)) {
-      background: linear-gradient( to bottom, color-mix(in oklch, var(--bar-color) 55%, white) 0%, var(--bar-color) 45%, color-mix(in oklch, var(--bar-color) 70%, black) 100% );
-    }
-    box-shadow: 0 3px 6px var(--bar-color);
-    @supports (color: color-mix(in lab, red, red)) {
-      box-shadow: 0 3px 6px color-mix(in oklch, var(--bar-color) 35%, transparent);
-    }
+    background: var(--bar-color);
     transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1);
     @media (prefers-reduced-motion: reduce) {
       transition: none;
@@ -866,6 +859,9 @@
   .min-h-dvh {
     min-height: 100dvh;
   }
+  .min-h-metric-strip {
+    min-height: var(--size-metric-strip);
+  }
   .min-h-page-body-min {
     min-height: var(--size-page-body-min);
   }
@@ -961,6 +957,9 @@
   }
   .w-36 {
     width: calc(var(--spacing) * 36);
+  }
+  .w-40 {
+    width: calc(var(--spacing) * 40);
   }
   .w-44 {
     width: calc(var(--spacing) * 44);
@@ -2760,6 +2759,9 @@
   .aria-pressed\:bg-surface[aria-pressed="true"] {
     background-color: var(--surface);
   }
+  .aria-pressed\:bg-surface-selected[aria-pressed="true"] {
+    background-color: var(--surface-selected);
+  }
   .aria-pressed\:bg-transparent[aria-pressed="true"] {
     background-color: transparent;
   }
@@ -2877,12 +2879,6 @@
     }
   }
   @media (width >= 48rem) {
-    .md\:col-span-6 {
-      grid-column: span 6 / span 6;
-    }
-    .md\:col-span-12 {
-      grid-column: span 12 / span 12;
-    }
     .md\:-mx-4 {
       margin-inline: calc(var(--spacing) * -4);
     }
@@ -2904,42 +2900,6 @@
     .md\:table-cell {
       display: table-cell;
     }
-    .md\:min-h-\[214px\] {
-      min-height: 214px;
-    }
-    .md\:min-h-\[298px\] {
-      min-height: 298px;
-    }
-    .md\:min-h-\[306px\] {
-      min-height: 306px;
-    }
-    .md\:min-h-\[346px\] {
-      min-height: 346px;
-    }
-    .md\:min-h-\[350px\] {
-      min-height: 350px;
-    }
-    .md\:min-h-\[362px\] {
-      min-height: 362px;
-    }
-    .md\:min-h-\[430px\] {
-      min-height: 430px;
-    }
-    .md\:min-h-\[450px\] {
-      min-height: 450px;
-    }
-    .md\:min-h-\[491px\] {
-      min-height: 491px;
-    }
-    .md\:min-h-\[518px\] {
-      min-height: 518px;
-    }
-    .md\:min-h-\[520px\] {
-      min-height: 520px;
-    }
-    .md\:min-h-\[585px\] {
-      min-height: 585px;
-    }
     .md\:w-44 {
       width: calc(var(--spacing) * 44);
     }
@@ -2960,9 +2920,6 @@
     }
     .md\:grid-cols-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-    .md\:grid-cols-12 {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
     }
     .md\:flex-nowrap {
       flex-wrap: nowrap;
@@ -3058,18 +3015,6 @@
     }
   }
   @media (width >= 80rem) {
-    .xl\:col-span-2 {
-      grid-column: span 2 / span 2;
-    }
-    .xl\:col-span-3 {
-      grid-column: span 3 / span 3;
-    }
-    .xl\:col-span-4 {
-      grid-column: span 4 / span 4;
-    }
-    .xl\:col-span-8 {
-      grid-column: span 8 / span 8;
-    }
     .xl\:ml-auto {
       margin-left: auto;
     }
@@ -3088,20 +3033,8 @@
     .xl\:table-cell {
       display: table-cell;
     }
-    .xl\:min-h-\[203px\] {
-      min-height: 203px;
-    }
-    .xl\:min-h-\[346px\] {
-      min-height: 346px;
-    }
     .xl\:w-60 {
       width: calc(var(--spacing) * 60);
-    }
-    .xl\:grid-cols-5 {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
-    .xl\:grid-cols-12 {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
     }
   }
   @media (width >= 90rem) {
@@ -3181,6 +3114,12 @@
     .\@2xl\:col-span-1 {
       grid-column: span 1 / span 1;
     }
+    .\@2xl\:col-span-6 {
+      grid-column: span 6 / span 6;
+    }
+    .\@2xl\:col-span-12 {
+      grid-column: span 12 / span 12;
+    }
     .\@2xl\:col-start-2 {
       grid-column-start: 2;
     }
@@ -3189,6 +3128,48 @@
     }
     .\@2xl\:row-start-1 {
       grid-row-start: 1;
+    }
+    .\@2xl\:min-h-\[214px\] {
+      min-height: 214px;
+    }
+    .\@2xl\:min-h-\[298px\] {
+      min-height: 298px;
+    }
+    .\@2xl\:min-h-\[306px\] {
+      min-height: 306px;
+    }
+    .\@2xl\:min-h-\[346px\] {
+      min-height: 346px;
+    }
+    .\@2xl\:min-h-\[350px\] {
+      min-height: 350px;
+    }
+    .\@2xl\:min-h-\[362px\] {
+      min-height: 362px;
+    }
+    .\@2xl\:min-h-\[430px\] {
+      min-height: 430px;
+    }
+    .\@2xl\:min-h-\[450px\] {
+      min-height: 450px;
+    }
+    .\@2xl\:min-h-\[491px\] {
+      min-height: 491px;
+    }
+    .\@2xl\:min-h-\[518px\] {
+      min-height: 518px;
+    }
+    .\@2xl\:min-h-\[520px\] {
+      min-height: 520px;
+    }
+    .\@2xl\:min-h-\[585px\] {
+      min-height: 585px;
+    }
+    .\@2xl\:grid-cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .\@2xl\:grid-cols-12 {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
     }
     .\@2xl\:grid-cols-\[minmax\(0\,1fr\)_auto_auto\] {
       grid-template-columns: minmax(0,1fr) auto auto;
@@ -3208,6 +3189,35 @@
     .\@3xl\:border-l {
       border-left-style: var(--tw-border-style);
       border-left-width: 1px;
+    }
+  }
+  @container (width >= 56rem) {
+    .\@4xl\:col-span-2 {
+      grid-column: span 2 / span 2;
+    }
+    .\@4xl\:col-span-3 {
+      grid-column: span 3 / span 3;
+    }
+    .\@4xl\:col-span-4 {
+      grid-column: span 4 / span 4;
+    }
+    .\@4xl\:col-span-8 {
+      grid-column: span 8 / span 8;
+    }
+    .\@4xl\:min-h-\[203px\] {
+      min-height: 203px;
+    }
+    .\@4xl\:min-h-\[346px\] {
+      min-height: 346px;
+    }
+    .\@4xl\:grid-cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .\@4xl\:grid-cols-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    .\@4xl\:grid-cols-12 {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
     }
   }
   @container (width >= 64rem) {
@@ -3350,6 +3360,16 @@
   }
   .\[\&\:\:-webkit-scrollbar\]\:hidden::-webkit-scrollbar {
     display: none;
+  }
+  @container (width >= 36rem) {
+    .\@xl\:\[\&\:last-child\:nth-child\(odd\)\]\:col-span-2:last-child:nth-child(odd) {
+      grid-column: span 2 / span 2;
+    }
+  }
+  @container (width >= 56rem) {
+    .\@4xl\:\[\&\:last-child\:nth-child\(odd\)\]\:col-span-1:last-child:nth-child(odd) {
+      grid-column: span 1 / span 1;
+    }
   }
 }
 :root {
@@ -3800,14 +3820,7 @@ table thead th[data-keep-case], table thead th [data-keep-case] {
 .bar-cylinder {
   height: 14px;
   border-radius: 9999px;
-  background: linear-gradient( to bottom, var(--bar-color) 0%, var(--bar-color) 45%, var(--bar-color) 100% );
-  @supports (color: color-mix(in lab, red, red)) {
-    background: linear-gradient( to bottom, color-mix(in oklch, var(--bar-color) 55%, white) 0%, var(--bar-color) 45%, color-mix(in oklch, var(--bar-color) 70%, black) 100% );
-  }
-  box-shadow: 0 3px 6px var(--bar-color);
-  @supports (color: color-mix(in lab, red, red)) {
-    box-shadow: 0 3px 6px color-mix(in oklch, var(--bar-color) 35%, transparent);
-  }
+  background: var(--bar-color);
   transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @media (prefers-reduced-motion: reduce) {

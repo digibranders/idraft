@@ -1,0 +1,33 @@
+import type { PageSort } from './types';
+
+/** The sorts the Pages tables take from the address. */
+export const PAGE_SORTS: readonly PageSort[] = [
+  'path',
+  '-path',
+  'status_code',
+  '-status_code',
+  'click_depth',
+  '-click_depth',
+  'linking_pages',
+  '-linking_pages',
+  'outlinks',
+  '-outlinks',
+  'change',
+  '-change',
+  'rank',
+  '-rank',
+  'citations',
+  '-citations',
+  'anchor',
+  '-anchor',
+  'tier',
+  '-tier',
+  'clicks',
+  '-clicks',
+  'impressions',
+  '-impressions',
+  'indexable',
+  '-indexable',
+  'in_sitemap',
+  '-in_sitemap',
+];

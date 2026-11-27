@@ -7,6 +7,7 @@ import { icon } from './perf-ui.js';
 import { el } from './prompts-parts.js';
 import { PLACEMENT_LABEL, SCOPE_MENU, SCOPE_WORD, activeN, crawls, isActiveLink, links, pageById, plural, refresh, scopeOf, state, statusBadge, tierBadge, tierCode, tierIdOf } from './il-model.js';
 import { openInspector } from './il-drawer.js';
+import { searchPathOf } from './il-data.js';
 import { applyRestore, menuSelect, setRestore } from './il-pages.js';
 
 const CELL = 'border-b border-border-subtle px-3 align-middle';
@@ -39,7 +40,7 @@ const path = (id) => pageById(id).path;
 
 function visibleLinks() {
   const { search, sort, placement, pair } = state.links;
-  const query = search.trim().toLowerCase();
+  const query = searchPathOf(search).toLowerCase();
   const items = links.filter((link) => {
     if (!(status === 'all' ? isActiveLink(link) || isLost(link) : status === 'lost' ? isLost(link) : isActiveLink(link))) return false;
     if (!pair && state.scope !== 'all' && scopeOf(link) !== state.scope) return false;

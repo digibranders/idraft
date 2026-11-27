@@ -133,6 +133,18 @@ export function infoButton(title, info) {
   return button;
 }
 
+/** The Table view switch: an icon button named by its tooltip, pressed while the table shows. */
+export function tableToggle(onToggle) {
+  const button = el('button', 'size-control-sm shrink-0 rounded-md inline-flex items-center justify-center text-foreground-secondary hover:bg-surface-hover aria-pressed:bg-surface-selected aria-pressed:text-foreground');
+  button.type = 'button';
+  button.title = 'Table';
+  button.setAttribute('aria-label', 'Table');
+  button.setAttribute('aria-pressed', 'false');
+  button.append(icon('table-2', 'size-icon-sm'));
+  button.addEventListener('click', () => button.setAttribute('aria-pressed', String(onToggle())));
+  return button;
+}
+
 /**
  * A card of the dashboard: title row, optional meta and tools, a body. The card's definition and method sit behind
  * its info button, read from `CARD_INFO` by key. Cards read the same scope, so a card says what it covers in its
@@ -190,10 +202,9 @@ export function sampleBadge(text = 'Sample data') {
 // -------------------------------------------------------------------------------------------------
 // Sparkline: a plain SVG polyline that follows the theme through its color token
 
-let sparklineCount = 0;
 
 /**
- * A smooth line with a fade under it, a soft shadow and a dot on the latest week. Returns a wrapper (the dot is an
+ * A smooth line with a fade under it, no glow, and a dot on the latest week. Returns a wrapper (the dot is an
  * HTML element, because a dot inside a stretched SVG would turn into an ellipse).
  */
 export function sparkline(points, { token = 'chart-1', height = 28, label } = {}) {
@@ -229,27 +240,11 @@ export function sparkline(points, { token = 'chart-1', height = 28, label } = {}
     const two = `${(to.x - (after.x - from.x) / 6).toFixed(2)},${(to.y - (after.y - from.y) / 6).toFixed(2)}`;
     path += ` C${one} ${two} ${to.x.toFixed(2)},${to.y.toFixed(2)}`;
   }
-  sparklineCount += 1;
-  const gradientId = `spark-fade-${sparklineCount}`;
-  const defs = document.createElementNS(NS, 'defs');
-  const gradient = document.createElementNS(NS, 'linearGradient');
-  gradient.setAttribute('id', gradientId);
-  gradient.setAttribute('x1', '0');
-  gradient.setAttribute('y1', '0');
-  gradient.setAttribute('x2', '0');
-  gradient.setAttribute('y2', '1');
-  [['0', '0.32'], ['1', '0']].forEach(([offset, opacity]) => {
-    const stop = document.createElementNS(NS, 'stop');
-    stop.setAttribute('offset', offset);
-    stop.setAttribute('stop-color', `var(--${token})`);
-    stop.setAttribute('stop-opacity', opacity);
-    gradient.append(stop);
-  });
-  defs.append(gradient);
   const last = spots[spots.length - 1];
   const area = document.createElementNS(NS, 'path');
   area.setAttribute('d', `${path} L${last.x.toFixed(2)},${height} L${spots[0].x.toFixed(2)},${height} Z`);
-  area.setAttribute('fill', `url(#${gradientId})`);
+  area.setAttribute('fill', `var(--${token})`);
+  area.setAttribute('fill-opacity', '0.12');
   const line = document.createElementNS(NS, 'path');
   line.setAttribute('d', path);
   line.setAttribute('fill', 'none');
@@ -258,8 +253,7 @@ export function sparkline(points, { token = 'chart-1', height = 28, label } = {}
   line.setAttribute('stroke-linejoin', 'round');
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('vector-effect', 'non-scaling-stroke');
-  line.style.filter = `drop-shadow(0 3px 3px color-mix(in srgb, var(--${token}) 40%, transparent))`;
-  svg.append(defs, area, line);
+  svg.append(area, line);
   const dot = el('span', 'absolute size-2 rounded-full border-2 border-surface');
   dot.style.background = `var(--${token})`;
   dot.style.left = `${last.x}%`;

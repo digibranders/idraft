@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, Play } from 'lucide-react';
 import type { Route } from 'next';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, type ReactElement } from 'react';
 
@@ -94,7 +95,7 @@ export interface PromptInspectorProps {
 }
 
 /**
- * The inspector of one prompt (spec 2026-11-11 section 4.6; 440 px, as every prompt inspector). Above its tabs
+ * The inspector of one prompt (spec 2026-11-11 section 4.6; the shared drawer, 480 to 960 px). Above its tabs
  * the strip says the Mention rate of each enabled engine and the Citation rate; the tabs are Latest (the newest
  * valid answer of each engine, and the prompt's facts), History (the weekly rate with its interval, the latest
  * answers, events), Competitors and Stats (parity spec G90 to G100). Run now (`runs:trigger`) asks the prompt on
@@ -132,6 +133,7 @@ export function PromptInspector({
   const inspectorWords = useTranslations('inspector');
   const locale = useLocale();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const canTrigger = useCan('runs:trigger');
   const canWrite = useCan('prompts:write');
   const { permissions } = useMembership();
@@ -470,6 +472,8 @@ export function PromptInspector({
               {t('runNow')}
             </Button>
           ) : null,
+        // The prompt has a page of its own (Compare days) wherever the host knows the project's slugs
+        onOpenPage: pageHref === undefined ? undefined : () => router.push(pageHref),
         moreActions,
       }}
     >

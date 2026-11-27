@@ -56,6 +56,8 @@ Using the same glyph for the same concept everywhere matters more than the speci
 | Rankings | `ListOrdered` |
 | Keywords | `KeyRound` is **not** used (means credentials); use `Tag` |
 | Pages | `FileText` |
+| Issues | `ListChecks` |
+| Internal links | `Network` |
 | AI Visibility | `Sparkles` is **not** used (hype); use `MessageSquareText` |
 | Prompts | `MessageSquare` |
 | Citations | `Quote` |

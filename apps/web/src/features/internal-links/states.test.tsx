@@ -94,17 +94,9 @@ afterEach(() => {
 
 describe('the lists with their data, in both themes and both densities', () => {
   describe.each(THEMES)('%s theme', (theme) => {
-    it.each(DENSITIES)('Pages and Links at %s density have no axe violations and no equity', async (density) => {
+    it.each(DENSITIES)('Links at %s density has no axe violations and no equity', async (density) => {
       setTheme(theme);
       const densityQuery = density === 'default' ? '&density=default' : '';
-      const pages = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-        searchParams: `?${densityQuery.slice(1)}`,
-      });
-      await within(await screen.findByRole('grid', { name: 'Pages' })).findAllByRole('rowheader');
-      expect(await axe(pages.container)).toHaveNoViolations();
-      noEquity(pages.container);
-      pages.unmount();
-
       const links = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
         searchParams: `?tab=links${densityQuery}`,
       });
@@ -131,40 +123,6 @@ describe('the lists with their data, in both themes and both densities', () => {
 
 describe('loading, empty and error states of the tabs', () => {
   describe.each(THEMES)('%s theme', (theme) => {
-    it.each(DENSITIES)('Pages: loading is a busy table, empty names the cause, at %s density', async (density) => {
-      setTheme(theme);
-      server.use(
-        http.get(PAGES, async () => {
-          await delay(60);
-          return HttpResponse.json(emptyBody());
-        }),
-      );
-      const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-        searchParams: density === 'default' ? '?density=default' : '',
-      });
-      const grid = await screen.findByRole('grid', { name: 'Pages' });
-      expect(grid).toHaveAttribute('aria-busy', 'true');
-      expect(screen.queryByText('No pages in this crawl')).toBeNull();
-      expect(await screen.findByRole('heading', { name: 'No pages in this crawl' })).toBeInTheDocument();
-      expect(await axe(container)).toHaveNoViolations();
-    });
-
-    it('Pages: an error has Try again, which reads the list again', async () => {
-      setTheme(theme);
-      let calls = 0;
-      server.use(
-        http.get(PAGES, ({ request }) => {
-          calls += 1;
-          return calls === 1 ? problem(request, 'internal_error') : undefined;
-        }),
-      );
-      const { container, user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-      expect(await screen.findByText('The pages could not be loaded')).toBeInTheDocument();
-      expect(await axe(container)).toHaveNoViolations();
-      await user.click(screen.getByRole('button', { name: 'Try again' }));
-      await within(await screen.findByRole('grid', { name: 'Pages' })).findAllByRole('rowheader');
-    });
-
     it('Links: empty and error', async () => {
       setTheme(theme);
       server.use(http.get(EDGES, () => HttpResponse.json(emptyBody())));
@@ -225,13 +183,6 @@ describe('loading, empty and error states of the tabs', () => {
       expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
       expect(await axe(missing.container)).toHaveNoViolations();
     });
-  });
-
-  it('shows the empty worklist reason, not the empty crawl, when a worklist matches no page', async () => {
-    server.use(http.get(PAGES, () => HttpResponse.json(emptyBody())));
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?view=orphans' });
-    expect(await screen.findByRole('heading', { name: 'No orphans' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'No pages in this crawl' })).toBeNull();
   });
 });
 

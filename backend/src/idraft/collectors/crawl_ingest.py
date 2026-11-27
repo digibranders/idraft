@@ -62,9 +62,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 from uuid import UUID
@@ -86,6 +86,12 @@ from idraft.collectors.crawl_store import (
 )
 from idraft.collectors.crawl_store import html_key as html_key  # kept here for its callers
 from idraft.collectors.crawl_variants_sql import EFFECTIVE_LINKS, apply_variants
+from idraft.collectors.page_history_store import (
+    PageHistory,
+    history_of,
+    record_checks,
+    summarize_history,
+)
 from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.crawl.edges import PageEdge, clean_text, is_clean, page_edges
 from idraft.crawl.graph import (
@@ -98,6 +104,7 @@ from idraft.crawl.graph import (
 )
 from idraft.crawl.head import canonical_of
 from idraft.crawl.hosts import site_hosts
+from idraft.crawl.page_facts import PageFacts, read_facts
 from idraft.crawl.placement import FoundLink, Placement, classify
 from idraft.crawl.scopes import LinkScope, scope_of
 from idraft.crawl.status import BLOCKED_STATUSES, is_blocked
@@ -196,6 +203,16 @@ class _PageLinks:
     capped: bool
     # The canonical address the page's own HTML names, when its HTML was read.
     canonical: CanonicalUrl | None = None
+    # What the page's HTML says for its history; None when there is no HTML or it was not read.
+    history: PageHistory | None = None
+    # What the page's own HTML says; None when it was not read or the reader could not read it.
+    facts: PageFacts | None = None
+
+
+def facts_values(facts: PageFacts | None) -> dict[str, object]:
+    """The `crawl_pages` columns a page's facts fill (the fields are named as the columns); none
+    for a page whose HTML was not read, which keeps `facts_read` false."""
+    return {} if facts is None else {"facts_read": True, **asdict(facts)}
 
 
 type Step = Callable[
@@ -433,6 +450,8 @@ async def _pages(
                     "canonical_url_id": canonical_id,
                     "title": None if item.title is None else clean_text(item.title, limit=1000),
                     "in_sitemap": item.from_sitemap,
+                    "sitemap_lastmod": item.sitemap_lastmod,
+                    "response_ms": item.response_ms,
                     "links_state": "waiting"
                     if item.resource_type == "html" and item.status_code == 200
                     else "none",
@@ -531,14 +550,13 @@ async def _read_page(
     store: ObjectStore | None,
     run: _Run,
     hosts: frozenset[str],
-    page_row: tuple[int, str, str, bytes],
+    page_row: tuple[int, str, str, bytes, datetime | None],
 ) -> _PageLinks:
     """One page's edges: its raw HTML is kept and classified, or, with no HTML, the provider's
     links stand in. The parsing runs in a thread so that a page of megabytes does not hold up
     the worker's other jobs."""
-    url_id, crawled_url, canonical_url, url_hash = page_row
+    url_id, crawled_url, canonical_url, url_hash, sitemap_lastmod = page_row
     html: str | None = None
-    html_canonical: CanonicalUrl | None = None
     try:
         html = await on_page.raw_html(run.provider_task_id, crawled_url)
     except ProviderCallError as failure:
@@ -555,10 +573,9 @@ async def _read_page(
         if store is not None:
             packed = await asyncio.to_thread(compress, html.encode())
             await store.put(html_key(run.project_id, url_hash), packed)
-        links = await asyncio.to_thread(classify, html, crawled_url)
-        state = "from_html"
-        # The provider's pages listing does not carry the canonical; the HTML does.
-        html_canonical = _canonical(await asyncio.to_thread(canonical_of, html, crawled_url))
+        return await _from_html(
+            html, url_id, crawled_url, canonical_url, hosts, sitemap_lastmod, history_run=run.id
+        )
     else:
         try:
             provided = await on_page.links_from(run.provider_task_id, crawled_url)
@@ -574,10 +591,55 @@ async def _read_page(
             return _PageLinks(url_id=url_id, state="none", edges=[], capped=False)
         # The provider has no limit on a page's links; this is the most that can become edges.
         links = [_as_found(link) for link in provided[: 4 * EDGES_PER_PAGE_MAX]]
-        state = "from_provider"
     edges, capped = await asyncio.to_thread(_edges_of, links, canonicalize(canonical_url), hosts)
+    return _PageLinks(url_id=url_id, state="from_provider", edges=edges, capped=capped)
+
+
+async def page_links_from_html(
+    html: str, url_id: int, crawled_url: str, canonical_url: str, hosts: frozenset[str]
+) -> _PageLinks:
+    """One page's edges and the canonical its own HTML names, read from its raw HTML. The one
+    place that turns HTML into edges: a crawl's ingest and a re-read of its stored HTML
+    (`crawl_relink`) both use it, so the two cannot differ."""
+    return await _from_html(html, url_id, crawled_url, canonical_url, hosts)
+
+
+async def _from_html(
+    html: str,
+    url_id: int,
+    crawled_url: str,
+    canonical_url: str,
+    hosts: frozenset[str],
+    sitemap_lastmod: datetime | None = None,
+    *,
+    history_run: UUID | None = None,
+) -> _PageLinks:
+    links = await asyncio.to_thread(classify, html, crawled_url)
+    # The provider's pages listing does not carry the canonical; the HTML does.
+    named = await asyncio.to_thread(canonical_of, html, crawled_url)
+    html_canonical = _canonical(named)
+    edges, capped = await asyncio.to_thread(_edges_of, links, canonicalize(canonical_url), hosts)
+    kept: PageHistory | None = None
+    if history_run is not None:  # only a crawl's own ingest keeps a history
+        try:
+            kept = await asyncio.to_thread(
+                history_of, html, crawled_url, named, sitemap_lastmod, links, edges
+            )
+        except Exception as failure:  # one bad page keeps no history; never the page's text
+            _log.warning(
+                "crawl page history not read",
+                run_id=str(history_run),
+                url_id=url_id,
+                error=type(failure).__name__,
+            )
     return _PageLinks(
-        url_id=url_id, state=state, edges=edges, capped=capped, canonical=html_canonical
+        url_id=url_id,
+        state="from_html",
+        edges=edges,
+        capped=capped,
+        canonical=html_canonical,
+        history=kept,
+        facts=await asyncio.to_thread(read_facts, html, crawled_url),
     )
 
 
@@ -641,6 +703,7 @@ async def _links(
                 links_stored=run.links_stored,
                 pages_without_links=len(left.all()),
             )
+            await _history_summary(db, run)
             await _checkpoint(db, run, ingest_phase="template")
         return True
     hosts = site_hosts(run.target_host, run.allowed_subdomains)
@@ -652,6 +715,7 @@ async def _links(
                     crawl_pages.c.crawled_url,
                     urls.c.canonical_url,
                     urls.c.url_hash,
+                    crawl_pages.c.sitemap_lastmod,
                 )
                 .join(urls, urls.c.id == crawl_pages.c.url_id)
                 .where(
@@ -667,6 +731,7 @@ async def _links(
         async with sessions() as db, db.begin():
             if not await _claim(db, run):
                 return False
+            await _history_summary(db, run)
             await _checkpoint(db, run, ingest_phase="template")
         return True
     found: list[_PageLinks] = []
@@ -677,7 +742,13 @@ async def _links(
             store,
             run,
             hosts,
-            (page.url_id, page.crawled_url, page.canonical_url, page.url_hash),
+            (
+                page.url_id,
+                page.crawled_url,
+                page.canonical_url,
+                page.url_hash,
+                page.sitemap_lastmod,
+            ),
         )
         found.append(read)
         held += len(read.edges)
@@ -692,6 +763,7 @@ async def _links(
             + [read.canonical for read in found if read.canonical is not None],
         )
         stored = 0
+        recorded: list[tuple[int, PageHistory]] = []
         for read in found:
             # A page is written once: only the step that moves it out of `waiting` stores it.
             moved = (
@@ -703,12 +775,14 @@ async def _links(
                         crawl_pages.c.url_id == read.url_id,
                         crawl_pages.c.links_state == "waiting",
                     )
-                    .values(links_state=read.state)
+                    .values(links_state=read.state, **facts_values(read.facts))
                     .returning(crawl_pages.c.url_id)
                 )
             ).scalar_one_or_none()
             if moved is None:
                 continue
+            if read.history is not None:
+                recorded.append((read.url_id, read.history))
             if read.canonical is not None:
                 await _store_html_canonical(db, run, read.url_id, ids[read.canonical.url_hash])
             if read.capped:
@@ -741,8 +815,110 @@ async def _links(
                     insert(crawl_links).values(rows[start : start + _LINK_ROWS_PER_STATEMENT])
                 )
             stored += len(rows)
+        try:
+            # A savepoint: a history that cannot be written must not undo the page's links.
+            async with db.begin_nested():
+                await record_checks(
+                    db,
+                    run_id=run.id,
+                    workspace_id=run.workspace_id,
+                    project_id=run.project_id,
+                    taken_at=run.crawled_at or datetime.now(UTC),
+                    pages=recorded,
+                )
+        except Exception as failure:  # a failing history never fails the crawl
+            _log.warning(
+                "crawl page history not stored",
+                run_id=str(run.id),
+                pages=len(recorded),
+                error=type(failure).__name__,
+            )
         await _checkpoint(db, run, links_stored=crawl_runs.c.links_stored + stored)
         return True
+
+
+async def _history_summary(db: AsyncSession, run: _Run) -> None:
+    """The crawl's page history counts, once its pages' checks are stored. A failure here
+    leaves the crawl without a summary row, never without its links."""
+    try:
+        async with db.begin_nested():
+            await summarize_history(db, run_id=run.id, workspace_id=run.workspace_id)
+    except Exception as failure:  # a failing history never fails the crawl
+        _log.warning(
+            "crawl page history not summarised", run_id=str(run.id), error=type(failure).__name__
+        )
+
+
+async def _template_input(
+    db: AsyncSession, run_id: UUID, workspace_id: UUID
+) -> tuple[list[TemplateRow], list[str]]:
+    """The links that may be part of the site's template, and the pages read from HTML."""
+    source = aliased(urls)
+    target = aliased(urls)
+    rows = (
+        await db.execute(
+            select(
+                crawl_links.c.id,
+                source.c.canonical_url.label("source_url"),
+                target.c.canonical_url.label("target_url"),
+                crawl_links.c.container_hash,
+                crawl_links.c.placement,
+            )
+            .join(source, source.c.id == crawl_links.c.source_url_id)
+            .join(target, target.c.id == crawl_links.c.target_url_id)
+            .where(
+                crawl_links.c.run_id == run_id,
+                crawl_links.c.workspace_id == workspace_id,
+                crawl_links.c.template_candidate,
+                crawl_links.c.container_hash.is_not(None),
+            )
+            .order_by(crawl_links.c.source_url_id, crawl_links.c.id)
+        )
+    ).all()
+    pages: list[str] = list(
+        (
+            await db.execute(
+                select(urls.c.canonical_url)
+                .join(crawl_pages, crawl_pages.c.url_id == urls.c.id)
+                .where(
+                    crawl_pages.c.run_id == run_id,
+                    crawl_pages.c.workspace_id == workspace_id,
+                    crawl_pages.c.links_state == "from_html",
+                )
+            )
+        ).scalars()
+    )
+    template_rows = [
+        TemplateRow(
+            link_id=row.id,
+            source_url=row.source_url,
+            target_url=row.target_url,
+            container=row.container_hash,
+            placement=row.placement,
+        )
+        for row in rows
+    ]
+    return template_rows, pages
+
+
+async def _write_template(
+    db: AsyncSession, run_id: UUID, workspace_id: UUID, changes: Mapping[int, str]
+) -> None:
+    if not changes:
+        return
+    await db.execute(
+        update(crawl_links)
+        .where(
+            crawl_links.c.run_id == run_id,
+            crawl_links.c.workspace_id == workspace_id,
+            crawl_links.c.id == bindparam("b_id"),
+        )
+        .values(placement=bindparam("b_placement"), scope=bindparam("b_scope")),
+        [
+            {"b_id": link_id, "b_placement": placement, "b_scope": scope_of(placement).value}
+            for link_id, placement in changes.items()
+        ],
+    )
 
 
 async def _template(
@@ -758,52 +934,7 @@ async def _template(
         await _long_transaction(db)
         if not await _claim(db, run):
             return False
-        source = aliased(urls)
-        target = aliased(urls)
-        rows = (
-            await db.execute(
-                select(
-                    crawl_links.c.id,
-                    source.c.canonical_url.label("source_url"),
-                    target.c.canonical_url.label("target_url"),
-                    crawl_links.c.container_hash,
-                    crawl_links.c.placement,
-                )
-                .join(source, source.c.id == crawl_links.c.source_url_id)
-                .join(target, target.c.id == crawl_links.c.target_url_id)
-                .where(
-                    crawl_links.c.run_id == run.id,
-                    crawl_links.c.workspace_id == run.workspace_id,
-                    crawl_links.c.template_candidate,
-                    crawl_links.c.container_hash.is_not(None),
-                )
-                .order_by(crawl_links.c.source_url_id, crawl_links.c.id)
-            )
-        ).all()
-        pages: list[str] = list(
-            (
-                await db.execute(
-                    select(urls.c.canonical_url)
-                    .join(crawl_pages, crawl_pages.c.url_id == urls.c.id)
-                    .where(
-                        crawl_pages.c.run_id == run.id,
-                        crawl_pages.c.workspace_id == run.workspace_id,
-                        crawl_pages.c.links_state == "from_html",
-                    )
-                )
-            ).scalars()
-        )
-    template_rows = [
-        TemplateRow(
-            link_id=row.id,
-            source_url=row.source_url,
-            target_url=row.target_url,
-            container=row.container_hash,
-            placement=row.placement,
-        )
-        for row in rows
-    ]
-    del rows
+        template_rows, pages = await _template_input(db, run.id, run.workspace_id)
     # A stored placement that is none raises `ValueError`: the step fails, and is not
     # swallowed here, so a corrupt row is never read as editorial.
     changes = await asyncio.to_thread(template_placements, template_rows, pages)
@@ -811,24 +942,7 @@ async def _template(
         await _long_transaction(db)
         if not await _claim(db, run):
             return False
-        if changes:
-            await db.execute(
-                update(crawl_links)
-                .where(
-                    crawl_links.c.run_id == run.id,
-                    crawl_links.c.workspace_id == run.workspace_id,
-                    crawl_links.c.id == bindparam("b_id"),
-                )
-                .values(placement=bindparam("b_placement"), scope=bindparam("b_scope")),
-                [
-                    {
-                        "b_id": link_id,
-                        "b_placement": placement,
-                        "b_scope": scope_of(placement).value,
-                    }
-                    for link_id, placement in changes.items()
-                ],
-            )
+        await _write_template(db, run.id, run.workspace_id, changes)
         await _checkpoint(db, run, ingest_phase="metrics")
         return True
 
@@ -1125,6 +1239,43 @@ _RESET_ANCHORS = text(
 )
 
 
+async def lock_finished_crawl(
+    db: AsyncSession, *, workspace_id: UUID, project_id: UUID, run_id: UUID, project: bool
+) -> Row[Any] | None:
+    """Lock a finished crawl (and, with `project`, its project first, the order the API takes)
+    for work that rewrites its numbers after the fact. None: the crawl is not one to touch (not
+    in a data state, its second job still running, or its links dropped)."""
+    if project:
+        # The API takes the project row first and then a crawl; the same order here. Held
+        # only for the end, as ingest does: the first transaction holds the crawl alone.
+        await db.execute(
+            select(projects.c.id)
+            .where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
+            .with_for_update(of=projects, key_share=True)
+        )
+    row = (
+        await db.execute(
+            select(
+                crawl_runs.c.state,
+                crawl_runs.c.enrich_state,
+                crawl_runs.c.start_url_id,
+                crawl_runs.c.links_dropped_at,
+            )
+            .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
+            .with_for_update(key_share=True)
+        )
+    ).one_or_none()
+    # A crawl whose links were dropped has nothing to count from: its numbers stay as they are.
+    if (
+        row is None
+        or row.state not in DATA_STATES
+        or row.enrich_state not in ("done", "failed")
+        or row.links_dropped_at is not None
+    ):
+        return None
+    return row
+
+
 async def recount_variants(
     sessions: async_sessionmaker[AsyncSession], *, workspace_id: UUID, run_id: UUID
 ) -> RecountOutcome | None:
@@ -1145,40 +1296,11 @@ async def recount_variants(
         return None
     project_id: UUID = found.project_id
 
-    async def lock(db: AsyncSession, *, project: bool) -> Row[Any] | None:
-        if project:
-            # The API takes the project row first and then a crawl; the same order here. Held
-            # only for the end, as ingest does: the first transaction holds the crawl alone.
-            await db.execute(
-                select(projects.c.id)
-                .where(projects.c.workspace_id == workspace_id, projects.c.id == project_id)
-                .with_for_update(of=projects, key_share=True)
-            )
-        row = (
-            await db.execute(
-                select(
-                    crawl_runs.c.state,
-                    crawl_runs.c.enrich_state,
-                    crawl_runs.c.start_url_id,
-                    crawl_runs.c.links_dropped_at,
-                )
-                .where(crawl_runs.c.workspace_id == workspace_id, crawl_runs.c.id == run_id)
-                .with_for_update(key_share=True)
-            )
-        ).one_or_none()
-        # A crawl whose links were dropped has nothing to count from: its numbers stay as they are.
-        if (
-            row is None
-            or row.state not in DATA_STATES
-            or row.enrich_state not in ("done", "failed")
-            or row.links_dropped_at is not None
-        ):
-            return None
-        return row
-
     async with sessions() as db, db.begin():
         await _long_transaction(db)
-        row = await lock(db, project=False)
+        row = await lock_finished_crawl(
+            db, workspace_id=workspace_id, project_id=project_id, run_id=run_id, project=False
+        )
         if row is None:
             return None
         nodes, links, variant_of = await _count_and_read(db, run_id, row.start_url_id)
@@ -1197,7 +1319,12 @@ async def recount_variants(
     )
     async with sessions() as db, db.begin():
         await _long_transaction(db)
-        if await lock(db, project=True) is None:
+        if (
+            await lock_finished_crawl(
+                db, workspace_id=workspace_id, project_id=project_id, run_id=run_id, project=True
+            )
+            is None
+        ):
             return None
         await _store_values(db, workspace_id, run_id, values, lost)
         summary = (

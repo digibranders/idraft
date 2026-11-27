@@ -102,20 +102,27 @@ class GscLimiter:
             found = buckets[key] = TokenBucket(per_minute, self._clock)
         return found
 
-    async def acquire(self, *, user: str, site: str) -> None:
-        """Wait until the project, the Google account and the property each have a token, then
-        take one from each. No bucket is charged while another makes the call wait."""
-        buckets = (
+    def _buckets(self, user: str, site: str) -> tuple[TokenBucket, TokenBucket, TokenBucket]:
+        return (
             self._project,
             self._bucket(self._users, user, self._budgets.user_per_minute),
             self._bucket(self._sites, site, self._budgets.site_per_minute),
         )
-        while True:
-            wait = max(bucket.wait_for_token() for bucket in buckets)
-            if wait <= 0.0:
-                for bucket in buckets:
-                    bucket.take()
-                return
+
+    def try_acquire(self, *, user: str, site: str) -> float:
+        """Take a token from each bucket when all three have one and return 0. Otherwise charge
+        nothing and return the seconds until they would: for a caller that cannot wait."""
+        buckets = self._buckets(user, site)
+        wait = max(bucket.wait_for_token() for bucket in buckets)
+        if wait <= 0.0:
+            for bucket in buckets:
+                bucket.take()
+        return max(wait, 0.0)
+
+    async def acquire(self, *, user: str, site: str) -> None:
+        """Wait until the project, the Google account and the property each have a token, then
+        take one from each. No bucket is charged while another makes the call wait."""
+        while (wait := self.try_acquire(user=user, site=site)) > 0.0:
             await self._sleep(wait)
 
     def quota_exceeded(self, *, site: str) -> None:

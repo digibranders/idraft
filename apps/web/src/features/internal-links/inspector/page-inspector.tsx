@@ -1,27 +1,33 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Copy, ExternalLink, Flag, Layers, ListTree, Workflow } from 'lucide-react';
+import { Copy, ExternalLink, Layers, Search, Sparkles, StickyNote, Workflow, type LucideIcon } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
-import { ExtrasSections } from './extras-sections';
-import { NeighborSection } from './neighbor-section';
+import { DrawerLinksTab } from './drawer-links-tab';
+import { DrawerNotesTab } from './drawer-notes-tab';
+import { DrawerIssuesTab } from './drawer-issues-tab';
+import { DrawerOutlineTab } from './drawer-outline-tab';
+import { DrawerOverviewTab } from './drawer-overview-tab';
+import { DrawerSearchTab } from './drawer-search-tab';
+import { ExtrasSections, type ExtrasPart } from './extras-sections';
+import { HistoryTab } from '@/features/page-history';
 import { BulkTagDialog } from '../pages/bulk-tag-dialog';
 import { usePageBulk, type BulkTarget } from '../pages/use-page-bulk';
-import type { LinksTabContext } from '../tabs';
+import type { PageDrawerContext } from './page-drawer-context';
 import { Inspector } from '@/components/app/inspector/inspector';
 import type { InspectorNavigation } from '@/components/app/inspector/inspector-header';
 import { InspectorFooter } from '@/components/app/inspector/inspector-footer';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
-import { InspectorBody } from '@/components/app/inspector/inspector-tabs';
-import { MetricStrip } from '@/components/app/metric/metric-strip';
+import { InspectorBody, InspectorPanel, InspectorTabs } from '@/components/app/inspector/inspector-tabs';
+import { useInspector } from '@/components/app/inspector/use-inspector';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
-import { TierBadge } from '@/components/app/tier/tier-badge';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
@@ -29,25 +35,37 @@ import { isApiProblem } from '@/lib/api/problem';
 import { copyText } from '@/lib/dom/clipboard';
 import { EMPTY_VALUE, formatInteger, formatTableDate } from '@/lib/format';
 import { useVocabularies } from '@/lib/keywords/taxonomy-reads';
-import { pageFlags, type FlagKey } from '@/lib/internal-links/page-flags';
 import { comparisonOf } from '@/lib/internal-links/page-extras';
 import { changesSummaryQuery, DEFAULT_PAGE_QUERY, pageDetailQuery, tierRulesQuery } from '@/lib/internal-links/queries';
-import { PLACEMENT_KEY, SCOPE_KEY, type Placement } from '@/lib/internal-links/scopes';
-import { tierPosition } from '@/lib/internal-links/tiers';
 import type { PageTier } from '@/lib/internal-links/types';
+import { PAGE_DRAWER_TABS, pageDrawerTab, type PageDrawerTab } from '@/lib/pages/drawer-tabs';
+import { usePageIssues } from '@/lib/pages/issue-source';
+import { OUTLINE_OPEN_AT_START, type OutlineBlockId } from '@/lib/pages/outline-model';
 
 const NONE = 'none';
 const NO_TIER_BULK = (): void => undefined;
-/** Ids of the strip's group and cells, and the target and features of the page's own window. */
-const STRIP = { group: 'links', depth: 'depth', in: 'in', out: 'out' } as const;
+/** The features of the page's own window. */
 const NEW_WINDOW = ['_blank', 'noopener'] as const;
-const TAXONOMY_PATH = '/settings/taxonomy';
+/** The key of each tab's name under `pages.drawer`. */
+const TAB_KEY = {
+  overview: 'tabs.overview',
+  search: 'tabs.search',
+  outline: 'tabs.outline',
+  issues: 'tabs.issues',
+  ai: 'tabs.ai',
+  links: 'tabs.links',
+  history: 'tabs.history',
+  notes: 'tabs.notes',
+} as const satisfies Record<PageDrawerTab, string>;
+
+const loadingSection = (title: string, icon: LucideIcon): ReactElement => (
+  <InspectorSection title={title} icon={icon} status="loading" />
+);
 
 export interface PageInspectorProps {
-  context: LinksTabContext;
+  context: PageDrawerContext;
   /** A url id the API takes (the screen has checked it with `checkUrlId`). */
   urlId: string;
-  canWrite: boolean;
   positionText: string | null;
   navigation: InspectorNavigation | null;
   onStep: ((direction: 'next' | 'previous') => void) | undefined;
@@ -55,14 +73,15 @@ export interface PageInspectorProps {
 }
 
 /**
- * The inspector of one crawled page (spec 7.4, mock `il-drawer.js`): its tier with the source and tags, a strip
- * (depth, links in, links out), linking pages by tier and by placement, the top anchors, the linking pages and
- * outlinks, flags with what they mean, and Open in journey. Equity share is never shown (decision W4).
+ * The tabbed drawer of one crawled page (spec 9, mock `il-drawer.js`). Overview holds the tier with its source and
+ * tags and Needs attention; Search the 28 days of Search Console and the tracked keywords; Issues the page's issues
+ * or, until they exist, its flags; AI the citations; Links
+ * the strip, the linking pages by tier and placement, the changes and anchors cards and the neighbors; Outline
+ * holds the page's numbers, search listing and headings, and Notes what the team wrote about the page. Equity share is never shown (decision W4).
  */
 export function PageInspector({
   context,
   urlId,
-  canWrite,
   positionText,
   navigation,
   onStep,
@@ -70,15 +89,18 @@ export function PageInspector({
 }: PageInspectorProps): ReactElement {
   const t = useTranslations('internalLinks.inspector');
   const words = useTranslations('internalLinks');
+  const drawer = useTranslations('pages.drawer');
+  const extrasWords = useTranslations('internalLinks.inspectorExtras');
   const common = useTranslations('common');
-  const { scope, state, tiers, timeZone } = context;
-  const read = useQuery(pageDetailQuery(scope, urlId, state.scope, context.crawl.run));
+  const { scope, linkScope, tiers, timeZone, canWrite } = context;
+  const read = useQuery(pageDetailQuery(scope, urlId, linkScope, context.crawl.run));
   const rules = useQuery(tierRulesQuery(scope));
   const summary = useQuery(changesSummaryQuery(scope, context.crawl.run));
   // Until the summary has answered (or when it failed) nothing is known of the comparison: no Changes card, so a
   // first crawl never shows one for a moment
   const comparison =
     summary.data === undefined ? null : comparisonOf(summary.data.data.state, context.crawl.crawl?.enrich_state);
+  const linksCompared = summary.data?.data.links_compared ?? true;
   const vocabularies = useVocabularies(scope);
   const tags = useMemo(
     () =>
@@ -92,7 +114,18 @@ export function PageInspector({
   const target: BulkTarget = { ids: [urlId], allMatching: false };
   const detail = read.data?.data ?? null;
   const page = detail?.page ?? null;
-  const scopeWord = words(`scope.${SCOPE_KEY[state.scope]}`).toLowerCase();
+  // The tab is the address's `itab`; an unknown one reads as Overview
+  const inspector = useInspector();
+  const tab = pageDrawerTab(inspector.tab);
+  const issues = usePageIssues(scope, context.crawl.run, urlId);
+  // The open blocks of the Outline tab belong to the drawer, so they stay while stepping from page to page
+  const [openBlocks, setOpenBlocks] = useState<ReadonlySet<OutlineBlockId>>(() => new Set(OUTLINE_OPEN_AT_START));
+  const toggleBlock = (id: OutlineBlockId): void =>
+    setOpenBlocks((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const ruleText = (ruleId: string | null): string | null => {
     const rule = rules.data?.data.find((candidate) => candidate.rule_id === ruleId);
@@ -111,19 +144,6 @@ export function PageInspector({
     if (page.tier_source === 'rule') return t('sourceRule', { rule: ruleText(page.tier_rule_id) ?? EMPTY_VALUE });
     return t('sourceNone');
   };
-  const placementLabel = (placement: Placement): string => words(`placement.${PLACEMENT_KEY[placement]}`);
-  const flagLabel = (key: FlagKey): string => words(`flags.${key}`);
-  const viewAll = (filter: 'src' | 'tgt'): void =>
-    context.setSearch(
-      {
-        tab: 'links',
-        src: filter === 'src' ? urlId : null,
-        tgt: filter === 'tgt' ? urlId : null,
-        inspect: null,
-        itab: null,
-      },
-      { history: 'push' },
-    );
   const copyUrl = (): void => {
     if (page === null) return;
     void copyText(page.url).then((copied) =>
@@ -152,184 +172,167 @@ export function PageInspector({
       </InspectorBody>
     );
   } else {
-    const flags = page === null ? [] : pageFlags(page, state.scope);
-    const inScope = (all: number): string => t('inScope', { scope: scopeWord, count: all });
-    body = (
-      <InspectorBody>
-        <InspectorSection title={t('tier')} icon={Layers} status={page === null ? 'loading' : 'ready'}>
-          {page === null ? null : (
-            <div className="flex flex-col gap-2">
-              <Field>
-                <FieldLabel display="visually-hidden">{t('tierField')}</FieldLabel>
-                <Select<string>
-                  value={page.tier?.tier_id ?? NONE}
-                  disabled={!canWrite || bulk.pending}
-                  placeholder={t('tierField')}
-                  options={[
-                    ...tiers.map((tier) => ({ value: tier.tier_id, label: tier.label })),
-                    { value: NONE, label: words('filters.untiered') },
-                  ]}
-                  onValueChange={(value) =>
-                    void bulk.setTier(target, tiers.find((tier: PageTier) => tier.tier_id === value) ?? null, 'key')
-                  }
+    const tierSection = (
+      <InspectorSection title={t('tier')} icon={Layers} status={page === null ? 'loading' : 'ready'}>
+        {page === null ? null : (
+          <div className="flex flex-col gap-2">
+            <Field>
+              <FieldLabel display="visually-hidden">{t('tierField')}</FieldLabel>
+              <Select<string>
+                value={page.tier?.tier_id ?? NONE}
+                disabled={!canWrite || bulk.pending}
+                placeholder={t('tierField')}
+                options={[
+                  ...tiers.map((tier) => ({ value: tier.tier_id, label: tier.label })),
+                  { value: NONE, label: words('filters.untiered') },
+                ]}
+                onValueChange={(value) =>
+                  void bulk.setTier(target, tiers.find((tier: PageTier) => tier.tier_id === value) ?? null, 'key')
+                }
+              />
+            </Field>
+            <p className="flex flex-wrap items-baseline gap-x-2 type-meta text-foreground-secondary">
+              {sourceLine()}
+              {page.tier_source === 'manual' && canWrite ? (
+                <Button
+                  variant="link"
+                  size="sm"
+                  disabled={bulk.pending}
+                  onClick={() => void bulk.resetToRule(target, 'key')}
+                >
+                  {t('resetToRule')}
+                </Button>
+              ) : null}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {page.tags.length === 0 ? (
+                <span className="type-meta text-foreground-tertiary">{t('noTags')}</span>
+              ) : null}
+              {page.tags.map((tag) => (
+                <Tag
+                  key={tag.term_id}
+                  label={tag.name}
+                  {...(canWrite
+                    ? {
+                        removeLabel: t('removeTag', { tag: tag.name }),
+                        onRemove: () =>
+                          void bulk.changeTag(target, { termId: tag.term_id, name: tag.name }, false, 'key'),
+                      }
+                    : {})}
                 />
-              </Field>
-              <p className="flex flex-wrap items-baseline gap-x-2 type-meta text-foreground-secondary">
-                {sourceLine()}
-                {page.tier_source === 'manual' && canWrite ? (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    disabled={bulk.pending}
-                    onClick={() => void bulk.resetToRule(target, 'key')}
-                  >
-                    {t('resetToRule')}
-                  </Button>
-                ) : null}
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {page.tags.length === 0 ? (
-                  <span className="type-meta text-foreground-tertiary">{t('noTags')}</span>
-                ) : null}
-                {page.tags.map((tag) => (
-                  <Tag
-                    key={tag.term_id}
-                    label={tag.name}
-                    {...(canWrite
-                      ? {
-                          removeLabel: t('removeTag', { tag: tag.name }),
-                          onRemove: () =>
-                            void bulk.changeTag(target, { termId: tag.term_id, name: tag.name }, false, 'key'),
-                        }
-                      : {})}
-                  />
-                ))}
-                {canWrite ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      bulk.clearError();
-                      setTagMode('add');
-                    }}
-                  >
-                    {t('addTag')}
-                  </Button>
-                ) : null}
-              </div>
+              ))}
+              {canWrite ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    bulk.clearError();
+                    setTagMode('add');
+                  }}
+                >
+                  {t('addTag')}
+                </Button>
+              ) : null}
             </div>
-          )}
-        </InspectorSection>
-        <MetricStrip
-          size="sm"
-          label={t('stripLabel')}
-          status={page === null ? 'loading' : 'ready'}
-          groups={[
-            {
-              id: STRIP.group,
-              items: [
-                {
-                  id: STRIP.depth,
-                  label: t('depth'),
-                  value:
-                    page === null || page.click_depth === null ? t('notReachable') : formatInteger(page.click_depth),
-                },
-                {
-                  id: STRIP.in,
-                  label: t('linksIn'),
-                  value: formatInteger(page?.linking_pages ?? 0),
-                  context: inScope(page?.linking_pages_all ?? 0),
-                },
-                {
-                  id: STRIP.out,
-                  label: t('linksOut'),
-                  value: formatInteger(page?.outlinks ?? 0),
-                  context: inScope(page?.outlinks_all ?? 0),
-                },
-              ],
-            },
-          ]}
-        />
-        {detail === null ? null : (
-          <>
-            <InspectorSection title={t('byTier')} icon={ListTree} status="ready">
-              {detail.linking_by_tier.length === 0 ? (
-                <p className="type-body text-foreground-tertiary">{t('noLinksIn')}</p>
-              ) : (
-                <dl className="flex flex-col gap-1">
-                  {[...detail.linking_by_tier]
-                    .sort((a, b) => tierPosition(a.tier) - tierPosition(b.tier))
-                    .map((entry) => (
-                      <div key={entry.tier?.tier_id ?? NONE} className="flex items-center justify-between gap-2">
-                        <dt>
-                          <TierBadge tier={entry.tier} withName />
-                        </dt>
-                        <dd className="num type-table">{formatInteger(entry.pages)}</dd>
-                      </div>
-                    ))}
-                </dl>
-              )}
-              {detail.linking_by_placement.length === 0 ? null : (
-                <>
-                  <h4 className="pt-2 type-label text-foreground-tertiary">{t('byPlacement')}</h4>
-                  <dl className="flex flex-col gap-1">
-                    {detail.linking_by_placement.map((entry) => (
-                      <div key={entry.placement} className="flex items-center justify-between gap-2">
-                        <dt className="type-table">{placementLabel(entry.placement)}</dt>
-                        <dd className="num type-table">{formatInteger(entry.pages)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </>
-              )}
-            </InspectorSection>
-            <ExtrasSections
-              extras={detail.extras}
-              comparison={comparison}
-              linksAvailable={detail.links_available}
-              linksCompared={summary.data?.data.links_compared ?? true}
-            />
-            <NeighborSection
-              scope={scope}
-              urlId={urlId}
-              direction="in"
-              run={context.crawl.run}
-              linksAvailable={detail.links_available}
-              linkScope={state.scope}
-              total={detail.linking_pages_total}
-              title={t('linkingPages', { count: detail.linking_pages_total })}
-              onOpen={context.inspect.open}
-              onViewAll={() => viewAll('tgt')}
-            />
-            <NeighborSection
-              scope={scope}
-              urlId={urlId}
-              direction="out"
-              run={context.crawl.run}
-              linksAvailable={detail.links_available}
-              linkScope={state.scope}
-              total={detail.outlinks_total}
-              title={t('outlinks', { count: detail.outlinks_total })}
-              onOpen={context.inspect.open}
-              onViewAll={() => viewAll('src')}
-            />
-            <InspectorSection title={t('flags')} icon={Flag} status="ready">
-              {flags.length === 0 ? (
-                <p className="type-body text-foreground-tertiary">{t('noFlags')}</p>
-              ) : (
-                <ul className="flex flex-col gap-2">
-                  {flags.map((flag) => (
-                    <li key={flag.key} className="flex flex-col items-start gap-1">
-                      <Badge tone={flag.tone}>{flagLabel(flag.key)}</Badge>
-                      <span className="type-meta text-foreground-secondary">{t(`flagText.${flag.key}`)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </InspectorSection>
-          </>
+          </div>
         )}
-      </InspectorBody>
+      </InspectorSection>
+    );
+    // A panel is never empty while the page loads: it draws the skeleton of its first card
+    const extras = (parts: readonly ExtrasPart[], pendingTitle: string, pendingIcon: LucideIcon): ReactElement =>
+      detail === null ? (
+        loadingSection(pendingTitle, pendingIcon)
+      ) : (
+        <ExtrasSections
+          extras={detail.extras}
+          comparison={comparison}
+          linksAvailable={detail.links_available}
+          linksCompared={linksCompared}
+          parts={parts}
+        />
+      );
+    const panels: Record<PageDrawerTab, ReactElement> = {
+      overview: (
+        <DrawerOverviewTab
+          context={context}
+          urlId={urlId}
+          detail={detail}
+          issues={issues}
+          onTab={inspector.setTab}
+          onCopyAddress={copyUrl}
+          tierSection={tierSection}
+        />
+      ),
+      search: (
+        <DrawerSearchTab
+          context={context}
+          urlId={urlId}
+          url={page?.url ?? null}
+          statusCode={page?.status_code ?? null}
+          keywords={extras(['keywords'], extrasWords('keywords'), Search)}
+        />
+      ),
+      outline: (
+        <DrawerOutlineTab
+          context={context}
+          urlId={urlId}
+          page={page}
+          active={tab === 'outline'}
+          issues={issues}
+          openBlocks={openBlocks}
+          onToggleBlock={toggleBlock}
+        />
+      ),
+      issues: (
+        <DrawerIssuesTab issues={issues} detail={detail} linkScope={linkScope} issueHref={context.hrefs.issueCheck} />
+      ),
+      ai:
+        detail === null ? (
+          loadingSection(extrasWords('citations'), Sparkles)
+        ) : detail.extras.citations.total === 0 ? (
+          <InspectorSection title={extrasWords('citations')} icon={Sparkles} status="ready">
+            <p className="type-body text-foreground-tertiary">{drawer('ai.none')}</p>
+          </InspectorSection>
+        ) : (
+          extras(['citations'], extrasWords('citations'), Sparkles)
+        ),
+      links: (
+        <DrawerLinksTab
+          context={context}
+          urlId={urlId}
+          page={page}
+          detail={detail}
+          comparison={comparison}
+          linksCompared={linksCompared}
+        />
+      ),
+      history: <HistoryTab scope={scope} urlId={urlId} timeZone={timeZone} />,
+      notes:
+        page === null ? (
+          loadingSection(drawer('tabs.notes'), StickyNote)
+        ) : (
+          <DrawerNotesTab context={context} urlId={urlId} path={page.path} active={tab === 'notes'} />
+        ),
+    };
+    const notesCount = detail?.notes_count ?? 0;
+    body = (
+      <InspectorTabs<PageDrawerTab>
+        label={drawer('tabsLabel')}
+        value={tab}
+        onValueChange={inspector.setTab}
+        items={PAGE_DRAWER_TABS.map((id) => ({
+          value: id,
+          label: drawer(TAB_KEY[id]),
+          ...(id === 'notes' && notesCount > 0 ? { count: formatInteger(notesCount) } : {}),
+        }))}
+        overflowLabel={drawer('tabsMore')}
+      >
+        {PAGE_DRAWER_TABS.map((id) => (
+          <InspectorPanel<PageDrawerTab> key={id} value={id}>
+            {panels[id]}
+          </InspectorPanel>
+        ))}
+      </InspectorTabs>
     );
   }
 
@@ -366,9 +369,9 @@ export function PageInspector({
             )
           }
           primary={
-            <Button variant="primary" icon={Workflow} onClick={() => context.openJourney(urlId)}>
+            <LinkButton variant="primary" icon={Workflow} render={<Link href={context.hrefs.journey(urlId)} />}>
               {t('openJourney')}
-            </Button>
+            </LinkButton>
           }
         />
       }
@@ -380,7 +383,7 @@ export function PageInspector({
         count={1}
         tags={tags}
         vocabularies={vocabularies}
-        taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
+        taxonomyHref={context.hrefs.taxonomy}
         pending={bulk.pending}
         alert={bulk.error}
         onApply={async (tag, add) => {

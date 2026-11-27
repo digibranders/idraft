@@ -111,9 +111,9 @@ function scopeText() {
 // Toolbar: the scope on the left, freshness and Export on the right
 
 const title = el('h1', 'sr-only', 'Citations');
-const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => set({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-56' });
-const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => set({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-52' });
-const runsSelect = createSelect({ name: 'Runs', options: RUN_CHOICES.map((choice) => ({ id: String(choice.id), label: choice.label, note: choice.id === 4 ? '28 days' : choice.id === 1 ? RUN_DAYS[3] : `${RUN_DAYS[2]} to ${RUN_DAYS[3]}` })), get: () => String(state.runs), set: (id) => set({ runs: Number(id) }), width: 'min-w-56', triggerWidth: 'sm:w-44' });
+const platformSelect = createSelect({ name: 'Platform', options: platformOptions, get: () => state.platform, set: (id) => set({ platform: id }), width: 'min-w-52', triggerWidth: 'sm:w-48' });
+const groupSelect = createSelect({ name: 'Group', options: groupOptions, get: () => state.group, set: (id) => set({ group: id }), searchable: true, width: 'min-w-60', triggerWidth: 'sm:w-44' });
+const runsSelect = createSelect({ name: 'Runs', options: RUN_CHOICES.map((choice) => ({ id: String(choice.id), label: choice.label, note: choice.id === 4 ? '28 days' : choice.id === 1 ? RUN_DAYS[3] : `${RUN_DAYS[2]} to ${RUN_DAYS[3]}` })), get: () => String(state.runs), set: (id) => set({ runs: Number(id) }), width: 'min-w-56', triggerWidth: 'sm:w-36' });
 
 /** Competitors: a multi-select of the tracked competitors, at most five, the columns of the gap analysis. */
 const competitorTrigger = el('button', 'h-control px-3 w-full min-w-0 max-w-full sm:w-60 rounded-md border border-border bg-surface flex items-center gap-2 whitespace-nowrap type-body text-foreground hover:bg-surface-hover aria-expanded:bg-surface-hover');

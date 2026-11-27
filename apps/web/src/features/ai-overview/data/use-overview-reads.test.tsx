@@ -138,12 +138,21 @@ describe('useOverviewEngines', () => {
     expect(result.current.enabled).not.toContain('google_ai_overview');
   });
 
+  it('names Google AI Overview among the engines the prompts summary answers for, and no engine that is off', async () => {
+    const { result } = renderHook(() => useOverviewEngines(FYNIX), { wrapper });
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+    expect(result.current.answered).toEqual([...result.current.enabled, 'google_ai_overview']);
+  });
+
   it('names no enabled engine for a project with AI off', async () => {
     const { result } = renderHook(() => useOverviewEngines(CLEANSTART), { wrapper });
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
     expect(result.current.enabled).toEqual([]);
+    expect(result.current.answered).toEqual([]);
   });
 });
 
@@ -162,6 +171,25 @@ describe('useOverviewSummary', () => {
     expect(request?.searchParams.get('filter[engine_code_in]')).toBe('gemini_web');
     expect(request?.searchParams.get('filter[country_iso]')).toBe('DE');
     expect(result.current.data).toBeDefined();
+  });
+
+  it('asks for Google AI Overview only when the read is given it, and a read of the other engines never does', async () => {
+    const seen = recordRequests();
+    const { result } = renderHook(
+      () => ({
+        plain: useOverviewSummary(inputOf({})),
+        answered: useOverviewSummary(inputOf({}, [...ALL, 'google_ai_overview'])),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.plain.status).toBe('ready');
+      expect(result.current.answered.status).toBe('ready');
+    });
+    const filters = to(seen, '/ai/prompts-summary').map((url) => url.searchParams.get('filter[engine_code_in]'));
+    expect(filters).toHaveLength(2);
+    expect(filters.filter((filter) => filter?.includes('google_ai_overview') === true)).toHaveLength(1);
+    expect(filters).toContain(ALL.join(','));
   });
 
   it('is not asked while no engine is on, and is idle, never loading and never zero', () => {

@@ -156,10 +156,14 @@ describe('ProjectShell', () => {
     expect(listed).toEqual({
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
-        'Internal links /digibranders/fynix/seo/internal-links',
+        'Cannibalization /digibranders/fynix/seo/cannibalization',
         'AI visibility /digibranders/fynix/ai',
         'Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
+        'Insights /digibranders/fynix/ai/insights',
+        'Pages /digibranders/fynix/seo/pages',
+        'Issues /digibranders/fynix/seo/issues',
+        'Internal links /digibranders/fynix/seo/internal-links',
         'Competitors /digibranders/fynix/competitors',
         'Reports /digibranders/fynix/reports',
         'Integrations /digibranders/fynix/integrations',
@@ -169,10 +173,14 @@ describe('ProjectShell', () => {
       ],
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
-        'Internal links /digibranders/fynix/seo/internal-links',
+        'Cannibalization /digibranders/fynix/seo/cannibalization',
         'AI visibility /digibranders/fynix/ai',
         'Prompts /digibranders/fynix/ai/prompts',
         'Citations /digibranders/fynix/ai/citations',
+        'Insights /digibranders/fynix/ai/insights',
+        'Pages /digibranders/fynix/seo/pages',
+        'Issues /digibranders/fynix/seo/issues',
+        'Internal links /digibranders/fynix/seo/internal-links',
         'Competitors /digibranders/fynix/competitors',
         'Reports /digibranders/fynix/reports',
         'Integrations /digibranders/fynix/integrations',
@@ -181,6 +189,32 @@ describe('ProjectShell', () => {
       ],
       billing: ['Costs /digibranders/fynix/costs', 'Settings /digibranders/fynix/settings'],
     });
+  });
+
+  it('labels the groups SEO, AI visibility and Website audit, and a member without data:read sees no Website audit', async () => {
+    const { unmount } = renderWithProviders(shell('editor'));
+    await screen.findByRole('heading', { name: 'Profile' });
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    const labels = ['SEO', 'AI visibility', 'Website audit'].map((label) => primary.getAllByText(label)[0]);
+    // Their order on the page is their order in the sidebar
+    const [seo, ai, audit] = labels;
+    expect(seo?.compareDocumentPosition(ai as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(ai?.compareDocumentPosition(audit as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    unmount();
+    renderWithProviders(shell('billing'));
+    await screen.findByRole('heading', { name: 'Profile' });
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).queryByText('Website audit')).toBeNull();
+  });
+
+  it('marks Issues as the destination of its path, and names it in the breadcrumb', async () => {
+    navigation.pathname = '/digibranders/fynix/seo/issues';
+    renderWithProviders(shell());
+    await screen.findByRole('heading', { name: 'Profile' });
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    expect(primary.getByRole('link', { name: 'Issues' })).toHaveAttribute('aria-current', 'page');
+    expect(primary.queryByRole('link', { current: 'page', name: 'Internal links' })).toBeNull();
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByText('Issues')).toHaveAttribute('aria-current', 'page');
   });
 
   it('marks Runs as the destination of its nested path, and names it in the breadcrumb', async () => {
@@ -345,11 +379,11 @@ describe('ProjectShell', () => {
   });
 
   it('names no destination on the 404 page of a planned one', async () => {
-    navigation.pathname = '/digibranders/fynix/seo/pages';
+    navigation.pathname = '/digibranders/fynix/matrix';
     renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).queryByText('Pages')).toBeNull();
+    expect(within(crumbs).queryByText('Matrix')).toBeNull();
   });
 
   it('opens the keyboard shortcuts with ?', async () => {

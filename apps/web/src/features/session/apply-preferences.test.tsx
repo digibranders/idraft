@@ -1,9 +1,10 @@
 import { screen, waitFor } from '@testing-library/react';
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, use, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApplyPreferences } from './apply-preferences';
 import { useShortcut } from '@/lib/a11y/use-shortcut';
+import { InspectorWidthUserContext } from '@/lib/inspector/width-store';
 import { clearPreferences, preferenceKey } from '@/lib/preferences/storage';
 import { mockUser } from '@/mocks/fixtures';
 import { SESSION_COOKIE } from '@/mocks/session';
@@ -38,6 +39,20 @@ describe('ApplyPreferences', () => {
     );
     await screen.findByText('Page');
     await waitFor(() => expect(document.documentElement.dataset.motion).toBe('reduced'));
+  });
+
+  it('provides the signed-in user id for the saved drawer width', async () => {
+    function WidthOwner(): ReactNode {
+      return <p>Width of {use(InspectorWidthUserContext)}</p>;
+    }
+    renderWithProviders(
+      <Suspense fallback={null}>
+        <ApplyPreferences>
+          <WidthOwner />
+        </ApplyPreferences>
+      </Suspense>,
+    );
+    expect(await screen.findByText(`Width of ${EDITOR.user_id}`)).toBeInTheDocument();
   });
 
   it.each([

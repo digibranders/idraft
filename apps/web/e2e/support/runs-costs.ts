@@ -142,7 +142,7 @@ export async function openWithFinishedRun(
 export const inspectAddress = (runId: string): string =>
   `${RUNS_PAGE}?${new URLSearchParams({ inspect: `run:${runId}` }).toString()}`;
 
-/** The inspector of a run: beside the table on a wide window, a sheet over it on a narrow one. */
+/** The inspector of a run: a card over the table from 900 px, a sheet below. */
 export const runInspector = (page: Page): Locator =>
   page.getByRole('complementary').or(page.getByRole('dialog')).filter({ hasText: 'Answers by platform' });
 

@@ -39,7 +39,7 @@ from idraft.worker.assembly import (
 from idraft.worker.queues import Queues
 from idraft.worker.ticks import Tick
 from tests.api.auth.support import execute, fetch
-from tests.collectors import gsc_support
+from tests.collectors import ga4_support, gsc_support
 from tests.collectors.crawl_support import FakeOnPage, clear_crawls, site_project
 from tests.collectors.support import (
     FakeProvider,
@@ -52,7 +52,7 @@ from tests.collectors.test_fetching import MemoryStore
 from tests.collectors.test_imports import _csv, _import, _project, _row
 from tests.conftest import TEST_SECRETS_KEY, PostgresServer
 from tests.providers.dataforseo.support import LOGIN, ORIGIN, PASSWORD, Api, FakeGate, fixture
-from tests.providers.google.fake_google import CLIENT_ID, CLIENT_SECRET
+from tests.providers.google.fake_google import CLIENT_ID, CLIENT_SECRET, FakeGoogle
 from tests.worker.conftest import eventually
 
 
@@ -426,6 +426,7 @@ async def test_search_console_is_not_registered_without_a_google_client_and_a_ke
     ticks = ticks_of(context, Registry())
 
     assert "gsc_plan" not in ticks
+    assert "ga4_plan" not in ticks
     assert assembly.gsc_context(context) is None
     # a client and no key, or a key and no client, is not enough either
     for update in (
@@ -473,6 +474,46 @@ async def test_a_property_goes_from_the_tick_through_the_queue_to_stored_numbers
 async def _pulled(pg: PostgresServer, integration_id: object) -> bool:
     state = (await gsc_support.integration_row(pg, integration_id))["backfill_state"]  # type: ignore[arg-type]
     return bool(state.get("gsc", {}).get("complete"))
+
+
+async def _ga4_pulled(pg: PostgresServer, integration_id: object) -> bool:
+    state = (await gsc_support.integration_row(pg, integration_id))["backfill_state"]  # type: ignore[arg-type]
+    return bool(state.get("ga4", {}).get("complete"))
+
+
+async def test_a_ga4_property_goes_from_the_tick_through_the_queue_to_stored_rows(
+    context: WorkerContext, migrated: PostgresServer
+) -> None:
+    await gsc_support.empty_integrations(migrated)
+    fake = FakeGoogle(gsc_support.REDIRECT)
+    prop = await gsc_support.make_property(migrated, fake, kind="ga4")
+    days = ga4_support.serve(fake, gsc_support.GA4_PROPERTY, 5)
+    async with httpx.AsyncClient(transport=fake.transport) as http:
+        configured = replace(context, settings=_google_settings(context.settings), http=http)
+        ticks = ticks_of(configured, Registry())
+        assert (ticks["ga4_plan"].interval, ticks["ga4_plan"].lock_ttl) == (
+            assembly.GA4_PLAN_EVERY,
+            assembly.GA4_PLAN_LOCK,
+        )
+
+        await ticks["ga4_plan"].action()
+        # a second tick while the first message waits sends nothing new
+        await ticks["ga4_plan"].action()
+        await configured.queues.startup()
+        finish = asyncio.Event()
+        receiving = asyncio.create_task(
+            configured.queues.receive("collect", concurrency=1, finish=finish)
+        )
+        try:
+            await eventually(lambda: _ga4_pulled(migrated, prop.integration_id), within=15)
+        finally:
+            finish.set()
+            await receiving
+
+    rows = await ga4_support.stored(migrated, prop.integration_id)
+    assert {row[0] for row in rows} == set(days)
+    assert len(rows) == len(days) * 4
+    assert len(ga4_support.reports(fake)) == 1
 
 
 def _with_credentials(

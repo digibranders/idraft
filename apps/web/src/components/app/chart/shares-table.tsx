@@ -15,6 +15,8 @@ export interface SharesColumn {
   icon?: ReactNode;
   /** Small text under the mark: "166 answers". */
   sub?: string | undefined;
+  /** What `sub` counts, on hover, when the count needs saying ("one answer for each prompt"). */
+  subTip?: string | undefined;
   /** One cell per segment, in the order of the segments; `null` is a subject with nothing to show ("n/a"). */
   cells: readonly { text: string; tip?: string | undefined }[] | null;
   /** What a subject with nothing to show says, once, in its first row: "Too few mentions". */
@@ -48,7 +50,9 @@ export function SharesTable({ segments, columns, caption }: SharesTableProps): R
                 <span className="sr-only">{column.label}</span>
               </span>
               {column.sub === undefined ? null : (
-                <span className="block num text-foreground-tertiary">{column.sub}</span>
+                <span className="block num text-foreground-tertiary" title={column.subTip}>
+                  {column.sub}
+                </span>
               )}
             </th>
           ))}

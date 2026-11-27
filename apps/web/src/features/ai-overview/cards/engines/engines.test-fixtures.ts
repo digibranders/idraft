@@ -90,6 +90,7 @@ export const week = (weekStart: string, input: WeekInput = {}): WeekCells => ({
   mentioned: cellOf(input.mentioned),
   cited: cellOf(input.cited),
   share_of_voice: cellOf(input.shareOfVoice),
+  visibility: cellOf(undefined),
 });
 
 const CONTEXT = {

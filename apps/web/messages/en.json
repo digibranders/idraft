@@ -480,7 +480,9 @@
       "matrix": "Matrix",
       "rankings": "Keywords",
       "keywords": "Keywords",
+      "cannibalization": "Cannibalization",
       "pages": "Pages",
+      "issues": "Issues",
       "internalLinks": "Internal links",
       "aiOverview": "AI visibility",
       "prompts": "Prompts",
@@ -491,11 +493,13 @@
       "integrations": "Integrations",
       "runs": "Runs",
       "costs": "Costs",
-      "settings": "Settings"
+      "settings": "Settings",
+      "insights": "Insights"
     },
     "groups": {
       "seo": "SEO",
-      "ai": "AI visibility"
+      "ai": "AI visibility",
+      "audit": "Website audit"
     },
     "inGroup": "{group}: {item}"
   },
@@ -2070,11 +2074,6 @@
     "firstInList": "First {type} in this list",
     "lastInList": "Last {type} in this list",
     "separator": "·",
-    "width": "Width",
-    "widthDefault": "Default",
-    "widthWide": "Wide",
-    "widthMaximum": "Maximum",
-    "resetWidth": "Reset width",
     "notFound": "This {type} does not exist or you do not have access to it.",
     "sectionError": "This section did not load"
   },
@@ -2307,7 +2306,9 @@
     "loadFailedReason": "The server returned an error. Your filters are unchanged.",
     "noAccessTitle": "You do not have access to Costs",
     "noAccessReason": "You do not have permission to view costs. Ask an admin of this workspace.",
-    "backToOverview": "Back to Overview"
+    "backToOverview": "Back to Overview",
+    "chartInfoWhat": "What was spent with providers each day, split by job type.",
+    "chartInfoHow": "One bar for each day in UTC, stacked by job type. A cost is what the provider reported, a cost computed from tokens, or an estimate from the price book."
   },
   "runs": {
     "pageTitle": "Runs",
@@ -3397,7 +3398,9 @@
       },
       "empty": "No checks yet",
       "emptyReason": "The rank history fills in after the first check.",
-      "failed": "The rank history did not load."
+      "failed": "The rank history did not load.",
+      "infoWhat": "How the rank of this keyword changed over the period. 1 is first.",
+      "infoHow": "Each point is one check: the best placed page of your domains among the organic results, counted from the top, so lower is better. Ads and search features are not counted. A check beyond depth is not drawn as a number."
     },
     "inspector": {
       "type": "Keyword",
@@ -3475,7 +3478,9 @@
         "summary": "Monthly searches from {from} to {to}, between {min} and {max}.",
         "empty": "No monthly volumes yet",
         "emptyReason": "DataForSEO Labs sends them with the keyword's first metrics.",
-        "failed": "The monthly volumes did not load"
+        "failed": "The monthly volumes did not load",
+        "infoWhat": "How many times a month people search Google for this keyword.",
+        "infoHow": "The data provider’s estimate for each month, for the keyword’s location and language. A month the provider has no value for is not drawn as zero."
       },
       "links": {
         "title": "Groups and tags",
@@ -5502,37 +5507,6 @@
     "linkCopied": "Link copied",
     "showSetupSteps": "Show setup steps",
     "cards": "AI visibility cards",
-    "insights": {
-      "title": "Insights",
-      "meta": "Whole project",
-      "retry": "Try again",
-      "atLeastMark": "+",
-      "startTracking": "Start tracking",
-      "viewGaps": "View gaps",
-      "viewPages": "View pages",
-      "emptyTitle": "Nothing to act on",
-      "emptyReason": "Every keyword with a Google AI Overview is a prompt, and no competitor is cited where your site is not.",
-      "lines": {
-        "untracked": {
-          "text": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
-          "failed": "Could not count the keywords with a Google AI Overview",
-          "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked"
-        },
-        "gaps": {
-          "text": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
-          "failed": "Could not count the citation gaps"
-        },
-        "citingCompetitors": {
-          "text": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
-          "failed": "Could not count the domains that cite your competitors",
-          "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked"
-        },
-        "newDomains": {
-          "text": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
-          "failed": "Could not count the new cited domains"
-        }
-      }
-    },
     "loading": "Loading AI visibility",
     "enginesFailedTitle": "The platforms of this project could not be read",
     "enginesFailedReason": "The server did not answer. Try again in a moment.",
@@ -6091,6 +6065,7 @@
         "partCitedOnly": "Cited only",
         "partNeither": "Neither",
         "answers": "{count, number} {count, plural, one {answer} other {answers}}",
+        "keywordAnswersTip": "Google AI Overview has one answer for each prompt whose linked keyword has a valid check. Prompts that share a keyword share one check, so each of them counts it.",
         "segmentTip": "{label}: {share}, {k, number} of {n, number} answers",
         "emptyTitle": "Not enough data",
         "emptyReason": "These prompts have too few valid answers.",
@@ -7653,14 +7628,53 @@
         "title": "AI referral visits",
         "connect": "Connect GA4",
         "notConnectedTitle": "GA4 is not connected",
-        "notConnectedReason": "Connect Google Analytics 4 to see the visits that come from ChatGPT and Gemini, and the pages they land on.",
+        "notConnectedReason": "Connect Google Analytics 4 to see the visits that come from AI platforms such as ChatGPT, Gemini and Perplexity.",
         "linkedTitle": "GA4 is connected, visits are not collected yet",
-        "linkedReason": "This project reads a Google Analytics 4 property. The visits that come from ChatGPT and Gemini will show here once they are collected.",
+        "linkedReason": "This project reads a Google Analytics 4 property. The visits that come from AI platforms such as ChatGPT, Gemini and Perplexity will show here once they are collected.",
         "summaryLinked": "AI referral visits are not shown: Google Analytics 4 is connected, but its visits are not collected yet.",
         "summary": "AI referral visits are not shown: Google Analytics 4 is not connected to this project.",
         "footnote": "A visit is a session as Google Analytics counts it. Nothing is shown until GA4 is connected, and no visit is estimated.",
         "infoWhat": "Visits to your site that come from AI platforms.",
-        "infoHow": "A visit is a session as Google Analytics counts it, from chatgpt.com and gemini.google.com as Google Analytics classifies them. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic."
+        "infoHow": "A visit is a session as Google Analytics counts it. Each visit is counted twice, by the AI Assistant channel of Google Analytics (GA4 channel) and by our own list of AI platform referrers (Our rules), and neither is called the right one. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic.",
+        "classifierLabel": "How visits are counted",
+        "classifierOwnRules": "Our rules",
+        "classifierGa4": "GA4 channel",
+        "meta": "{period}, {classifier, select, own_rules {counted by our rules} other {counted by the GA4 channel}}",
+        "summaryRows": "AI referral visits by platform, {classifier, select, own_rules {counted by our rules} other {counted by the GA4 channel}}: {list}.",
+        "caption": "AI referral visits by platform",
+        "rowText": "{name}: {count, plural, one {# visit} other {# visits}}",
+        "rowTextChange": "{name}: {count, plural, one {# visit} other {# visits}}, {change} against the compared period",
+        "tipPrevious": "Compared period: {count, plural, one {# visit} other {# visits}}",
+        "tipNoPrevious": "No comparison for this platform",
+        "moreRows": "The top {shown} of {total} platforms are drawn. Every platform is in the Table view.",
+        "zeroTitle": "No visits from AI platforms in this period",
+        "zeroReason": "Google Analytics was collected for the whole period and counted no visit from an AI platform.",
+        "throughTitle": "Collected through {date}",
+        "throughReason": "Google Analytics visits are collected up to that day. Nothing after it is in the figures yet.",
+        "fromThroughTitle": "Collected from {since} to {through}",
+        "fromThroughReason": "Google Analytics visits are collected only for those days. The rest of this period is not in the figures.",
+        "partialNotice": "Collected through {date}",
+        "partialFromNotice": "Collected from {since} to {through}",
+        "noneCountedTitle": "{classifier, select, own_rules {No platform is counted by our rules here} other {No platform is counted by the GA4 channel here}}",
+        "noneCountedReason": "Choose the other way of counting, or open the Table view to see every platform.",
+        "summaryNoneCounted": "AI referral visits by platform: {classifier, select, own_rules {our rules count no platform} other {the GA4 channel counts no platform}} in this period.",
+        "stale": "These are the last figures read",
+        "errorTitle": "Could not load AI referral visits",
+        "errorReason": "The server did not answer. Your scope is unchanged.",
+        "summaryFromThrough": "AI referral visits are not shown: Google Analytics is collected from {since} to {through}, which is not the whole of this period.",
+        "summaryThrough": "AI referral visits are not shown: Google Analytics is collected through {date}, before the end of this period.",
+        "summaryZero": "No visits from AI platforms in this period.",
+        "headers": {
+          "platform": "Platform",
+          "ownVisits": "Visits, our rules",
+          "ownChange": "Change, our rules",
+          "ga4Visits": "Visits, GA4 channel",
+          "ga4Change": "Change, GA4 channel",
+          "difference": "Difference (our rules minus GA4 channel)",
+          "ownEngaged": "Engaged visits, our rules",
+          "ga4Engaged": "Engaged visits, GA4 channel"
+        },
+        "fileName": "ai-referral-visits"
       },
       "domainTypes": {
         "title": "Citations by domain type",
@@ -7777,6 +7791,94 @@
       }
     }
   },
+  "aiInsights": {
+    "title": "Insights",
+    "meta": "Whole project",
+    "noAccessTitle": "You cannot open insights",
+    "noAccessReason": "Your role cannot read AI data in this project.",
+    "noPlatformTitle": "No platform is turned on",
+    "noPlatformReason": "Insights count answers, and no platform collects any yet. Turn one on in the platform settings.",
+    "retry": "Try again",
+    "atLeastMark": "+",
+    "showMore": "Show {count} more",
+    "showFewer": "Show fewer",
+    "listLabel": "{section}: list",
+    "na": "n/a",
+    "sections": {
+      "untracked": {
+        "title": "Keywords not tracked as prompts",
+        "headline": "{count, plural, one {keyword shows a Google AI Overview and is not tracked as a prompt} other {keywords show a Google AI Overview and are not tracked as prompts}}",
+        "explain": "Your latest checks show a Google AI Overview for these keywords, and no prompt asks the same question yet.",
+        "failed": "Could not count the keywords with a Google AI Overview",
+        "unknown": "Some keywords or prompts were not counted, so keywords with a Google AI Overview may still be untracked.",
+        "emptyTitle": "Every keyword with a Google AI Overview is a prompt",
+        "emptyReason": "New keywords with a Google AI Overview show here after the next check.",
+        "startTracking": "Start tracking",
+        "startTrackingFor": "Start tracking: {keyword}",
+        "volumeUnknown": "Search volume is not collected for this keyword yet.",
+        "columns": {
+          "keyword": "Keyword",
+          "volume": "Volume",
+          "cited": "Your site",
+          "action": "Action"
+        },
+        "cited": {
+          "yes": "Cited",
+          "no": "Not cited"
+        },
+        "viewAll": "View prompts"
+      },
+      "gaps": {
+        "title": "Citation gaps",
+        "headline": "{count, plural, one {prompt where a competitor is cited and your site is not} other {prompts where a competitor is cited and your site is not}}",
+        "explain": "AI answers cite a tracked competitor on these prompts and leave your site out, on the platforms listed.",
+        "failed": "Could not count the citation gaps",
+        "emptyTitle": "No citation gaps",
+        "emptyReason": "No tracked competitor is cited on a prompt where your site is not, in the last runs.",
+        "viewGap": "View prompt",
+        "viewGapFor": "View prompt: {prompt}",
+        "viewAll": "View all gaps",
+        "columns": {
+          "prompt": "Prompt",
+          "platforms": "Platforms",
+          "competitors": "Competitors cited",
+          "action": "Action"
+        }
+      },
+      "citingCompetitors": {
+        "title": "Domains that cite your competitors",
+        "headline": "{count, plural, one {cited domain cites your tracked competitors, last 28 days} other {cited domains cite your tracked competitors, last 28 days}}",
+        "explain": "These websites are cited in answers that mention a tracked competitor, so they are places to earn a citation too.",
+        "failed": "Could not count the domains that cite your competitors",
+        "unknown": "No competitor shows in the 200 most cited domains, and more domains were not checked.",
+        "emptyTitle": "No domain cites your competitors",
+        "emptyReason": "No cited domain of another site is cited in answers that mention a tracked competitor in the last 28 days.",
+        "viewAll": "View all cited domains",
+        "columns": {
+          "domain": "Domain",
+          "role": "Role",
+          "answers": "Answers",
+          "competitors": "Competitors"
+        },
+        "answers": "{count, plural, one {# answer} other {# answers}}"
+      },
+      "newDomains": {
+        "title": "New cited domains",
+        "headline": "{count, plural, one {new cited domain this month} other {new cited domains this month}}",
+        "explain": "Domains that AI answers cite this month and did not cite in the month before.",
+        "failed": "Could not count the new cited domains",
+        "emptyTitle": "No new cited domains",
+        "emptyReason": "Every domain cited this month was cited in the month before.",
+        "viewAll": "View all cited domains",
+        "columns": {
+          "domain": "Domain",
+          "firstSeen": "First seen",
+          "citations": "Citations"
+        },
+        "firstSeenUnknown": "The first answer that cited this domain was not recorded."
+      }
+    }
+  },
   "citations": {
     "title": "Citations",
     "noAccessTitle": "You cannot open citations",
@@ -7784,7 +7886,6 @@
     "toolbar": {
       "label": "Scope and actions",
       "scope": "Scope",
-      "prefix": "{name}:",
       "trigger": "{name}: {value}",
       "platform": "Platform",
       "allPlatforms": "All platforms",
@@ -8118,6 +8219,518 @@
       "brandCited": "{brand} citing answers"
     }
   },
+  "cannibalization": {
+    "title": "Cannibalization",
+    "noAccessTitle": "You cannot see this page",
+    "noAccessReason": "Ask a project owner to give you access to the project data.",
+    "toolbar": {
+      "label": "Scope and actions",
+      "scope": "Scope",
+      "trigger": "{name}: {value}",
+      "device": "Device",
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "group": "Group",
+      "allGroups": "All groups",
+      "groupSearch": "Search groups",
+      "groupEmpty": "No group matches “{query}”",
+      "groupClear": "Clear the search",
+      "groupOpen": "Show the groups",
+      "period": "Period",
+      "days14": "Last 14 days",
+      "days30": "Last 30 days",
+      "days90": "Last 90 days",
+      "reset": "Reset scope",
+      "export": "Export",
+      "exportLabel": "Export this table as CSV"
+    },
+    "tabs": {
+      "label": "Cannibalization views",
+      "cannibalization": "Cannibalization",
+      "switching": "Switching",
+      "keywordsCount": ", {count, plural, one {# keyword} other {# keywords}}",
+      "switchesCount": ", {count, plural, one {# switch} other {# switches}}"
+    },
+    "views": {
+      "label": "Table",
+      "keywords": "By keyword",
+      "pairs": "By page pair",
+      "changes": "Changes"
+    },
+    "show": {
+      "label": "Show",
+      "conflicts": "Conflicts",
+      "likely": "Likely",
+      "coRanking": "Co-ranking",
+      "unstable": "Unstable",
+      "all": "All keywords"
+    },
+    "switchShow": {
+      "label": "Show",
+      "all": "All switches",
+      "flipFlop": "Flip-flops",
+      "improved": "Rank improved",
+      "dropped": "Rank dropped",
+      "leftTarget": "Left the target"
+    },
+    "switched": {
+      "only": "Only keywords that switched"
+    },
+    "search": {
+      "label": "Search in table",
+      "keywords": "Search keywords",
+      "pages": "Search pages"
+    },
+    "pairFilter": {
+      "text": "{a} and {b}",
+      "clear": "Clear the page filter"
+    },
+    "verdict": {
+      "likely": {
+        "label": "Likely cannibalization",
+        "short": "Likely",
+        "what": "Two or more of your pages swap the best rank, and the keyword ranks 3 or more places worse when the other page is the one that ranks."
+      },
+      "coRanking": {
+        "label": "Co-ranking",
+        "short": "Co-ranking",
+        "what": "Two of your pages are both in the top 20 on at least half of the checks. Often fine, for example a service page beside a guide."
+      },
+      "unstable": {
+        "label": "Unstable page",
+        "short": "Unstable",
+        "what": "The ranking page changes often, but the rank does not get worse for it."
+      },
+      "none": {
+        "label": "No conflict",
+        "short": "None",
+        "what": "One page ranks, or the pages do not compete."
+      },
+      "unranked": {
+        "label": "Not in the top 100",
+        "short": "Not ranked",
+        "what": "None of your pages ranked in the top 100 in this period, so there is nothing to compete."
+      },
+      "insufficient": {
+        "label": "Not enough checks",
+        "short": "Too early",
+        "what": "Fewer than 10 checks in this period ranked the keyword, so nothing is said yet."
+      },
+      "tip": "{label}. {what}"
+    },
+    "measures": {
+      "label": "Cannibalization measures",
+      "aria": "{label}: {value}. {hint}",
+      "change": "{before} in the {days} days before. Counts are not tested for detectability.",
+      "ofRanked": "of {ranked} ranked",
+      "places": "{count, plural, one {# place} other {# places}}",
+      "conflicts": {
+        "label": "Keywords with a conflict",
+        "what": "How many ranked keywords have two or more of your pages in conflict.",
+        "how": "Likely cannibalization, co-ranking and unstable page together. A keyword with fewer than 10 ranked checks in the period is not judged.",
+        "whatLive": "{ofRanked} keywords have a conflict."
+      },
+      "likely": {
+        "label": "Likely cannibalization",
+        "what": "Keywords where two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks.",
+        "how": "Evidence of competition, not proof of cause."
+      },
+      "together": {
+        "label": "Co-ranking",
+        "what": "Keywords where two of your pages are both in the top 20 on at least half of the checks.",
+        "how": "A page nested under another of your results (a sub-result) does not count."
+      },
+      "unstable": {
+        "label": "Unstable page",
+        "what": "Keywords where the ranking page changes often and the rank does not get worse for it.",
+        "how": "The ranking page changed on at least 2 of every 10 checks, and the rank did not get worse."
+      },
+      "volume": {
+        "label": "Search volume at risk",
+        "what": "Monthly searches of the keywords with likely cannibalization.",
+        "how": "The sum of the keyword search volumes, as the provider reports them. It sizes the problem and does not estimate lost clicks.",
+        "whatLive": "Monthly searches of the {count, plural, one {# keyword} other {# keywords}} with likely cannibalization."
+      },
+      "gap": {
+        "label": "Typical rank gap",
+        "what": "How many places lower a keyword ranks, in the middle of the likely cases, when another page is the ranking page.",
+        "how": "The median over the keywords with likely cannibalization in the period.",
+        "howLive": "The median over {count, plural, one {# keyword} other {# keywords}} with likely cannibalization, in the last {days} days."
+      },
+      "switches": {
+        "label": "Confirmed switches",
+        "what": "Times the ranking page changed and stayed changed.",
+        "how": "A switch counts when the new page is also the ranking page on the next readable check. A change that lasts one check is not counted.",
+        "howLive": "A switch counts when the new page is also the ranking page on the next readable check. {count, plural, one {# one-check change} other {# one-check changes}} in the last {days} days {count, plural, one {was} other {were}} not counted."
+      },
+      "switchedKeywords": {
+        "label": "Keywords that switched",
+        "what": "Ranked keywords whose ranking page changed at least once in the period.",
+        "how": "Ranked keywords have at least 10 ranked checks in the period.",
+        "whatLive": "{ofRanked} keywords changed their ranking page at least once in the period."
+      },
+      "flipFlops": {
+        "label": "Flip-flop keywords",
+        "what": "Keywords where a page took over and the page it replaced came back.",
+        "how": "The page returns within 14 days. The first move shows as Moved until the page returns."
+      },
+      "leftTarget": {
+        "label": "Left the target page",
+        "what": "Switches away from the page you set as the keyword’s target page.",
+        "how": "Only keywords with a target page count."
+      },
+      "improved": {
+        "label": "Rank improved after",
+        "what": "Switches after which the keyword ranked better than before.",
+        "how": "Compares the rank on the last check before the switch with the rank on the first check after."
+      },
+      "dropped": {
+        "label": "Rank dropped after",
+        "what": "Switches after which the keyword ranked worse than before.",
+        "how": "Compares the rank on the last check before the switch with the rank on the first check after."
+      },
+      "notKnown": "Not known"
+    },
+    "columns": {
+      "keyword": "Keyword",
+      "status": "Status",
+      "pages": "Pages",
+      "rank": "Rank",
+      "gap": "Rank gap",
+      "switches": "Switches",
+      "together": "Together",
+      "volume": "Volume",
+      "history": "Ranking page",
+      "pair": "Pages",
+      "pairKeywords": "Keywords",
+      "pairVolume": "Volume",
+      "pairLikely": "Likely",
+      "lead": "Which page ranks better",
+      "overlap": "Title overlap",
+      "when": "When",
+      "switch": "Switch",
+      "rankChange": "Rank",
+      "held": "Held",
+      "type": "Type",
+      "target": "Target page",
+      "now": "Ranking page now",
+      "switchCount": "Switches",
+      "flipFlops": "Flip-flops",
+      "pageCount": "Pages",
+      "heldNow": "Held now",
+      "longest": "Longest hold"
+    },
+    "tips": {
+      "status": "The class of the detector: likely cannibalization, co-ranking, unstable page, or none.",
+      "pages": "Your pages that rank for the keyword, the page to compare with first. Colors match the history strip.",
+      "rank": "Best rank of your pages on the last check.",
+      "gap": "Places lower the keyword ranks when another page, not the page to compare with, is the ranking page.",
+      "switches": "Times the ranking page changed and stayed changed in the period.",
+      "together": "Share of checks with two of your pages in the top 20.",
+      "volume": "Monthly searches, provider value.",
+      "history": "Which page ranked on each check of the period, one cell per check. A color change is a switch.",
+      "pairKeywords": "Keywords with a conflict where both pages rank in the top 100.",
+      "pairVolume": "Monthly searches of those keywords.",
+      "pairLikely": "How many of the keywords are likely cannibalization.",
+      "lead": "On how many of the keywords each page has the better median rank.",
+      "overlap": "Share of title words the two pages have in common. A hint that the pages answer the same question, not a verdict.",
+      "when": "The first check on which the new page ranked.",
+      "switch": "The page that ranked, then the page that ranks now.",
+      "rankChange": "Rank on the last check before the switch, then on the first check after.",
+      "held": "Days the old page was the ranking page before the switch.",
+      "type": "Flip-flop: the page that took over returned the page it replaced within 14 days. Moved: any other confirmed switch.",
+      "target": "Whether the switch left or came back to the page set as the keyword’s target page.",
+      "now": "The page that ranks on the last check.",
+      "pagesCount": "Your pages that ranked for the keyword in the period.",
+      "heldNow": "Days the ranking page has held the best rank up to the last check.",
+      "longest": "The longest stretch of days one page held the best rank."
+    },
+    "cells": {
+      "gapValue": "+{count}",
+      "gapTip": "{count, plural, one {# place} other {# places}} lower when another page ranks",
+      "pageName": "Page {letter}:",
+      "pageTip": "{title} ({path})",
+      "notTarget": "Not the target page",
+      "notTargetTip": "Ranks with {current}. The target page is {target}.",
+      "pagesLabel": "Pages for {keyword}: {pages}. Show the list with addresses and numbers.",
+      "pageLabel": "page {letter}, {path}",
+      "more": "+{count}",
+      "rankBefore": "{before} to {after}",
+      "heldDays": "{count, plural, one {# day} other {# days}}",
+      "moved": "Moved",
+      "flipFlop": "Flip-flop",
+      "leftTarget": "Left the target",
+      "leadsTip": "{a} ranks better on {aCount, plural, one {# keyword} other {# keywords}}, {b} on {bCount}.",
+      "leadSide": "keywords where page {letter} ranks better",
+      "improvedBy": "Improved by {count, plural, one {# place} other {# places}}",
+      "droppedBy": "Dropped by {count, plural, one {# place} other {# places}}",
+      "backOnTarget": "Back on target",
+      "notInvolved": "Not involved"
+    },
+    "strip": {
+      "label": "Ranking page on each of the last {checks} checks: {pages}. {switches, plural, one {# switch} other {# switches}}",
+      "page": "{letter} {path} {checks}",
+      "noChecks": "No checks in this period"
+    },
+    "popover": {
+      "label": "Pages for {keyword}",
+      "head": "Pages that rank for this keyword",
+      "meta": "{keyword} · {device} · last {days} days",
+      "best": "Best page",
+      "target": "Target page",
+      "subResult": "Sub-result",
+      "openPage": "{path}, opens the page in a new tab",
+      "numbers": "Ranked on {share} of checks · ranking page on {best} · median rank {median}",
+      "details": "Open the evidence for this keyword"
+    },
+    "keywordTable": {
+      "caption": "Keywords where more than one of your pages competes",
+      "rowLabel": "Open {keyword}",
+      "footer": "{count, plural, one {# keyword} other {# keywords}}",
+      "early": "{count, plural, one {# keyword} other {# keywords}} too early to judge (fewer than 10 ranked checks)",
+      "updated": "Updated {date} · daily checks",
+      "emptyTitle": "No conflicts in this scope",
+      "emptyReason": "No keyword in the last {days} days has two of your pages competing. Choose a longer period, or look at all keywords.",
+      "showAll": "Show all keywords",
+      "noMatchTitle": "No keywords match",
+      "noMatchSearch": "No keyword contains “{query}”.",
+      "noMatchPair": "No keyword has both pages of this pair in the top 100.",
+      "clearSearch": "Clear search",
+      "clearPair": "Clear the page filter",
+      "truncated": "Showing the first {read} of {total} keywords"
+    },
+    "pairTable": {
+      "caption": "Pairs of your pages that compete",
+      "rowLabel": "Show the keywords of {a} and {b}",
+      "footer": "{count, plural, one {# page pair} other {# page pairs}}",
+      "hint": "Fix at page level: merge, redirect or differentiate one of the two.",
+      "emptyTitle": "No page pairs in this scope",
+      "emptyReason": "No two pages compete on three or more checks of any keyword.",
+      "noMatchTitle": "No pairs match",
+      "noMatchReason": "No pair has a page containing “{query}”."
+    },
+    "changesTable": {
+      "caption": "Confirmed switches of the ranking page",
+      "footer": "{count, plural, one {# switch} other {# switches}}",
+      "emptyTitle": "No switches in this scope",
+      "emptyReason": "The ranking page of no keyword changed and stayed changed in the last {days} days. Choose a longer period.",
+      "noMatchTitle": "No switches match",
+      "noMatchReason": "No switch fits this filter and search.",
+      "clearFilters": "Show all switches",
+      "truncated": "Showing the first {read} of {total} switches",
+      "footerNote": "The first move of a flip-flop shows as Moved until the page returns."
+    },
+    "switchKeywordTable": {
+      "caption": "Keywords and how their ranking page changed",
+      "footer": "{count, plural, one {# keyword} other {# keywords}} of {total} ranked",
+      "emptyTitle": "No keyword switched",
+      "emptyReason": "The ranking page of no keyword changed in the last {days} days. Choose a longer period, or look at all keywords.",
+      "showAll": "Show all keywords",
+      "notEnoughTitle": "Not enough checks yet",
+      "notEnoughReason": "A keyword needs 10 ranked checks in the period before its switches are read. Daily checks fill this in over the next days."
+    },
+    "chart": {
+      "title": "Switches per week",
+      "meta": "By what the new page did to the rank",
+      "weekOf": "Week of",
+      "improved": "Rank improved",
+      "same": "No change",
+      "dropped": "Rank dropped",
+      "total": "Total",
+      "summary": "Confirmed switches per week of the last {days} days: {weeks}.",
+      "week": "{label}: {improved} improved, {same} no change, {dropped} dropped",
+      "info": {
+        "what": "How many confirmed switches happened each week, by what the new page did to the rank.",
+        "how": "Each column splits a week’s switches into rank improved, no change and rank dropped. Many switches across many keywords in one week can be the sign of a Google update."
+      },
+      "emptyTitle": "No switches in this period",
+      "emptyReason": "Nothing to draw: no keyword changed its ranking page.",
+      "errorTitle": "Could not load the switches",
+      "errorReason": "The server returned an error. Your scope is unchanged.",
+      "retry": "Try again"
+    },
+    "states": {
+      "loadFailedTitle": "Could not load cannibalization",
+      "loadFailedReason": "The server returned an error. Your scope is unchanged.",
+      "retry": "Try again",
+      "noKeywordsTitle": "No tracked keywords yet",
+      "noKeywordsReason": "Cannibalization reads the checks of the keywords you track. Add keywords to see which of your pages compete for them.",
+      "addKeywords": "Go to Keywords"
+    },
+    "inspector": {
+      "typeLabel": "Keyword",
+      "typeNoun": "keyword",
+      "tabsLabel": "Keyword sections",
+      "position": "{index} of {count}",
+      "period": "Last {days} days",
+      "volume": "{count, plural, one {# search} other {# searches}} a month",
+      "loadFailed": "Could not load this keyword",
+      "loadFailedReason": "The server returned an error. The page behind this drawer is unchanged.",
+      "tabs": {
+        "overview": "Evidence",
+        "timeline": "Timeline",
+        "pages": "Pages"
+      },
+      "sentence": {
+        "unranked": "None of your pages was in the top 100 in the last {days} days.",
+        "insufficient": "Only {count, plural, one {# check} other {# checks}} in this period ranked the keyword, and {min} are needed before the detector says anything.",
+        "likely": "{a} and {b} took turns as the ranking page {count, plural, one {# time} other {# times}}. When {b} ranked, the keyword sat {gap, plural, one {# place} other {# places}} lower.",
+        "coRanking": "{a} (median {aMedian}) and {b} (median {bMedian}) were both in the top 20 on {share} of checks.",
+        "unstable": "The ranking page changed {count, plural, one {# time} other {# times}} and the rank held, so the keyword did not get worse for it.",
+        "noneChanged": "{page} ranks. The ranking page changed {count, plural, one {# time} other {# times}} in this period, which is not enough to call it a conflict.",
+        "noneSteady": "{page} is the only page that ranks, and it has not changed."
+      },
+      "evidence": {
+        "title": "What the checks show",
+        "meta": "{count, plural, one {# ranked check} other {# ranked checks}}",
+        "note": "{what} This is evidence of competition between your pages, not proof of cause.",
+        "gap": "Rank gap",
+        "switches": "Switches",
+        "together": "Together",
+        "tips": {
+          "gap": "Places lower the keyword ranks when another page, not the page to compare with, is the ranking page.",
+          "switches": "Confirmed switches in the last {days} days.",
+          "switchesHeld": "Confirmed switches in the last {days} days. {count, plural, one {# one-check change was} other {# one-check changes were}} not counted.",
+          "together": "Share of checks with two of your pages in the top 20."
+        }
+      },
+      "rank": {
+        "title": "Rank by page",
+        "meta": "Lower is better",
+        "header": "Check",
+        "summary": "Rank of each of your pages for {keyword} over the last {days} days. {pages}",
+        "page": "Page {letter}, {path}: median rank {median}."
+      },
+      "causes": {
+        "title": "Possible causes to check",
+        "meta": "Hypotheses, not findings",
+        "titleOverlap": "The titles share {share} of their words: {a} and {b}.",
+        "sameSection": "Same section of the site: both pages are under {section}, so they may answer the same question and leave Google no clear choice.",
+        "differentSections": "Different sections of the site, {a} and {b}. The address is the only page type we have, so check which one the searcher wants.",
+        "offTarget": "The target page is {target}, but {current} ranks.",
+        "coRanking": "Two pages in the top 20 can be fine: each may win a different searcher.",
+        "internalLinks": "Internal links and anchor text may point several pages at the same phrase. Check the links to each page."
+      },
+      "options": {
+        "title": "Options",
+        "meta": "You decide, nothing changes by itself",
+        "targetLabel": "Pages you can set as the target page",
+        "setTarget": "Set as target page",
+        "setTargetLabel": "Set {path} as target page",
+        "clearTarget": "Clear target page",
+        "clearTargetLabel": "Clear target page, now {path}",
+        "isTarget": "Target page",
+        "noAccess": "Setting a target page needs permission to edit keywords.",
+        "targetSaved": "Target page set",
+        "targetSavedText": "{keyword} now has {path} as its target page.",
+        "targetCleared": "Target page cleared",
+        "targetClearedText": "{keyword} has no target page.",
+        "targetFailed": "Could not change the target page",
+        "targetFailedReason": "The target page of {keyword} is unchanged. Try again.",
+        "targetFailedAccess": "You do not have permission to edit this keyword. Nothing changed.",
+        "plan": "Plan a merge or redirect",
+        "planNote": "Opens Internal links on the links between the two pages.",
+        "serp": "Open the SERP snapshot",
+        "serpNote": "Opens the keyword on the Keywords page, on its SERP snapshots."
+      },
+      "timeline": {
+        "lanesTitle": "Ranking page by day",
+        "lanesMeta": "{count, plural, one {# check} other {# checks}}",
+        "lanesLabel": "Ranking page on each of the last {count} checks. {pages} The switches are listed below.",
+        "laneText": "Page {letter}, {path}: ranking page on {count, plural, one {# check} other {# checks}}.",
+        "key": "Full color: the ranking page. Faded: ranked beside it. Outlined: the result address was hidden, so the check names no page.",
+        "cellRanking": "{date}: rank {rank}, the ranking page",
+        "cellBeside": "{date}: rank {rank}, beside the ranking page",
+        "cellNone": "{date}: not in the top 100",
+        "cellUnreadable": "{date}: result address hidden, not read",
+        "switchesTitle": "Switches",
+        "switchesMeta": "{count, plural, one {# confirmed switch} other {# confirmed switches}}",
+        "caption": "Confirmed switches of the ranking page",
+        "changedTo": "changed to",
+        "emptyTitle": "No confirmed switch",
+        "emptyReason": "The ranking page did not change and stay changed in this period.",
+        "emptyOneCheck": "{count, plural, one {# one-check change} other {# one-check changes}} did not hold, so {count, plural, one {it is} other {they are}} not counted.",
+        "laneGroup": "Page {letter}, {path}: one cell per check. Use the arrow keys to move between checks."
+      },
+      "pages": {
+        "title": "Your pages for this keyword",
+        "meta": "{count, plural, one {# page} other {# pages}}",
+        "shareLabel": "Ranked on",
+        "rankingLabel": "Ranking page on",
+        "medianLabel": "Median rank",
+        "bestLabel": "Best rank",
+        "share": "{share} of checks",
+        "rankingChecks": "{count, plural, one {# check} other {# checks}}",
+        "emptyTitle": "No page ranks",
+        "emptyReason": "None of your pages was in the top 100 in this period.",
+        "note": "A sub-result sits under another result at the same rank and is not a second result."
+      },
+      "groups": "{count, plural, one {Group} other {Groups}}: {names}",
+      "notFoundTitle": "This keyword is not in the table",
+      "notFoundReason": "It has no checks in this device and period, is outside the group, or you do not have access to it."
+    },
+    "export": {
+      "done": "Exported {rows, plural, one {# row} other {# rows}} as {file}.",
+      "truncatedKeywords": "The page read the first {read} of {total} keywords, so the file does not hold the rest.",
+      "truncatedSwitches": "The page read the first {read} of {total} switches, so the file does not hold the rest.",
+      "failedTitle": "Could not export the table",
+      "failedDescription": "Nothing was saved. Try again.",
+      "keywordColumns": {
+        "keyword": "Keyword",
+        "status": "Status",
+        "pages": "Pages",
+        "rank": "Rank",
+        "gap": "Rank gap (places)",
+        "switches": "Switches",
+        "together": "Together (percent of checks)",
+        "volume": "Volume",
+        "rankingPage": "Ranking page"
+      },
+      "pairColumns": {
+        "pageA": "Page A",
+        "pageB": "Page B",
+        "keywords": "Keywords",
+        "volume": "Volume",
+        "likely": "Likely",
+        "aLeads": "Keywords where page A ranks better",
+        "bLeads": "Keywords where page B ranks better",
+        "overlap": "Title overlap (percent)"
+      },
+      "changeColumns": {
+        "keyword": "Keyword",
+        "when": "When",
+        "from": "From page",
+        "to": "To page",
+        "rankBefore": "Rank before",
+        "rankAfter": "Rank after",
+        "held": "Held (days)",
+        "type": "Type",
+        "target": "Target page"
+      },
+      "switchKeywordColumns": {
+        "keyword": "Keyword",
+        "now": "Ranking page now",
+        "switches": "Switches",
+        "flipFlops": "Flip-flops",
+        "pages": "Pages",
+        "heldNow": "Held now (days)",
+        "longest": "Longest hold (days)"
+      }
+    },
+    "widths": {
+      "reset": "Reset column widths",
+      "separator": "Resize the {column} column",
+      "value": "{count} pixels wide"
+    },
+    "unknown": {
+      "rank": "Not ranked",
+      "page": "Not ranked",
+      "volume": "Not known",
+      "overlap": "Not known",
+      "gap": "Not known",
+      "target": "No target set"
+    }
+  },
   "fanout": {
     "engineNote": "{engines} {count, plural, one {does} other {do}} not expose fan-out.",
     "engineNoteTip": "Their queries are not exposed. That is not the same as no query being issued.",
@@ -8390,6 +9003,72 @@
           "title": "Prompts lost split",
           "summary": "How the prompts lost are divided among the competitors that took them."
         }
+      }
+    },
+    "info": {
+      "mentionsByBrand": {
+        "what": "How often each tracked brand is mentioned in AI answers.",
+        "how": "The share of valid answers whose text mentions the brand. Each prompt counts once. For all platforms it is the average of the platforms; with one platform chosen it is that platform’s rate."
+      },
+      "mentionsByPlatform": {
+        "what": "How often your brand and the leading competitors are mentioned on each platform.",
+        "how": "One group of bars for each platform: the share of that platform’s valid answers that mention the brand. Each prompt counts once."
+      },
+      "mentionsTrend": {
+        "what": "How each brand’s mention rate changes from week to week.",
+        "how": "One point for each weekly run and one line for each brand: the share of that week’s valid answers that mention the brand."
+      },
+      "citationsByBrand": {
+        "what": "How the citations in AI answers divide among the tracked brands.",
+        "how": "Each brand’s part of all citations in scope. A page is counted once for each answer that cites it. It is a share of citations, not of answers."
+      },
+      "citationsByPlatform": {
+        "what": "How the citations on each platform divide between your brand and the leading competitors.",
+        "how": "One group of bars for each platform: each brand’s part of all citations in scope on that platform."
+      },
+      "sovByBrand": {
+        "what": "How much of the brand talk in AI answers is about each tracked brand.",
+        "how": "A brand’s mentions over all tracked-brand mentions. An answer that mentions three tracked brands adds three. It depends on which competitors are tracked: adding one lowers every other share."
+      },
+      "sovByPlatform": {
+        "what": "How the brand mentions on each platform divide between your brand and the leading competitors.",
+        "how": "One group of bars for each platform: a brand’s mentions over all tracked-brand mentions on that platform."
+      },
+      "sovTrend": {
+        "what": "How each brand’s share of voice changes from week to week.",
+        "how": "One point for each weekly run and one line for each brand: a brand’s mentions over all tracked-brand mentions that week."
+      },
+      "sovChange": {
+        "what": "How far each brand’s share of voice moved since the comparison period.",
+        "how": "The difference in points between the current period and the period chosen in Compare with."
+      },
+      "sovSplit": {
+        "what": "How the brand mentions divide among the tracked brands.",
+        "how": "One slice for each brand: its mentions over all tracked-brand mentions. Brands beyond the five largest are added up as Other brands."
+      },
+      "citationsSplit": {
+        "what": "How the citations divide among the tracked brands.",
+        "how": "One slice for each brand: its part of all citations in scope. Brands beyond the five largest are added up as Other brands."
+      },
+      "lostSplit": {
+        "what": "Which competitors took the prompts your brand lost.",
+        "how": "A prompt is lost to a competitor when an answer mentions the competitor and not your brand. One slice for each competitor, counted in prompts."
+      },
+      "visibilityByPlatform": {
+        "what": "How often each tracked brand is mentioned on each platform.",
+        "how": "One group of bars for each platform: the share of that platform’s valid answers that mention the brand. Each prompt counts once."
+      },
+      "seoRankSplit": {
+        "what": "How your tracked keywords divide by rank band.",
+        "how": "Each of your tracked keywords is placed in a band by its rank at the latest check: top 3, 4 to 10, 11 to 20, 21 and below, or not ranked. Ads and search features are not counted."
+      },
+      "seoTop10": {
+        "what": "How many tracked keywords each brand ranks for in the top 10.",
+        "how": "Counted at the latest check of each keyword. Search rankings are not AI answers, so the platform filters do not apply."
+      },
+      "seoBuckets": {
+        "what": "How the tracked keywords of each brand divide by rank band.",
+        "how": "One column for each brand: its keywords at the latest check by band, from top 3 to not ranked. Search rankings are not AI answers, so the platform filters do not apply."
       }
     }
   },
@@ -9037,6 +9716,535 @@
       }
     }
   },
+  "pages": {
+    "title": "Pages",
+    "drawer": {
+      "tabsLabel": "Page sections",
+      "tabsMore": "More sections",
+      "tabs": {
+        "overview": "Overview",
+        "search": "Search",
+        "outline": "Outline",
+        "issues": "Issues",
+        "ai": "AI",
+        "links": "Links",
+        "history": "History",
+        "notes": "Notes"
+      },
+      "overview": {
+        "chips": {
+          "label": "Page facts",
+          "indexable": "Indexable",
+          "inSitemap": "In the sitemap",
+          "notInSitemap": "Not in the sitemap",
+          "variant": "Parameter variant"
+        },
+        "tiles": {
+          "label": "Page numbers",
+          "clicks": "Clicks",
+          "impressions": "Impressions",
+          "keywords": "Tracked keywords",
+          "citations": "AI citations",
+          "linksIn": "Links in",
+          "linksOut": "Links out",
+          "depth": "Depth",
+          "issues": "Issues",
+          "last28": "last 28 days",
+          "bestRank": "best rank {rank, number}",
+          "noRank": "none rank yet",
+          "linksNote": "{scope}, {count, number} in all",
+          "depthNote": "clicks from the home page",
+          "notReachable": "Not reachable by links",
+          "notConnected": "Not connected",
+          "notCollected": "Not collected yet",
+          "couldNotLoad": "Could not load",
+          "issuesNone": "None found",
+          "issuesNote": "{count, plural, one {# error} other {# errors}}",
+          "issuesWarnings": "{count, plural, one {# warning} other {# warnings}}",
+          "issuesNotices": "{count, plural, one {# notice} other {# notices}}",
+          "opens": "{label}: {value}, {note}. Opens the {tab} tab.",
+          "opensNoNote": "{label}: {value}. Opens the {tab} tab."
+        },
+        "attention": {
+          "title": "Needs attention",
+          "none": "No issues found on this page",
+          "seeAll": "See all {count, plural, one {# issue} other {# issues}}"
+        },
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "notice": "Notice"
+        },
+        "about": {
+          "title": "About",
+          "pageTitle": "Title",
+          "address": "Address",
+          "canonical": "Canonical",
+          "redirectsTo": "Redirects to",
+          "lastCrawled": "Last crawled",
+          "noTitle": "No title",
+          "noCanonical": "None set",
+          "notCrawled": "Not crawled yet",
+          "copyUrl": "Copy address"
+        }
+      },
+      "search": {
+        "title": "Search Console, last 28 days",
+        "label": "Search Console totals",
+        "clicks": "Clicks",
+        "impressions": "Impressions",
+        "day": "Day",
+        "summary": "{clicks} clicks and {impressions} impressions from {start} to {end}",
+        "notConnectedTitle": "Search Console is not connected",
+        "notConnectedReason": "Connect Search Console to see this page's clicks and impressions.",
+        "connect": "Open Integrations",
+        "pendingTitle": "Not collected yet",
+        "pendingReason": "The page numbers arrive after the next Search Console update.",
+        "none": "Google reported no clicks or impressions for this page in these 28 days",
+        "loadFailed": "The Search Console numbers could not be loaded",
+        "unavailable": "The Search Console numbers of this page are not available yet."
+      },
+      "issues": {
+        "pending": "Checks from the Issues page appear here once they are available",
+        "none": "No issues found on this page",
+        "seeAll": "See all pages with this issue",
+        "seeAllNamed": "See all pages with this issue: {issue}",
+        "loadFailed": "The issues of this page could not be loaded",
+        "title": "Issues",
+        "flags": "Flags",
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "notice": "Notice"
+        }
+      },
+      "notes": {
+        "addLabel": "Add a note to {path}",
+        "placeholder": "What changed on this page, what is planned, what to check later. Type @ to mention, / for commands.",
+        "suggestions": {
+          "label": "Suggestions",
+          "count": "{count, plural, one {# suggestion} other {# suggestions}}, use the arrow keys",
+          "searching": "Searching",
+          "failed": "Could not load suggestions",
+          "tooLong": "That would make the note longer than the limit, so nothing was added",
+          "teammate": "Teammate",
+          "page": "Page",
+          "issue": "Issue on this page",
+          "keyword": "Tracked keyword"
+        },
+        "chips": {
+          "openPage": "Open {path}",
+          "openIssue": "Open {name} on the Issues page",
+          "user": "Teammate {name}",
+          "keyword": "Tracked keyword {keyword}"
+        },
+        "commands": {
+          "page": "Link a page of the site",
+          "issue": "Link an issue found on this page",
+          "keyword": "Mention a tracked keyword of this page",
+          "date": "Put in today's date"
+        },
+        "add": "Add note",
+        "save": "Save",
+        "cancel": "Cancel",
+        "hint": "Cmd or Ctrl + Enter saves",
+        "count": "{count} of {max}",
+        "listLabel": "Notes, newest first",
+        "edited": "edited",
+        "editedAt": "Edited {when}",
+        "edit": "Edit note",
+        "editLabel": "Edit your note",
+        "delete": "Delete note",
+        "showOlder": "Show older notes",
+        "empty": "No notes on this page yet.",
+        "emptyWhy": "Write down what you changed and when, so the next drop or rise in its numbers has a reason beside it.",
+        "footer": "Everyone in this workspace can read these notes. They stay with this address when the site is crawled again.",
+        "loadFailed": "The notes of this page could not be loaded",
+        "added": "Note added",
+        "saved": "Note saved",
+        "deleted": "Note deleted",
+        "restoring": "Restoring note",
+        "restored": "Note restored",
+        "undo": "Undo",
+        "addFailed": "The note could not be added. Your text is still in the box.",
+        "saveFailed": "The note could not be saved. Your text is still in the box.",
+        "deleteFailed": "The note could not be deleted",
+        "restoreFailed": "The note could not be restored",
+        "saveNoText": "A note needs text or a file.",
+        "changedElsewhere": "The note changed elsewhere. Reopen it to edit.",
+        "fileGone": "A file you kept was removed elsewhere, so it was not saved.",
+        "files": {
+          "attach": "Attach files",
+          "remove": "Remove {name}",
+          "drop": "Drop files to attach",
+          "list": "Files in this note",
+          "tooMany": "At most {max} files per note.",
+          "wrongType": "{name}: only images (PNG, JPEG, GIF, WebP), PDF, text and CSV files.",
+          "tooBig": "{name}: over {max}.",
+          "empty": "{name} is empty.",
+          "duplicate": "{name} is already in this note.",
+          "quota": "Your workspace has no room left for files.",
+          "storage": "Files cannot be stored right now. Try again later.",
+          "failed": "{name} could not be uploaded.",
+          "busy": "Files are still uploading. Add more when they are done.",
+          "uploading": "Uploading {done} of {total} files",
+          "progress": "Uploading {name}",
+          "open": "{name}, {size}. Opens in a new tab.",
+          "thumb": "{name}"
+        }
+      },
+      "ai": {
+        "none": "No AI answer cited this page in the last 28 days"
+      },
+      "outline": {
+        "fine": "Fine",
+        "toFix": "To fix",
+        "seeInIssues": "See in Issues",
+        "footer": "Read from the stored HTML of the latest crawl, so it shows the page as the crawler saw it.",
+        "olderCrawl": "This is the outline from the latest crawl, not from the crawl you are viewing.",
+        "truncated": "This page is very long. The outline covers its first part.",
+        "loadFailed": "The outline of this page could not be loaded",
+        "state": {
+          "redirect": "This address redirects to {path}, so it has no content of its own. Open the page it leads to for its outline.",
+          "redirectUnknown": "This address redirects to another page, so it has no content of its own. Open the page it leads to for its outline.",
+          "error": "This address answers with {status}, so there is no page to read.",
+          "errorNoStatus": "This address did not answer, so there is no page to read.",
+          "notHtml": "This address is not an HTML page, so it has no outline.",
+          "noHtml": "The HTML of this page was not kept in the latest crawl, so its outline cannot be shown. It appears after the next crawl.",
+          "notInCrawl": "This page is not in the latest crawl."
+        },
+        "strip": {
+          "label": "Outline numbers",
+          "h1": "H1",
+          "h1None": "None",
+          "h1One": "as it should be",
+          "h1Missing": "missing",
+          "h1Many": "more than one",
+          "headings": "Headings",
+          "headingsNote": "H2 {h2}, H3 {h3}",
+          "words": "Words",
+          "readTime": "{minutes} min read",
+          "thin": "very little text",
+          "images": "Images",
+          "imagesFine": "all described",
+          "imagesNoAlt": "{count} without alt text"
+        },
+        "listing": {
+          "title": "Search listing",
+          "summaryFine": "Title and description are the right length",
+          "summaryToFix": "{count, plural, one {# thing to fix} other {# things to fix}}",
+          "previewLabel": "How the page can look in search results",
+          "noDescription": "No description. Google picks a sentence from the page.",
+          "noTitle": "No title",
+          "factTitle": "Title",
+          "factDescription": "Description",
+          "factCanonical": "Canonical",
+          "factRobots": "Robots",
+          "factLanguage": "Language",
+          "lengthOk": "{chars, plural, one {# character} other {# characters}}",
+          "lengthShort": "{chars, plural, one {# character} other {# characters}}, short of {min}",
+          "lengthLong": "{chars, plural, one {# character} other {# characters}}, over {max}",
+          "lengthMissing": "Missing",
+          "canonicalSelf": "This page",
+          "canonicalSelfChip": "Self",
+          "canonicalElsewhereChip": "Elsewhere",
+          "canonicalNone": "None given",
+          "robotsNone": "No robots tag",
+          "indexable": "Indexable",
+          "notIndexed": "Not indexed",
+          "languageNone": "Not set"
+        },
+        "headings": {
+          "title": "Headings",
+          "summary": "{count, plural, one {# heading} other {# headings}}",
+          "summaryWithH1": "{count, plural, one {# heading} other {# headings}}, H1: {h1}",
+          "none": "No headings",
+          "listLabel": "Headings in page order",
+          "level": "H{level}",
+          "emptyText": "No text",
+          "showAll": "Show all {count} headings",
+          "showFewer": "Show fewer headings",
+          "capped": "The first {shown} of {total} headings",
+          "withoutText": "{count, plural, one {# heading has} other {# headings have}} no text, so no row"
+        },
+        "languages": {
+          "title": "Languages",
+          "summary": "{count, plural, one {# version} other {# versions}}, with x-default",
+          "summaryNoDefault": "{count, plural, one {# version} other {# versions}}, no x-default",
+          "summaryOne": "One language ({lang}), no versions",
+          "summaryOneUnknown": "No language versions",
+          "none": "The page names no other language versions. That is fine for a site in one language.",
+          "thisPage": "This page",
+          "wrongCode": "Wrong code",
+          "listLabel": "Language versions"
+        },
+        "sharing": {
+          "title": "Social sharing",
+          "summaryFine": "Open Graph and X card set",
+          "summaryPartly": "Open Graph set, no X card",
+          "summaryNone": "No Open Graph tags",
+          "factTitle": "Title",
+          "factDescription": "Description",
+          "factImage": "Image",
+          "factType": "Type",
+          "factCard": "X card",
+          "missing": "Missing"
+        },
+        "structured": {
+          "title": "Structured data",
+          "summary": "{count, plural, one {# block} other {# blocks}}: {types}",
+          "summaryUnnamed": "{count, plural, one {# block} other {# blocks}}",
+          "summaryNone": "No structured data",
+          "none": "The page has no structured data blocks.",
+          "unnamed": "Unnamed block",
+          "valid": "Valid JSON",
+          "unreadable": "Cannot be read",
+          "listLabel": "Structured data blocks"
+        },
+        "content": {
+          "title": "Content",
+          "summary": "{words} words, {images, plural, one {# image} other {# images}}",
+          "factWords": "Words",
+          "factImages": "Images",
+          "factLinksOut": "Links out",
+          "readTime": "{minutes} min read",
+          "allAlt": "All have alt text",
+          "noAlt": "{count} without alt text",
+          "noImages": "No images",
+          "linksOut": "{count, plural, one {# internal link} other {# internal links}}",
+          "linksOutNote": "to other pages of the site"
+        },
+        "finding": {
+          "titleMissing": "The page has no title, so Google writes one from the page.",
+          "titleShort": "The title is short. Add the words people search for.",
+          "titleLong": "The title is long and Google will cut it off.",
+          "descriptionMissing": "There is no meta description, so Google writes its own text under the title.",
+          "descriptionShort": "The meta description is short. Use the room to say what the visitor gets.",
+          "descriptionLong": "The meta description is long and Google will cut it off.",
+          "descriptionDuplicate": "Other pages use this same description.",
+          "noindex": "The page tells search engines not to index it.",
+          "canonicalElsewhere": "The canonical points to another address, so this page is not the one Google keeps.",
+          "h1Missing": "The page has no H1, so nothing says what it is about.",
+          "h1Multiple": "The page has {count} H1 headings. Keep one and make the others H2.",
+          "skippedLevel": "“{text}” is an H{level} straight after an H{before}. Do not skip a level.",
+          "hreflang": "“{code}” is not a language code Google reads.",
+          "hreflangSuggest": "“{code}” is not a language code Google reads: use {suggestion}.",
+          "socialTags": "The page has no Open Graph tags, so a shared link has no title or image.",
+          "schemaErrors": "A structured data block cannot be read, so search engines skip it.",
+          "thinContent": "The page has very little text. Add what a visitor needs to know, or merge it into a fuller page.",
+          "imageAlt": "{count, plural, one {# image has} other {# images have}} no alt text, so screen readers and Google cannot tell what they show."
+        }
+      }
+    },
+    "tabs": {
+      "label": "Pages views",
+      "overview": "Overview",
+      "all": "All pages",
+      "monitoring": "Monitoring"
+    },
+    "view": {
+      "trigger": "View: {view}",
+      "sections": {
+        "pages": "Pages",
+        "sitemap": "Sitemap",
+        "reach": "Reach",
+        "linkProblems": "Link problems"
+      },
+      "all": "All pages",
+      "live": "Live pages",
+      "indexable": "Indexable",
+      "notIndexable": "Not indexable",
+      "redirects": "Redirects",
+      "errors": "Error pages",
+      "clientErrors": "Client errors",
+      "serverErrors": "Server errors",
+      "blocked": "Blocked",
+      "other": "Other addresses",
+      "variants": "Parameter variants",
+      "untiered": "Untiered",
+      "inSitemapIndexable": "Indexable and in the sitemap",
+      "notInSitemap": "Missing from the sitemap",
+      "sitemapNotLive": "In the sitemap, not live",
+      "sitemapNotIndexable": "In the sitemap, not indexable",
+      "reachable": "Reachable by links",
+      "unreachable": "Not reachable by links",
+      "opensLinks": "Opens Internal links, Links",
+      "announce": "{view}: {count, plural, one {# page} other {# pages}}"
+    },
+    "viewEmpty": {
+      "liveTitle": "No live pages",
+      "liveReason": "No address of this crawl answered 200 with a page.",
+      "indexableTitle": "No indexable pages",
+      "indexableReason": "No page of this crawl can be indexed by Google.",
+      "notIndexableTitle": "No pages that are not indexable",
+      "notIndexableReason": "Every live page of this crawl can be indexed by Google.",
+      "redirectsTitle": "No redirects",
+      "redirectsReason": "No address of this crawl redirects to another page.",
+      "errorsTitle": "No error pages",
+      "errorsReason": "No address of this crawl returns an error.",
+      "clientErrorsTitle": "No client errors",
+      "clientErrorsReason": "No address of this crawl returns a 4xx error.",
+      "serverErrorsTitle": "No server errors",
+      "serverErrorsReason": "No address of this crawl returns a 5xx error.",
+      "blockedTitle": "No blocked addresses",
+      "blockedReason": "The site did not refuse our crawler on any address.",
+      "otherTitle": "No other addresses",
+      "otherReason": "Every address of this crawl is a live page, a redirect or an error.",
+      "variantsTitle": "No parameter variants",
+      "variantsReason": "The crawl found no page under a second address with a query string added.",
+      "inSitemapIndexableTitle": "No indexable page is in the sitemap",
+      "inSitemapIndexableReason": "The sitemap lists none of the pages that can be indexed.",
+      "notInSitemapTitle": "No indexable page is missing from the sitemap",
+      "notInSitemapReason": "Every page that can be indexed is listed in the sitemap.",
+      "sitemapNotLiveTitle": "The sitemap lists only live pages",
+      "sitemapNotLiveReason": "No address in the sitemap redirects or returns an error.",
+      "sitemapNotIndexableTitle": "The sitemap lists only indexable pages",
+      "sitemapNotIndexableReason": "Every live page in the sitemap can be indexed by Google.",
+      "reachableTitle": "No live page can be reached by links",
+      "reachableReason": "No live page of this crawl can be reached from the home page by following links.",
+      "unreachableTitle": "Every live page can be reached by links",
+      "unreachableReason": "A visitor can get from the home page to every live page by following links."
+    },
+    "strip": {
+      "label": "Page counts of this crawl",
+      "addresses": "Addresses crawled",
+      "live": "Live pages",
+      "indexable": "Indexable",
+      "orphans": "Orphan pages",
+      "errors": "Error pages",
+      "withIssue": "Pages with an issue",
+      "addressesTip": "Every address the crawl read, parameter variants included",
+      "liveTip": "Pages that answered 200 with HTML, of every address",
+      "liveBaseTip": "Of live pages",
+      "errorsTip": "Addresses that answered with a client or server error, of every address"
+    },
+    "groups": {
+      "page": "Page",
+      "indexing": "Indexing",
+      "issues": "Issues",
+      "search": "Search",
+      "ai": "AI",
+      "links": "Links"
+    },
+    "filters": {
+      "folder": "Folder",
+      "depthChip": "{depth, plural, =0 {Home page} =6 {6 clicks and more from the home page} one {# click from the home page} other {# clicks from the home page}}",
+      "variantsChip": "With parameter variants",
+      "remove": "Remove the filter {filter}"
+    },
+    "columns": {
+      "issues": "Issues",
+      "issuesTip": "Issues found on this page, from the Issues page",
+      "issuesCount": "{error, plural, one {# error} other {# errors}}, {warning, plural, one {# warning} other {# warnings}}, {notice, plural, one {# notice} other {# notices}}",
+      "tracked": "Tracked",
+      "trackedYes": "Tracked",
+      "trackedNo": "Not tracked"
+    },
+    "track": {
+      "action": "Track in Monitoring",
+      "onlySelection": "Choose the pages one by one to track them",
+      "done": "{added, plural, one {# page added} other {# pages added}}",
+      "already": "{count} already tracked",
+      "notLive": "{count} not added: not a live page",
+      "overLimit": "{count} not added: the limit is {limit} pages",
+      "failed": "The pages could not be tracked"
+    },
+    "overview": {
+      "loadFailed": "The page counts could not be loaded",
+      "loadFailedReason": "Try again. If it keeps failing, the crawl may still be saving."
+    },
+    "cards": {
+      "status": {
+        "title": "Addresses by status",
+        "info": "Every address the crawl read, by what it answered. Shares are of every address.",
+        "center": "{count} live",
+        "rows": {
+          "live": "Live pages",
+          "variant": "Parameter variants",
+          "redirected": "Redirects",
+          "clientError": "Client errors",
+          "serverError": "Server errors",
+          "blocked": "Blocked",
+          "other": "Other addresses"
+        }
+      },
+      "funnel": {
+        "title": "From crawled to indexable",
+        "info": "How many addresses are live pages, how many of those Google may index, and how many of those the sitemap lists.",
+        "rows": {
+          "addresses": "Addresses crawled",
+          "live": "Live pages",
+          "indexable": "Indexable",
+          "inSitemapIndexable": "Indexable and in the sitemap"
+        }
+      },
+      "sections": {
+        "title": "Pages by section",
+        "info": "Live pages by the first folder of their address. Shares are of live pages.",
+        "other": "{count, plural, one {Other sections (#)} other {Other sections (#)}}"
+      },
+      "tiers": {
+        "title": "Pages by tier",
+        "info": "Live pages by their tier today. Shares are of live pages."
+      },
+      "depth": {
+        "title": "Click depth",
+        "info": "How many clicks from the home page each live page is. Shares are of live pages.",
+        "row": "{depth, plural, =0 {Home page} =6 {6 clicks and more} one {# click} other {# clicks}}",
+        "unreachable": "Not reachable by links"
+      },
+      "sitemap": {
+        "title": "Sitemap coverage",
+        "info": "Indexable pages the sitemap lists and misses, and addresses it lists that are not live or not indexable.",
+        "rows": {
+          "inSitemapIndexable": "In the sitemap and indexable",
+          "notInSitemap": "Indexable, missing from the sitemap",
+          "sitemapNotLive": "In the sitemap, not live",
+          "sitemapNotIndexable": "In the sitemap, not indexable"
+        },
+        "emptyTitle": "The crawl found no sitemap",
+        "emptyReason": "Add a sitemap to the website, then crawl again.",
+        "bases": "Shares are of live pages, except addresses in the sitemap that are not live, which are of every address."
+      },
+      "bases": {
+        "addresses": "Every address the crawl read, parameter variants included.",
+        "live": "Pages that answered 200 with HTML.",
+        "mixed": "Addresses and live pages, as each row says."
+      },
+      "table": {
+        "row": "Group",
+        "pages": "Pages",
+        "share": "Share"
+      },
+      "shareOfAddresses": "{share} of every address",
+      "shareOfLive": "{share} of live pages",
+      "opens": "{label}, {count}. Opens All pages",
+      "summary": "{title}: {rows}",
+      "issues": {
+        "title": "Issues",
+        "errors": "Pages with an error",
+        "warnings": "Pages with a warning",
+        "notices": "Pages with a notice",
+        "opens": "{label}, {count}. Opens Issues"
+      },
+      "changes": {
+        "title": "Since the last crawl",
+        "pagesAdded": "Pages added",
+        "pagesRemoved": "Pages removed",
+        "editorial": "Editorial links added and lost",
+        "editorialValue": "{added} added, {lost} lost",
+        "lostToTop": "Links lost to important tiers",
+        "opens": "{label}, {value}. Opens Internal links, Changes",
+        "firstCrawl": "This is the first crawl. Changes appear after the next one.",
+        "pending": "Comparing with the crawl before"
+      },
+      "export": {
+        "card": "Card",
+        "row": "Row",
+        "count": "Count"
+      }
+    }
+  },
   "internalLinks": {
     "title": "Internal links",
     "status": {
@@ -9279,7 +10487,7 @@
       "keywords": "Tracked keywords",
       "keywordsSource": "idraft rank tracking",
       "keywordsCaption": "Tracked keywords with their rank, places moved and searches a month",
-      "noKeywords": "No tracked keywords for this page.",
+      "noKeywords": "No tracked keywords for this page. Add keywords in Keywords to see ranks here.",
       "keyword": "Keyword",
       "rank": "Rank",
       "rankValue": "#{rank}",
@@ -9305,11 +10513,7 @@
       "notStored": "Not stored",
       "notStoredReason": "This crawl no longer holds its links.",
       "matches": "An anchor contains a tracked keyword",
-      "noMatch": "No anchor contains a tracked keyword",
-      "google": "Google Search Console",
-      "gscOk": "{clicks} clicks, {impressions} impressions, last 28 days (Google data)",
-      "gscOff": "Search Console is not connected.",
-      "gscPending": "Search Console is syncing."
+      "noMatch": "No anchor contains a tracked keyword"
     },
     "pages": {
       "caption": "Pages",
@@ -9317,11 +10521,7 @@
       "other": "pages",
       "search": "Search pages",
       "openJourney": "Open {path} in journey",
-      "allPages": "All pages",
       "noIssues": "No issues",
-      "worklistsLabel": "Worklists",
-      "linkCount": "{count, plural, one {# link} other {# links}}",
-      "variantsLink": "{count, plural, one {# parameter variant} other {# parameter variants}}",
       "emptyTitle": "No pages in this crawl",
       "emptyReason": "The crawl found no page. Check the website in the project settings, then crawl again.",
       "noMatchTitle": "No pages match",
@@ -9404,7 +10604,9 @@
       "outlinksTip": "Unique pages this page links to, in the link scope chosen",
       "flags": "Flags",
       "tags": "Tags",
-      "reason": "Indexability reason",
+      "reason": "Indexable",
+      "canonical": "Canonical",
+      "canonicalSelf": "This page",
       "sitemap": "In sitemap",
       "toT1": "Outlinks to T1",
       "broken": "Broken outlinks",
@@ -9448,7 +10650,8 @@
       "noKeywords": "No keywords",
       "clicks": "Clicks",
       "impressions": "Impressions",
-      "googleTip": "Google data, last 28 days",
+      "clicksTip": "Google Search clicks on this page in the last 28 days, from Search Console",
+      "impressionsTip": "Times this page was shown in Google Search in the last 28 days, from Search Console",
       "syncing": "Syncing",
       "syncingTip": "Search Console is still syncing, so there are no figures yet.",
       "notConnected": "Not connected",
@@ -9619,12 +10822,92 @@
     },
     "tabs": {
       "label": "Internal links views",
-      "pages": "Pages",
       "links": "Links",
       "journey": "Journey",
+      "map": "Link map",
       "flow": "Tier flow",
       "changes": "Changes",
       "opportunities": "Opportunities"
+    },
+    "map": {
+      "label": "Link map",
+      "chipLabel": "{label}:",
+      "menuName": "{label}, {value}",
+      "search": "Find a page",
+      "searchLabel": "Find a page on the map",
+      "found": "{count, number} of {total, plural, one {# page} other {# pages}}",
+      "links": "Links",
+      "linksEditorial": "Editorial",
+      "linksAuto": "Editorial and auto-generated",
+      "colour": "Colour",
+      "colourTier": "Tier",
+      "colourSection": "Section",
+      "highlight": "Highlight",
+      "lensNone": "Nothing",
+      "lensNoIn": "No links in",
+      "lensDeadEnd": "Dead ends",
+      "lensSitewide": "In the menu or footer",
+      "fullScreen": "Full screen",
+      "leaveFullScreen": "Leave full screen",
+      "tiersShown": "Tiers shown",
+      "sectionsShown": "Sections shown",
+      "sectionHome": "Home page",
+      "sectionTop": "Top level pages",
+      "sectionOther": "Other sections",
+      "size": "Bigger dot: more links",
+      "home": "Home page",
+      "kindEditorial": "editorial",
+      "kindAuto": "editorial or auto-generated",
+      "summary": "{pages, plural, one {# page} other {# pages}} and {links, plural, one {# {kind} link} other {# {kind} links}}.",
+      "summaryLargest": "{count, number} pages hang together in the largest group.",
+      "summaryUnlinked": "{count, plural, one {# page has} other {# pages have}} no {kind} link in or out: the block {side, select, below {below} other {on the right}}.",
+      "canvas": "Map of internal links. {summary} The Pages tab lists every page with its links.",
+      "truncated": "The map shows the {shown, number} pages with the most links, of {total, number}.",
+      "blockTitle": "No {kind} link in or out",
+      "blockLine": "{tier}: {count, plural, one {# page} other {# pages}}",
+      "arranging": "Arranging the map",
+      "loadFailed": "The link map could not be loaded",
+      "loadFailedReason": "Try again in a moment.",
+      "tooltipPage": "{tier}, {linksIn, plural, one {# link} other {# links}} in, {linksOut, number} out",
+      "tooltipEdge": "links to {path}",
+      "card": "Selected page",
+      "cardClose": "Close the card",
+      "cardNoTitle": "No title",
+      "cardIn": "{count, plural, one {page links to it} other {pages link to it}}",
+      "cardOut": "{count, plural, one {page it links to} other {pages it links to}}",
+      "cardSitewide": "In the menu or footer of {count, number} pages (not drawn).",
+      "details": "Page details",
+      "openJourney": "Open in Journey",
+      "viewLabel": "Map view",
+      "minimap": "Minimap",
+      "help": "Reading the map",
+      "helpDot": "A live page. Redirects and duplicate addresses count as the page they point to. A bigger dot has more links.",
+      "helpArrow": "A link in the body of one page to another, pointing at the page it opens.",
+      "helpNotDrawn": "Menu and footer links. Nearly every page has the same ones, so they are a property of the page: its card says so, and Highlight shows them.",
+      "helpFind": "Type part of an address or title. Matching pages stay lit; Enter zooms to them.",
+      "helpClick": "Keeps the page and the pages it links with lit, and opens its card. Click the background or press Escape to let go.",
+      "helpScroll": "Zooms in and out; more names appear as you zoom in. Drag the background to move the map.",
+      "helpDrag": "Moves that page.",
+      "helpDotTitle": "Dot",
+      "helpArrowTitle": "Arrow",
+      "helpNotDrawnTitle": "Menu and footer links",
+      "helpFindTitle": "Find a page",
+      "helpClickTitle": "Click a page",
+      "helpScrollTitle": "Scroll",
+      "helpDragTitle": "Drag a page",
+      "empty": "This crawl found no live page, so there is nothing to map yet.",
+      "emptyTitle": "Nothing to map",
+      "export": {
+        "page": "Page",
+        "title": "Title",
+        "tier": "Tier",
+        "linksIn": "Links in",
+        "linksOut": "Links out",
+        "onMap": "Linked on the map",
+        "linked": "Linked",
+        "unlinked": "No link in or out",
+        "sitewide": "Menu or footer links from (pages)"
+      }
     },
     "linksDropped": {
       "title": "Links of this crawl are not stored",
@@ -10055,6 +11338,763 @@
       "unknownReason": "The latest crawl is not among the most recent runs, so this page cannot tell what it holds yet. Try again."
     }
   },
+  "pageSearch": {
+    "period": "Period",
+    "compareWith": "Compare with",
+    "compare": {
+      "previousPeriod": "vs previous period",
+      "previousYear": "vs same period last year",
+      "none": "No comparison"
+    },
+    "metrics": {
+      "clicks": "Clicks",
+      "impressions": "Impressions",
+      "ctr": "CTR",
+      "position": "Average position"
+    },
+    "overTime": "Over time",
+    "whatChanged": "What changed",
+    "tabs": {
+      "queries": "Queries",
+      "locations": "Locations",
+      "devices": "Devices"
+    },
+    "columns": {
+      "now": "{metric} now",
+      "before": "{metric} before",
+      "change": "{metric} change"
+    },
+    "breakdownLengths": "The two periods differ in length, so the change is the difference of the totals.",
+    "devices": {
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "tablet": "Tablet"
+    },
+    "unknownLocation": "Unknown location",
+    "showAll": "Show all {count}",
+    "names": {
+      "queries": "Query",
+      "locations": "Location",
+      "devices": "Device"
+    },
+    "coverage": "The queries shown cover {percent} of this page's clicks. Google does not report the rest.",
+    "note": "Search Console, web search. Days are Pacific Time. Final data to {date}.",
+    "notLive": "Only a page that answers 200 has search data.",
+    "summaryLabel": "Search numbers for the period",
+    "beforeValue": "Before {value}",
+    "openIntegrations": "Open Integrations",
+    "categoryHeader": "Day",
+    "chartSummary": "{metric} per day for {period}. For the whole period: {total}.",
+    "overTimeEmpty": "There is nothing to draw for this period.",
+    "positionImproved": "improved {places}",
+    "positionSlipped": "slipped {places}",
+    "health": {
+      "lost": "Lost traffic",
+      "sharpDrop": "Sharp drop",
+      "declining": "Declining",
+      "stable": "Stable",
+      "growing": "Growing",
+      "new": "New",
+      "lowData": "Not enough data",
+      "noData": "Not collected yet"
+    },
+    "verdict": {
+      "lost": "Lost all search traffic: no clicks, against {before} in {period}.",
+      "sharpDrop": "{metric} are down {change} ({before} to {now}) against {period}.",
+      "declining": "{metric} are down {change} ({before} to {now}) against {period}.",
+      "growing": "{metric} are up {change} ({before} to {now}) against {period}.",
+      "growingFromZero": "{metric} are up from none to {now} against {period}.",
+      "stable": "{metric} are steady ({before} to {now}) against {period}.",
+      "stableAlone": "{clicks} clicks and {impressions} impressions in {period}.",
+      "new": "New in search: {clicks} clicks, none in {period}.",
+      "lowData": "Too little traffic to judge: {clicks} clicks and {impressions} impressions over both periods.",
+      "lowDataAlone": "Too little traffic to judge: {clicks} clicks and {impressions} impressions in {period}.",
+      "smallNumbers": "Small numbers: {metric} went from {before} to {now}, too few to count as a real change.",
+      "noData": "Google reported no impressions for this page in this period.",
+      "perDay": "Counted per day, because the two periods differ in length.",
+      "positionSlipped": "Average position slipped {places} places.",
+      "positionImproved": "Average position improved {places} places.",
+      "ctrFellImpressionsRose": "Impressions rose but fewer people clicked. Check the title and the snippet, and whether an AI answer now sits above the result."
+    },
+    "states": {
+      "notConnected": "Connect Search Console to see how your pages perform.",
+      "askAdmin": "Ask an owner or admin to connect Search Console.",
+      "pending": "Not collected yet. The first numbers arrive within minutes.",
+      "reauth": "Search Console needs a new sign-in. The numbers stop at {date}.",
+      "noAccess": "This Google account can no longer read the property. The numbers stop at {date}.",
+      "noImpressions": "Google reported no impressions for this page in this period.",
+      "busy": "Google is busy. Try again in {seconds} s.",
+      "retry": "Retry",
+      "unavailable": "Google did not answer. Try again.",
+      "errorTitle": "Could not load the search numbers",
+      "notCollected": "Not collected yet"
+    }
+  },
+  "monitoring": {
+    "title": "Monitoring",
+    "context": "Final data to {date}",
+    "contextTip": "{host}, Search Console property {property}. Final data to {date}, Pacific Time.",
+    "export": "Export CSV",
+    "addPages": "Add pages",
+    "tier": "Tier",
+    "allTiers": "All tiers",
+    "untiered": "Untiered",
+    "health": "Health",
+    "allHealth": "All",
+    "searchPlaceholder": "Search pages",
+    "searchLabel": "Search pages",
+    "caption": "Tracked pages",
+    "one": "tracked page",
+    "other": "tracked pages",
+    "columns": {
+      "page": "Page",
+      "tier": "Tier",
+      "health": "Health",
+      "trend": "Trend",
+      "queries": "Queries",
+      "queriesTip": "Different search queries that gave this page an impression in the period. Counts the queries Google reports: it leaves out anonymized queries, so the real number is higher.",
+      "cannibalization": "Cannibalization"
+    },
+    "queries": {
+      "previous": "{count, plural, one {# query} other {# queries}} in the period before",
+      "capped": "Google returned its limit of 25,000 queries for this page, so the real number is higher."
+    },
+    "cannibalization": {
+      "none": "None",
+      "keywords": "{count, plural, one {# keyword} other {# keywords}}",
+      "tip": "Competes with another of your pages on {count, plural, one {# tracked keyword} other {# tracked keywords}}: {parts}. Opens Cannibalization.",
+      "tipPlain": "Competes with another of your pages on {count, plural, one {# tracked keyword} other {# tracked keywords}}: {parts}.",
+      "likely": "{count} likely",
+      "coRanking": "{count} co-ranking",
+      "unstable": "{count} unstable",
+      "label": "{path} competes with another page on {count, plural, one {# keyword} other {# keywords}}. Opens Cannibalization."
+    },
+    "bulk": {
+      "stopTracking": "Stop tracking",
+      "exportSelection": "Export selection"
+    },
+    "removed": "{count, plural, one {Stopped tracking # page} other {Stopped tracking # pages}}",
+    "removedDetail": "Their history is kept, so adding them again shows it.",
+    "empty": {
+      "title": "Add the pages that matter",
+      "reason": "Paste addresses or pick the pages with the most clicks. You can track up to {limit} pages in a project."
+    },
+    "noMatch": "No tracked pages match these filters.",
+    "noAccessTitle": "You do not have access to Monitoring",
+    "noAccessReason": "You do not have permission to view search data. Ask an admin of this workspace.",
+    "loadingHistory": "Loading this page's history",
+    "filtersLabel": "Period and filters",
+    "healthOption": "{name} ({count, number})",
+    "notConnectedTitle": "Search Console is not connected",
+    "trendLabel": "Clicks per day for {path}",
+    "removeFailed": "Could not stop tracking the pages",
+    "pendingBanner": "Search Console is loading the last 28 days.",
+    "loadFailed": "Could not load the tracked pages",
+    "loadFailedReason": "The list did not load. Try again.",
+    "noMatchReason": "Change or clear the filters to see more of the tracked pages.",
+    "clearFilters": "Clear filters",
+    "inspector": {
+      "typeLabel": "Page",
+      "typeNoun": "page",
+      "back": "Back to Monitoring",
+      "copyUrl": "Copy address",
+      "copied": "Address copied",
+      "visit": "Open page"
+    },
+    "csv": {
+      "clicksBefore": "Clicks before",
+      "impressionsBefore": "Impressions before",
+      "ctrBefore": "CTR before",
+      "positionBefore": "Average position before",
+      "queriesBefore": "Queries before",
+      "cannibalizationKeywords": "Cannibalization keywords",
+      "likely": "Likely",
+      "coRanking": "Co-ranking",
+      "unstable": "Unstable",
+      "fileName": "monitoring.csv"
+    },
+    "add": {
+      "title": "Add pages",
+      "tabs": {
+        "paste": "Paste addresses",
+        "suggested": "Suggested from Search Console"
+      },
+      "urlsLabel": "Addresses",
+      "urlsHint": "One per line, up to 500. Paths or full addresses on {host}.",
+      "urlsHintNoHost": "One per line, up to 500. Paths or full addresses on this website.",
+      "check": "Check pages",
+      "outcome": {
+        "ok": "Found, {clicks} clicks in 28 days",
+        "okNoClicks": "Found, no clicks collected yet",
+        "added": "Added",
+        "alreadyTracked": "Already tracked",
+        "invalidUrl": "Not a valid address",
+        "wrongHost": "Not on {host}",
+        "wrongHostNoHost": "Not on this website",
+        "notCrawled": "Not in the crawl",
+        "overLimit": "Over the limit of {limit} pages"
+      },
+      "suggestedIntro": "The pages with the most clicks in the last 28 days that are not tracked yet.",
+      "allTracked": "Every page found is already tracked.",
+      "suggestedStats": "{clicks} clicks, {impressions} impressions",
+      "suggestionsFailed": "The suggested pages did not load.",
+      "overRoom": "{room, plural, one {Only # more page fits} other {Only # more pages fit}} in the limit of {limit}.",
+      "tooManyLines": "Only the first {max} of {count} lines are checked.",
+      "checkFailed": "The pages were not checked.",
+      "failed": "The pages were not added.",
+      "count": "{tracked} of {limit} pages tracked",
+      "submit": "{count, plural, =0 {Add pages} one {Add # page} other {Add # pages}}",
+      "added": "{count, plural, one {Added # page} other {Added # pages}}",
+      "addedDetail": "Loading their history, the last 16 months."
+    }
+  },
+  "pageHistory": {
+    "strip": {
+      "label": "Dates of this page",
+      "lastEdited": "Last edited",
+      "lastChange": "Last change seen",
+      "firstSeen": "First seen",
+      "googleCrawled": "Google crawled",
+      "none": "None"
+    },
+    "note": {
+      "editedFrom": "{origin, select, json_ld {From JSON-LD} meta_modified {From the page's modified time} og_updated {From the page's updated time} sitemap {From the sitemap} other {From the page}}",
+      "editedNone": "The page declares no date",
+      "editedUnreliable": "Most pages of this site share one date",
+      "changeCount": "{count, plural, one {# change} other {# changes}} in the crawls kept",
+      "changeSince": "Since {date}",
+      "changeNoHistory": "No crawl kept yet",
+      "firstNew": "A new page",
+      "firstStarts": "History starts {date}",
+      "googleBefore": "Before the last change",
+      "googleAfter": "After the last change",
+      "googleFrom": "From Search Console",
+      "googleNone": "Read for pages in Monitoring",
+      "googleNoDate": "Google has not crawled this page yet",
+      "googleNotRead": "Not read yet"
+    },
+    "behind": "Google last crawled this page on {crawled}, before the change of {changed}. Ask Google to crawl it again in Search Console.",
+    "timeline": {
+      "label": "Crawls of this page, newest first",
+      "capped": "Only the newest {count} crawls are shown.",
+      "content": "Content change",
+      "siteWide": "Site-wide change",
+      "first": "First seen",
+      "siteWideSummary": "The menu and footer changed on every page. The content of this page did not.",
+      "siteWideNote": "idraft leaves the site template out when it compares pages, so a change to the menu or footer shows once here and not as an edit to each page.",
+      "firstFound": "The first crawl that found this page.",
+      "firstKept": "The oldest crawl idraft kept a copy of.",
+      "headingLevel": "Heading level {level}"
+    },
+    "change": {
+      "title": "Title changed",
+      "description": "Meta description changed",
+      "headingAdded": "Heading added",
+      "headingRemoved": "Heading removed",
+      "wordsGrew": "Text grew by {count, plural, one {# word} other {# words}}",
+      "wordsShrank": "Text shrank by {count, plural, one {# word} other {# words}}",
+      "linksAdded": "{count, plural, one {# internal link} other {# internal links}} added",
+      "linksRemoved": "{count, plural, one {# internal link} other {# internal links}} removed",
+      "editorialAdded": "{count, plural, one {# editorial link} other {# editorial links}} added",
+      "editorialRemoved": "{count, plural, one {# editorial link} other {# editorial links}} removed",
+      "edited": "Text edited",
+      "was": "Was",
+      "now": "Now"
+    },
+    "howRead": {
+      "title": "How these dates are read",
+      "lastEditedTerm": "Last edited",
+      "lastEdited": "The date the page declares about itself (JSON-LD dateModified, article:modified_time or the sitemap lastmod). It is the real edit date on a site that fills it in.",
+      "lastChangeTerm": "Last change seen",
+      "lastChange": "The first crawl whose text differs from the crawl before. Scripts, styles and the site template are left out, so a rebuild that changes nothing on the page shows no change. It is only as exact as the crawl schedule.",
+      "googleTerm": "Google crawled",
+      "google": "Read from the URL Inspection of Search Console for the pages in Monitoring.",
+      "unusedTerm": "Not used",
+      "unused": "The Last-Modified header of the page. On a site behind a cache every page reports the time of the last cache rebuild, so it says nothing about the page."
+    },
+    "footer": {
+      "starts": "History starts on {date}, the first crawl idraft kept a copy of the page. Older changes cannot be known.",
+      "startsNone": "idraft has not kept a copy of this page yet.",
+      "limitsTitle": "What this history cannot show",
+      "exact": "A change is dated to the crawl that saw it, so it is only as exact as the crawl schedule.",
+      "scripts": "A site that draws its text with JavaScript needs the rendering option of the crawl. Without it the page holds no text to compare.",
+      "login": "Pages behind a login are not covered.",
+      "rotating": "A test that shows visitors different versions, or a block that rotates (related posts, a date in the sidebar), can show a change that is not an edit.",
+      "sitemapDate": "The date in the sitemap comes from your site's provider and is not verified."
+    },
+    "state": {
+      "loading": "Loading the history of this page",
+      "loadFailed": "Could not load the history of this page",
+      "loadFailedReason": "The server returned an error. Nothing else changed.",
+      "emptyTitle": "No history yet",
+      "emptyReason": "idraft has not kept a copy of this page yet. History appears after the next crawl.",
+      "redirectTitle": "This address redirects",
+      "redirectReason": "It has no content of its own to follow. Open the page it leads to.",
+      "errorTitle": "This address is not a page",
+      "errorReason": "{status, select, none {It did not answer with a page, so there is nothing to follow.} other {It answers with {status}, so there is no page to follow.}}"
+    },
+    "line": {
+      "lastEdited": "Last edited {date}.",
+      "lastChange": "Last change seen {date}.",
+      "noChange": "No change seen since {date}.",
+      "seeHistory": "See history"
+    }
+  },
+  "issues": {
+    "title": "Issues",
+    "noAccessTitle": "You cannot see issues",
+    "noAccessReason": "Your role does not include reading this project’s data. Ask an admin of the workspace for access.",
+    "tabs": {
+      "technical": "Technical",
+      "onPage": "On-page",
+      "found": "{count, plural, one {# issue} other {# issues}} found"
+    },
+    "categories": {
+      "status": "Status",
+      "earningPages": "Pages that earn visits",
+      "redirects": "Redirects",
+      "indexing": "Indexing",
+      "sitemap": "Sitemap",
+      "links": "Links",
+      "security": "Security",
+      "languages": "Languages",
+      "speed": "Speed",
+      "titles": "Titles",
+      "descriptions": "Descriptions",
+      "headings": "Headings",
+      "content": "Content",
+      "images": "Images",
+      "structuredData": "Structured data",
+      "socialTags": "Social tags",
+      "addresses": "Addresses",
+      "keywords": "Keywords"
+    },
+    "severity": {
+      "all": "All",
+      "error": {
+        "label": "Error",
+        "many": "Errors",
+        "tip": "Breaks a page for visitors or for Google. Fix these first."
+      },
+      "warning": {
+        "label": "Warning",
+        "many": "Warnings",
+        "tip": "Holds a page back. Fix after the errors."
+      },
+      "notice": {
+        "label": "Notice",
+        "many": "Notices",
+        "tip": "Worth a look. Often intended."
+      }
+    },
+    "foundBy": {
+      "label": "Found by",
+      "all": "All data",
+      "badge": "Found by: {name}",
+      "crawl": {
+        "label": "Crawl",
+        "tip": "Found by crawling the site, page by page."
+      },
+      "ranks": {
+        "label": "Rank checks",
+        "tip": "Found by the daily rank checks of your tracked keywords, joined with the crawl."
+      },
+      "gsc": {
+        "label": "Search Console",
+        "tip": "Found in Google Search Console data, joined with the crawl."
+      },
+      "ga4": {
+        "label": "Google Analytics",
+        "tip": "Found in Google Analytics data, joined with the crawl."
+      },
+      "ai": {
+        "label": "AI answers",
+        "tip": "Found in the pages AI answers cite, joined with the crawl."
+      }
+    },
+    "columns": {
+      "issue": "Issue",
+      "severity": "Severity",
+      "foundBy": "Found by",
+      "pages": "Pages",
+      "clicks": "Clicks",
+      "example": "Example",
+      "open": "Open",
+      "page": "Page",
+      "found": "What was found",
+      "status": "Status",
+      "tier": "Tier",
+      "linksIn": "Links in"
+    },
+    "tips": {
+      "foundBy": "The data the check comes from",
+      "pages": "Pages with this issue",
+      "pagesShare": "{share} of the {total} pages crawled",
+      "clicks": "Google Search clicks on the pages with this issue in the last 28 days, from Search Console",
+      "clicksPage": "Google Search clicks on the page in the last 28 days, from Search Console",
+      "linksIn": "Pages of the site that link to this page, any placement"
+    },
+    "strip": {
+      "pagesCrawled": {
+        "label": "Pages crawled",
+        "hint": "Every address the crawl in view found: pages, redirects and errors."
+      },
+      "pagesWithIssue": {
+        "label": "Pages with an issue",
+        "hint": "{share} of the pages crawled have at least one issue of any severity. A page with several issues counts once."
+      },
+      "pagesWithError": {
+        "label": "Pages with an error",
+        "hint": "Breaks a page for visitors or for Google. Fix these first. A page with several issues counts once."
+      },
+      "pagesWithWarning": {
+        "label": "Pages with a warning",
+        "hint": "Holds a page back. Fix after the errors. A page with several issues counts once."
+      },
+      "pagesWithNotice": {
+        "label": "Pages with a notice",
+        "hint": "Worth a look. Often intended. A page with several issues counts once."
+      },
+      "checksPassed": {
+        "label": "Checks passed",
+        "value": "{passed} of {total}",
+        "hint": "Checks that ran on this crawl and found no page."
+      }
+    },
+    "states": {
+      "passed": "Passed",
+      "notConnected": "Not connected",
+      "connectSearchConsole": "Connect Search Console",
+      "notCollected": "Not collected yet",
+      "na": "n/a",
+      "noSitemap": "The crawl found no sitemap",
+      "linksDropped": "This crawl no longer holds its links",
+      "gscNotConnected": "Search Console is not connected",
+      "gscPending": "Search Console has no page numbers yet",
+      "gscNoNumber": "Not available for this page",
+      "noStatus": "No status for this page",
+      "checkNotRun": "The check did not run",
+      "noPage": "No page to show",
+      "noDetail": "No detail for this page",
+      "loadFailed": "The issues could not be loaded",
+      "loadFailedReason": "The server returned an error. Nothing on this page changed.",
+      "crawlsFailed": "The crawl list could not be loaded",
+      "crawlsFailedReason": "Issues come from the latest crawl, and the list of crawls did not load. Try again in a moment.",
+      "noWebsiteTitle": "Add your website to check it for issues",
+      "noWebsiteReason": "Issues are found by crawling your project’s website. Add its address in the project settings.",
+      "firstLead": "Your issues appear here when the crawl finishes."
+    },
+    "announce": {
+      "showing": "Showing {count, plural, one {# check} other {# checks}}",
+      "none": "No checks match",
+      "pagesShowing": "{count, plural, one {Showing {formatted} page} other {Showing {formatted} pages}}",
+      "pagesNone": "No pages match"
+    },
+    "toolbar": {
+      "crawlNow": "Crawl now",
+      "crawling": "Crawling",
+      "crawlLine": "{host}, crawl of {date}, {count, plural, one {# page} other {# pages}}"
+    },
+    "list": {
+      "searchChecks": "Search issues",
+      "showPassed": "Show passed checks",
+      "export": "Export",
+      "exportFailed": "The file could not be made. Try again in a moment.",
+      "open": "Open {name}",
+      "footer": "{count, plural, one {# check} other {# checks}} of {total} on this tab",
+      "noChecks": {
+        "title": "No checks match",
+        "hint": "Change the search, the severity or where the check is found, or show the passed checks.",
+        "clear": "Clear filters"
+      }
+    },
+    "check": {
+      "back": "All issues",
+      "why": "Why it matters",
+      "fix": "How to fix it",
+      "searchPages": "Search pages",
+      "export": "Export",
+      "labelled": "{label}:",
+      "openPage": "Open {path}",
+      "range": "Showing {from} to {to} of {count, plural, one {{total} page} other {{total} pages}}",
+      "crawlOf": "Crawl of {date}",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "loadFailed": "The pages could not be loaded",
+      "loadFailedReason": "The server returned an error. Nothing on this page changed.",
+      "noPages": {
+        "title": "No pages have this issue",
+        "hint": "The check ran on this crawl and passed."
+      },
+      "noMatch": {
+        "title": "No pages match",
+        "hint": "Change the search.",
+        "clear": "Clear search"
+      }
+    },
+    "labels": {
+      "crawlAndActions": "Crawl and actions",
+      "measures": "Measures",
+      "issueTypes": "Issue types",
+      "severity": "Severity",
+      "checksOfTab": "{tab} checks",
+      "pagesOfCheck": "Pages: {name}"
+    },
+    "found": {
+      "returns": "Returns {status}",
+      "returnsLinked": "Returns {status}, linked from {count, plural, one {# page} other {# pages}}",
+      "redirectsTo": "Redirects to {target}",
+      "redirectsToStatus": "Redirects to {target} ({targetStatus})",
+      "redirectsAgain": "Redirects to {target}, which redirects again",
+      "linksToRedirects": "Links to {count, plural, one {# address that redirects} other {# addresses that redirect}}",
+      "canonical": "Canonical: {target}",
+      "canonicalStatus": "Canonical: {target} ({targetStatus})",
+      "noindexTag": "Has a noindex tag",
+      "noindexHeader": "Sends a noindex header",
+      "notIndexableCanonical": "Canonical points to another page",
+      "notIndexableNoindex": "Set to noindex",
+      "notIndexableRobots": "Blocked by robots.txt",
+      "notIndexable": "Not indexable",
+      "notInSitemap": "Indexable, not in the sitemap",
+      "linksToBroken": "Links to {count, plural, one {# broken page} other {# broken pages}}",
+      "noLinksIn": "No internal links in",
+      "noneEditorial": "{count, plural, one {# linking page} other {# linking pages}}, none editorial",
+      "linksToNonIndexable": "Links to {count, plural, one {# non-indexable page} other {# non-indexable pages}}",
+      "clicksDeep": "{count} clicks from the home page",
+      "nofollowLinks": "{count, plural, one {# nofollow link} other {# nofollow links}} to your pages",
+      "noTitle": "No title",
+      "sameTitle": "Same title as {target}",
+      "sameTitleMore": "Same title as {target} and {more} more",
+      "characters": "{count, plural, one {# character} other {# characters}}",
+      "capitals": "Has capitals",
+      "underscores": "Has underscores",
+      "capitalsAndUnderscores": "Has capitals and underscores",
+      "rankBroken": "Returns {status}, {count, plural, one {# keyword ranks} other {# keywords rank}} with it",
+      "citedBroken": "Returns {status}, cited in {count, plural, one {# answer} other {# answers}}",
+      "offTarget": "{count, plural, one {# keyword ranks} other {# keywords rank}} with another page",
+      "httpResources": "{count, plural, one {# resource loads} other {# resources load}} over HTTP",
+      "hreflangProblems": "{count, plural, one {# problem} other {# problems}} in the language links",
+      "milliseconds": "{count} ms",
+      "noDescription": "No description",
+      "sameDescription": "Same description as {target}",
+      "sameDescriptionMore": "Same description as {target} and {more} more",
+      "noH1": "No H1",
+      "h1Count": "{count} H1 headings",
+      "words": "{count, plural, one {# word} other {# words}}",
+      "sameText": "Same text as {target}",
+      "sameTextMore": "Same text as {target} and {more} more",
+      "imagesWithoutAlt": "{count, plural, one {# image} other {# images}} without alt text",
+      "noOpenGraph": "Open Graph tags are missing",
+      "jsonldErrors": "{count, plural, one {# block} other {# blocks}} that cannot be read"
+    },
+    "checks": {
+      "status4xx": {
+        "name": "Pages that return a 4xx error",
+        "why": "Visitors and Google get an error instead of the page, and every link to it is wasted.",
+        "fix": "Restore the page, redirect its address to the closest live page, or remove the links to it."
+      },
+      "status5xx": {
+        "name": "Pages that return a 5xx error",
+        "why": "The server failed to answer. Google crawls a site less often when this repeats.",
+        "fix": "Check the server logs for these addresses and fix the cause."
+      },
+      "clicksPageBroken": {
+        "name": "Broken or redirected pages with Google clicks",
+        "why": "People click the result in Google and land on an error or on another page. The clicks stop once Google drops the address.",
+        "fix": "Restore the page, or redirect its address to the page that answers the same search."
+      },
+      "rankPageBroken": {
+        "name": "Broken or redirected pages that rank for a keyword",
+        "why": "The keyword still ranks with an address that no longer answers with the page, so the rank will be lost.",
+        "fix": "Restore the page, or redirect its address to the page you want to rank for the keyword."
+      },
+      "citedPageBroken": {
+        "name": "Broken or redirected pages cited in AI answers",
+        "why": "An AI answer sends people to an address that no longer shows the page it cited.",
+        "fix": "Restore the page at the cited address, or redirect it to the page with the same content."
+      },
+      "clicksPageOrphan": {
+        "name": "Orphan pages with Google clicks",
+        "why": "The page earns clicks with no help from the rest of the site. Internal links would make it stronger.",
+        "fix": "Link to the page from related pages, starting with the ones that get the most visits."
+      },
+      "redirectBroken": {
+        "name": "Redirects to a broken page",
+        "why": "The redirect sends visitors and Google to an error.",
+        "fix": "Point the redirect at a live page."
+      },
+      "redirectChain": {
+        "name": "Redirect chains",
+        "why": "Each extra hop slows the visit, and Google may stop following a long chain.",
+        "fix": "Point the first address straight at the final page."
+      },
+      "linksToRedirect": {
+        "name": "Pages that link to a redirect",
+        "why": "The link works, but every click and every crawl takes an extra hop.",
+        "fix": "Change the link to the final address."
+      },
+      "redirectPages": {
+        "name": "Addresses that redirect",
+        "why": "Not a problem by itself. Listed so you can check that each redirect is intended.",
+        "fix": "Keep the ones you set on purpose, and remove internal links to them."
+      },
+      "canonicalBroken": {
+        "name": "Canonical points to a broken or redirected page",
+        "why": "Google is asked to index an address that does not answer with a page, so it may index neither.",
+        "fix": "Set the canonical to a live page that returns 200."
+      },
+      "noindex": {
+        "name": "Pages set to noindex",
+        "why": "Google is told to keep these pages out of its index.",
+        "fix": "Remove the noindex tag if the page should be found in Google."
+      },
+      "canonicalElsewhere": {
+        "name": "Canonical points to another page",
+        "why": "Google is asked to index the other page instead of this one.",
+        "fix": "Check that each one is intended, and link to the canonical page instead of this one."
+      },
+      "sitemapBroken": {
+        "name": "Sitemap lists an address that does not return 200",
+        "why": "The sitemap should only list pages you want indexed. Errors and redirects in it waste crawling.",
+        "fix": "Remove the address from the sitemap, or list the final live address."
+      },
+      "sitemapNonindexable": {
+        "name": "Sitemap lists a page that is not indexable",
+        "why": "The sitemap asks Google to index a page that the page itself asks Google to leave out.",
+        "fix": "Remove the page from the sitemap, or make it indexable."
+      },
+      "notInSitemap": {
+        "name": "Indexable pages missing from the sitemap",
+        "why": "Google can still find them through links, but new and changed pages are picked up more slowly.",
+        "fix": "Add the pages you want indexed to the sitemap."
+      },
+      "brokenInternalLinks": {
+        "name": "Pages with broken internal links",
+        "why": "A visitor who clicks lands on an error, and the link passes nothing on.",
+        "fix": "Change each link to a live page, or remove it."
+      },
+      "orphans": {
+        "name": "Orphan pages",
+        "why": "No page on the site links to it, so visitors cannot reach it and Google finds it only through the sitemap.",
+        "fix": "Link to the page from a related page, or remove it if it is not needed."
+      },
+      "editorialOrphans": {
+        "name": "Pages with no editorial links in",
+        "why": "The page is linked only from menus, footers or automatic blocks, which tell Google little about it.",
+        "fix": "Add a link in the text of a related page."
+      },
+      "linksToNonindexable": {
+        "name": "Pages that link to a non-indexable page",
+        "why": "The link leads to a page Google is asked to leave out of its index.",
+        "fix": "Link to the indexable version of the page."
+      },
+      "deepPages": {
+        "name": "Pages more than 3 clicks from the home page",
+        "why": "Pages far from the home page are crawled less often and get fewer visits.",
+        "fix": "Link to the page from a page closer to the home page."
+      },
+      "nofollowInternal": {
+        "name": "Pages with nofollow internal links",
+        "why": "A nofollow link between your pages tells Google not to follow it.",
+        "fix": "Remove nofollow from links between your pages."
+      },
+      "mixedContent": {
+        "name": "HTTPS pages that load HTTP resources",
+        "why": "Browsers block or flag images and scripts loaded over HTTP on a secure page.",
+        "fix": "Load every image, script and style over HTTPS."
+      },
+      "hreflang": {
+        "name": "Hreflang errors",
+        "why": "A wrong language code, a repeated code or a missing link to the page itself makes Google ignore the language versions.",
+        "fix": "Use valid language codes, one link per language, and a link to the page itself."
+      },
+      "slowPages": {
+        "name": "Slow pages",
+        "why": "The page took more than 3 seconds to answer in the crawl. Slow pages lose visitors and are crawled less.",
+        "fix": "Check the server response time and the size of the page."
+      },
+      "titleMissing": {
+        "name": "Pages without a title",
+        "why": "The title is the line people see in Google. Without one, Google writes its own.",
+        "fix": "Give each page a title that says what it is about."
+      },
+      "titleDuplicate": {
+        "name": "Pages that share a title",
+        "why": "Google cannot tell the pages apart from their titles, and neither can a searcher.",
+        "fix": "Write a title for each page that says what is different about it."
+      },
+      "titleLong": {
+        "name": "Titles over 60 characters",
+        "why": "Google cuts long titles off, so the end may not show.",
+        "fix": "Put the main words first and keep the title short."
+      },
+      "titleShort": {
+        "name": "Titles under 30 characters",
+        "why": "A very short title says little about the page and leaves room unused in Google.",
+        "fix": "Add what the page offers and who it is for."
+      },
+      "descriptionMissing": {
+        "name": "Pages without a meta description",
+        "why": "Google writes its own text under the title, which may not sell the page.",
+        "fix": "Write one or two sentences that say what the visitor gets."
+      },
+      "descriptionDuplicate": {
+        "name": "Pages that share a meta description",
+        "why": "The same text under several results gives a searcher no reason to pick one.",
+        "fix": "Write a description for each page."
+      },
+      "h1Missing": {
+        "name": "Pages without an H1",
+        "why": "The H1 tells visitors and Google what the page is about.",
+        "fix": "Add one H1 that says what the page is about."
+      },
+      "h1Multiple": {
+        "name": "Pages with more than one H1",
+        "why": "Several main headings blur what the page is about.",
+        "fix": "Keep one H1 and turn the others into H2."
+      },
+      "thinContent": {
+        "name": "Pages with little text",
+        "why": "A page with fewer than 200 words rarely answers a search well enough to rank.",
+        "fix": "Add what a visitor needs to know, or merge the page into a fuller one."
+      },
+      "duplicateContent": {
+        "name": "Pages with the same content",
+        "why": "Google picks one of the copies to show and may pick the wrong one.",
+        "fix": "Keep one page and redirect or set a canonical on the others."
+      },
+      "imageAlt": {
+        "name": "Pages with images that have no alt text",
+        "why": "Screen readers and Google read the alt text to know what an image shows.",
+        "fix": "Describe each meaningful image in a few words."
+      },
+      "schemaErrors": {
+        "name": "Pages with structured data errors",
+        "why": "Google ignores markup it cannot read, so the page loses its rich result.",
+        "fix": "Fix the fields the validator reports."
+      },
+      "socialTags": {
+        "name": "Pages without Open Graph tags",
+        "why": "A shared link shows without the right title or image.",
+        "fix": "Add a title, a description and an image tag for sharing."
+      },
+      "urlFormat": {
+        "name": "Addresses with capitals or underscores",
+        "why": "Addresses are easier to read, type and share in lower case with hyphens.",
+        "fix": "Use lower case and hyphens for new pages. Change an old address only with a redirect."
+      },
+      "urlLong": {
+        "name": "Addresses over 115 characters",
+        "why": "Long addresses are cut off in Google and are hard to share.",
+        "fix": "Use shorter addresses for new pages."
+      },
+      "offTarget": {
+        "name": "Target pages that another page of yours outranks",
+        "why": "You set this page as the target of a keyword, and Google ranks another page of yours for it.",
+        "fix": "Make the target page the better answer, and link to it from the page that ranks."
+      }
+    }
+  },
   "setupChecklist": {
     "label": "Project setup",
     "loading": "Checking setup",
@@ -10156,7 +12196,7 @@
       },
       "trafficAiReferrals": {
         "what": "Visits to your site that come from AI platforms.",
-        "how": "A visit is a session as Google Analytics counts it, from chatgpt.com and gemini.google.com as Google Analytics classifies them. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic."
+        "how": "A visit is a session as Google Analytics counts it. Each visit is counted twice, by the AI Assistant channel of Google Analytics (GA4 channel) and by our own list of AI platform referrers (Our rules), and neither is called the right one. Google AI Mode and Google AI Overview visits cannot be told apart from Google organic."
       },
       "aiFanoutTop": {
         "what": "The extra searches ChatGPT runs to build its answers.",

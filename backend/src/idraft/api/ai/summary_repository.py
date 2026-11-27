@@ -11,14 +11,28 @@ other months are not read and the partial index on (project, date, engine) can b
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Date, Float, Uuid, and_, any_, cast, func, literal, or_, select, tuple_
-from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy import (
+    Date,
+    Float,
+    Uuid,
+    and_,
+    any_,
+    cast,
+    column,
+    func,
+    literal,
+    or_,
+    select,
+    tuple_,
+    union_all,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from idraft.api.ai.source_repository import EXCLUDED_FLAGS
@@ -42,6 +56,7 @@ from idraft.db.tables import (
     projects,
     taxonomy_terms,
     taxonomy_vocabularies,
+    tracked_keywords,
     urls,
 )
 from idraft.keywords.prompt_links import prompt_location_id
@@ -316,28 +331,28 @@ def _shifted(instant: datetime, days: int) -> date:
         return day
 
 
-def _window(
-    workspace_id: UUID,
-    project_id: UUID,
-    prompt_ids: Collection[UUID],
-    since: datetime,
-    until: datetime,
-    engine_codes: Sequence[str] | None,
+# The prompt each keyword speaks for on Google AI Overview (`aio_summary.chosen_keywords`).
+AioKeywords = Mapping[UUID, UUID]
+AIO_ENGINE = "google_ai_overview"
+
+
+def _bounds(
+    workspace_id: UUID, project_id: UUID, since: datetime, until: datetime, c: Any = _F
 ) -> list[Any]:
-    conditions = [
-        _F.workspace_id == workspace_id,
-        _F.project_id == project_id,
-        _F.is_current,
-        _F.observed_at >= since,
-        _F.observed_at < until,
+    """The fact rows `c` that are current, inside the window, and whose answer is not superseded."""
+    return [
+        c.workspace_id == workspace_id,
+        c.project_id == project_id,
+        c.is_current,
+        c.observed_at >= since,
+        c.observed_at < until,
         # A fact's date is its answer's UTC date: a day either side of the instants is safe, and
         # it is what the (project, date, engine) index is searched with.
-        _F.observed_date >= _shifted(since, -1),
-        _F.observed_date <= _shifted(until, 1),
-        _F.prompt_id.in_(list(prompt_ids)),
+        c.observed_date >= _shifted(since, -1),
+        c.observed_date <= _shifted(until, 1),
         # A superseded answer is left out: its facts are looked up in the set of the window's
         # superseded answers, which is small and bounded like the facts (0020 indexes it).
-        tuple_(_F.observation_id, _F.observed_at).not_in(
+        tuple_(c.observation_id, c.observed_at).not_in(
             select(_O.id, _O.observed_at).where(
                 _O.workspace_id == workspace_id,
                 _O.project_id == project_id,
@@ -349,9 +364,103 @@ def _window(
             )
         ),
     ]
+
+
+def _window(
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+) -> list[Any]:
+    conditions = [
+        *_bounds(workspace_id, project_id, since, until),
+        _F.prompt_id.in_(list(prompt_ids)),
+    ]
     if engine_codes is not None:
         conditions.append(_F.engine_code.in_(list(engine_codes)))
     return conditions
+
+
+def _overview_facts(
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    since: datetime,
+    until: datetime,
+    aio_keywords: AioKeywords,
+) -> Any:
+    """The fact rows of the Google AI Overview answers of the prompts, as rows of the prompts.
+
+    An overview is kept by keyword, not by prompt: its fact rows have no prompt. A prompt's
+    answer is the newest valid one inside the window of the keyword it speaks for (any tracked
+    variant of it, so the newest of desktop and mobile), and each prompt that shares the keyword
+    gets the same answer. One statement for all the prompts: the keywords' newest answers are
+    picked once, then joined to the (prompt, keyword) pairs."""
+    tk = tracked_keywords.c
+    pairs = [(prompt, aio_keywords[prompt]) for prompt in prompt_ids if prompt in aio_keywords]
+    newest = (
+        select(ai_observation_facts, tk.keyword_id.label("aio_keyword_id"))
+        .join(
+            tracked_keywords,
+            and_(tk.id == _F.tracked_keyword_id, tk.workspace_id == _F.workspace_id),
+        )
+        .where(
+            *_bounds(workspace_id, project_id, since, until),
+            _F.engine_code == AIO_ENGINE,
+            _F.is_valid,
+            tk.project_id == project_id,
+            tk.keyword_id.in_({keyword for _, keyword in pairs}),
+        )
+        .ext(distinct_on(tk.keyword_id))
+        .order_by(tk.keyword_id, _F.observed_at.desc(), _F.observation_id.desc())
+        .subquery("aio_newest")
+    )
+    asked = (
+        func.unnest(
+            literal([prompt for prompt, _ in pairs], ARRAY(Uuid)),
+            literal([keyword for _, keyword in pairs], ARRAY(Uuid)),
+        )
+        .table_valued(column("prompt_id", Uuid), column("keyword_id", Uuid))
+        .render_derived(name="aio_asked")
+    )
+    return select(
+        *(
+            (asked.c.prompt_id if col.name == "prompt_id" else newest.c[col.name]).label(col.name)
+            for col in ai_observation_facts.c
+        )
+    ).select_from(newest.join(asked, asked.c.keyword_id == newest.c.aio_keyword_id))
+
+
+def _facts(
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None,
+) -> Any:
+    """The fact rows of the window the prompts' counts are read from, with every column of the
+    facts table: the answers the prompts were asked, and, when `aio_keywords` says which keyword
+    each prompt's Google AI Overview comes from, those answers too. A subquery to select from in
+    place of the facts table."""
+    branches = [
+        select(ai_observation_facts).where(
+            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes)
+        )
+    ]
+    asked = aio_keywords and (engine_codes is None or AIO_ENGINE in engine_codes)
+    if asked and aio_keywords and any(prompt in aio_keywords for prompt in prompt_ids):
+        branches.append(
+            _overview_facts(workspace_id, project_id, prompt_ids, since, until, aio_keywords)
+        )
+    return (
+        branches[0].subquery("facts")
+        if len(branches) == 1
+        else union_all(*branches).subquery("facts")
+    )
 
 
 async def counts_by_prompt(
@@ -365,6 +474,7 @@ async def counts_by_prompt(
     engine_codes: Sequence[str] | None,
     lost_to: UUID | None = None,
     detail: bool = False,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str], Counts]:
     """The counts by prompt and engine. With `lost_to` (a competitor of the project) each also
     holds `Counts.lost_to`: the valid answers that name that competitor and not the own brand,
@@ -373,6 +483,8 @@ async def counts_by_prompt(
     count, so a read without `detail` neither reads the columns nor makes the join."""
     if not prompt_ids:
         return {}
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     extra = (
         []
         if lost_to is None
@@ -380,36 +492,34 @@ async def counts_by_prompt(
             func.count()
             .filter(
                 and_(
-                    _F.is_valid,
-                    ~_F.own_mentioned,
-                    literal(lost_to, Uuid) == any_(_F.competitor_mentions),
+                    f.is_valid,
+                    ~f.own_mentioned,
+                    literal(lost_to, Uuid) == any_(f.competitor_mentions),
                 )
             )
             .label("lost_to")
         ]
     )
-    statement = select(_F.prompt_id, _F.engine_code, *_counts_columns(), *extra).where(
-        *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes)
-    )
+    statement = select(f.prompt_id, f.engine_code, *_counts_columns(f), *extra)
     if detail:
         # An alias, so that the window's subquery of superseded answers is not correlated to it.
         answers = ai_observations.alias("answers")
         a = answers.c
         statement = (
-            statement.add_columns(*_detail_columns(a))
+            statement.add_columns(*_detail_columns(f, a))
             .select_from(
-                ai_observation_facts.join(
+                facts.join(
                     answers,
                     and_(
-                        a.id == _F.observation_id,
-                        a.observed_at == _F.observed_at,
-                        a.workspace_id == _F.workspace_id,
+                        a.id == f.observation_id,
+                        a.observed_at == f.observed_at,
+                        a.workspace_id == f.workspace_id,
                     ),
                 )
             )
             .where(a.project_id == project_id, a.observed_at >= since, a.observed_at < until)
         )
-    rows = await db.execute(statement.group_by(_F.prompt_id, _F.engine_code))
+    rows = await db.execute(statement.group_by(f.prompt_id, f.engine_code))
     return {(row.prompt_id, row.engine_code): _counts(row) for row in rows}
 
 
@@ -431,37 +541,37 @@ async def latest_answers(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str], LatestRow]:
     """The newest valid answer by prompt and engine over the window: one statement for all the
     prompts, whatever their number, with the screenshot table joined to say whether one is
     stored."""
     if not prompt_ids:
         return {}
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     shots = ai_observation_screenshots.c
     statement = (
         select(
-            _F.prompt_id,
-            _F.engine_code,
-            _F.observation_id,
-            _F.observed_at,
+            f.prompt_id,
+            f.engine_code,
+            f.observation_id,
+            f.observed_at,
             shots.observation_id.is_not(None).label("stored"),
         )
         .select_from(
-            ai_observation_facts.outerjoin(
+            facts.outerjoin(
                 ai_observation_screenshots,
                 and_(
-                    shots.observation_id == _F.observation_id,
-                    shots.observed_at == _F.observed_at,
-                    shots.workspace_id == _F.workspace_id,
+                    shots.observation_id == f.observation_id,
+                    shots.observed_at == f.observed_at,
+                    shots.workspace_id == f.workspace_id,
                 ),
             )
         )
-        .where(
-            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
-            _F.is_valid,
-        )
-        .ext(distinct_on(_F.prompt_id, _F.engine_code))
-        .order_by(_F.prompt_id, _F.engine_code, _F.observed_at.desc(), _F.observation_id.desc())
+        .where(f.is_valid)
+        .ext(distinct_on(f.prompt_id, f.engine_code))
+        .order_by(f.prompt_id, f.engine_code, f.observed_at.desc(), f.observation_id.desc())
     )
     return {
         (row.prompt_id, row.engine_code): LatestRow(row.observation_id, row.observed_at, row.stored)
@@ -492,6 +602,7 @@ async def position_sums(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str], PositionSums]:
     """By prompt and engine: the valid answers that name the own brand first, second, ... among
     the tracked brands (`own_mention_order`, 1 first), and the sum of those places, in one
@@ -499,16 +610,16 @@ async def position_sums(
     not parse lists yet, so `had_structured_list` is never true and is not asked."""
     if not prompt_ids:
         return {}
-    placed = and_(_F.is_valid, _F.own_mentioned, _F.own_mention_order.is_not(None))
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
+    placed = and_(f.is_valid, f.own_mentioned, f.own_mention_order.is_not(None))
     rows = await db.execute(
         select(
-            _F.prompt_id,
-            _F.engine_code,
+            f.prompt_id,
+            f.engine_code,
             func.count().filter(placed).label("ordered_answers"),
-            func.coalesce(func.sum(_F.own_mention_order).filter(placed), 0).label("rank_sum"),
-        )
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
-        .group_by(_F.prompt_id, _F.engine_code)
+            func.coalesce(func.sum(f.own_mention_order).filter(placed), 0).label("rank_sum"),
+        ).group_by(f.prompt_id, f.engine_code)
     )
     return {
         (row.prompt_id, row.engine_code): PositionSums(row.ordered_answers, int(row.rank_sum))
@@ -531,6 +642,7 @@ async def named_brands(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str], list[BrandNamed]]:
     """By prompt and engine: the brands other than the own that the valid answers name, with
     how many answers name each, most named first, then by name; at most `FACT_LIST_LIMIT`, in one
@@ -539,32 +651,34 @@ async def named_brands(
     here; nor is a product that counts as its brand (a competitor mention with no order)."""
     if not prompt_ids:
         return {}
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     m = ai_entity_mentions.c
     answers = func.count()
     place = (
         func.row_number()
         .over(
-            partition_by=[_F.prompt_id, _F.engine_code],
+            partition_by=[f.prompt_id, f.engine_code],
             order_by=[answers.desc(), entities.c.canonical_name, m.entity_id],
         )
         .label("place")
     )
     ranked = (
         select(
-            _F.prompt_id,
-            _F.engine_code,
+            f.prompt_id,
+            f.engine_code,
             entities.c.canonical_name.label("name"),
             answers.label("answers"),
             place,
         )
         .select_from(
-            ai_observation_facts.join(
+            facts.join(
                 ai_entity_mentions,
                 and_(
-                    m.observation_id == _F.observation_id,
-                    m.observed_at == _F.observed_at,
-                    m.derivation_id == _F.derivation_id,
-                    m.workspace_id == _F.workspace_id,
+                    m.observation_id == f.observation_id,
+                    m.observed_at == f.observed_at,
+                    m.derivation_id == f.derivation_id,
+                    m.workspace_id == f.workspace_id,
                 ),
             ).join(
                 entities,
@@ -572,8 +686,7 @@ async def named_brands(
             )
         )
         .where(
-            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
-            _F.is_valid,
+            f.is_valid,
             m.project_id == project_id,
             m.is_current,
             m.observed_at >= since,
@@ -582,7 +695,7 @@ async def named_brands(
             m.role != "own",
             or_(m.mention_order.is_not(None), m.role.in_(("watch", "untracked"))),
         )
-        .group_by(_F.prompt_id, _F.engine_code, m.entity_id, entities.c.canonical_name)
+        .group_by(f.prompt_id, f.engine_code, m.entity_id, entities.c.canonical_name)
         .subquery()
     )
     rows = await db.execute(
@@ -615,6 +728,7 @@ async def cited_links(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str], list[LinkCited]]:
     """By prompt and engine: the pages the valid answers cite, with how many answers cite each
     (a page counts once per answer), most cited first, then by address; at most
@@ -622,20 +736,22 @@ async def cited_links(
     (`EXCLUDED_FLAGS`) are left out here too."""
     if not prompt_ids:
         return {}
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     c = ai_citations.c
     answers = func.count(c.observation_id.distinct())
     place = (
         func.row_number()
         .over(
-            partition_by=[_F.prompt_id, _F.engine_code],
+            partition_by=[f.prompt_id, f.engine_code],
             order_by=[answers.desc(), urls.c.canonical_url],
         )
         .label("place")
     )
     ranked = (
         select(
-            _F.prompt_id,
-            _F.engine_code,
+            f.prompt_id,
+            f.engine_code,
             urls.c.canonical_url.label("url"),
             domains.c.host.label("domain"),
             c.domain_role.label("domain_role"),
@@ -643,28 +759,27 @@ async def cited_links(
             place,
         )
         .select_from(
-            ai_observation_facts.join(
+            facts.join(
                 ai_citations,
                 and_(
-                    c.observation_id == _F.observation_id,
-                    c.observed_at == _F.observed_at,
-                    c.workspace_id == _F.workspace_id,
+                    c.observation_id == f.observation_id,
+                    c.observed_at == f.observed_at,
+                    c.workspace_id == f.workspace_id,
                 ),
             )
             .join(urls, urls.c.id == c.url_id)
             .join(domains, domains.c.id == c.domain_id)
         )
         .where(
-            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
-            _F.is_valid,
+            f.is_valid,
             c.project_id == project_id,
             c.observed_at >= since,
             c.observed_at < until,
             ~c.flags.overlap(list(EXCLUDED_FLAGS)),
         )
         .group_by(
-            _F.prompt_id,
-            _F.engine_code,
+            f.prompt_id,
+            f.engine_code,
             c.url_id,
             urls.c.canonical_url,
             domains.c.host,
@@ -685,23 +800,23 @@ async def cited_links(
     return found
 
 
-def _detail_columns(answers: Any) -> list[Any]:
-    """The small cells' counts of the valid facts (C-9), with the fan-out count of `answers`, the
-    answers' own columns."""
-    valid = _F.is_valid
+def _detail_columns(f: Any, answers: Any) -> list[Any]:
+    """The small cells' counts of the valid fact rows `f` (C-9), with the fan-out count of
+    `answers`, the answers' own columns."""
+    valid = f.is_valid
 
     def units(column: Any) -> Any:
         return func.coalesce(func.sum(column).filter(valid), 0)
 
     return [
-        func.count().filter(and_(valid, _F.total_citation_count > 0)).label("n_citing"),
+        func.count().filter(and_(valid, f.total_citation_count > 0)).label("n_citing"),
         func.count()
-        .filter(and_(valid, _F.own_domain_cited, _F.total_citation_count > 0))
+        .filter(and_(valid, f.own_domain_cited, f.total_citation_count > 0))
         .label("citing_own"),
-        units(_F.own_citation_count).label("own_units"),
-        units(_F.total_citation_count).label("all_units"),
+        units(f.own_citation_count).label("own_units"),
+        units(f.total_citation_count).label("all_units"),
         func.count()
-        .filter(and_(valid, _F.own_mentioned, _F.own_mention_order == 1))
+        .filter(and_(valid, f.own_mentioned, f.own_mention_order == 1))
         .label("first_mentions"),
         func.count().filter(and_(valid, answers.fanout_count > 0)).label("fanout_answers"),
         units(answers.fanout_count).label("fanout_queries"),
@@ -716,20 +831,18 @@ def _weekly_facts(
     until: datetime,
     engine_codes: Sequence[str] | None,
     timezone: str,
+    aio_keywords: AioKeywords | None,
 ) -> Any:
     """The fact rows of the window with their week: a Monday at midnight in the project's
     timezone. The week is a column of this subquery, so that a read can group by it (see
     `weekly_counts`)."""
-    return (
-        select(
-            ai_observation_facts,
-            cast(func.date_trunc("week", func.timezone(timezone, _F.observed_at)), Date).label(
-                "week_start"
-            ),
-        )
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
-        .subquery()
-    )
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    return select(
+        facts,
+        cast(func.date_trunc("week", func.timezone(timezone, facts.c.observed_at)), Date).label(
+            "week_start"
+        ),
+    ).subquery()
 
 
 async def weekly_counts(
@@ -742,6 +855,7 @@ async def weekly_counts(
     until: datetime,
     engine_codes: Sequence[str] | None,
     timezone: str,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str, date], Counts]:
     """The counts by prompt, engine and week. A week starts on Monday at midnight in the
     project's timezone (docs/19 section 2.5, granularity `week`), the zone the Monday and
@@ -751,7 +865,7 @@ async def weekly_counts(
     if not prompt_ids:
         return {}
     facts = _weekly_facts(
-        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone
+        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone, aio_keywords
     )
     c = facts.c
     rows = await db.execute(
@@ -760,6 +874,43 @@ async def weekly_counts(
         )
     )
     return {(row.prompt_id, row.engine_code, row.week_start): _counts(row) for row in rows}
+
+
+async def weekly_position_sums(
+    db: AsyncSession,
+    workspace_id: UUID,
+    project_id: UUID,
+    prompt_ids: Collection[UUID],
+    *,
+    since: datetime,
+    until: datetime,
+    engine_codes: Sequence[str] | None,
+    timezone: str,
+    aio_keywords: AioKeywords | None = None,
+) -> dict[tuple[UUID, str, date], PositionSums]:
+    """`position_sums` by week as well, in one statement: the places of the own brand by prompt,
+    engine and week (a Monday at midnight in the project's timezone, as in `weekly_counts`)."""
+    if not prompt_ids:
+        return {}
+    c = _weekly_facts(
+        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone, aio_keywords
+    ).c
+    placed = and_(c.is_valid, c.own_mentioned, c.own_mention_order.is_not(None))
+    rows = await db.execute(
+        select(
+            c.prompt_id,
+            c.engine_code,
+            c.week_start,
+            func.count().filter(placed).label("ordered_answers"),
+            func.coalesce(func.sum(c.own_mention_order).filter(placed), 0).label("rank_sum"),
+        ).group_by(c.prompt_id, c.engine_code, c.week_start)
+    )
+    return {
+        (row.prompt_id, row.engine_code, row.week_start): PositionSums(
+            row.ordered_answers, int(row.rank_sum)
+        )
+        for row in rows
+    }
 
 
 async def entity_counts(
@@ -772,6 +923,7 @@ async def entity_counts(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str, UUID], EntityCounts]:
     """Per prompt, engine and entity: the valid answers whose share of voice set holds the
     entity, and its share of each, 1 / the entities the set holds (docs/16 section 5). The set
@@ -781,16 +933,10 @@ async def entity_counts(
     row's own share. The caller may ask for fewer entities than the answer names."""
     if not prompt_ids or not entity_ids:
         return {}
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     rows = await db.execute(
-        _named(
-            ai_observation_facts,
-            _F,
-            [_F.prompt_id, _F.engine_code],
-            project_id,
-            entity_ids,
-            since,
-            until,
-        ).where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
+        _named(facts, f, [f.prompt_id, f.engine_code], project_id, entity_ids, since, until)
     )
     return {(row.prompt_id, row.engine_code, row.entity_id): _entity_counts(row) for row in rows}
 
@@ -856,6 +1002,7 @@ async def weekly_entity_counts(
     until: datetime,
     engine_codes: Sequence[str] | None,
     timezone: str,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[UUID, str, date, UUID], EntityCounts]:
     """`entity_counts` by week too, the weeks being those of `weekly_counts` (worked out in a
     subquery, for the reason given there), in one statement. Over the weeks, the entity counts of
@@ -863,7 +1010,7 @@ async def weekly_entity_counts(
     if not prompt_ids or not entity_ids:
         return {}
     facts = _weekly_facts(
-        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone
+        workspace_id, project_id, prompt_ids, since, until, engine_codes, timezone, aio_keywords
     )
     c = facts.c
     rows = await db.execute(
@@ -893,6 +1040,7 @@ async def comention_pairs(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> dict[tuple[str, UUID, UUID], int]:
     """Per engine and pair of entities `(a, b)`, `a` below `b` by id: the valid answers whose
     share of voice set holds both (the mentions with an order, as `entity_counts` reads them),
@@ -901,6 +1049,8 @@ async def comention_pairs(
     two entities make no pair, and nothing is read."""
     if not prompt_ids or len(entity_ids) < 2:
         return {}
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     first, second = ai_entity_mentions.alias("first"), ai_entity_mentions.alias("second")
     a, b = first.c, second.c
 
@@ -917,31 +1067,28 @@ async def comention_pairs(
 
     def joined(m: Any) -> Any:
         return and_(
-            m.observation_id == _F.observation_id,
-            m.observed_at == _F.observed_at,
-            m.derivation_id == _F.derivation_id,
-            m.workspace_id == _F.workspace_id,
+            m.observation_id == f.observation_id,
+            m.observed_at == f.observed_at,
+            m.derivation_id == f.derivation_id,
+            m.workspace_id == f.workspace_id,
         )
 
     rows = await db.execute(
         select(
-            _F.engine_code,
+            f.engine_code,
             a.entity_id.label("first_id"),
             b.entity_id.label("second_id"),
             func.count().label("answers"),
         )
         .select_from(
-            ai_observation_facts.join(first, joined(a)).join(
-                second, and_(joined(b), b.entity_id > a.entity_id)
-            )
+            facts.join(first, joined(a)).join(second, and_(joined(b), b.entity_id > a.entity_id))
         )
         .where(
-            *_window(workspace_id, project_id, prompt_ids, since, until, engine_codes),
-            _F.is_valid,
+            f.is_valid,
             *named(a),
             *named(b),
         )
-        .group_by(_F.engine_code, a.entity_id, b.entity_id)
+        .group_by(f.engine_code, a.entity_id, b.entity_id)
     )
     return {(row.engine_code, row.first_id, row.second_id): row.answers for row in rows}
 
@@ -993,20 +1140,22 @@ async def entity_config_versions(
     since: datetime,
     until: datetime,
     engine_codes: Sequence[str] | None,
+    aio_keywords: AioKeywords | None = None,
 ) -> list[int]:
     """The entity configuration versions the counted answers were derived under."""
     if not prompt_ids:
         return []
+    facts = _facts(workspace_id, project_id, prompt_ids, since, until, engine_codes, aio_keywords)
+    f = facts.c
     d = ai_derivations.c
     rows = await db.execute(
         select(d.entity_config_version)
         .select_from(
-            ai_observation_facts.join(
+            facts.join(
                 ai_derivations,
-                and_(d.id == _F.derivation_id, d.workspace_id == _F.workspace_id),
+                and_(d.id == f.derivation_id, d.workspace_id == f.workspace_id),
             )
         )
-        .where(*_window(workspace_id, project_id, prompt_ids, since, until, engine_codes))
         .distinct()
         .order_by(d.entity_config_version)
     )

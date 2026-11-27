@@ -101,9 +101,15 @@ async def track_keyword(
     )
 
 
-async def gsc_property(pg: PostgresServer, workspace: Workspace, project: uuid.UUID) -> uuid.UUID:
+async def gsc_property(
+    pg: PostgresServer,
+    workspace: Workspace,
+    project: uuid.UUID,
+    external_property: str = "sc-domain:example.com",
+) -> uuid.UUID:
     """An active property whose pull has a window, as a project connected before page numbers
-    existed or a pass that stopped on its budget leaves it: no page day is stored yet."""
+    existed or a pass that stopped on its budget leaves it: no page day is stored yet. A
+    workspace holds a property once, so a second project names another `external_property`."""
     secret = await fetchrow(
         pg,
         "INSERT INTO ops.secrets (workspace_id, kind, ciphertext, dek_wrapped, kek_version, "
@@ -124,12 +130,13 @@ async def gsc_property(pg: PostgresServer, workspace: Workspace, project: uuid.U
         pg,
         "INSERT INTO fp.integrations (workspace_id, project_id, kind, external_property, "
         "connection_id, scopes, status, backfill_state) "
-        "VALUES ($1, $2, 'gsc', 'sc-domain:example.com', $3, '{}', 'active', $4::jsonb) "
+        "VALUES ($1, $2, 'gsc', $5, $3, '{}', 'active', $4::jsonb) "
         "RETURNING id",
         workspace.id,
         project,
         connection["id"],
         json.dumps(state.write({})),
+        external_property,
     )
     integration: uuid.UUID = row["id"]
     return integration

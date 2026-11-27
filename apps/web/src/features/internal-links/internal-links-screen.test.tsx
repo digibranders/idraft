@@ -1,9 +1,10 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { FileText } from 'lucide-react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CRAWL_POLL_MS, seenCrawlKey } from './crawl-reads';
+import { findDrawerTitle } from '@/components/app/inspector/drawer-title';
 import { announce, LIVE_REGION_ID } from '@/lib/a11y/announcer';
 import { CRAWL_SCREEN_LIMIT } from '@/lib/internal-links/queries';
 import type { CrawlRun } from '@/lib/internal-links/types';
@@ -12,6 +13,7 @@ import { EVENTUS, linksWorld, MOCK_RUN_ID, setCrawlsEnabled } from '@/mocks/inte
 import { mswPath } from '@/mocks/respond';
 import { axe } from '@/test/axe';
 import { EVENTUS_LINKS, FYNIX_LINKS, NO_WEBSITE, internalLinksAs } from '@/test/internal-links-harness';
+import { pagesAs } from '@/test/pages-harness';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
@@ -21,7 +23,7 @@ const registry = vi.hoisted(() => ({ real: false }));
 vi.mock('./tabs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./tabs')>();
   const entry = (
-    id: 'pages' | 'links' | 'journey' | 'flow',
+    id: 'links' | 'journey' | 'flow',
     label: string,
   ): ReturnType<typeof actual.defineLinksTabs>[number] => ({
     id,
@@ -30,9 +32,8 @@ vi.mock('./tabs', async (importOriginal) => {
     render: () => `Panel of ${label}`,
   });
   const text = actual.defineLinksTabs([
-    entry('pages', 'Pages'),
-    entry('links', 'Links'),
     entry('journey', 'Journey'),
+    entry('links', 'Links'),
     entry('flow', 'Tier flow'),
   ]);
   return {
@@ -142,19 +143,31 @@ describe('the Internal links page (spec 7.1 and 9)', () => {
     const { user } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
       onUrlUpdate: ({ queryString, options }) => writes.push({ queryString, history: options.history }),
     });
-    expect(await screen.findByText('Panel of Pages')).toBeInTheDocument();
-    expect(writes).toEqual([]);
-    await user.click(screen.getByRole('tab', { name: 'Journey' }));
-    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=journey'));
-    expect(writes.at(-1)?.history).toBe('push');
     expect(await screen.findByText('Panel of Journey')).toBeInTheDocument();
-    await user.click(screen.getByRole('tab', { name: 'Pages' }));
+    expect(writes).toEqual([]);
+    expect(screen.queryByRole('tab', { name: 'Pages' })).toBeNull();
+    await user.click(screen.getByRole('tab', { name: 'Links' }));
+    await waitFor(() => expect(writes.at(-1)?.queryString).toContain('tab=links'));
+    expect(writes.at(-1)?.history).toBe('push');
+    expect(await screen.findByText('Panel of Links')).toBeInTheDocument();
+    // Journey is the default tab, so choosing it writes no tab key
+    await user.click(screen.getByRole('tab', { name: 'Journey' }));
     await waitFor(() => expect(writes.at(-1)?.queryString).not.toContain('tab='));
   });
 
-  it('opens on the tab the address names and falls back to Pages for one it does not know', async () => {
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=flow' });
+  it('opens on the tab the address names and falls back to Journey for one it does not know', async () => {
+    const flow = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=flow' });
     expect(await screen.findByText('Panel of Tier flow')).toBeInTheDocument();
+    flow.unmount();
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=pages' });
+    expect(await screen.findByText('Panel of Journey')).toBeInTheDocument();
+  });
+
+  it('sends the Untiered figure of the context line to All pages, filtered to pages with no tier', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
+    const strip = await screen.findByRole('region', { name: 'Crawl in scope' });
+    const link = await within(strip).findByRole('link', { name: /Tiered/ });
+    expect(link).toHaveAttribute('href', '/digibranders/eventus-security/seo/pages/all?tier=none');
   });
 
   it('explains that a website is needed and links to the domains settings', () => {
@@ -307,7 +320,7 @@ describe('the crawl states of the page (spec 9)', () => {
     expect(await screen.findByText(/^Crawled .+, 18 pages$/)).toBeInTheDocument();
     expect(screen.getByText('The last crawl failed.')).toBeInTheDocument();
     expect(await screen.findByRole('region', { name: 'Crawl in scope' })).toHaveTextContent('T1 pages');
-    expect(screen.getByText('Panel of Pages')).toBeInTheDocument();
+    expect(screen.getByText('Panel of Journey')).toBeInTheDocument();
     expect(screen.queryByText('Add your website to map internal links')).toBeNull();
     expect(
       requests.some((url) => url.includes('/link-crawls') && url.includes(`limit=${String(CRAWL_SCREEN_LIMIT)}`)),
@@ -327,7 +340,7 @@ describe('the crawl states of the page (spec 9)', () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     expect(await screen.findByText('Internal links could not be loaded')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'The last crawl failed.' })).toBeNull();
-    expect(screen.queryByText('Panel of Pages')).toBeNull();
+    expect(screen.queryByText('Panel of Journey')).toBeNull();
   });
 
   it('offers Crawl now again after a first crawl was cancelled', async () => {
@@ -345,7 +358,7 @@ describe('the crawl states of the page (spec 9)', () => {
     expect(await screen.findByText('The last crawl failed.')).toBeInTheDocument();
     expect(screen.getByText(/workspace budget for site crawls is used up/)).toBeInTheDocument();
     expect(screen.getByText(/^Crawled .+, 40 pages$/)).toBeInTheDocument();
-    expect(screen.getByText('Panel of Pages')).toBeInTheDocument();
+    expect(screen.getByText('Panel of Journey')).toBeInTheDocument();
   });
 
   it('reports a crawl under way above the last one; Crawl now is busy, still enabled, and a press sends nothing', async () => {
@@ -780,12 +793,13 @@ describe('accessibility of the shell', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('has no axe violations with the tab registry as it ships (the Pages tab)', async () => {
+  it('has no axe violations with the tab registry as it ships (Journey first, no Pages tab)', async () => {
     registry.real = true;
     const { container } = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await screen.findByRole('region', { name: 'Crawl in scope' });
-    await screen.findByRole('grid', { name: 'Pages' });
-    expect(screen.getByRole('tab', { name: 'Pages' })).toBeInTheDocument();
+    await screen.findByRole('group', { name: /Link journey canvas/ });
+    expect(screen.getByRole('tab', { name: 'Journey' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Pages' })).toBeNull();
     expect(await axe(container)).toHaveNoViolations();
   });
 
@@ -797,5 +811,45 @@ describe('accessibility of the shell', () => {
     const first = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
     await screen.findByRole('heading', { name: 'Mapping eventussecurity.com' });
     expect(await axe(first.container)).toHaveNoViolations();
+  });
+});
+
+describe('the page drawer opened from the Pages table', () => {
+  const rowHeader = async (path: string): Promise<HTMLElement> =>
+    within(await screen.findByRole('grid', { name: 'Pages' })).findByRole('rowheader', { name: path });
+  const title = (): HTMLElement | null => findDrawerTitle();
+
+  it('steps with ArrowDown and keeps focus in the drawer after the step', async () => {
+    registry.real = true;
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS));
+    await user.click(await rowHeader('/pricing'));
+    await screen.findByRole('complementary', { name: '/pricing' });
+    await waitFor(() => expect(title()).toHaveFocus());
+    await user.keyboard('{ArrowDown}');
+    // The drawer is keyed by the page id, so a step remounts it: the new title takes focus
+    await waitFor(() => expect(title()).toHaveFocus());
+    const second = title()?.textContent ?? '';
+    expect(second).not.toBe('/pricing');
+    expect(second).not.toBe('');
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(title()?.textContent).not.toBe(second));
+    expect(title()?.textContent).not.toBe('');
+    expect(title()).toHaveFocus();
+  });
+
+  it('returns focus to the row when the drawer closes', async () => {
+    registry.real = true;
+    // Another page is open already: the test URL cannot go "back", so Close replaces the URL, as for a shared link.
+    // Clicking the row is what makes the screen remember its opener.
+    const { user } = renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS), {
+      searchParams: 'inspect=page%3A109',
+    });
+    await user.click(await rowHeader('/pricing'));
+    await screen.findByRole('complementary', { name: '/pricing' });
+    await waitFor(() => expect(title()).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
+    const pricing = within(screen.getByRole('grid', { name: 'Pages' })).getByRole('row', { name: /\/pricing/ });
+    await waitFor(() => expect(pricing.contains(document.activeElement)).toBe(true));
   });
 });

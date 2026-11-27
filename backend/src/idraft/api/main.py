@@ -48,6 +48,8 @@ from idraft.api.auth.throttle import LoginThrottle
 from idraft.api.auth.tokens import derive_key
 from idraft.api.auth.totp import TotpCipher
 from idraft.api.body_limit import UPLOADS, BodyLimitMiddleware
+from idraft.api.cannibalization.routes import router as cannibalization_router
+from idraft.api.cannibalization.service import CannibalizationService
 from idraft.api.csrf import OriginCheckMiddleware
 from idraft.api.document import router as document_router
 from idraft.api.entities.candidate_routes import router as entity_candidates_router
@@ -59,6 +61,8 @@ from idraft.api.exports.routes import router as exports_router
 from idraft.api.favicons.fetch import SafeFetcher
 from idraft.api.favicons.routes import router as favicons_router
 from idraft.api.favicons.service import FaviconService
+from idraft.api.fp.page_routes import router as fp_page_router
+from idraft.api.fp.routes import router as fp_router
 from idraft.api.health import router as health_router
 from idraft.api.imports.routes import router as imports_router
 from idraft.api.imports.service import ImportService
@@ -71,8 +75,13 @@ from idraft.api.internal_links.change_routes import router as change_routes_rout
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
 from idraft.api.internal_links.crawls import CrawlService
+from idraft.api.internal_links.mention_sources import CatalogueIssueChecks
 from idraft.api.internal_links.opportunities import OpportunityService
 from idraft.api.internal_links.opportunity_routes import router as opportunity_routes_router
+from idraft.api.internal_links.page_note_file_routes import router as page_note_file_routes_router
+from idraft.api.internal_links.page_note_files import PageNoteFileService
+from idraft.api.internal_links.page_note_routes import router as page_note_routes_router
+from idraft.api.internal_links.page_notes import PageNoteService
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.path_routes import router as path_routes_router
@@ -87,6 +96,8 @@ from idraft.api.internal_links.suggestion_routes import router as suggestion_rou
 from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_level_routes import router as tier_level_routes_router
 from idraft.api.internal_links.tier_levels import TierLevelService
+from idraft.api.issues.routes import router as issues_router
+from idraft.api.issues.service import IssueService
 from idraft.api.keywords.group_routes import router as keyword_groups_router
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.routes import keywords_router
@@ -247,7 +258,6 @@ def create_app(
                 sender=settings.email_from,
             )
             throttle = LoginThrottle(redis)
-            link_reads = LinkReadService(sessions=sessions)
             link_changes = ChangeService(sessions=sessions)
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
@@ -255,6 +265,7 @@ def create_app(
             sources = import_store
             if sources is None and settings.raw_storage_configured:
                 sources = await stack.enter_async_context(_open_import_store(settings))
+            link_reads = LinkReadService(sessions=sessions, raw_store=sources)
             page_tiers = PageTierService(sessions=sessions)
             ai_summary = SummaryService(sessions=sessions)
             ai_sources = SourceService(sessions=sessions)
@@ -320,7 +331,11 @@ def create_app(
                 ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
+                # No Issues catalogue on this branch: its session passes its checks here.
+                page_notes=PageNoteService(sessions=sessions, issues=CatalogueIssueChecks()),
+                page_note_files=PageNoteFileService(sessions=sessions, store=sources),
                 link_reads=link_reads,
+                issues=IssueService(sessions=sessions),
                 link_changes=link_changes,
                 public_summary=PublicSummaryService(
                     sessions=sessions, reads=link_reads, changes=link_changes, throttle=throttle
@@ -338,6 +353,7 @@ def create_app(
                     throttle=throttle,
                 ),
                 crawls=CrawlService(sessions=sessions, enabled=settings.crawls_enabled),
+                cannibalization=CannibalizationService(sessions=sessions),
                 invitations=InvitationService(
                     sessions=sessions,
                     throttle=throttle,
@@ -418,12 +434,17 @@ def create_app(
     app.include_router(imports_router)
     app.include_router(quotas_router)
     app.include_router(favicons_router)
+    app.include_router(fp_router)
+    app.include_router(fp_page_router)
     app.include_router(integrations_router)
     app.include_router(engine_routes_router)
     app.include_router(prompt_routes_router)
     app.include_router(tier_level_routes_router)
     app.include_router(page_tier_routes_router)
+    app.include_router(page_note_routes_router)
+    app.include_router(page_note_file_routes_router)
     app.include_router(read_routes_router)
+    app.include_router(issues_router)
     app.include_router(change_routes_router)
     app.include_router(opportunity_routes_router)
     app.include_router(suggestion_routes_router)
@@ -431,6 +452,7 @@ def create_app(
     app.include_router(share_routes_router)
     app.include_router(public_summary_router)
     app.include_router(crawl_routes_router)
+    app.include_router(cannibalization_router)
     app.include_router(connections_router)
     app.include_router(oauth_router)
     app.include_router(registries_router)

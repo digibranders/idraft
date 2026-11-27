@@ -61,6 +61,7 @@ import type { RecordAction, TableStatus } from '@/components/app/data-table/type
 import { FilterBar } from '@/components/app/filters/filter-bar';
 import { ReadOnlyFilterChips } from '@/components/app/filters/read-only-chips';
 import { useUrlFilters } from '@/components/app/filters/use-url-filters';
+import { findDrawerTitle } from '@/components/app/inspector/drawer-title';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageHeader } from '@/components/app/shell/page-header';
@@ -517,9 +518,7 @@ export function RankingsScreen({
     // The group drawer's title after a rename it stays open for; the table otherwise, as a deleted group's
     // row and drawer are gone
     focusAfter: (change) =>
-      (change === 'rename' && openGroupId !== null
-        ? document.querySelector<HTMLElement>('aside[aria-labelledby] h2')
-        : null) ??
+      (change === 'rename' && openGroupId !== null ? findDrawerTitle() : null) ??
       tableArea.current?.querySelector<HTMLElement>('[role="treegrid"] [tabindex="0"], [role="grid"] [tabindex="0"]') ??
       null,
   });

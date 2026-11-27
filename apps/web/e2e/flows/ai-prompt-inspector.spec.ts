@@ -10,7 +10,7 @@ const FIRST_PROMPT = 'Which SEO agency is best for a SaaS startup in Germany?';
 const FIRST_PROMPT_ID = '0192d1a8-e000-7a10-8e00-000000000001';
 const FIRST_TOPIC = 'SEO';
 
-/** The inspector of a prompt: beside the table on a wide window, a sheet over it on a narrow one. */
+/** The inspector of a prompt: a card over the table from 900 px, a sheet below. */
 const inspectorOf = (page: Page): Locator =>
   page.getByRole('complementary', { name: FIRST_PROMPT }).or(page.getByRole('dialog', { name: FIRST_PROMPT }));
 

@@ -29,6 +29,8 @@ export interface OutcomeRow {
   icon: ReactNode;
   /** "1,800 answers". */
   answersText: string;
+  /** What the answers are, when that is not the plain count of valid answers: Google AI Overview's, one for each prompt. */
+  answersTip?: string | undefined;
   /** The number in the middle of the platform's ring: its visibility rate, "42%". */
   center: string;
   /** The four outcomes in the order of the segments. */
@@ -74,6 +76,7 @@ export function OutcomeRings({ segments, rows, caption, label }: OutcomeRingsPro
           label: row.label,
           icon: row.icon,
           sub: row.answersText,
+          subTip: row.answersTip,
           noneText: '',
           cells: row.shares.map((entry) => ({ text: entry.shareText, tip: entry.tip })),
         }))}

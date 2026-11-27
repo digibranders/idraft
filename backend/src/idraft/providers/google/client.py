@@ -1,7 +1,8 @@
 """A client for the Google calls the Google connection makes (Search Console and GA4).
 
 Authorization-code flow with PKCE, token refresh, the account's identity, `sites.list` and the
-Analytics Admin API's `accountSummaries.list` (docs/18 sections 3.2, 4.1 and 4.6). The HTTP
+Analytics Admin API's `accountSummaries.list` and the GA4 Data API's `runReport` (docs/18
+sections 3.2, 4.1, 4.6 and 7.2). The HTTP
 client is injected, so a test hands it a `httpx.MockTransport` and nothing leaves the process.
 
 Retries: a transport error or a 5xx is tried again with exponential backoff and full jitter, up
@@ -19,15 +20,16 @@ import base64
 import hashlib
 import json
 import random
+import re
 import secrets
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from idraft.providers.google.errors import (
     GoogleClientRejectedError,
@@ -48,6 +50,10 @@ ACCOUNT_SUMMARIES_URL = "https://analyticsadmin.googleapis.com/v1beta/accountSum
 # Largest page of accountSummaries.list; the pages are followed up to ACCOUNT_SUMMARY_PAGES.
 ACCOUNT_SUMMARY_PAGE_SIZE = 200
 ACCOUNT_SUMMARY_PAGES = 25
+ANALYTICS_DATA_URL = "https://analyticsdata.googleapis.com/v1beta"
+URL_INSPECTION_URL = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
+# Largest GA4 `runReport` page (docs/18 section 7.2).
+GA4_REPORT_ROW_LIMIT = 100_000
 # Largest page the API gives (docs/18 section 4.2).
 SEARCH_ANALYTICS_ROW_LIMIT = 25_000
 SEARCH_CONSOLE_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
@@ -61,12 +67,27 @@ ATTEMPTS = 3
 BACKOFF_SECONDS = 0.5
 _VERIFIER_BYTES = 48
 _QUOTA_REASONS = frozenset({"quotaExceeded", "rateLimitExceeded", "userRateLimitExceeded"})
+# The only shape put in the path of a `runReport` call, which carries the access token.
+_GA4_PROPERTY = re.compile(r"properties/[0-9]{1,20}")
+# `error.status` of a Google API error (the GA4 Data API sets it; the older APIs set `reasons`).
+_QUOTA_STATUS = "RESOURCE_EXHAUSTED"
 _CLIENT_ERRORS = frozenset(
     {"invalid_client", "unauthorized_client", "invalid_request", "redirect_uri_mismatch"}
 )
 
 type Sleep = Callable[[float], Awaitable[None]]
 type Dimension = Literal["date", "query", "page", "country", "device"]
+type FilterOperator = Literal["equals", "contains", "includingRegex"]
+
+
+@dataclass(frozen=True, slots=True)
+class DimensionFilter:
+    """One condition on a dimension of `searchAnalytics.query`. Conditions of a call are all
+    required together."""
+
+    dimension: Dimension
+    operator: FilterOperator
+    expression: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +196,69 @@ class _AnalyticsBody(BaseModel):
     rows: list[_AnalyticsRow] = Field(default_factory=list)
 
 
+class _Ga4Value(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    value: str
+
+
+class _Ga4Row(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    dimensionValues: list[_Ga4Value]  # noqa: N815 - Google's member name
+    metricValues: list[_Ga4Value]  # noqa: N815
+
+
+class _Ga4QuotaStatus(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    remaining: int | None = None
+
+
+class _Ga4PropertyQuota(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    tokensPerHour: _Ga4QuotaStatus = Field(default_factory=_Ga4QuotaStatus)  # noqa: N815
+
+
+class _Ga4Body(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    # Left out of the answer when nothing matched.
+    rows: list[_Ga4Row] = Field(default_factory=list)
+    rowCount: int | None = Field(default=None, ge=0)  # noqa: N815
+    propertyQuota: _Ga4PropertyQuota = Field(default_factory=_Ga4PropertyQuota)  # noqa: N815
+
+
+class _IndexStatus(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    # Left out of the answer for a page Google has never crawled.
+    lastCrawlTime: AwareDatetime | None = None  # noqa: N815 - Google's member name
+    coverageState: str | None = Field(default=None, max_length=512)  # noqa: N815
+
+
+class _InspectionResult(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    indexStatusResult: _IndexStatus = Field(default_factory=_IndexStatus)  # noqa: N815
+
+
+class _InspectionBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    inspectionResult: _InspectionResult  # noqa: N815
+
+
+@dataclass(frozen=True, slots=True)
+class UrlInspection:
+    """What `urlInspection.index.inspect` says of a page: when Google last crawled it (UTC, None
+    when it never did) and the coverage state in Google's words."""
+
+    last_crawl_time: datetime | None
+    coverage_state: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class TokenGrant:
     """What the token endpoint gave. The tokens stay out of `repr`."""
@@ -205,6 +289,25 @@ class AnalyticsRow:
     clicks: int
     impressions: int
     position: float
+
+
+@dataclass(frozen=True, slots=True)
+class Ga4Row:
+    """One row of a GA4 report: the dimension and metric values in the order requested. GA4
+    writes every value as a string; the caller converts."""
+
+    dimensions: tuple[str, ...]
+    metrics: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Ga4Report:
+    """One page of `runReport`. `row_count` is the rows of the whole report, for paging;
+    `quota_remaining` is the hourly tokens the property has left, None when Google did not say."""
+
+    rows: tuple[Ga4Row, ...]
+    row_count: int
+    quota_remaining: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,26 +428,45 @@ class GoogleClient:
         data_state: Literal["final", "all"] = "final",
         aggregation: Literal["auto", "byProperty", "byPage"] = "auto",
         search_type: str = "web",
+        filters: Sequence[DimensionFilter] = (),
         start_row: int = 0,
         row_limit: int = SEARCH_ANALYTICS_ROW_LIMIT,
+        timeout_seconds: float | None = None,
     ) -> list[AnalyticsRow]:
         """One page of `searchAnalytics.query` (docs/18 section 4.2). Dates are Pacific Time
         calendar days. An empty list is the end of the results; the caller pages with
-        `start_row`."""
+        `start_row`. `filters` are all required together. `timeout_seconds` replaces the HTTP
+        client's own timeout for this call: a read of 25,000 rows is a few megabytes."""
+        body: dict[str, Any] = {
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+            "dimensions": list(dimensions),
+            "dataState": data_state,
+            "aggregationType": aggregation,
+            "type": search_type,
+            "rowLimit": row_limit,
+            "startRow": start_row,
+        }
+        if filters:
+            body["dimensionFilterGroups"] = [
+                {
+                    "groupType": "and",
+                    "filters": [
+                        {
+                            "dimension": item.dimension,
+                            "operator": item.operator,
+                            "expression": item.expression,
+                        }
+                        for item in filters
+                    ],
+                }
+            ]
         response = await self._send(
             "POST",
             f"{SITES_URL}/{quote(site_url, safe='')}/searchAnalytics/query",
             headers=_bearer(access_token),
-            json={
-                "startDate": start_date.isoformat(),
-                "endDate": end_date.isoformat(),
-                "dimensions": list(dimensions),
-                "dataState": data_state,
-                "aggregationType": aggregation,
-                "type": search_type,
-                "rowLimit": row_limit,
-                "startRow": start_row,
-            },
+            json=body,
+            **({} if timeout_seconds is None else {"timeout": timeout_seconds}),
         )
         _raise_for_api(response)
         rows = _parse(_AnalyticsBody, response).rows
@@ -359,6 +481,78 @@ class GoogleClient:
             )
             for row in rows
         ]
+
+    async def inspect_url(
+        self, access_token: str, *, site_url: str, page_url: str
+    ) -> UrlInspection:
+        """`urlInspection.index.inspect` for one page of a property (2,000 a day and 600 a minute
+        per property). A page Google never crawled has no `lastCrawlTime`: that is None, not an
+        error."""
+        response = await self._send(
+            "POST",
+            URL_INSPECTION_URL,
+            headers=_bearer(access_token),
+            json={"inspectionUrl": page_url, "siteUrl": site_url},
+        )
+        _raise_for_api(response)
+        status = _parse(_InspectionBody, response).inspectionResult.indexStatusResult
+        crawled = status.lastCrawlTime
+        return UrlInspection(
+            last_crawl_time=None if crawled is None else crawled.astimezone(UTC),
+            coverage_state=status.coverageState,
+        )
+
+    async def run_report(
+        self,
+        access_token: str,
+        property: str,
+        *,
+        start_date: date,
+        end_date: date,
+        dimensions: Sequence[str],
+        metrics: Sequence[str],
+        offset: int = 0,
+        limit: int = GA4_REPORT_ROW_LIMIT,
+    ) -> Ga4Report:
+        """One page of GA4 `properties.runReport` (docs/18 section 7.2). Dates are in the
+        property's time zone. An empty page is the end of the report; the caller pages with
+        `offset` until it has `row_count` rows. Asks for the property quota (section 7.5)."""
+        if _GA4_PROPERTY.fullmatch(property) is None:
+            raise ValueError("a GA4 property is written `properties/` and its number")
+        response = await self._send(
+            "POST",
+            f"{ANALYTICS_DATA_URL}/{property}:runReport",
+            headers=_bearer(access_token),
+            json={
+                "dateRanges": [
+                    {"startDate": start_date.isoformat(), "endDate": end_date.isoformat()}
+                ],
+                "dimensions": [{"name": name} for name in dimensions],
+                "metrics": [{"name": name} for name in metrics],
+                # GA4 takes the paging members as strings (int64 in its JSON mapping).
+                "offset": str(offset),
+                "limit": str(limit),
+                "returnPropertyQuota": True,
+            },
+        )
+        _raise_for_api(response)
+        body = _parse(_Ga4Body, response)
+        if any(
+            len(row.dimensionValues) != len(dimensions) or len(row.metricValues) != len(metrics)
+            for row in body.rows
+        ):
+            raise GoogleResponseError("a row does not carry the requested dimensions and metrics")
+        return Ga4Report(
+            rows=tuple(
+                Ga4Row(
+                    dimensions=tuple(v.value for v in row.dimensionValues),
+                    metrics=tuple(v.value for v in row.metricValues),
+                )
+                for row in body.rows
+            ),
+            row_count=len(body.rows) if body.rowCount is None else body.rowCount,
+            quota_remaining=body.propertyQuota.tokensPerHour.remaining,
+        )
 
     async def revoke(self, token: str) -> bool:
         """Ask Google to revoke a token. Best effort: whether Google acknowledged is returned,
@@ -444,4 +638,6 @@ def _is_quota(response: httpx.Response) -> bool:
         return False
     reasons = {item.get("reason") for item in error.get("errors", []) if isinstance(item, dict)}
     message = str(error.get("message", "")).lower()
-    return bool(reasons & _QUOTA_REASONS) or "quota" in message
+    return (
+        bool(reasons & _QUOTA_REASONS) or error.get("status") == _QUOTA_STATUS or "quota" in message
+    )

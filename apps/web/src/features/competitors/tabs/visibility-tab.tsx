@@ -13,6 +13,7 @@ import {
   type EntityRow,
 } from '../model/competitor-model';
 import { ChartCard } from './chart-card';
+import { useChartInfo } from './chart-info';
 import { DonutCard } from './donut-card';
 import { toSlices } from './donut-model';
 import { EntityName } from './entity-name';
@@ -31,6 +32,7 @@ import { formatInteger, formatPercent } from '@/lib/format';
  */
 export function VisibilityTab(): ReactElement {
   const t = useTranslations('competitors');
+  const info = useChartInfo();
   const { reads, scope, labelOf } = useCompetitors();
   const { rows, engines } = useTabModel();
   const eng = scope.eng;
@@ -153,6 +155,7 @@ export function VisibilityTab(): ReactElement {
         reads={[reads.competitors]}
         isEmpty={ordered.length === 0}
         fileName={FILE.mentionsByPlatform}
+        info={info('visibilityByPlatform')}
       />
       <PlainTable
         caption={t('charts.visibility.matrix')}
@@ -164,10 +167,11 @@ export function VisibilityTab(): ReactElement {
         emptyText={t('states.noDataReason')}
         scrollHint={t('columns.scrollHint')}
       />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 @4xl:grid-cols-2">
         <DonutCard
           title={t('charts.donut.lost.title')}
           summary={t('charts.donut.lost.summary')}
+          info={info('lostSplit')}
           slices={lostSlices}
           centerValue={formatInteger(totalLost)}
           centerLabel={t('charts.donut.promptsLost')}

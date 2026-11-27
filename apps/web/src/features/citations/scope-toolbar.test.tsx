@@ -58,6 +58,11 @@ describe('the Citations toolbar', () => {
     // The Combobox trigger is a combobox for assistive technology, though it draws as a button
     expect(within(scope).getByRole('combobox', { name: 'Group: All groups' })).toBeVisible();
     expect(within(scope).getByRole('combobox', { name: 'Runs: Last 4 runs' })).toBeVisible();
+    // The trigger shows the choice alone, with no "Platform:" before it
+    expect(within(scope).getByRole('combobox', { name: 'Platform: All platforms' })).toHaveTextContent(
+      /^All platforms$/,
+    );
+    expect(within(scope).getByRole('combobox', { name: 'Group: All groups' })).toHaveTextContent(/^All groups$/);
   });
 
   it('gives every trigger the hover and open states of the preview', () => {

@@ -17,6 +17,14 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Overview (titles: "SEO overview", "AI visibility overview") | Dashboard, Home, Summary |
 | Keywords, Pages, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs, Settings | Rankings, Topics, Engines, Sources (as a page name) |
 | Citation opportunities (working name for the planned WP-61 page; confirm when it ships) | Sources |
+| Cannibalization (SEO page; tabs Cannibalization and Switching) | Overlap, Duplicate pages |
+| Link map (a tab of Internal links: every live page and its body links as one graph) | Site map, Network, Graph (as the tab name) |
+| Outline (a tab of the page drawer: what one page says to a search engine) | Structure, On-page, SEO audit, Content outline (as the tab name) |
+| Notes (a tab of the page drawer: what the team wrote about one page) | Comments, Annotations, Remarks, Log (as the tab name) |
+| Monitoring (a tab of Pages: the pages you track, with their Search Console numbers) | Performance, Watchlist, Monitored pages |
+| What changed (the queries, locations and devices of a page for a period and the period compared with) | Breakdown, Segments |
+| Website audit (navigation group: Issues, Pages, Internal links) | Site audit, Technical SEO, Site health |
+| Issues (page; tabs Technical and On-page); Issue (what a check found) | Problems, Errors as the page name, Audit |
 
 ## Where we ask and where we check
 
@@ -31,6 +39,15 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Location ("Country" and "City" only as levels in help text and pickers); All locations | Country as a field label, Region, Market, Geo, Worldwide |
 | Depth, Beyond depth | Unranked, Over 100 |
 | Period; Compare with (values: "vs previous period", "vs same period last year", "No comparison") | Window, Date window, Date range, Benchmark |
+
+## Cannibalization
+
+| Use | Never |
+|---|---|
+| Ranking page, Target page, Rank gap | Landing page, Preferred URL, Penalty |
+| Switch (the page that ranks changed), Flip-flop (it switched back within 14 days), One-check change | Flip, Swap, Ping-pong |
+| Likely cannibalization, Co-ranking, Unstable page, Not enough checks | Duplicate, No data, N/A, Insufficient data |
+| Sub-result (your page nested under another of your results) | Sitelink, Child |
 
 ## How keywords and prompts are organised
 
@@ -52,9 +69,13 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Answer, Valid answer, Failed answer | Response, Observation, Result, Reply |
 | Run (a scheduled collection pass) | Job, Batch, Cycle |
 | Check, "Check now" (one keyword rank reading) | Read, Scan, Lookup |
+| Check (on the Issues page only: one test your website is put through; proposed, open for the owner) | Rule, Test, Scan, Hint |
+| Severity: Error, Warning, Notice (Issues; proposed, open for the owner) | Critical, High, Medium, Low, Info |
+| Found by (where a check comes from: Crawl, Rank checks, Search Console, Google Analytics, AI answers) | Source, Detected by |
 | Schedule | Panel, Cadence |
 | Screenshot (image of an AI answer) | Capture |
 | Job type (Costs and Budgets); Started by (Schedule, Manual, Backfill, Retry) | Workload, Trigger |
+| Add note (the button that saves a new note on a page) | Post, Comment, Submit, Save note (for a new note) |
 
 ## What the answers contain
 
@@ -86,6 +107,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Search volume ("Volume" in a column), Keyword difficulty, CPC, Impressions, Clicks | SV, Demand, Competition |
 | AI referral visits | Referral traffic, Sessions in plain text |
 | They lead, You lead, Equal | Winning, Losing |
+| Health (of a tracked page): Lost traffic, Sharp drop, Declining, Stable, Growing, New | Status, Score |
 
 ## Brands, sites and states
 
@@ -95,6 +117,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Your brand, Your site, Your pages (sentences, empty states, info texts); tables, legends, exports and reports show the real brand name | Own brand, Own domain, Owned pages, Client brand |
 | Competitor; Watched brand; Alias | Rival, Watched entity, Variant |
 | Tracked, Not tracked, Paused, Archived | Monitored, Active, Disabled, Hidden |
+| Track in Monitoring, Stop tracking (the two actions on a page) | Monitor, Watch, Untrack |
 | Project (one brand and its site), Workspace (a team's account); Client is never a level | Site, Account, Organisation, Agency |
 
 ## Data states and statistics

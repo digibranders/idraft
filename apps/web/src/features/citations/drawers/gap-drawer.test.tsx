@@ -178,11 +178,11 @@ describe('the gap drawer (I 209 to 331)', () => {
     }
   });
 
-  it('stacks Open answers under the title until the card is wide, and has no More actions menu', async () => {
+  it('stacks Open answers under the title only in a narrow sheet, and has no More actions menu', async () => {
     setup();
     const drawer = await screen.findByRole('complementary');
     const button = await within(drawer).findByRole('button', { name: 'Open answers' });
-    expect(button.parentElement).toHaveClass('basis-full', '@2xl:basis-auto');
+    expect(button.parentElement).toHaveClass('basis-full', '@sm:basis-auto');
     expect(button.closest('section')).toHaveClass('@container');
     expect(within(drawer).queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
     const table = await within(drawer).findByRole('table', { name: 'Who is cited' });

@@ -33,26 +33,54 @@ export function normalizeText(text: string): string {
     .replace(/\s*\?+$/, '');
 }
 
+/** A keyword with a Google AI Overview that no prompt has as its text; `volume` is `null` when it is not known. */
+export interface UntrackedKeyword {
+  text: string;
+  volume: number | null;
+  /** Whether the Google AI Overview cites your site. */
+  cited: boolean;
+}
+
 /**
- * Keywords whose latest check shows a Google AI Overview and that no prompt has as its text.
+ * Keywords whose latest check shows a Google AI Overview and that no prompt has as its text, once each by their
+ * normalized text, in the order given.
  * shortcut: an exact match on the normalized text, over at most one page of each list, until the API counts it
- * (backend request 25); `moreKeywords` and `morePrompts` mark a list that was cut, which makes the number a floor
- * (cut keywords) or unknown, a floor of 0 (cut prompts, which could hide a match).
+ * (backend request 25); a cut list of prompts could hide a match, so nothing true can be listed then.
+ */
+export function untrackedKeywords(
+  keywords: readonly UntrackedKeyword[],
+  prompts: readonly string[],
+  { morePrompts }: { morePrompts: boolean },
+): UntrackedKeyword[] {
+  if (morePrompts) return [];
+  const tracked = new Set(prompts.map(normalizeText));
+  const seen = new Set<string>();
+  const rows: UntrackedKeyword[] = [];
+  for (const keyword of keywords) {
+    const text = normalizeText(keyword.text);
+    if (tracked.has(text) || seen.has(text)) continue;
+    seen.add(text);
+    rows.push(keyword);
+  }
+  return rows;
+}
+
+/**
+ * The number of those keywords: `moreKeywords` and `morePrompts` mark a list that was cut, which makes the number a
+ * floor (cut keywords) or unknown, a floor of 0 (cut prompts, which could hide a match).
  */
 export function untrackedCount(
   keywords: readonly string[],
   prompts: readonly string[],
   { moreKeywords, morePrompts }: { moreKeywords: boolean; morePrompts: boolean },
 ): InsightCount {
-  // Prompts that did not all load could match any keyword: nothing true can be said, which is a floor of zero
   if (morePrompts) return { count: 0, atLeast: true };
-  const tracked = new Set(prompts.map(normalizeText));
-  const seen = new Set<string>();
-  for (const keyword of keywords) {
-    const text = normalizeText(keyword);
-    if (!tracked.has(text)) seen.add(text);
-  }
-  return { count: seen.size, atLeast: moreKeywords };
+  const rows = untrackedKeywords(
+    keywords.map((text) => ({ text, volume: null, cited: false })),
+    prompts,
+    { morePrompts },
+  );
+  return { count: rows.length, atLeast: moreKeywords };
 }
 
 interface DomainWithCitedWith {
@@ -68,10 +96,17 @@ export function citingCompetitorsCount(
   competitorIds: ReadonlySet<string>,
   more: boolean,
 ): InsightCount {
-  const count = rows.filter(
+  return { count: citingCompetitorRows(rows, competitorIds).length, atLeast: more };
+}
+
+/** The domains of the rows whose answers most name one of the tracked competitors. */
+export function citingCompetitorRows<T extends DomainWithCitedWith>(
+  rows: readonly T[],
+  competitorIds: ReadonlySet<string>,
+): T[] {
+  return rows.filter(
     (row) => row.cited_with !== undefined && row.cited_with !== null && competitorIds.has(row.cited_with.entity_id),
-  ).length;
-  return { count, atLeast: more };
+  );
 }
 
 /** A count that is only a floor, and a floor of 0 says nothing: the box must not claim there is nothing to do. */

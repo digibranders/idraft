@@ -1,4 +1,5 @@
-"""A stand-in for Google's OAuth, userinfo, Search Console, Analytics Admin and revoke endpoints.
+"""A stand-in for Google's OAuth, userinfo, Search Console, Analytics Admin and Data and revoke
+endpoints.
 
 It is an `httpx.MockTransport` handler, so the code under test makes its real calls and nothing
 leaves the process. It checks what the real services check: the client id and secret, the
@@ -11,18 +12,22 @@ from __future__ import annotations
 import base64
 import hashlib
 import itertools
+import json
 from dataclasses import dataclass, field
+from typing import cast
 from urllib.parse import parse_qs
 
 import httpx
 
 from idraft.providers.google.client import (
     ACCOUNT_SUMMARIES_URL,
+    ANALYTICS_DATA_URL,
     ANALYTICS_SCOPE,
     REVOKE_URL,
     SEARCH_CONSOLE_SCOPE,
     SITES_URL,
     TOKEN_URL,
+    URL_INSPECTION_URL,
     USERINFO_URL,
 )
 
@@ -62,6 +67,8 @@ class Call:
     url: str
     form: dict[str, str]
     authorization: str | None
+    # The parsed body of a JSON call (`runReport`); None for the form calls.
+    json_body: dict[str, object] | None = None
 
 
 class FakeGoogle:
@@ -76,6 +83,20 @@ class FakeGoogle:
         self.summaries_status: int | None = None
         self.summaries_page_size = 200  # the page size this fake gives, to test the paging
         self.revoke_status = 200
+        # The rows `runReport` has per property (`properties/123`): (dimension values, metric
+        # values) as the strings GA4 writes, and the hourly tokens it says are left.
+        self.ga4_rows: dict[str, list[tuple[tuple[str, ...], tuple[str, ...]]]] = {}
+        self.ga4_tokens_remaining = 39_995
+        # Answer every `runReport` of a known token with this status, instead of rows.
+        self.ga4_status: int | None = None
+        # `urlInspection` answers per page address: (lastCrawlTime as Google writes it or None,
+        # coverageState). A page not listed is one Google never crawled.
+        self.inspections: dict[str, tuple[str | None, str]] = {}
+        # Answer every `inspect` of a known token with this status (and body), instead.
+        self.inspect_status: int | None = None
+        self.inspect_error: dict[str, object] = {"message": "refused"}
+        # Answer an `inspect` of these page addresses with this status.
+        self.inspect_fail_for: dict[str, int] = {}
         self._numbers = itertools.count(1)
         self._codes: dict[str, _Code] = {}
         self._access: dict[str, Account] = {}
@@ -128,8 +149,12 @@ class FakeGoogle:
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("?")[0]
-        form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
         authorization = request.headers.get("authorization")
+        if url.startswith(ANALYTICS_DATA_URL) and url.endswith(":runReport"):
+            return self._run_report(url, authorization, request.content)
+        if url == URL_INSPECTION_URL:
+            return self._inspect(url, authorization, request.content)
+        form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
         self.calls.append(Call(request.method, url, form, authorization))
         if url == TOKEN_URL:
             return self._token(form)
@@ -195,6 +220,67 @@ class FakeGoogle:
         if start + self.summaries_page_size < len(account.analytics):
             body["nextPageToken"] = str(start + self.summaries_page_size)
         return httpx.Response(200, json=body)
+
+    def _inspect(self, url: str, authorization: str | None, content: bytes) -> httpx.Response:
+        """The shape of `urlInspection.index.inspect`: `inspectionResult.indexStatusResult` with
+        `lastCrawlTime` (left out for a page never crawled) and `coverageState`. The property
+        must be one of the account's."""
+        body: dict[str, object] = json.loads(content)
+        self.calls.append(Call("POST", url, {}, authorization, body))
+        account = self._bearer(authorization)
+        if account is None:
+            return httpx.Response(401, json={"error": {"code": 401, "status": "UNAUTHENTICATED"}})
+        if self.inspect_status is not None:
+            return httpx.Response(self.inspect_status, json={"error": self.inspect_error})
+        failing = self.inspect_fail_for.get(str(body.get("inspectionUrl")))
+        if failing is not None:
+            return httpx.Response(failing, json={"error": {"message": "refused"}})
+        if body.get("siteUrl") not in {site for site, _ in account.sites}:
+            return httpx.Response(403, json={"error": {"message": "No access to the property"}})
+        crawled, coverage = self.inspections.get(
+            str(body.get("inspectionUrl")), (None, "URL is unknown to Google")
+        )
+        status: dict[str, object] = {"coverageState": coverage, "verdict": "NEUTRAL"}
+        if crawled is not None:
+            status["lastCrawlTime"] = crawled
+        return httpx.Response(200, json={"inspectionResult": {"indexStatusResult": status}})
+
+    def _run_report(self, url: str, authorization: str | None, content: bytes) -> httpx.Response:
+        """The shape of GA4 `properties.runReport`: dimensionValues[] and metricValues[] per row,
+        `rowCount` of the whole report, the page cut by the string `offset` and `limit`, and the
+        quota of the property when asked for. A report with no row has no `rows` member."""
+        body: dict[str, object] = json.loads(content)
+        self.calls.append(Call("POST", url, {}, authorization, body))
+        if self._bearer(authorization) is None:
+            return httpx.Response(401, json={"error": {"code": 401, "status": "UNAUTHENTICATED"}})
+        if self.ga4_status is not None:
+            return httpx.Response(self.ga4_status, json={"error": {"message": "refused"}})
+        property_name = url.removeprefix(f"{ANALYTICS_DATA_URL}/").removesuffix(":runReport")
+        rows = self.ga4_rows.get(property_name, [])
+        names = [
+            dimension["name"] for dimension in cast("list[dict[str, str]]", body["dimensions"])
+        ]
+        if "date" in names:
+            # A report holds only the days it was asked for, when it is split by day.
+            asked = cast("list[dict[str, str]]", body["dateRanges"])[0]
+            first = asked["startDate"].replace("-", "")
+            last = asked["endDate"].replace("-", "")
+            rows = [row for row in rows if first <= row[0][names.index("date")] <= last]
+        offset, limit = int(str(body["offset"])), int(str(body["limit"]))
+        answer: dict[str, object] = {"rowCount": len(rows)}
+        if rows[offset : offset + limit]:
+            answer["rows"] = [
+                {
+                    "dimensionValues": [{"value": value} for value in dimensions],
+                    "metricValues": [{"value": value} for value in metrics],
+                }
+                for dimensions, metrics in rows[offset : offset + limit]
+            ]
+        if body.get("returnPropertyQuota") is True:
+            answer["propertyQuota"] = {
+                "tokensPerHour": {"consumed": 5, "remaining": self.ga4_tokens_remaining}
+            }
+        return httpx.Response(200, json=answer)
 
     def _token(self, form: dict[str, str]) -> httpx.Response:
         if self.token_outage > 0:

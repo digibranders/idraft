@@ -777,33 +777,11 @@ Sections:
 
 Data: `GET .../keywords/{tk}`, `.../history?from&to`, `.../serp-snapshots`, `.../serp-snapshots/{id}`, `.../features-history`, `.../url-changes`, `.../aio-history`, `.../linked-prompts`, `.../gsc`.
 
-### 5.5 Landing Pages and Page Intelligence
+### 5.5 Pages
 
-Routes `pages` (list) and `pages/[urlId]` (detail). Permission `data:read`. Phase 5 (SEO columns), Phase 10a (AI columns), Phase 12 (first-party columns), Phase 13 (third-party pages).
+Route group `seo/pages` (Website audit group of the sidebar). Permission `data:read`. The tabs are **Overview**, **All pages** and **Monitoring**. The Landing pages list and the Page Intelligence detail page are replaced by All pages, its columns and the page drawer, whose tabs are Overview, Search, Issues, AI and Links. The Pages session specifies and builds Overview, All pages and the drawer shell; their content is in its own spec, not repeated here.
 
-**List:** owned URLs with keywords ranking, average rank (with count), top 3 and top 10 counts, volume represented (Estimate), visibility contribution, target coverage, AIO citations (checks), ChatGPT, Gemini and AI Mode citation units (separate columns), retrieved-not-cited count (ChatGPT), GSC clicks and impressions (labeled). Toggle "Include third-party pages" (Phase 13) switches to pages cited for the project's topics.
-
-**Detail:**
-
-```
-+-------------------------------------------------------------------------------+
-| acme.com/pricing                                   [open page] [copy URL]      |
-|-------------------------------------------------------------------------------|
-| SEO                | AI Overview        | ChatGPT | Gemini | AI Mode | GSC     |
-| 14 keywords rank   | cited in 22 checks | 31 units| 9 units| 12 units| 4.1K clk|
-|-------------------------------------------------------------------------------|
-| Weekly trends: small multiples, one per channel, shared time axis             |
-|-------------------------------------------------------------------------------|
-| Keywords ranking with this URL (table)  | Prompts citing this URL (table)     |
-| Associated mentions (same block, labeled association) | Retrieved not cited   |
-+-------------------------------------------------------------------------------+
-```
-
-Sections follow [15-seo-ai-correlation.md](15-seo-ai-correlation.md) section 6. The "Associated mentions" block carries the note "Mentions in the same answer block as this citation. Association, not proof the page says this." First-party columns carry their source chips and, for GA4, the two classifiers side by side.
-
-Data: `GET .../pages?filters`, `GET .../pages/{urlId}`, `.../pages/{urlId}/keywords`, `.../pages/{urlId}/citations`, `.../pages/{urlId}/trends`.
-
-**Performance tab (proposed 2026-10-27, build step 7b).** The Pages destination gains a second tab, Performance, at `seo/pages/performance` and `seo/pages/performance/[urlId]`: a watchlist of important pages with Search Console clicks, impressions, CTR and position, their change against the previous period, a health verdict and the full filter set, and a detail drawer or page with the comparison chart and a "What changed" breakdown. Page Intelligence mounts the same detail as a "Search performance" section. The specification is [32-page-performance.md](32-page-performance.md).
+**Monitoring** (`seo/pages/monitoring`) lists only the tracked pages as a table first: Search Console clicks, impressions, CTR, average position, Queries and (when the API fills it) Cannibalization, each with its change against the compared period, a health verdict and the tier. A row opens the page drawer on its **Search** tab; the Search tab is open for every page, tracked or not, and shows the verdict, the metric tiles and charts, and what changed by query, location and device. The specification is [the page search and Monitoring design](superpowers/specs/2026-11-26-page-search-and-monitoring-design.md); the older [32-page-performance.md](32-page-performance.md) is superseded in part.
 
 ### 5.6 Prompt Explorer
 

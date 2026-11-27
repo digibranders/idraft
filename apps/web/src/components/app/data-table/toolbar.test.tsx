@@ -39,6 +39,16 @@ describe('DataTableToolbar', () => {
     expect(note).not.toHaveClass('xl:not-sr-only');
   });
 
+  it('draws a start node before the search box, and nothing extra without one', () => {
+    const { unmount } = renderWithProviders(<DataTableToolbar {...PROPS} start={<button>View</button>} />);
+    const view = screen.getByRole('button', { name: 'View' });
+    expect(view.compareDocumentPosition(screen.getByRole('searchbox'))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    unmount();
+    const plain = renderWithProviders(<DataTableToolbar {...PROPS} />);
+    // The bar's first child is the search group, as before
+    expect(plain.container.firstElementChild?.firstElementChild).toContainElement(screen.getByRole('searchbox'));
+  });
+
   it('draws all of them when parts is absent', () => {
     renderWithProviders(<DataTableToolbar {...PROPS} />);
     expect(screen.getByRole('button', { name: 'Density' })).toBeInTheDocument();

@@ -12,6 +12,7 @@ the project and the workspace first) and reaches a URL only through it.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -31,6 +32,8 @@ from sqlalchemy import (
     any_,
     case,
     cast,
+    collate,
+    desc,
     distinct,
     exists,
     false,
@@ -57,12 +60,27 @@ from idraft.api.internal_links.extras import (
     gsc_window,
     keyword_rows,
     keywords_of,
+    page_search_daily,
     summarize_keywords,
 )
+from idraft.api.internal_links.graph import GraphLink, GraphPage, TemplateLinks, build_graph
+from idraft.api.internal_links.inventory import (
+    DEPTH_ROWS,
+    SECTIONS_MAX,
+    overview_statement,
+    section_of,
+)
+from idraft.api.internal_links.outline import OutlineRow, outline_body, row_state, stored_html
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
+from idraft.api.internal_links.page_history import page_history
+from idraft.api.internal_links.page_notes import notes_count
 from idraft.api.internal_links.page_sort import GscWindow, extra_sort
 from idraft.api.internal_links.page_tiers import crawl_scope
 from idraft.api.internal_links.status_filter import status_classes
+from idraft.api.issues.catalogue import BY_ID
+from idraft.api.issues.details import NO_DETAIL, detail_cells, issue_details
+from idraft.api.issues.rules import condition
+from idraft.api.issues.sources import read_sources
 from idraft.api.pagination import decode_cursor, encode_cursor, invalid_cursor
 from idraft.api.problems import NotFoundError
 from idraft.api.schemas.common import UserRef
@@ -70,6 +88,9 @@ from idraft.api.schemas.internal_links import (
     AnchorCount,
     EdgePage,
     EdgeRow,
+    GraphEdge,
+    GraphNode,
+    LinkGraph,
     Neighbor,
     NeighborFocus,
     NeighborMeta,
@@ -88,9 +109,20 @@ from idraft.api.schemas.internal_links import (
     TierStat,
     Worklists,
 )
+from idraft.api.schemas.internal_links_extra import (
+    OverviewDepth,
+    OverviewSection,
+    OverviewSitemap,
+    OverviewStatus,
+    PageOutline,
+    PageSearchDaily,
+    PagesOverview,
+)
+from idraft.api.schemas.internal_links_history import PageHistory
 from idraft.api.workspaces.access import WorkspaceAccess
-from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, latest_run
+from idraft.collectors.crawl_store import INLINE_FLOW_LINKS, flow_rows, html_key, latest_run
 from idraft.crawl.anchors import mostly_generic
+from idraft.crawl.outline import parse_outline
 from idraft.crawl.scopes import LinkScope
 from idraft.crawl.status import BLOCKED_STATUSES, is_blocked, is_error
 from idraft.crawl.tiers import tier_code
@@ -109,6 +141,7 @@ from idraft.db.tables import (
     urls,
     users,
 )
+from idraft.storage.raw import ObjectStore
 
 DETAIL_LIST: Final = 25
 _DEPTH_LAST: Final = 2_147_483_647
@@ -237,7 +270,7 @@ class _Sorter:
 
 async def _sorter(db: AsyncSession, scope: PageScope, view: LinkScope, sort: str) -> _Sorter:
     gsc: GscWindow | None = None
-    if sort.lstrip("-") == "clicks":
+    if sort.lstrip("-") in ("clicks", "impressions"):
         state = await gsc_window(db, scope)
         if state.integration_id is not None and state.window is not None:
             gsc = (state.integration_id, state.window)
@@ -446,6 +479,14 @@ _PAGE_CSV_HEADER: Final = (
     "in_sitemap",
     "top_anchor",
     "flags",
+)
+# Added after the Pages columns when the list is the pages of one check.
+_ISSUE_CSV_HEADER: Final = (
+    "Found address",
+    "Found status",
+    "Found count",
+    "Found reason",
+    "Clicks",
 )
 _EDGE_CSV_HEADER: Final = (
     "source_url",
@@ -905,9 +946,15 @@ async def neighbor_page(
 
 
 async def attach_extras(
-    db: AsyncSession, scope: PageScope, rows: list[PageRow], include: set[str]
+    db: AsyncSession,
+    scope: PageScope,
+    rows: list[PageRow],
+    include: set[str],
+    *,
+    issue: str | None = None,
 ) -> None:
-    """Fills `row.extras` for the parts asked for, one grouped query per part."""
+    """Fills `row.extras` for the parts asked for, one grouped query per part. `issue` is the
+    check the list is filtered by; the `issue` part is empty without it."""
     ids = [int(row.url_id) for row in rows]
     if not ids:
         return
@@ -920,6 +967,11 @@ async def attach_extras(
         else {}
     )
     gsc = await gsc_of(db, scope, ids) if "gsc" in include else {}
+    found = (
+        await issue_details(db, scope, issue, ids)
+        if "issue" in include and issue is not None
+        else None
+    )
     for row in rows:
         url = int(row.url_id)
         row.extras = PageExtras(
@@ -933,12 +985,37 @@ async def attach_extras(
                 else None
             ),
             gsc=gsc.get(url),
+            # A check with nothing to say shows an empty detail, not none.
+            issue=None if found is None else found.get(url, NO_DETAIL),
         )
 
 
+async def _page_filter_conditions(
+    db: AsyncSession, found: PageFilter, scope: PageScope, issue: str | None
+) -> list[ColumnElement[bool]]:
+    """The Pages filter, with the rule of one check of the Issues page when `issue` is set."""
+    if issue is None:
+        return page_conditions(found, scope)
+    need = BY_ID[issue].need
+    if need == "links":
+        scope.require_links()
+    # Only the one source the check joins is read.
+    sources = await read_sources(db, scope, need) if need in ("gsc", "ranks", "ai") else None
+    # The check says which variants count, so the list's own variant filter is off.
+    conditions = page_conditions(found.model_copy(update={"include_variants": True}), scope)
+    conditions.append(condition(issue, scope, sources))
+    return conditions
+
+
 class LinkReadService:
-    def __init__(self, *, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        *,
+        sessions: async_sessionmaker[AsyncSession],
+        raw_store: ObjectStore | None = None,
+    ) -> None:
         self._sessions = sessions
+        self._raw_store = raw_store
 
     def _transaction(self, access: WorkspaceAccess) -> AbstractAsyncContextManager[AsyncSession]:
         # One snapshot for the page, its counts and its total.
@@ -961,11 +1038,12 @@ class LinkReadService:
         cursor: str | None,
         limit: int,
         include: Sequence[str] = (),
+        issue: str | None = None,
     ) -> PageList:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
-            conditions = page_conditions(found, scope)
+            conditions = await _page_filter_conditions(db, found, scope, issue)
             total = (
                 await db.execute(
                     select(func.count()).select_from(page_rows(scope)).where(*conditions)
@@ -974,12 +1052,15 @@ class LinkReadService:
             sorter = await _sorter(db, scope, view, sort)
             column = sorter.column
             descending = sort.startswith("-")
-            cursor_scope = {
+            cursor_scope: dict[str, object] = {
                 "run": str(scope.run_id),
                 "view": view.value,
                 "sort": sort,
                 "filter": found.model_dump(mode="json"),
             }
+            # Only when asked, so the cursors of the plain Pages list keep their value.
+            if issue is not None:
+                cursor_scope["issue"] = issue
             statement = _page_select(view, sorter).where(*conditions)
             if cursor is not None:
                 value, after_id = _page_cursor(cursor, cursor_scope, sort)
@@ -997,7 +1078,7 @@ class LinkReadService:
             )
             page_rows_out = await _page_rows(db, scope, view, tiers, rows)
             if include:
-                await attach_extras(db, scope, page_rows_out, set(include))
+                await attach_extras(db, scope, page_rows_out, set(include), issue=issue)
             return PageList(
                 rows=page_rows_out,
                 total=total,
@@ -1015,21 +1096,28 @@ class LinkReadService:
         view: LinkScope,
         found: PageFilter,
         sort: str,
+        issue: str | None = None,
     ) -> str:
         async with self._transaction(access) as db:
             scope = await read_scope(db, access, project_id, run)
             tiers = await load_tiers(db, access.workspace_id)
             sorter = await _sorter(db, scope, view, sort)
+            conditions = await _page_filter_conditions(db, found, scope, issue)
             rows = (
                 await db.execute(
                     _page_select(view, sorter)
-                    .where(*page_conditions(found, scope))
+                    .where(*conditions)
                     .order_by(*_page_order(sorter))
                     .limit(EXPORT_ROWS_MAX)
                 )
             ).all()
+            more = (
+                await detail_cells(db, scope, issue, [row.url_id for row in rows])
+                if issue is not None
+                else None
+            )
         return csv_text(
-            _PAGE_CSV_HEADER,
+            _PAGE_CSV_HEADER if more is None else (*_PAGE_CSV_HEADER, *_ISSUE_CSV_HEADER),
             (
                 (
                     row.canonical_url,
@@ -1045,6 +1133,7 @@ class LinkReadService:
                     row.in_sitemap,
                     row.top_anchor,
                     " ".join(_flags(row)),
+                    *(() if more is None else more[row.url_id]),
                 )
                 for row in rows
             ),
@@ -1146,7 +1235,15 @@ class LinkReadService:
                     anchors=anchor_detail or empty_anchors(kw),
                     gsc=(await gsc_of(db, scope, [url]))[url],
                 ),
+                notes_count=await notes_count(db, scope.workspace_id, project_id, url_id),
             )
+
+    async def page_history(
+        self, access: WorkspaceAccess, project_id: UUID, *, url_id: int
+    ) -> PageHistory:
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, None)
+            return await page_history(db, scope, url_id)
 
     async def tier_flow(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None, view: LinkScope
@@ -1242,6 +1339,172 @@ class LinkReadService:
                 run_id=scope.run_id, scope=view.value, stale=stale, cells=cells, tiers=strip
             )
 
+    async def graph(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        *,
+        run: UUID | None,
+        include_auto: bool,
+        max_pages: int,
+    ) -> LinkGraph:
+        """The whole crawl as the Link map draws it (plan 10): three aggregates, one snapshot."""
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, run)
+            scope.require_links()
+            home: int | None = (
+                await db.execute(
+                    select(crawl_runs.c.start_url_id).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
+                )
+            ).scalar_one()
+            pages = [
+                GraphPage(
+                    url_id=row.url_id,
+                    path=row.path,
+                    title=row.title,
+                    status_code=row.status_code,
+                    redirect_url_id=row.redirect_url_id,
+                    variant_of_url_id=row.variant_of_url_id,
+                    tier_id=row.tier_id,
+                )
+                for row in await db.execute(
+                    select(
+                        crawl_pages.c.url_id,
+                        urls.c.path,
+                        crawl_pages.c.title,
+                        crawl_pages.c.status_code,
+                        crawl_pages.c.redirect_url_id,
+                        crawl_pages.c.variant_of_url_id,
+                        project_pages.c.tier_id,
+                    )
+                    .select_from(page_rows(scope))
+                    .where(
+                        crawl_pages.c.workspace_id == scope.workspace_id,
+                        crawl_pages.c.run_id == scope.run_id,
+                    )
+                )
+            ]
+            of_run = and_(
+                crawl_links.c.workspace_id == scope.workspace_id,
+                crawl_links.c.run_id == scope.run_id,
+                crawl_links.c.ignored.is_(False),
+            )
+            drawn = [LinkScope.EDITORIAL.value]
+            if include_auto:
+                drawn.append(LinkScope.AUTO_GENERATED.value)
+            links = [
+                GraphLink(row.source_url_id, row.target_url_id, int(row.links))
+                for row in await db.execute(
+                    select(
+                        crawl_links.c.source_url_id,
+                        crawl_links.c.target_url_id,
+                        func.sum(crawl_links.c.occurrences).label("links"),
+                    )
+                    .where(of_run, crawl_links.c.scope.in_(drawn))
+                    .group_by(crawl_links.c.source_url_id, crawl_links.c.target_url_id)
+                )
+            ]
+            template = [
+                TemplateLinks(row.source_url_id, row.target_url_id)
+                for row in await db.execute(
+                    select(crawl_links.c.source_url_id, crawl_links.c.target_url_id)
+                    .where(of_run, crawl_links.c.scope == LinkScope.TEMPLATE.value)
+                    .distinct()
+                )
+            ]
+        built = build_graph(pages, links, template, home_url_id=home, max_pages=max_pages)
+        return LinkGraph(
+            run_id=scope.run_id,
+            include_auto=include_auto,
+            pages_total=built.pages_total,
+            truncated=built.truncated,
+            home_url_id=None if built.home_url_id is None else str(built.home_url_id),
+            nodes=[
+                GraphNode(
+                    url_id=str(node.url_id),
+                    path=node.path,
+                    title=node.title,
+                    tier_id=node.tier_id,
+                    links_in=node.links_in,
+                    links_out=node.links_out,
+                    sitewide_from=node.sitewide_from,
+                )
+                for node in built.nodes
+            ],
+            edges=[
+                GraphEdge(source=str(edge.source), target=str(edge.target), links=edge.links)
+                for edge in built.edges
+            ],
+        )
+
+    async def page_search(
+        self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None, url_id: int
+    ) -> PageSearchDaily:
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, run)
+            held = await db.execute(
+                select(crawl_pages.c.url_id).where(
+                    crawl_pages.c.workspace_id == scope.workspace_id,
+                    crawl_pages.c.run_id == scope.run_id,
+                    crawl_pages.c.url_id == url_id,
+                )
+            )
+            if held.first() is None:
+                raise NotFoundError
+            return await page_search_daily(db, scope, url_id)
+
+    async def page_outline(
+        self, access: WorkspaceAccess, project_id: UUID, *, url_id: int
+    ) -> PageOutline:
+        """Always the latest crawl: the stored HTML is one object per page, overwritten by the
+        next crawl. The crawl row is read in the transaction; the object and the parse are not."""
+        canonical = aliased(urls)
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, None)
+            found = (
+                await db.execute(
+                    select(
+                        urls.c.canonical_url.label("url"),
+                        urls.c.url_hash,
+                        crawl_pages.c.url_id,
+                        crawl_pages.c.status_code,
+                        crawl_pages.c.resource_type,
+                        crawl_pages.c.title,
+                        crawl_pages.c.canonical_url_id,
+                        canonical.c.canonical_url.label("canonical_url"),
+                        crawl_pages.c.non_indexable_reason,
+                    )
+                    .select_from(
+                        crawl_pages.join(urls, urls.c.id == crawl_pages.c.url_id).outerjoin(
+                            canonical, canonical.c.id == crawl_pages.c.canonical_url_id
+                        )
+                    )
+                    .where(
+                        crawl_pages.c.workspace_id == scope.workspace_id,
+                        crawl_pages.c.run_id == scope.run_id,
+                        crawl_pages.c.url_id == url_id,
+                    )
+                )
+            ).one_or_none()
+        if found is None:
+            raise NotFoundError
+        row = OutlineRow(**found._mapping)
+        state = row_state(row)
+        answer = PageOutline(
+            state=state, run_id=scope.run_id, status_code=row.status_code, outline=None
+        )
+        if state != "ok":
+            return answer
+        stored = await stored_html(self._raw_store, html_key(project_id, row.url_hash))
+        if stored is None:
+            return answer.model_copy(update={"state": "no_html"})
+        html, truncated = stored
+        parsed = await asyncio.to_thread(parse_outline, html, row.url)
+        return answer.model_copy(update={"outline": outline_body(row, parsed, truncated)})
+
     async def worklists(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
     ) -> Worklists:
@@ -1289,6 +1552,95 @@ class LinkReadService:
                     ).scalar_one_or_none()
                 ),
             )
+
+    async def overview(
+        self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
+    ) -> PagesOverview:
+        """Every crawl count of the Pages overview (spec 6.2): the counts are the predicates of
+        `inventory`, so a number equals the total of the list it opens."""
+        async with self._transaction(access) as db:
+            scope = await read_scope(db, access, project_id, run)
+            tiers = await load_tiers(db, access.workspace_id)
+            counts = (await db.execute(overview_statement(scope))).one()
+            rows = page_rows(scope)
+            live = page_conditions(PageFilter.model_validate({"view": "live"}), scope)
+            by_tier = (
+                await db.execute(
+                    select(project_pages.c.tier_id, func.count().label("pages"))
+                    .select_from(rows)
+                    .where(*live)
+                    .group_by(project_pages.c.tier_id)
+                )
+            ).all()
+            section = section_of().label("section")
+            by_section = (
+                await db.execute(
+                    select(section, func.count().label("pages"))
+                    .select_from(rows)
+                    .where(*live)
+                    .group_by(section)
+                    .order_by(desc("pages"), collate(section, "C"))
+                    .limit(SECTIONS_MAX)
+                )
+            ).all()
+            sections_total = (
+                await db.execute(
+                    select(func.count(distinct(section_of()))).select_from(rows).where(*live)
+                )
+            ).scalar_one()
+            run_row = (
+                await db.execute(
+                    select(crawl_runs.c.sitemap_pages, crawl_runs.c.finished_at).where(
+                        crawl_runs.c.workspace_id == access.workspace_id,
+                        crawl_runs.c.id == scope.run_id,
+                    )
+                )
+            ).one()
+
+        listed = bool(run_row.sitemap_pages)
+
+        def sitemap_count(name: str) -> int | None:
+            return counts._mapping[name] if listed else None
+
+        return PagesOverview(
+            run_id=scope.run_id,
+            crawled_at=run_row.finished_at,
+            addresses=counts.addresses,
+            status=OverviewStatus(
+                live=counts.live,
+                variant=counts.variants,
+                redirected=counts.redirects,
+                client_error=counts.client_errors,
+                server_error=counts.server_errors,
+                blocked=counts.blocked,
+                other=counts.other,
+            ),
+            indexable=counts.indexable,
+            not_indexable=counts.not_indexable,
+            reachable=counts.reachable,
+            unreachable=counts.unreachable,
+            orphans=counts.orphans,
+            sitemap=OverviewSitemap(
+                state="read" if listed else "no_sitemap",
+                indexable_in_sitemap=sitemap_count("in_sitemap_indexable"),
+                indexable_missing=sitemap_count("not_in_sitemap"),
+                listed_not_live=sitemap_count("sitemap_not_live"),
+                listed_not_indexable=sitemap_count("sitemap_not_indexable"),
+            ),
+            depth=[
+                OverviewDepth(clicks=clicks, pages=counts._mapping[f"depth_{clicks}"])
+                for clicks in range(DEPTH_ROWS)
+            ],
+            tiers=[
+                TierCount(tier=tiers.ref(row.tier_id), pages=row.pages)
+                for row in sorted(
+                    by_tier,
+                    key=lambda row: (row.tier_id is None, tiers.positions.get(row.tier_id, 0)),
+                )
+            ],
+            sections=[OverviewSection(section=row.section, pages=row.pages) for row in by_section],
+            sections_total=sections_total,
+        )
 
     async def edges(
         self,

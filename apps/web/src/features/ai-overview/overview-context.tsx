@@ -55,6 +55,8 @@ export interface OverviewContextValue {
   engines: OverviewEngines;
   /** The engines that are on; empty while they load, and while that is so every read is `idle`. */
   enabledEngines: readonly EngineCode[];
+  /** `enabledEngines` and Google AI Overview when it is on: only the reads of the prompts summary ask these. */
+  answeredEngines: readonly EngineCode[];
   /** Whether the member may turn engines on (`projects:write`). */
   canManageEngines: boolean;
   /** Whether the member may be sent to the runs of the project. */
@@ -107,6 +109,7 @@ export function OverviewProvider({
       dropped,
       engines,
       enabledEngines: engines.enabled,
+      answeredEngines: engines.answered,
       canManageEngines,
       canViewRuns: canTriggerRuns || canReadData,
       platformLinkReplaced,

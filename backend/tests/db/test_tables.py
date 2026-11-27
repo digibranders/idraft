@@ -97,6 +97,8 @@ DECLARED = {
     "core.tier_rules",
     "core.project_pages",
     "core.page_terms",
+    "core.page_notes",
+    "core.page_note_attachments",
     "seo.crawl_runs",
     "seo.crawl_pages",
     "seo.crawl_links",
@@ -113,6 +115,16 @@ DECLARED = {
     "core.ai_report_schedules",
     "core.keyword_prompt_links",
     "fp.gsc_page_daily",
+    "fp.ai_referrer_rules",
+    "fp.ai_referral_daily",
+    "fp.gsc_page_forms",
+    "fp.gsc_page_fetches",
+    "fp.gsc_page_breakdown",
+    "core.tracked_pages",
+    "seo.page_snapshots",
+    "seo.page_checks",
+    "seo.page_history_runs",
+    "seo.page_google_crawl",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
 _PARTITION = re.compile(r"_p\d{6}$")

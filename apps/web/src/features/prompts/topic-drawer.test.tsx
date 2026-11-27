@@ -94,6 +94,13 @@ describe('the topic drawer: opening', () => {
     expect(screen.queryByRole('button', { name: 'Add prompts' })).toBeNull();
   });
 
+  it('has no More button now that width is not a menu item', async () => {
+    renderOn('viewer', inspect(`topic:${MOCK_TERM_IDS.paidSearch}`));
+    const panel = await drawer('Paid Search');
+    expect(await within(panel).findByRole('heading', { name: 'Top prompts in this group' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+
   it('opens a group onto all of its prompts in the table, with no Show all row, and lists them in its Prompts tab', async () => {
     const { user } = renderWithProviders(promptsAs('viewer'));
     const tree = await treegrid();

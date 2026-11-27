@@ -378,6 +378,8 @@ const KEYWORDS: Readonly<Record<string, readonly KeywordFact[]>> = {
   '/blog/what-is-a-soc': [{ keyword: 'what is a soc', rank: 5, change: 0, volume: 14800 }],
   '/blog/soc-vs-mdr': [{ keyword: 'soc vs mdr', rank: 5, change: 1, volume: 2400 }],
   '/blog/vapt-checklist': [{ keyword: 'vapt checklist', rank: 18, change: -2, volume: 720 }],
+  // The same redirected page still ranks for a keyword (the Issues page finds it as a broken page that ranks)
+  '/services/penetration-testing': [{ keyword: 'penetration testing services', rank: 12, change: -2, volume: 1200 }],
 };
 
 /** The tracked keywords of a page, best rank first and the ones that do not rank last (the API's order). */
@@ -428,8 +430,10 @@ const GSC_DAYS: Readonly<Record<string, readonly [clicks: number, impressions: n
   '/blog/soc-vs-mdr': [640, 19800],
   '/blog/vapt-checklist': [210, 6400],
   '/blog': [150, 3900],
+  // A redirected page Google still sends visitors to (the Issues page finds it as a broken page with clicks)
+  '/services/penetration-testing': [180, 3100],
 };
-const GSC_WINDOW = { start: '2026-10-18', end: '2026-11-14' } as const;
+export const GSC_WINDOW = { start: '2026-10-18', end: '2026-11-14' } as const;
 
 /** The clicks of a page over the window: none while Search Console is pending or not connected. */
 export const gscClicksOf = (page: Pick<FixturePage, 'path'>): number =>

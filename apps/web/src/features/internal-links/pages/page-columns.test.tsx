@@ -2,7 +2,7 @@ import { render } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import { createTranslator } from 'next-intl';
 import type { ReactElement } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { keysOfSort, pageColumns, SORT_FIELD, sortOfKeys } from './page-columns';
 import { PAGE_SORTS } from '../url-state';
@@ -11,9 +11,16 @@ import type { PageExtras, PageRow } from '@/lib/internal-links/types';
 import { crawledPages, pageRow } from '@/mocks/internal-links-world';
 import messages from '../../../../messages/en.json';
 
+// The Issues session fills this seam; the cell reads its numbers only through it
+const { issueCounts } = vi.hoisted(() => ({
+  issueCounts: vi.fn<() => { error: number; warning: number; notice: number } | null>(() => null),
+}));
+vi.mock('@/lib/pages/issue-source', () => ({ issueCountsOf: issueCounts }));
+
 const t = createTranslator({ locale: 'en', messages, namespace: 'internalLinks' });
+const groups = createTranslator({ locale: 'en', messages, namespace: 'pages.groups' });
 const build = (comparison: Comparison = 'ready', linksAvailable = true): ReturnType<typeof pageColumns> =>
-  pageColumns(t, { tiers: [], scope: 'editorial', openJourney: () => undefined, comparison, linksAvailable });
+  pageColumns(t, groups, { tiers: [], scope: 'editorial', openJourney: () => undefined, comparison, linksAvailable });
 const columns = build();
 
 describe('the sort of the Pages table (decision W5)', () => {
@@ -29,13 +36,14 @@ describe('the sort of the Pages table (decision W5)', () => {
     expect(keysOfSort('-linking_pages')).toEqual([{ id: 'linking', desc: true }]);
   });
 
-  it('sorts only the thirteen columns the API sorts, and never by equity', () => {
+  it('sorts only the fourteen columns the API sorts, and never by equity', () => {
     expect(Object.values(SORT_FIELD).sort()).toEqual([
       'anchor',
       'change',
       'citations',
       'click_depth',
       'clicks',
+      'impressions',
       'in_sitemap',
       'indexable',
       'linking_pages',
@@ -54,27 +62,62 @@ describe('the sort of the Pages table (decision W5)', () => {
     expect(sortOfKeys([{ id: 'sitemap', desc: true }])).toBe('-in_sitemap');
     expect(sortOfKeys([{ id: 'tier', desc: false }])).toBe('tier');
     expect(sortOfKeys([{ id: 'clicks', desc: true }])).toBe('-clicks');
-    for (const id of ['keywords', 'impressions']) {
-      expect(sortOfKeys([{ id, desc: false }])).toBeNull();
-    }
+    expect(sortOfKeys([{ id: 'impressions', desc: true }])).toBe('-impressions');
+    expect(sortOfKeys([{ id: 'keywords', desc: false }])).toBeNull();
   });
 });
 
 describe('the Pages columns', () => {
-  it('shows the slice 1 columns and Change by default and keeps the rest in the chooser, with no equity column', () => {
+  it('comes in the order and the groups of spec 7.2, each group in one run', () => {
+    expect(columns.map((column) => [column.group?.id, column.id])).toEqual([
+      ['page', 'page'],
+      ['page', 'tier'],
+      ['page', 'status'],
+      ['page', 'tags'],
+      ['indexing', 'reason'],
+      ['indexing', 'canonical'],
+      ['indexing', 'sitemap'],
+      ['issues', 'flags'],
+      ['search', 'clicks'],
+      ['search', 'impressions'],
+      ['search', 'keywords'],
+      ['search', 'rank'],
+      ['ai', 'citations'],
+      ['links', 'depth'],
+      ['links', 'linking'],
+      ['links', 'fromTiers'],
+      ['links', 'outlinks'],
+      ['links', 'change'],
+      ['links', 'toT1'],
+      ['links', 'broken'],
+      ['links', 'redirects'],
+      ['links', 'nonIndexable'],
+      ['links', 'topAnchor'],
+      ['links', 'anchors'],
+      ['links', 'matches'],
+    ]);
+    expect(columns.find((column) => column.id === 'reason')?.header).toBe('Indexable');
+    expect(columns.map((column) => column.group?.label).filter((label, i, all) => label !== all[i - 1])).toEqual([
+      'Page',
+      'Indexing',
+      'Issues',
+      'Search',
+      'AI',
+      'Links',
+    ]);
+  });
+
+  it('shows Tier, Status, Indexable, Flags and Clicks by default and keeps the rest in the chooser, with no equity column', () => {
     expect(columns.filter((column) => column.defaultVisible !== false).map((column) => column.id)).toEqual([
       'page',
       'tier',
       'status',
-      'depth',
-      'linking',
-      'fromTiers',
-      'outlinks',
-      'change',
+      'reason',
       'flags',
+      'clicks',
     ]);
     const hidden = columns.filter((column) => column.defaultVisible === false).map((column) => column.id);
-    for (const id of ['keywords', 'rank', 'citations', 'anchors', 'matches', 'clicks', 'impressions']) {
+    for (const id of ['keywords', 'rank', 'citations', 'anchors', 'matches', 'impressions', 'canonical', 'depth']) {
       expect(hidden).toContain(id);
     }
     expect(columns.some((column) => /equity|strength/i.test(column.id) || /equity|strength/i.test(column.header))).toBe(
@@ -158,7 +201,7 @@ describe('the rank, citation, anchor and Google columns', () => {
 
   it('labels rank and citations as today’s numbers, and beside an older crawl names that crawl’s date', () => {
     const header = (id: string, olderCrawlDate: string | null): { text: string; tip: string | undefined } => {
-      const column = pageColumns(t, {
+      const column = pageColumns(t, groups, {
         tiers: [],
         scope: 'editorial',
         openJourney: () => undefined,
@@ -206,6 +249,69 @@ describe('the rank, citation, anchor and Google columns', () => {
     expect(cellOf('clicks', withExtras({ gsc: { ...gsc, state: 'not_connected', clicks: null } })).text).toBe(
       'Not connected',
     );
-    expect(columns.find((column) => column.id === 'clicks')?.headerTooltip).toBe('Google data, last 28 days');
+    expect(columns.find((column) => column.id === 'clicks')?.headerTooltip).toBe(
+      'Google Search clicks on this page in the last 28 days, from Search Console',
+    );
+    expect(columns.find((column) => column.id === 'impressions')?.headerTooltip).toBe(
+      'Times this page was shown in Google Search in the last 28 days, from Search Console',
+    );
+  });
+});
+
+describe('the Canonical column', () => {
+  it('shows the canonical address, This page when it is the row itself, and None when there is none', () => {
+    expect(cellOf('canonical', { ...BASE, canonical_url: 'https://example.com/other' }).text).toBe(
+      'https://example.com/other',
+    );
+    expect(cellOf('canonical', { ...BASE, canonical_url: BASE.url }).text).toBe('This page');
+    expect(cellOf('canonical', { ...BASE, canonical_url: null }).text).toBe('None');
+    expect(columns.find((column) => column.id === 'canonical')?.sortValue).toBeUndefined();
+  });
+});
+
+describe('the columns of the seams (spec 10.1 and 10.2)', () => {
+  const words = createTranslator({ locale: 'en', messages, namespace: 'pages.columns' });
+  const withSeams = (issues: boolean, tracked: ReadonlySet<string> | null): ReturnType<typeof pageColumns> =>
+    pageColumns(t, groups, {
+      tiers: [],
+      scope: 'editorial',
+      openJourney: () => undefined,
+      comparison: 'ready',
+      linksAvailable: true,
+      seams: { issues, tracked, t: words },
+    });
+  const shown = (built: ReturnType<typeof pageColumns>): string[] =>
+    built.filter((column) => column.defaultVisible !== false).map((column) => column.id);
+
+  it('has no Issues and no Tracked column while the seams are not filled', () => {
+    const ids = withSeams(false, null).map((column) => column.id);
+    expect(ids).not.toContain('issues');
+    expect(ids).not.toContain('tracked');
+  });
+
+  it('adds Issues to the Issues group, shown by default, and hides Flags then', () => {
+    const built = withSeams(true, null);
+    expect(built.find((column) => column.id === 'issues')?.group?.id).toBe('issues');
+    expect(shown(built)).toContain('issues');
+    expect(shown(built)).not.toContain('flags');
+    expect(built.find((column) => column.id === 'flags')?.defaultVisible).toBe(false);
+    expect(shown(columns)).toContain('flags');
+  });
+
+  it('adds Tracked to the Search group, shown by default, and says yes or no for each page', () => {
+    const built = withSeams(false, new Set([BASE.url_id]));
+    expect(built.find((column) => column.id === 'tracked')?.group?.id).toBe('search');
+    expect(shown(built)).toContain('tracked');
+    expect(cellOf('tracked', BASE, built).text).toBe('Tracked');
+    expect(cellOf('tracked', { ...BASE, url_id: 'another' }, built).text).toBe('Not tracked');
+  });
+
+  it('reads the Issues numbers only through the seam, and says none for a page without them', () => {
+    const built = withSeams(true, null);
+    issueCounts.mockReturnValueOnce({ error: 2, warning: 0, notice: 5 });
+    const counted = cellOf('issues', BASE, built).text;
+    expect(counted).toContain('2');
+    expect(counted).toContain('5');
+    expect(cellOf('issues', BASE, built).text).toBe('None');
   });
 });

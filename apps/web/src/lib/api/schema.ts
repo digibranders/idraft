@@ -1877,6 +1877,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tracked keywords where two or more of the site's own pages compete
+         * @description One row per tracked keyword on the device with its verdict over the period, the pages involved, rank gap, confirmed switches and a one-cell-per-check history. The headline carries the figures of the period before when the history allows. A verdict needs `min_checks` ranked checks, else it is `insufficient`.
+         */
+        get: operations["conflicts_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One tracked keyword: its row and the page that ranked on each check */
+        get: operations["keyword_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_keywords__tracked_keyword_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pairs of own pages that compete on several keywords */
+        get: operations["pairs_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_pairs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Confirmed changes of the ranking page, with the weekly count
+         * @description A switch is confirmed when the new page also holds the best rank on the next ranked check; one-check changes are only counted. `kind` narrows the rows, not the headline or the weeks.
+         */
+        get: operations["switches_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_switches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains": {
         parameters: {
             query?: never;
@@ -1972,6 +2046,150 @@ export interface paths {
         head?: never;
         /** Change an entity's role in the project */
         patch: operations["update_project_entity_api_v1_workspaces__workspace_id__projects__project_id__entities__entity_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sessions from AI assistants in Google Analytics, under two classifiers
+         * @description Over `from` to `to`, project-local days both included (default the 28 days ending today; at most 92, `422 window_too_large`). Each assistant has the sessions, engaged sessions and key events GA4's own `AI Assistant` channel counts (`ga4_ai_assistant_channel`) and our referrer rules count (`own_rules`), side by side, and their `difference`; neither is labelled correct. The figures are a lower bound, and Google AI Mode and Google AI Overview are not counted (GA4 files them under organic search): `meta.notes` says so. `compare=previous_period` (as many days just before the window), `compare=previous_year` or `compare_from` with `compare_to` (both or neither, at most 92 days; they win over `compare`) add `compare_window` and `previous` beside each value; `previous` is null unless the compared window is collected and holds a row for the key. Answers `200` with `connected: false` and no rows when the project has no live GA4 integration, and no rows when nothing is collected for the window (`meta.collected_through`); a key without a row is absent, never 0. `group_by=landing_page` is `422 not_available` until the landing page report is built.
+         */
+        get: operations["ai_referrals_api_v1_workspaces__workspace_id__projects__project_id__fp_ai_referrals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: Search Console totals, health and daily series
+         * @description The period is chosen as for the tracked pages (`from`, `to`, `compare`; at most 92 days, `422 window_too_large`). The series has one point for every day of the period; a day without a stored row has 0 clicks and impressions and no position. The first request for a page whose history is not stored fetches it from Google, once. When that cannot be done now (this installation's budget is spent, Google is busy or does not answer, or the state is not `ok`) the answer is still `200`, with `history_from`, `current`, `previous` and `health` null and both series empty, and `retry_after` in seconds when asking again can help. `404 not_found` for a page that is not a page of the project.
+         */
+        get: operations["page_search_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: its rows by query, country or device, now and before
+         * @description The rows of both periods under one key, most clicks first; `current` or `previous` is null for a key outside that period's stored rows. A period with no stored rows is fetched from Google, once, and stored: for `query` the read asks for 25,000 rows and 100 are kept. `coverage` is the stored rows' clicks over the page's clicks. With a state other than `ok` only stored rows are served. `429 gsc_busy` (with `retry_after`) when this installation's budget or Google's quota is spent, `503 google_unavailable` when Google does not answer.
+         */
+        get: operations["page_search_breakdown_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pages a project tracks, with their Search Console numbers
+         * @description At most 200 pages, no paging, ordered by path. `from` and `to` are Pacific Time days, both included, at most 92 (`422 window_too_large`); `to` is cut to the last final day. With neither, the period is the last full calendar month that ends on or before the last final day. `compare` is `previous_period` (default), `previous_year` or `none`. A page whose daily history is not stored yet has `history: loading` and no `current`, `previous`, `health` or `trend`. `queries` is read from stored counts only, and is null for a period with none stored. `cannibalization` counts the tracked keywords on which the page competes with another page of the site (the Cannibalization read of the last 30 days, desktop), and is null for a page no conflict names. With `not_connected` or `pending` the pages are listed and every number is null.
+         */
+        get: operations["list_tracked_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_get"];
+        put?: never;
+        /**
+         * Track pages by address or by url id
+         * @description `urls` (at most 500; a path is read against the project's website) and `url_ids` (at most 500) may both be given, and the answer has one outcome per input, in order: `added` (`ok` with `dry_run`), `already_tracked`, `invalid_url`, `wrong_host`, `not_crawled` (not a page of the project) or `over_limit` (a project tracks at most 200). An address is parsed and never fetched. `dry_run` checks without writing. An audit entry `tracked_page.add` is written for a request that added pages.
+         */
+        post: operations["track_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The url ids of the tracked pages
+         * @description For the Tracked column of the page list. At most 200 ids.
+         */
+        get: operations["tracked_page_ids_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_ids_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop tracking pages
+         * @description At most 200 url ids. The numbers stored for the pages are kept. An audit entry `tracked_page.remove` is written when a page was untracked.
+         */
+        post: operations["untrack_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Untracked pages with the most clicks
+         * @description The 25 pages of the project that are not tracked and had the most clicks in the last 28 final days, from stored rows. Empty unless the state is `ok`, `reauth_required` or `no_access`.
+         */
+        get: operations["tracked_page_suggestions_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
@@ -2106,6 +2324,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The whole crawl as a graph, for the Link map
+         * @description Every live page that counts as a node and one edge per page pair that links in the body (and by auto-generated blocks with `include_auto`). A link to a redirect is a link to the page it leads to. Menu and footer links are not edges: `sitewide_from` on a node says how many pages have one, when that is at least half. Over `max_pages` the pages with the most edges are kept and `truncated` is true.
+         */
+        get: operations["graph_api_v1_workspaces__workspace_id__projects__project_id__internal_links_graph_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/neighbors": {
         parameters: {
             query?: never;
@@ -2160,6 +2398,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts of a crawl's pages for the Pages overview */
+        get: operations["overview_api_v1_workspaces__workspace_id__projects__project_id__internal_links_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages": {
         parameters: {
             query?: never;
@@ -2186,6 +2441,171 @@ export interface paths {
         };
         /** One page: the inspector */
         get: operations["get_page_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: when its content changed
+         * @description Reads the latest crawl; `404` when the URL is not in it.
+         */
+        get: operations["get_page_history_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file for a note
+         * @description Multipart, one part `file`, one file per request. The type is decided by the content, never by the name or the type the browser sends: an image (PNG, JPEG, GIF, WebP), a PDF, a CSV or a text file. The file belongs to no note until a note is saved with its id. `413 payload_too_large` over 10 MB (`limit_bytes`), `415 unsupported_media_type` for any other kind of file (a web page, an SVG, a script, an archive), `422` for an empty file or a missing `file` part and for `quota_exceeded` (`limit`, `used`, `requested`: the workspace stores 1 GiB of note files unless its limit says otherwise), `503 storage_unavailable` when the file could not be stored, and `404 not_found` for an address no crawl of the project holds.
+         */
+        post: operations["upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bytes of a note's file
+         * @description `data:read`. The file as it was stored, through the API so that the permission and the workspace are checked on every read. `404 not_found` for a file that is not attached to a note, was removed from its note, belongs to a deleted note, or is of another page, project or workspace; the file of a note comes back when the note is restored. The `Content-Type` is the one stored from the content, `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy` are always sent, and `Content-Disposition` is `inline` for PNG, JPEG, GIF and WebP images and `attachment` for every other type.
+         */
+        get: operations["download_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments__attachment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: its notes, newest first
+         * @description The notes that are not deleted, of every crawl: a note is kept by address. `can_edit` and `can_delete` say what the caller may do with each. `404 not_found` for an address no crawl of the project holds.
+         */
+        get: operations["list_page_notes_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_get"];
+        put?: never;
+        /**
+         * Add a note to a page
+         * @description Plain text, 1 to 2,000 characters once trimmed; line breaks inside are kept.
+         */
+        post: operations["create_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a note
+         * @description The one who wrote it, an owner or an admin. The one who deleted can bring it back with `POST .../restore`. Deleting a deleted note is `404 not_found`.
+         */
+        delete: operations["delete_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Change your note
+         * @description Only the one who wrote the note; anyone else gets `403 forbidden`. `edited_at` is set only when the body really changed.
+         */
+        patch: operations["update_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring a deleted note back
+         * @description Only the one who deleted it. A note that is not deleted is `404 not_found`.
+         */
+        post: operations["restore_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/outline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: its outline, read from the stored HTML of the latest crawl
+         * @description Title, description, canonical, robots, headings, language versions, sharing tags, structured data and content size. Read on demand; nothing is stored. Always the latest crawl.
+         */
+        get: operations["page_outline_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__outline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One page: Search Console clicks and impressions by day */
+        get: operations["page_search_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2332,6 +2752,23 @@ export interface paths {
         };
         /** Counts of the saved worklists */
         get: operations["worklists_api_v1_workspaces__workspace_id__projects__project_id__internal_links_worklists_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The checks of a crawl, with the pages each found and the totals of the strip */
+        get: operations["list_issues_api_v1_workspaces__workspace_id__projects__project_id__issues_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4567,6 +5004,115 @@ export interface components {
              */
             tracked: number;
         };
+        /**
+         * AiReferralCounts
+         * @description The three numbers of one classifier and key over one window.
+         */
+        AiReferralCounts: {
+            /**
+             * Engaged Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            engaged_sessions: number | null;
+            /**
+             * Key Events
+             * @description The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.
+             */
+            key_events: string | null;
+            /**
+             * Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            sessions: number | null;
+        };
+        /** AiReferralRow */
+        AiReferralRow: {
+            /**
+             * Difference
+             * @description `own_rules` sessions minus `ga4_ai_assistant_channel` sessions; null when either is null.
+             */
+            difference: number | null;
+            /** @description Sessions GA4's own `AI Assistant` channel group counts. Null when the classifier was not asked for or has no row for the key in the window. */
+            ga4_ai_assistant_channel: components["schemas"]["AiReferralValue"] | null;
+            /**
+             * Key
+             * @description The assistant code, or the origin with `group_by=origin`.
+             */
+            key: string;
+            /** @description Sessions our referrer rules count. Null when the classifier was not asked for or has no row for the key in the window. */
+            own_rules: components["schemas"]["AiReferralValue"] | null;
+        };
+        /** AiReferralValue */
+        AiReferralValue: {
+            /**
+             * Engaged Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            engaged_sessions: number | null;
+            /**
+             * Key Events
+             * @description The sum of GA4 key events as a decimal string with two decimals; null when GA4 gave none.
+             */
+            key_events: string | null;
+            /** @description The same numbers over the compared window. Null when nothing is compared, when the compared window is not fully collected, or when the key has no row in it. */
+            previous: components["schemas"]["AiReferralCounts"] | null;
+            /**
+             * Sessions
+             * @description Sum over the window; null when the rows of the key hold no count.
+             */
+            sessions: number | null;
+        };
+        /** AiReferralsMeta */
+        AiReferralsMeta: {
+            /**
+             * Collected Since
+             * @description The first day the first finished sync run stored; null when the sync never finished, or when the state predates this field.
+             */
+            collected_since: string | null;
+            /**
+             * Collected Through
+             * @description The last day a finished sync run stored; null when the sync never finished or nothing is connected.
+             */
+            collected_through: string | null;
+            compare_window: components["schemas"]["MetricWindow"] | null;
+            /**
+             * Connected
+             * @description The project has a ga4 integration whose status is not `disabled`.
+             */
+            connected: boolean;
+            /** Last Success At */
+            last_success_at: string | null;
+            /**
+             * Lower Bound
+             * @description Always true: the figures are a lower bound.
+             */
+            lower_bound: boolean;
+            /**
+             * Notes
+             * @description Fixed English sentences the web shows (lower bound, Google AI Mode and AI Overview not counted, the two classifiers, and what is not collected).
+             */
+            notes: string[];
+            /**
+             * Rules Version
+             * @description The rule set version of the `own_rules` rows in the window; null when there are none.
+             */
+            rules_version: number | null;
+            window: components["schemas"]["MetricWindow"];
+            /**
+             * Window Collected
+             * @description True when `collected_since` is at or before the first day of the window and `collected_through` covers its last day (a window that ends today needs yesterday). Empty `data` with true is zero AI sessions; with false it is not (fully) collected.
+             */
+            window_collected: boolean;
+        };
+        /** AiReferralsResponse */
+        AiReferralsResponse: {
+            /**
+             * Data
+             * @description One row per assistant (or origin) with a row in the window. An absent key is no row, and is read as zero only when `meta.window_collected` is true.
+             */
+            data: components["schemas"]["AiReferralRow"][];
+            meta: components["schemas"]["AiReferralsMeta"];
+        };
         /** AiSeriesResponse */
         AiSeriesResponse: {
             /**
@@ -5170,6 +5716,14 @@ export interface components {
              */
             options?: string | null;
         };
+        /** Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post */
+        Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post: {
+            /**
+             * File
+             * @description The file, at most 10 MB.
+             */
+            file: string;
+        };
         /** BrandCell */
         BrandCell: {
             /** Answers */
@@ -5199,6 +5753,20 @@ export interface components {
              */
             platforms: number;
             total: components["schemas"]["BrandCell"];
+        };
+        /** @enum {string} */
+        BreakdownDimension: "query" | "country" | "device";
+        /** BreakdownRow */
+        BreakdownRow: {
+            /** @description The numbers of the period; null for a key outside its stored rows. */
+            current: components["schemas"]["PageNumbers"] | null;
+            /**
+             * Key
+             * @description The query text, the three-letter country code or the device in capitals.
+             */
+            key: string;
+            /** @description The numbers of the compared period; null for a key outside its stored rows. */
+            previous: components["schemas"]["PageNumbers"] | null;
         };
         /** Budget */
         Budget: {
@@ -5410,6 +5978,266 @@ export interface components {
             matched: number;
             /** Updated */
             updated: number;
+        };
+        /** CannCheck */
+        CannCheck: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Ranks */
+            ranks: components["schemas"]["CannCheckRank"][];
+            /** Readable */
+            readable: boolean;
+            /** Sub Results */
+            sub_results: string[];
+        };
+        /** CannCheckRank */
+        CannCheckRank: {
+            /** Rank */
+            rank: number;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannCount */
+        CannCount: {
+            /** Before */
+            before: number | null;
+            /** Value */
+            value: number;
+        };
+        /** CannKeyword */
+        CannKeyword: {
+            /** Checks */
+            checks: number;
+            /** Current Rank */
+            current_rank: number | null;
+            /** Current Url Id */
+            current_url_id: string | null;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /** Flip Flops */
+            flip_flops: number;
+            /** Group Ids */
+            group_ids: string[];
+            /** Held Now Days */
+            held_now_days: number;
+            /** Keyword */
+            keyword: string;
+            /** Longest Hold Days */
+            longest_hold_days: number;
+            /**
+             * On Target
+             * @description Null when no target page is set or no page ranks now.
+             */
+            on_target: boolean | null;
+            /** One Check Changes */
+            one_check_changes: number;
+            /** Pages */
+            pages: components["schemas"]["CannPage"][];
+            /** Previous Verdict */
+            previous_verdict: ("likely" | "co_ranking" | "unstable" | "none" | "unranked" | "insufficient") | null;
+            /** Rank Gap */
+            rank_gap: number;
+            /** Ranked Checks */
+            ranked_checks: number;
+            /** Strip */
+            strip: components["schemas"]["CannStripCell"][];
+            /** Switch Rate */
+            switch_rate: number;
+            /** Switches */
+            switches: components["schemas"]["SwitchEvent"][];
+            /** Target Url Id */
+            target_url_id: string | null;
+            /** Together Rate */
+            together_rate: number;
+            /** Tracked Keyword Id */
+            tracked_keyword_id: string;
+            /** Unreadable Checks */
+            unreadable_checks: number;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "likely" | "co_ranking" | "unstable" | "none" | "unranked" | "insufficient";
+            /** Volume */
+            volume: number | null;
+        };
+        /** CannKeywordDetail */
+        CannKeywordDetail: {
+            /** Checks */
+            checks: components["schemas"]["CannCheck"][];
+            keyword: components["schemas"]["CannKeyword"];
+            meta: components["schemas"]["CannMeta"];
+            /** Urls */
+            urls: components["schemas"]["CannUrl"][];
+        };
+        /** CannKeywordDetailResponse */
+        CannKeywordDetailResponse: {
+            data: components["schemas"]["CannKeywordDetail"];
+        };
+        /** CannMeta */
+        CannMeta: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Days
+             * @enum {integer}
+             */
+            days: 14 | 30 | 90;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "desktop" | "mobile";
+            /**
+             * Has Previous
+             * @description True when at least one keyword has enough checks in the period before.
+             */
+            has_previous: boolean;
+            /**
+             * Method Version
+             * @default 2
+             */
+            method_version: number;
+            /**
+             * Min Checks
+             * @default 10
+             */
+            min_checks: number;
+            /**
+             * Total
+             * @description Rows matching the filters, before `limit`.
+             */
+            total: number;
+        };
+        /** CannPage */
+        CannPage: {
+            /** Best Count */
+            best_count: number;
+            /** Best Ever */
+            best_ever: number;
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Is Sub Result
+             * @description Was nested under another own result on some checks.
+             */
+            is_sub_result: boolean;
+            /** Is Target */
+            is_target: boolean;
+            /**
+             * Last Date
+             * Format: date
+             */
+            last_date: string;
+            /** Last Rank */
+            last_rank: number;
+            /**
+             * Letter
+             * @description A is the page to compare with; B to F follow; + for more.
+             */
+            letter: string;
+            /** Median */
+            median: number;
+            /** Path */
+            path: string;
+            /** Ranked */
+            ranked: number;
+            /** Share */
+            share: number;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannPair */
+        CannPair: {
+            a: components["schemas"]["CannPairPage"];
+            /** A Leads */
+            a_leads: number;
+            b: components["schemas"]["CannPairPage"];
+            /** B Leads */
+            b_leads: number;
+            /** Keywords */
+            keywords: number;
+            /** Likely */
+            likely: number;
+            /** Title Overlap */
+            title_overlap: number | null;
+            /** Tracked Keyword Ids */
+            tracked_keyword_ids: string[];
+            /** Volume */
+            volume: number;
+        };
+        /** CannPairPage */
+        CannPairPage: {
+            /** Path */
+            path: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannStripCell */
+        CannStripCell: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "page" | "none" | "unreadable";
+            /** Rank */
+            rank: number | null;
+            /** Together */
+            together: boolean;
+            /** Url Id */
+            url_id: string | null;
+        };
+        /** CannUrl */
+        CannUrl: {
+            /** Path */
+            path: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: string;
+        };
+        /** CannWeek */
+        CannWeek: {
+            /** Dropped */
+            dropped: number;
+            /** Improved */
+            improved: number;
+            /** Same */
+            same: number;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
         };
         /** CardItem */
         CardItem: {
@@ -6069,6 +6897,8 @@ export interface components {
              */
             valid: number;
         };
+        /** @enum {string} */
+        Compare: "none" | "previous_period" | "previous_year";
         /** CompareEntities */
         CompareEntities: {
             /**
@@ -6264,6 +7094,33 @@ export interface components {
             valid_from: string;
             /** Valid To */
             valid_to: string | null;
+        };
+        /** ConflictHeadline */
+        ConflictHeadline: {
+            conflicts: components["schemas"]["CannCount"];
+            likely: components["schemas"]["CannCount"];
+            /** Ranked Keywords */
+            ranked_keywords: number;
+            together: components["schemas"]["CannCount"];
+            /** Typical Rank Gap */
+            typical_rank_gap: number | null;
+            unstable: components["schemas"]["CannCount"];
+            /** Volume At Risk */
+            volume_at_risk: number;
+            /** Volume Keywords */
+            volume_keywords: number;
+        };
+        /** ConflictList */
+        ConflictList: {
+            counts: components["schemas"]["VerdictCounts"];
+            headline: components["schemas"]["ConflictHeadline"];
+            /** Items */
+            items: components["schemas"]["CannKeyword"][];
+            meta: components["schemas"]["CannMeta"];
+        };
+        /** ConflictListResponse */
+        ConflictListResponse: {
+            data: components["schemas"]["ConflictList"];
         };
         /** Connection */
         Connection: {
@@ -7511,6 +8368,56 @@ export interface components {
              */
             tracked_keyword_id: string;
         };
+        /** GraphEdge */
+        GraphEdge: {
+            /**
+             * Links
+             * @description How many links the source has to the target.
+             */
+            links: number;
+            /**
+             * Source
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            source: string;
+            /**
+             * Target
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            target: string;
+        };
+        /** GraphNode */
+        GraphNode: {
+            /**
+             * Links In
+             * @description Pages that link to it, redirects folded.
+             */
+            links_in: number;
+            /**
+             * Links Out
+             * @description Pages it links to, redirects folded.
+             */
+            links_out: number;
+            /** Path */
+            path: string;
+            /**
+             * Sitewide From
+             * @description Pages that link to it from a menu, header, footer, sidebar or breadcrumb; 0 unless that is at least half the pages. Those links are never edges.
+             */
+            sitewide_from: number;
+            /**
+             * Tier Id
+             * @description The page's tier; null is Untiered.
+             */
+            tier_id: string | null;
+            /** Title */
+            title: string | null;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
         /** GroupMembers */
         GroupMembers: {
             /** Tracked Keyword Ids */
@@ -8103,6 +9010,122 @@ export interface components {
         InvitationResponse: {
             data: components["schemas"]["Invitation"];
         };
+        /** IssueCheck */
+        IssueCheck: {
+            /** Category */
+            category: string;
+            /**
+             * Clicks
+             * @description Search Console clicks of those pages in the window; null when the check did not run or `meta.gsc.state` is not `ok`.
+             */
+            clicks: number | null;
+            /**
+             * Example Path
+             * @description The first path in byte order among the check's pages; null when none.
+             */
+            example_path: string | null;
+            /**
+             * Found By
+             * @enum {string}
+             */
+            found_by: "crawl" | "ranks" | "gsc" | "ga4" | "ai";
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "status-4xx" | "status-5xx" | "clicks-page-broken" | "rank-page-broken" | "cited-page-broken" | "clicks-page-orphan" | "redirect-broken" | "redirect-chain" | "links-to-redirect" | "redirect-pages" | "canonical-broken" | "noindex" | "canonical-elsewhere" | "sitemap-broken" | "sitemap-nonindexable" | "not-in-sitemap" | "broken-internal-links" | "orphans" | "editorial-orphans" | "links-to-nonindexable" | "deep-pages" | "nofollow-internal" | "mixed-content" | "hreflang" | "slow-pages" | "title-missing" | "title-duplicate" | "title-long" | "title-short" | "description-missing" | "description-duplicate" | "h1-missing" | "h1-multiple" | "thin-content" | "duplicate-content" | "image-alt" | "schema-errors" | "social-tags" | "url-format" | "url-long" | "off-target";
+            /**
+             * Pages
+             * @description Pages the check found; null when it did not run.
+             */
+            pages: number | null;
+            /**
+             * Reason
+             * @description Why the check did not run; null when it ran.
+             */
+            reason: ("source_not_connected" | "not_collected" | "no_sitemap" | "links_dropped") | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "notice";
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ran" | "not_run";
+            /**
+             * Tab
+             * @enum {string}
+             */
+            tab: "technical" | "on_page";
+        };
+        /**
+         * IssueDetail
+         * @description What a check found on one page (spec section 4, last column). The web writes the sentence.
+         */
+        IssueDetail: {
+            /** Count */
+            count?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Target Path */
+            target_path?: string | null;
+            /** Target Status */
+            target_status?: number | null;
+        };
+        /** IssueGsc */
+        IssueGsc: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected";
+            /** Window End */
+            window_end: string | null;
+            /** Window Start */
+            window_start: string | null;
+        };
+        /** IssueListResponse */
+        IssueListResponse: {
+            /** Data */
+            data: components["schemas"]["IssueCheck"][];
+            meta: components["schemas"]["IssueMeta"];
+            summary: components["schemas"]["IssueSummary"];
+        };
+        /** IssueMeta */
+        IssueMeta: {
+            /** Crawled At */
+            crawled_at: string | null;
+            gsc: components["schemas"]["IssueGsc"];
+            /** Links Available */
+            links_available: boolean;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
+        /** IssueSummary */
+        IssueSummary: {
+            /** Checks Passed */
+            checks_passed: number;
+            /** Checks Ran */
+            checks_ran: number;
+            /**
+             * Pages Crawled
+             * @description Every address of the crawl, variants included.
+             */
+            pages_crawled: number;
+            /** Pages With Error */
+            pages_with_error: number;
+            /** Pages With Issue */
+            pages_with_issue: number;
+            /** Pages With Notice */
+            pages_with_notice: number;
+            /** Pages With Warning */
+            pages_with_warning: number;
+        };
         /** JoinedWorkspace */
         JoinedWorkspace: {
             /** Name */
@@ -8584,6 +9607,39 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** LinkGraph */
+        LinkGraph: {
+            /** Edges */
+            edges: components["schemas"]["GraphEdge"][];
+            /**
+             * Home Url Id
+             * @description The page the crawl started from.
+             */
+            home_url_id: string | null;
+            /** Include Auto */
+            include_auto: boolean;
+            /** Nodes */
+            nodes: components["schemas"]["GraphNode"][];
+            /**
+             * Pages Total
+             * @description Live pages that count in the crawl, before `max_pages`.
+             */
+            pages_total: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * Truncated
+             * @description True when `pages_total` is more than the nodes returned.
+             */
+            truncated: boolean;
+        };
+        /** LinkGraphResponse */
+        LinkGraphResponse: {
+            data: components["schemas"]["LinkGraph"];
         };
         /** LinkedKeyword */
         LinkedKeyword: {
@@ -9646,6 +10702,104 @@ export interface components {
             mentioned_only: components["schemas"]["MetricCell"];
             neither: components["schemas"]["MetricCell"];
         };
+        /** OutlineCanonical */
+        OutlineCanonical: {
+            /** Href */
+            href: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "self" | "elsewhere" | "none";
+        };
+        /** OutlineContent */
+        OutlineContent: {
+            /** Images */
+            images: number;
+            /** Images Without Alt */
+            images_without_alt: number;
+            /** Read Minutes */
+            read_minutes: number;
+            /** Thin */
+            thin: boolean;
+            /** Words */
+            words: number;
+        };
+        /** OutlineHeading */
+        OutlineHeading: {
+            /** Level */
+            level: number;
+            /** Text */
+            text: string;
+        };
+        /** OutlineLanguagePair */
+        OutlineLanguagePair: {
+            /** Code */
+            code: string;
+            /** Href */
+            href: string;
+            /** Is Self */
+            is_self: boolean;
+            /** Suggestion */
+            suggestion: string | null;
+            /** Valid */
+            valid: boolean;
+        };
+        /** OutlineLanguages */
+        OutlineLanguages: {
+            /** Pairs */
+            pairs: components["schemas"]["OutlineLanguagePair"][];
+            /** X Default */
+            x_default: boolean;
+        };
+        /** OutlineRobots */
+        OutlineRobots: {
+            /**
+             * Meta
+             * @description The content of the first robots meta tag, as read.
+             */
+            meta: string | null;
+            /**
+             * Noindex
+             * @description From the crawl row, so it also covers a noindex header.
+             */
+            noindex: boolean;
+        };
+        /** OutlineSocial */
+        OutlineSocial: {
+            /** Og Description */
+            og_description: string | null;
+            /** Og Image */
+            og_image: string | null;
+            /** Og Title */
+            og_title: string | null;
+            /** Og Type */
+            og_type: string | null;
+            /** Twitter Card */
+            twitter_card: string | null;
+        };
+        /** OutlineStructuredBlock */
+        OutlineStructuredBlock: {
+            /** Parses */
+            parses: boolean;
+            /** Types */
+            types: string[];
+        };
+        /** OutlineText */
+        OutlineText: {
+            /**
+             * Chars
+             * @description The length after trimming, before any cut of `text`.
+             */
+            chars: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "short" | "long" | "missing";
+            /** Text */
+            text: string | null;
+        };
         /**
          * OverlapWarning
          * @description Another property of the same site is already linked to a project. The two are never
@@ -9701,6 +10855,26 @@ export interface components {
             /** @description The scope the numbers were computed over. */
             meta: components["schemas"]["AiMetricMeta"];
         };
+        /** OverviewDepth */
+        OverviewDepth: {
+            /**
+             * Clicks
+             * @description 0 to 6; 6 is 6 clicks and more.
+             */
+            clicks: number;
+            /** Pages */
+            pages: number;
+        };
+        /** OverviewSection */
+        OverviewSection: {
+            /** Pages */
+            pages: number;
+            /**
+             * Section
+             * @description The first folder of the path, `/` for a top-level page.
+             */
+            section: string;
+        };
         /**
          * OverviewSeoCells
          * @description Declared and never returned in this package: SEO share of voice is built nowhere yet.
@@ -9710,6 +10884,39 @@ export interface components {
             share_of_voice: components["schemas"]["MetricValue"];
             /** @description The entity's SEO visibility. */
             visibility: components["schemas"]["MetricValue"];
+        };
+        /** OverviewSitemap */
+        OverviewSitemap: {
+            /** Indexable In Sitemap */
+            indexable_in_sitemap: number | null;
+            /** Indexable Missing */
+            indexable_missing: number | null;
+            /** Listed Not Indexable */
+            listed_not_indexable: number | null;
+            /** Listed Not Live */
+            listed_not_live: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "read" | "no_sitemap";
+        };
+        /** OverviewStatus */
+        OverviewStatus: {
+            /** Blocked */
+            blocked: number;
+            /** Client Error */
+            client_error: number;
+            /** Live */
+            live: number;
+            /** Other */
+            other: number;
+            /** Redirected */
+            redirected: number;
+            /** Server Error */
+            server_error: number;
+            /** Variant */
+            variant: number;
         };
         /** OwnEntityInput */
         OwnEntityInput: {
@@ -9744,6 +10951,87 @@ export interface components {
             /** Third Party */
             third_party: number;
         };
+        /** PageBreakdownMeta */
+        PageBreakdownMeta: {
+            /** @description The period compared with. Null with `compare=none`, `not_connected` and `pending`. */
+            compare_window: components["schemas"]["SearchWindow"] | null;
+            /**
+             * Coverage
+             * @description The stored rows' clicks over the page's clicks in the period, at most 1; the rest are rows Google does not report or past the limit. Null when the page had no clicks or nothing was fetched.
+             */
+            coverage: number | null;
+            /**
+             * Dimension
+             * @description What the rows are by.
+             * @enum {string}
+             */
+            dimension: "query" | "country" | "device";
+            /**
+             * Fetched At
+             * @description When the period's rows were fetched; null before a fetch.
+             */
+            fetched_at: string | null;
+            /**
+             * Final Through
+             * @description The last final day stored. Null with `not_connected` and `pending`.
+             */
+            final_through: string | null;
+            /**
+             * Property
+             * @description The Search Console property; null when none.
+             */
+            property: string | null;
+            /**
+             * Row Limit
+             * @description The most rows kept for a period: 100 queries.
+             */
+            row_limit: number;
+            /**
+             * State
+             * @description `ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+            /**
+             * Truncated
+             * @description More rows came back from Google than were kept. False before a fetch.
+             */
+            truncated: boolean;
+            /** @description The period the numbers are for. Null with `not_connected` and `pending`. */
+            window: components["schemas"]["SearchWindow"] | null;
+        };
+        /** PageBreakdownResponse */
+        PageBreakdownResponse: {
+            /**
+             * Data
+             * @description The union of both periods' keys, most clicks first.
+             */
+            data: components["schemas"]["BreakdownRow"][];
+            meta: components["schemas"]["PageBreakdownMeta"];
+        };
+        /** PageCannibalization */
+        PageCannibalization: {
+            /**
+             * Co Ranking
+             * @description Of those, the keywords with the verdict co-ranking.
+             */
+            co_ranking: number;
+            /**
+             * Keywords
+             * @description Tracked keywords on which the page competes with another page of the site.
+             */
+            keywords: number;
+            /**
+             * Likely
+             * @description Of those, the keywords with the verdict likely.
+             */
+            likely: number;
+            /**
+             * Unstable
+             * @description Of those, the keywords with the verdict unstable.
+             */
+            unstable: number;
+        };
         /** PageChange */
         PageChange: {
             /** Depth Delta */
@@ -9759,6 +11047,19 @@ export interface components {
             equity_points: number | null;
             /** Is New */
             is_new: boolean;
+        };
+        /** PageDeclared */
+        PageDeclared: {
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "json_ld" | "meta_modified" | "og_updated" | "sitemap";
         };
         /** PageDetail */
         PageDetail: {
@@ -9776,6 +11077,12 @@ export interface components {
              * @description False when retention dropped the crawl's links: the link lists and counts are then empty, not zero.
              */
             links_available: boolean;
+            /**
+             * Notes Count
+             * @description Notes on this address that are not deleted (they stay across crawls)
+             * @default 0
+             */
+            notes_count: number;
             /** Outlinks */
             outlinks: components["schemas"]["Neighbor"][];
             /** Outlinks Total */
@@ -9803,6 +11110,7 @@ export interface components {
             change?: components["schemas"]["PageChange"] | null;
             citations?: components["schemas"]["CitationCounts"] | null;
             gsc?: components["schemas"]["GscPage"] | null;
+            issue?: components["schemas"]["IssueDetail"] | null;
             keywords?: components["schemas"]["KeywordSummary"] | null;
         };
         /**
@@ -9810,8 +11118,12 @@ export interface components {
          * @description The Pages list's filters as a bulk body (`run` is always the latest crawl).
          */
         PageFilter: {
+            /** Depth */
+            depth?: number | null;
             /** Flags */
             flags?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors" | "variant")[] | null;
+            /** Folder */
+            folder?: string | null;
             /**
              * Include Variants
              * @description Parameter variants (a page whose canonical is another crawled page) are left out unless this is true or the `variant` flag is asked for.
@@ -9828,8 +11140,395 @@ export interface components {
             tag_ids?: string[] | null;
             /** Tier Ids */
             tier_ids?: (string | "none")[] | null;
+            /** View */
+            view?: ("live" | "indexable" | "not_indexable" | "redirects" | "errors" | "client_errors" | "server_errors" | "blocked" | "other" | "variants" | "in_sitemap_indexable" | "not_in_sitemap" | "sitemap_not_live" | "sitemap_not_indexable" | "reachable" | "unreachable") | null;
             /** Worklist */
             worklist?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
+        };
+        /** PageGoogleCrawl */
+        PageGoogleCrawl: {
+            /**
+             * Behind
+             * @description Google's last crawl is older than the last content change.
+             */
+            behind: boolean;
+            /** Coverage State */
+            coverage_state: string | null;
+            /** Crawled At */
+            crawled_at: string | null;
+        };
+        /** PageHealth */
+        PageHealth: {
+            /**
+             * Absolute
+             * @description The difference of the basis metric, the compared period scaled to the length of this one.
+             */
+            absolute: number;
+            /**
+             * Basis
+             * @description The metric the verdict was decided on.
+             * @enum {string}
+             */
+            basis: "clicks" | "impressions";
+            /**
+             * Change
+             * @description The relative change of the basis metric per day against the compared period; null when no change is stated.
+             */
+            change: number | null;
+            /**
+             * Flags
+             * @description Extra signals: `ctr_fell_impressions_rose`, `position_slipped`, `position_improved`.
+             */
+            flags: string[];
+            /**
+             * Small
+             * @description The change is 10 percent or more on numbers too small to count.
+             */
+            small: boolean;
+            /**
+             * Verdict
+             * @description The health verdict of the page for the period.
+             * @enum {string}
+             */
+            verdict: "no_data" | "new" | "lost" | "low_data" | "sharp_drop" | "declining" | "growing" | "stable";
+        };
+        /** PageHistory */
+        PageHistory: {
+            /**
+             * Changes
+             * @description Content versions, before the cap on `versions`.
+             */
+            changes: number;
+            /** @description Newest declared date; null when none or the site's dates are unreliable. */
+            declared: components["schemas"]["PageDeclared"] | null;
+            /** Declared Unreliable */
+            declared_unreliable: boolean;
+            /**
+             * First Seen
+             * Format: date-time
+             * @description The oldest crawl that held the page.
+             */
+            first_seen: string;
+            google: components["schemas"]["PageGoogleCrawl"] | null;
+            /**
+             * History Starts
+             * @description The oldest crawl with a kept check.
+             */
+            history_starts: string | null;
+            /** Last Change */
+            last_change: string | null;
+            /**
+             * Readable
+             * @description false for a redirect or an error page.
+             */
+            readable: boolean;
+            /**
+             * Status
+             * @description Status of the page in the latest crawl.
+             */
+            status: number | null;
+            /** Tracked */
+            tracked: boolean;
+            /**
+             * Versions
+             * @description Newest first.
+             */
+            versions: components["schemas"]["PageHistoryVersion"][];
+            /**
+             * Versions Capped
+             * @description true when more than 100 existed.
+             */
+            versions_capped: boolean;
+            /**
+             * Why
+             * @description Set when not readable.
+             */
+            why: ("redirect" | "error") | null;
+        };
+        /**
+         * PageHistoryChange
+         * @description One line of a version's change list. `level` is for headings. For `links`, `before` is
+         *     `all` or `editorial` (which count moved) and `delta` the signed difference; for `words`
+         *     `delta` is the signed difference in words.
+         */
+        PageHistoryChange: {
+            /** After */
+            after: string | null;
+            /** Before */
+            before: string | null;
+            /** Delta */
+            delta: number | null;
+            /** Level */
+            level: number | null;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "title" | "description" | "heading_added" | "heading_removed" | "words" | "links" | "edited";
+        };
+        /** PageHistoryResponse */
+        PageHistoryResponse: {
+            data: components["schemas"]["PageHistory"];
+        };
+        /** PageHistoryVersion */
+        PageHistoryVersion: {
+            /** Changes */
+            changes: components["schemas"]["PageHistoryChange"][];
+            /**
+             * Date
+             * Format: date-time
+             * @description The date of the crawl that saw this version.
+             */
+            date: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "content" | "site_wide" | "first";
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
+        /** PageNote */
+        PageNote: {
+            /**
+             * Attachments
+             * @default []
+             */
+            attachments: components["schemas"]["PageNoteFile"][];
+            author: components["schemas"]["PageNoteAuthor"];
+            /** Body */
+            body: string;
+            /** Can Delete */
+            can_delete: boolean;
+            /** Can Edit */
+            can_edit: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Edited At */
+            edited_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mentions
+             * @default []
+             */
+            mentions: components["schemas"]["PageNoteMention"][];
+        };
+        /** PageNoteAuthor */
+        PageNoteAuthor: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * PageNoteFile
+         * @description A file sent for a note (spec 9.8.5). `url` is an API path, never a host.
+         */
+        PageNoteFile: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Image */
+            is_image: boolean;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+            /** Url */
+            url: string;
+        };
+        /** PageNoteFileResponse */
+        PageNoteFileResponse: {
+            data: components["schemas"]["PageNoteFile"];
+        };
+        /** PageNoteList */
+        PageNoteList: {
+            /** Data */
+            data: components["schemas"]["PageNote"][];
+            meta: components["schemas"]["PageNoteListMeta"];
+        };
+        /** PageNoteListMeta */
+        PageNoteListMeta: {
+            /** Has More */
+            has_more: boolean;
+            /** Limit */
+            limit: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /** PageNoteMention */
+        PageNoteMention: {
+            /** Label */
+            label: string;
+            /** Path */
+            path?: string | null;
+            /** Target */
+            target: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "page" | "user" | "issue" | "keyword";
+        };
+        /**
+         * PageNoteMentionIn
+         * @description One `@` in a note. The label is display text the server never interprets; the target is
+         *     checked against the database by type (spec 9.8.1).
+         */
+        PageNoteMentionIn: {
+            /** Label */
+            label: string;
+            /** Target */
+            target: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "page" | "user" | "issue" | "keyword";
+        };
+        /** PageNoteResponse */
+        PageNoteResponse: {
+            data: components["schemas"]["PageNote"];
+        };
+        /**
+         * PageNoteWrite
+         * @description The body of a create and of a change. Trimmed, at most 2,000 characters, no null character.
+         *     It may be empty only when the note holds a file: the service refuses a note with neither.
+         *     `mentions` omitted on a change: the stored ones whose label is still in the text stay.
+         *     `attachment_ids` omitted on a change: the files are unchanged; given, it is the exact list of
+         *     the note's files afterwards. More than `FILES_MAX` is refused by the service, with its code.
+         */
+        PageNoteWrite: {
+            /**
+             * Attachment Ids
+             * @description Files uploaded for this page and not yet attached, at most 5.
+             */
+            attachment_ids?: string[] | null;
+            /** Body */
+            body: string;
+            /** Mentions */
+            mentions?: components["schemas"]["PageNoteMentionIn"][] | null;
+        };
+        /** PageNumbers */
+        PageNumbers: {
+            /**
+             * Clicks
+             * @description Clicks in the period.
+             */
+            clicks: number;
+            /**
+             * Ctr
+             * @description Clicks over impressions of the period; null when there were no impressions.
+             */
+            ctr: number | null;
+            /**
+             * Impressions
+             * @description Impressions in the period.
+             */
+            impressions: number;
+            /**
+             * Position
+             * @description Average position: the sum of position times impressions over the impressions, never an average of days. Null when no stored row carries a position.
+             */
+            position: number | null;
+        };
+        /** PageOutline */
+        PageOutline: {
+            outline: components["schemas"]["PageOutlineBody"] | null;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "redirect" | "error" | "not_html" | "no_html";
+            /** Status Code */
+            status_code: number | null;
+        };
+        /** PageOutlineBody */
+        PageOutlineBody: {
+            canonical: components["schemas"]["OutlineCanonical"];
+            content: components["schemas"]["OutlineContent"];
+            description: components["schemas"]["OutlineText"];
+            /**
+             * Headings
+             * @description Headings with text, in document order, at most 200.
+             */
+            headings: components["schemas"]["OutlineHeading"][];
+            /**
+             * Headings Total
+             * @description Every heading the parser saw, also one with no text and those past 200.
+             */
+            headings_total: number;
+            /** Html Lang */
+            html_lang: string | null;
+            languages: components["schemas"]["OutlineLanguages"];
+            /**
+             * Level Counts
+             * @description Headings per level, H1 to H6, counted over all of them; with `headings` it can differ, since a heading with no text is counted and not listed.
+             */
+            level_counts: number[];
+            robots: components["schemas"]["OutlineRobots"];
+            /**
+             * Skipped At
+             * @description Index in `headings` of the first heading more than one level deeper than the one before it.
+             */
+            skipped_at: number | null;
+            social: components["schemas"]["OutlineSocial"];
+            /** Structured Data */
+            structured_data: components["schemas"]["OutlineStructuredBlock"][];
+            title: components["schemas"]["OutlineText"];
+            /**
+             * Truncated
+             * @description The HTML was longer than the byte cap and was cut.
+             */
+            truncated: boolean;
+            /** Url */
+            url: string;
+        };
+        /** PageOutlineResponse */
+        PageOutlineResponse: {
+            data: components["schemas"]["PageOutline"];
+        };
+        /** PageQueries */
+        PageQueries: {
+            /**
+             * Capped
+             * @description True when Google returned its row limit of 25,000, so `value` is a lower bound.
+             */
+            capped: boolean;
+            /**
+             * Previous
+             * @description The same count for the compared period. Null with `compare=none`, when it is not stored, or when it was capped.
+             */
+            previous: number | null;
+            /**
+             * Value
+             * @description The number of different queries that gave the page an impression, as Google reports them. It leaves out anonymized queries, so the real number is higher.
+             */
+            value: number;
         };
         /** PageRow */
         PageRow: {
@@ -9917,6 +11616,130 @@ export interface components {
             data: components["schemas"]["PageRow"][];
             meta: components["schemas"]["ListMeta"];
             page: components["schemas"]["CursorPageInfo"];
+        };
+        /** PageSearchDaily */
+        PageSearchDaily: {
+            /** Clicks */
+            clicks: number | null;
+            /**
+             * Days
+             * @description One row per day of the window with `ok`, a day without a stored row as zeros; empty otherwise.
+             */
+            days: components["schemas"]["PageSearchDay"][];
+            /** Impressions */
+            impressions: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected";
+            /** Window End */
+            window_end: string | null;
+            /** Window Start */
+            window_start: string | null;
+        };
+        /** PageSearchDailyResponse */
+        PageSearchDailyResponse: {
+            data: components["schemas"]["PageSearchDaily"];
+        };
+        /** PageSearchData */
+        PageSearchData: {
+            /** @description The numbers of the period. Null until the page's history is stored. */
+            current: components["schemas"]["PageNumbers"] | null;
+            /** @description The health verdict of the period. Null until the page's history is stored. */
+            health: components["schemas"]["PageHealth"] | null;
+            /**
+             * Path
+             * @description The path of the page.
+             */
+            path: string;
+            /** @description The numbers of the compared period. Null with `compare=none`, before the history is stored, or when the compared period starts before the page's first stored day. */
+            previous: components["schemas"]["PageNumbers"] | null;
+            /**
+             * Previous Series
+             * @description One point for every day of the compared period, on its own dates; empty when `previous` is null.
+             */
+            previous_series: components["schemas"]["SeriesPoint"][];
+            /**
+             * Series
+             * @description One point for every day of the period; empty until the history is stored.
+             */
+            series: components["schemas"]["SeriesPoint"][];
+            /**
+             * Tier Id
+             * @description The page's tier; null for Untiered.
+             */
+            tier_id: string | null;
+            /**
+             * Title
+             * @description The title of the page in the latest finished crawl; null when it has none.
+             */
+            title: string | null;
+            /**
+             * Tracked
+             * @description Whether the project tracks the page.
+             */
+            tracked: boolean;
+            /**
+             * Url
+             * @description The canonical address of the page.
+             */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** PageSearchDay */
+        PageSearchDay: {
+            /** Clicks */
+            clicks: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Impressions */
+            impressions: number;
+        };
+        /** PageSearchMeta */
+        PageSearchMeta: {
+            /** @description The period compared with. Null with `compare=none`, `not_connected` and `pending`. */
+            compare_window: components["schemas"]["SearchWindow"] | null;
+            /**
+             * Final Through
+             * @description The last final day stored. Null with `not_connected` and `pending`.
+             */
+            final_through: string | null;
+            /**
+             * History From
+             * @description The first day the page's history covers; null before it was fetched.
+             */
+            history_from: string | null;
+            /**
+             * Property
+             * @description The Search Console property; null when none.
+             */
+            property: string | null;
+            /**
+             * Retry After
+             * @description Seconds to wait before asking again, when the history could not be fetched because this installation's budget is spent. Null otherwise.
+             */
+            retry_after: number | null;
+            /**
+             * State
+             * @description `ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+            /** @description The period the numbers are for. Null with `not_connected` and `pending`. */
+            window: components["schemas"]["SearchWindow"] | null;
+        };
+        /** PageSearchResponse */
+        PageSearchResponse: {
+            data: components["schemas"]["PageSearchData"];
+            meta: components["schemas"]["PageSearchMeta"];
         };
         /**
          * PageSelection
@@ -10019,6 +11842,52 @@ export interface components {
             tier_id: string | null;
             /** Url Ids */
             url_ids?: string[] | null;
+        };
+        /** PagesOverview */
+        PagesOverview: {
+            /** Addresses */
+            addresses: number;
+            /** Crawled At */
+            crawled_at: string | null;
+            /** Depth */
+            depth: components["schemas"]["OverviewDepth"][];
+            /** Indexable */
+            indexable: number;
+            /** Not Indexable */
+            not_indexable: number;
+            /** Orphans */
+            orphans: number;
+            /** Reachable */
+            reachable: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Sections */
+            sections: components["schemas"]["OverviewSection"][];
+            /** Sections Total */
+            sections_total: number;
+            sitemap: components["schemas"]["OverviewSitemap"];
+            status: components["schemas"]["OverviewStatus"];
+            /** Tiers */
+            tiers: components["schemas"]["TierCount"][];
+            /** Unreachable */
+            unreachable: number;
+        };
+        /** PagesOverviewResponse */
+        PagesOverviewResponse: {
+            data: components["schemas"]["PagesOverview"];
+        };
+        /** PairList */
+        PairList: {
+            /** Items */
+            items: components["schemas"]["CannPair"][];
+            meta: components["schemas"]["CannMeta"];
+        };
+        /** PairListResponse */
+        PairListResponse: {
+            data: components["schemas"]["PairList"];
         };
         /** PasswordChangeRequest */
         PasswordChangeRequest: {
@@ -12201,6 +14070,26 @@ export interface components {
         ScreenshotResponse: {
             data: components["schemas"]["ScreenshotData"];
         };
+        /** SearchWindow */
+        SearchWindow: {
+            /**
+             * Days
+             * @description Number of days in the period.
+             */
+            days: number;
+            /**
+             * From
+             * Format: date
+             * @description First day, Pacific Time, included.
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             * @description Last day, Pacific Time, included.
+             */
+            to: string;
+        };
         /** Seasonality */
         Seasonality: {
             /**
@@ -12308,6 +14197,30 @@ export interface components {
              * @enum {string}
              */
             visibility_weight_scheme?: "uniform" | "priority" | "business_value";
+        };
+        /** SeriesPoint */
+        SeriesPoint: {
+            /**
+             * Clicks
+             * @description Clicks that day; 0 for a day without a stored row.
+             */
+            clicks: number;
+            /**
+             * Date
+             * Format: date
+             * @description The day, Pacific Time.
+             */
+            date: string;
+            /**
+             * Impressions
+             * @description Impressions that day; 0 for a day without a stored row.
+             */
+            impressions: number;
+            /**
+             * Position
+             * @description Average position that day; null for a day without a stored row or position.
+             */
+            position: number | null;
         };
         /** SerpCurrent */
         SerpCurrent: {
@@ -13059,12 +14972,60 @@ export interface components {
             /** Volume */
             volume: number | null;
         };
+        /** SuggestionRow */
+        SuggestionRow: {
+            /**
+             * Clicks 28D
+             * @description Clicks in the last 28 final days.
+             */
+            clicks_28d: number;
+            /**
+             * Impressions 28D
+             * @description Impressions in the last 28 final days.
+             */
+            impressions_28d: number;
+            /**
+             * Path
+             * @description The path of the page.
+             */
+            path: string;
+            /**
+             * Title
+             * @description The title in the latest finished crawl.
+             */
+            title: string | null;
+            /**
+             * Url
+             * @description The canonical address of the page.
+             */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
         /** SuggestionSelection */
         SuggestionSelection: {
             /** All */
             all?: true | null;
             /** Url Ids */
             url_ids?: string[] | null;
+        };
+        /** SuggestionsMeta */
+        SuggestionsMeta: {
+            /**
+             * State
+             * @description The Search Console state of the project.
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+        };
+        /** SuggestionsResponse */
+        SuggestionsResponse: {
+            /** Data */
+            data: components["schemas"]["SuggestionRow"][];
+            meta: components["schemas"]["SuggestionsMeta"];
         };
         /**
          * SummaryDetailContext
@@ -13191,6 +15152,82 @@ export interface components {
              * @description Some pages refused the crawler, so this count may be incomplete.
              */
             may_be_incomplete: boolean;
+        };
+        /** SwitchEvent */
+        SwitchEvent: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** From Url Id */
+            from_url_id: string;
+            /** Held Days */
+            held_days: number;
+            /** Is Flip Flop */
+            is_flip_flop: boolean;
+            /** Rank After */
+            rank_after: number;
+            /** Rank Before */
+            rank_before: number;
+            /** To Url Id */
+            to_url_id: string;
+        };
+        /** SwitchHeadline */
+        SwitchHeadline: {
+            /** Dropped */
+            dropped: number;
+            /** Flip Flop Keywords */
+            flip_flop_keywords: number;
+            /** Improved */
+            improved: number;
+            /** Keywords */
+            keywords: number;
+            /** Left Target */
+            left_target: number;
+            /** One Check Changes */
+            one_check_changes: number;
+            /** Ranked Keywords */
+            ranked_keywords: number;
+            switches: components["schemas"]["CannCount"];
+        };
+        /** SwitchList */
+        SwitchList: {
+            headline: components["schemas"]["SwitchHeadline"];
+            /** Items */
+            items: components["schemas"]["SwitchRow"][];
+            meta: components["schemas"]["CannMeta"];
+            /** Weeks */
+            weeks: components["schemas"]["CannWeek"][];
+        };
+        /** SwitchListResponse */
+        SwitchListResponse: {
+            data: components["schemas"]["SwitchList"];
+        };
+        /** SwitchRow */
+        SwitchRow: {
+            event: components["schemas"]["SwitchEvent"];
+            /** From Title */
+            from_title: string | null;
+            /** From Url */
+            from_url: string;
+            /** Keyword */
+            keyword: string;
+            /** Left Target */
+            left_target: boolean;
+            /**
+             * Rank Change
+             * @description Places gained (positive) or lost (negative).
+             */
+            rank_change: number;
+            /** To Title */
+            to_title: string | null;
+            /** To Url */
+            to_url: string;
+            /** Tracked Keyword Id */
+            tracked_keyword_id: string;
+            /** Volume */
+            volume: number | null;
         };
         /** TagChangeResponse */
         TagChangeResponse: {
@@ -13725,6 +15762,95 @@ export interface components {
             code?: string | null;
             /** Recovery Code */
             recovery_code?: string | null;
+        };
+        /** TrackOutcome */
+        TrackOutcome: {
+            /**
+             * Clicks 28D
+             * @description Clicks in the 28 final days that end on the last final day, from stored rows; null when none are stored.
+             */
+            clicks_28d: number | null;
+            /**
+             * Input
+             * @description The address, path or id as it was sent.
+             */
+            input: string;
+            /**
+             * Outcome
+             * @description `added` (`ok` with `dry_run`), `already_tracked`, `invalid_url`, `wrong_host`, `not_crawled` (not a page of the project), `over_limit` (the limit is full; inputs are taken in order).
+             * @enum {string}
+             */
+            outcome: "added" | "ok" | "already_tracked" | "invalid_url" | "wrong_host" | "not_crawled" | "over_limit";
+            /**
+             * Path
+             * @description The path of the page; null when the input named none.
+             */
+            path: string | null;
+            /**
+             * Url Id
+             * @description The page; null when the input named none.
+             */
+            url_id: string | null;
+        };
+        /** TrackPagesMeta */
+        TrackPagesMeta: {
+            /**
+             * Added
+             * @description The pages this request began to track; 0 with `dry_run`.
+             */
+            added: number;
+            /**
+             * Limit
+             * @description The most pages a project can track.
+             */
+            limit: number;
+            /**
+             * Tracked
+             * @description The pages the project tracks after this request.
+             */
+            tracked: number;
+        };
+        /** TrackPagesRequest */
+        TrackPagesRequest: {
+            /**
+             * Dry Run
+             * @description Check every input and report `ok` for the ones that fit.
+             * @default false
+             */
+            dry_run: boolean;
+            /**
+             * Url Ids
+             * @description Ids of pages of the project, as strings.
+             */
+            url_ids?: string[];
+            /**
+             * Urls
+             * @description Addresses, or paths read against the project's website. Never fetched.
+             */
+            urls?: string[];
+        };
+        /** TrackPagesResponse */
+        TrackPagesResponse: {
+            /** Data */
+            data: components["schemas"]["TrackOutcome"][];
+            meta: components["schemas"]["TrackPagesMeta"];
+        };
+        /** TrackedIdsMeta */
+        TrackedIdsMeta: {
+            /**
+             * Limit
+             * @description The most pages a project can track.
+             */
+            limit: number;
+        };
+        /** TrackedIdsResponse */
+        TrackedIdsResponse: {
+            /**
+             * Data
+             * @description The url ids of the tracked pages.
+             */
+            data: string[];
+            meta: components["schemas"]["TrackedIdsMeta"];
         };
         /** TrackedKeyword */
         TrackedKeyword: {
@@ -14377,6 +16503,100 @@ export interface components {
             /** Worst Rank */
             worst_rank: number | null;
         };
+        /** TrackedPageRow */
+        TrackedPageRow: {
+            /**
+             * Added At
+             * Format: date-time
+             * @description When the page began to be tracked.
+             */
+            added_at: string;
+            /** @description The number of tracked keywords on which this page competes with another page of the site, split by verdict. Null for a page no conflict names. */
+            cannibalization?: components["schemas"]["PageCannibalization"] | null;
+            /** @description The numbers of the period. */
+            current: components["schemas"]["PageNumbers"] | null;
+            /** @description The health verdict of the period. */
+            health: components["schemas"]["PageHealth"] | null;
+            /**
+             * History
+             * @description `ready` once the page's daily history is stored; `loading` until then. A loading row has no `current`, `previous`, `health` or `trend`.
+             * @enum {string}
+             */
+            history: "ready" | "loading";
+            /**
+             * Path
+             * @description The path of the page.
+             */
+            path: string;
+            /** @description The numbers of the compared period. Null with `compare=none`, or when the compared period starts before the page's first stored day. */
+            previous: components["schemas"]["PageNumbers"] | null;
+            /** @description The number of queries of the page in the period, from stored counts only. Null when the period has none stored, which is not 0. */
+            queries: components["schemas"]["PageQueries"] | null;
+            /**
+             * Tier Id
+             * @description The page's tier; null for Untiered.
+             */
+            tier_id: string | null;
+            /**
+             * Title
+             * @description The title of the page in the latest finished crawl; null when it has none.
+             */
+            title: string | null;
+            /**
+             * Trend
+             * @description The clicks of each day of the period, oldest first; 0 for a day without a row.
+             */
+            trend: number[] | null;
+            /**
+             * Url
+             * @description The canonical address of the page.
+             */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** TrackedPagesMeta */
+        TrackedPagesMeta: {
+            /** @description The period compared with. Null with `compare=none`, `not_connected` and `pending`. */
+            compare_window: components["schemas"]["SearchWindow"] | null;
+            /**
+             * Final Through
+             * @description The last final day stored. Null with `not_connected` and `pending`.
+             */
+            final_through: string | null;
+            /**
+             * Limit
+             * @description The most pages a project can track.
+             */
+            limit: number;
+            /**
+             * Property
+             * @description The Search Console property; null when none.
+             */
+            property: string | null;
+            /**
+             * State
+             * @description `ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+            /**
+             * Tracked
+             * @description The pages the project tracks now.
+             */
+            tracked: number;
+            /** @description The period the numbers are for. Null with `not_connected` and `pending`. */
+            window: components["schemas"]["SearchWindow"] | null;
+        };
+        /** TrackedPagesResponse */
+        TrackedPagesResponse: {
+            /** Data */
+            data: components["schemas"]["TrackedPageRow"][];
+            meta: components["schemas"]["TrackedPagesMeta"];
+        };
         /** TrackedVariant */
         TrackedVariant: {
             /**
@@ -14453,6 +16673,26 @@ export interface components {
              */
             project_id: string;
         };
+        /** UntrackRequest */
+        UntrackRequest: {
+            /**
+             * Url Ids
+             * @description Ids of the pages to stop tracking, as strings.
+             */
+            url_ids: string[];
+        };
+        /** UntrackResponse */
+        UntrackResponse: {
+            data: components["schemas"]["UntrackResult"];
+        };
+        /** UntrackResult */
+        UntrackResult: {
+            /**
+             * Removed
+             * @description The pages that were tracked and are not now.
+             */
+            removed: number;
+        };
         /** UrlRef */
         UrlRef: {
             /** Canonical Url */
@@ -14488,6 +16728,25 @@ export interface components {
             message: string;
             /** Path */
             path: string;
+        };
+        /** VerdictCounts */
+        VerdictCounts: {
+            /** All */
+            all: number;
+            /** Co Ranking */
+            co_ranking: number;
+            /** Conflicts */
+            conflicts: number;
+            /** Insufficient */
+            insufficient: number;
+            /** Likely */
+            likely: number;
+            /** None */
+            none: number;
+            /** Unranked */
+            unranked: number;
+            /** Unstable */
+            unstable: number;
         };
         /** VerifyEmailRequest */
         VerifyEmailRequest: {
@@ -14607,11 +16866,28 @@ export interface components {
             /** @description Present exactly when `is_pooled`: the weeks and days the cells hold, and why. */
             pool?: components["schemas"]["PointPool"] | null;
             /**
+             * Position
+             * @description With `include=series` and `facts` or `fact_counts`: where the own brand is named in the valid answers of the weeks the point holds, as counts that add up (the mean place is `rank_sum / ordered_answers`), zeros for a week without an answer. Left out otherwise.
+             */
+            position?: components["schemas"]["PositionCounts"];
+            /**
              * Prompts
              * @description The prompts of the row with a valid answer on the engine in that week alone, whether the point is pooled or not.
              */
             prompts: number;
+            /**
+             * Recommended
+             * @description With `include=series` and `facts` or `fact_counts`: the recommendation rate of the weeks the point holds, as the engine's `recommended` is. Null while none of those valid answers is classified. Left out otherwise.
+             */
+            recommended?: components["schemas"]["MetricCell"] | null;
+            /**
+             * Sentiment
+             * @description With `include=series` and `facts` or `fact_counts`: the tones of the valid answers that name the own brand in the weeks the point holds, as the engine's `sentiment` is. Null when none names it with a tone. Left out otherwise.
+             */
+            sentiment?: components["schemas"]["SentimentCounts"] | null;
             share_of_voice: components["schemas"]["MetricCell"];
+            /** @description AI visibility of the point: valid answers that name the own brand or cite its domain (every outcome but `neither`) over the valid answers, built as `mentioned` is (counts of answers in a prompt row, prompt weighted in a topic, total or country row), over the same answers. */
+            visibility: components["schemas"]["MetricCell"];
             /**
              * Week Start
              * Format: date
@@ -19013,6 +21289,165 @@ export interface operations {
             };
         };
     };
+    conflicts_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+                verdict?: "conflicts" | "all" | "likely" | "co_ranking" | "unstable" | "none" | "unranked" | "insufficient";
+                /** @description A keyword group, with the groups under it. */
+                group_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictListResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    keyword_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_keywords__tracked_keyword_id__get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                tracked_keyword_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CannKeywordDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pairs_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_pairs_get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+                /** @description A keyword group, with the groups under it. */
+                group_id?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PairListResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    switches_api_v1_workspaces__workspace_id__projects__project_id__cannibalization_switches_get: {
+        parameters: {
+            query?: {
+                /** @description Desktop and mobile are never mixed. */
+                device?: "desktop" | "mobile";
+                /** @description The period in days. */
+                days?: "14" | "30" | "90";
+                kind?: "all" | "flip_flop" | "improved" | "dropped" | "left_target";
+                /** @description A keyword group, with the groups under it. */
+                group_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SwitchListResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_project_domains_api_v1_workspaces__workspace_id__projects__project_id__domains_get: {
         parameters: {
             query?: {
@@ -19275,6 +21710,328 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectEntityResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ai_referrals_api_v1_workspaces__workspace_id__projects__project_id__fp_ai_referrals_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                /** @description `previous_period`: as many days just before the window; `previous_year`: the same dates a year earlier. Adds `compare_window` and `previous` values. */
+                compare?: "none" | "previous_period" | "previous_year";
+                /** @description First day of a window to compare with, project-local; needs `compare_to`, and wins over `compare`. */
+                compare_from?: string | null;
+                /** @description Last day of the window to compare with, included; at most 92 days from `compare_from`. */
+                compare_to?: string | null;
+                /** @description `assistant` (default) or `origin` (only `ga4` exists today). `landing_page` is `422 not_available`: the landing page report is not built yet. */
+                group_by?: "assistant" | "origin" | "landing_page";
+                /** @description Which classifier values are filled; the other is null. */
+                classifier?: "both" | "ga4_ai_assistant_channel" | "own_rules";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiReferralsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page_search_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__get: {
+        parameters: {
+            query?: {
+                /** @description First day, included. */
+                from?: string | null;
+                /** @description Last day, included. */
+                to?: string | null;
+                /** @description `previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`. */
+                compare?: components["schemas"]["Compare"];
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A page of the project: a `core.urls` id. */
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageSearchResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page_search_breakdown_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__breakdown_get: {
+        parameters: {
+            query: {
+                /** @description What the rows are by: `query`, `country`, `device`. */
+                dimension: components["schemas"]["BreakdownDimension"];
+                /** @description First day, included. */
+                from?: string | null;
+                /** @description Last day, included. */
+                to?: string | null;
+                /** @description `previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`. */
+                compare?: components["schemas"]["Compare"];
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A page of the project: a `core.urls` id. */
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageBreakdownResponse"];
+                };
+            };
+            /** @description `gsc_busy`: the budget or Google's quota is spent; `retry_after_seconds`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description `google_unavailable`: Google does not answer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_tracked_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_get: {
+        parameters: {
+            query?: {
+                /** @description First day, included. */
+                from?: string | null;
+                /** @description Last day, included. */
+                to?: string | null;
+                /** @description `previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`. */
+                compare?: components["schemas"]["Compare"];
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedPagesResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    track_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackPagesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackPagesResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tracked_page_ids_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_ids_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedIdsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    untrack_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UntrackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UntrackResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tracked_page_suggestions_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionsResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -19588,6 +22345,43 @@ export interface operations {
             };
         };
     };
+    graph_api_v1_workspaces__workspace_id__projects__project_id__internal_links_graph_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                include_auto?: boolean;
+                max_pages?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkGraphResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     neighbors_api_v1_workspaces__workspace_id__projects__project_id__internal_links_neighbors_get: {
         parameters: {
             query: {
@@ -19709,6 +22503,41 @@ export interface operations {
             };
         };
     };
+    overview_api_v1_workspaces__workspace_id__projects__project_id__internal_links_overview_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagesOverviewResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get: {
         parameters: {
             query?: {
@@ -19722,10 +22551,15 @@ export interface operations {
                 "filter[flags]"?: ("orphan" | "editorial_orphan" | "deep_only_through_auto" | "placement_unknown" | "has_broken_outlinks" | "generic_anchors" | "variant")[] | null;
                 "filter[include_variants]"?: boolean;
                 "filter[worklist]"?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
+                "filter[view]"?: ("live" | "indexable" | "not_indexable" | "redirects" | "errors" | "client_errors" | "server_errors" | "blocked" | "other" | "variants" | "in_sitemap_indexable" | "not_in_sitemap" | "sitemap_not_live" | "sitemap_not_indexable" | "reachable" | "unreachable") | null;
+                "filter[folder]"?: string | null;
+                "filter[depth]"?: number | null;
+                /** @description Only the pages one check of the Issues page found. It sets the variant handling the check needs, so `filter[include_variants]` is ignored with it. */
+                "filter[issue]"?: ("status-4xx" | "status-5xx" | "clicks-page-broken" | "rank-page-broken" | "cited-page-broken" | "clicks-page-orphan" | "redirect-broken" | "redirect-chain" | "links-to-redirect" | "redirect-pages" | "canonical-broken" | "noindex" | "canonical-elsewhere" | "sitemap-broken" | "sitemap-nonindexable" | "not-in-sitemap" | "broken-internal-links" | "orphans" | "editorial-orphans" | "links-to-nonindexable" | "deep-pages" | "nofollow-internal" | "mixed-content" | "hreflang" | "slow-pages" | "title-missing" | "title-duplicate" | "title-long" | "title-short" | "description-missing" | "description-duplicate" | "h1-missing" | "h1-multiple" | "thin-content" | "duplicate-content" | "image-alt" | "schema-errors" | "social-tags" | "url-format" | "url-long" | "off-target") | null;
                 q?: string | null;
-                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change" | "rank" | "-rank" | "citations" | "-citations" | "anchor" | "-anchor" | "tier" | "-tier" | "clicks" | "-clicks" | "title" | "-title" | "indexable" | "-indexable" | "in_sitemap" | "-in_sitemap";
-                /** @description Parts to add to each row as `extras`. */
-                include?: ("changes" | "keywords" | "citations" | "anchors" | "gsc")[] | null;
+                sort?: "path" | "-path" | "click_depth" | "-click_depth" | "linking_pages" | "-linking_pages" | "outlinks" | "-outlinks" | "equity_share" | "-equity_share" | "status_code" | "-status_code" | "change" | "-change" | "rank" | "-rank" | "citations" | "-citations" | "anchor" | "-anchor" | "tier" | "-tier" | "clicks" | "-clicks" | "impressions" | "-impressions" | "title" | "-title" | "indexable" | "-indexable" | "in_sitemap" | "-in_sitemap";
+                /** @description Parts to add to each row as `extras`. `issue` is the detail of `filter[issue]` and stays null without it. */
+                include?: ("changes" | "keywords" | "citations" | "anchors" | "gsc" | "issue")[] | null;
                 format?: "json" | "csv";
                 /** @description `page.next_cursor` of the previous page. */
                 cursor?: string | null;
@@ -19785,6 +22619,363 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageDetailResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_page_history_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageHistoryResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNoteFileResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    download_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments__attachment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                attachment_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                    "image/gif": unknown;
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                    "text/csv": unknown;
+                    "text/plain": unknown;
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_page_notes_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_get: {
+        parameters: {
+            query?: {
+                /** @description `meta.next_cursor` of the previous page. */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNoteList"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageNoteWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNoteResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                note_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                note_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageNoteWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNoteResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    restore_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                note_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageNoteResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page_outline_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__outline_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageOutlineResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page_search_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__search_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageSearchDailyResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -20097,6 +23288,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorklistsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_issues_api_v1_workspaces__workspace_id__projects__project_id__issues_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                format?: "json" | "csv";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description With `format=csv`: the rows as CSV. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueListResponse"];
+                    "text/csv": unknown;
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -23709,8 +26937,21 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesDomainsG
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["sort"]> = ["-citation_units", "-observations", "-prompts"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idAiSourcesPagesGetParametersQueryFilterDomain_role_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/ai/sources/pages"]["get"]["parameters"]["query"]["filter[domain_role_in]"]> = ["own", "competitor", "third_party"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationGetParametersQueryVerdictValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization"]["get"]["parameters"]["query"]["verdict"]> = ["conflicts", "all", "likely", "co_ranking", "unstable", "none", "unranked", "insufficient"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationKeywordsTracked_keyword_idGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationKeywordsTracked_keyword_idGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/keywords/{tracked_keyword_id}"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationPairsGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationPairsGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/pairs"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationSwitchesGetParametersQueryDeviceValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"]["get"]["parameters"]["query"]["device"]> = ["desktop", "mobile"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationSwitchesGetParametersQueryDaysValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"]["get"]["parameters"]["query"]["days"]> = ["14", "30", "90"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idCannibalizationSwitchesGetParametersQueryKindValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/cannibalization/switches"]["get"]["parameters"]["query"]["kind"]> = ["all", "flip_flop", "improved", "dropped", "left_target"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idDomainsGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/domains"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idEntitiesGetParametersQueryFilterRoleAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/entities"]["get"]["parameters"]["query"]["filter[role]"]> = ["own", "competitor", "watch"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period", "previous_year"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryGroup_byValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["group_by"]> = ["assistant", "origin", "landing_page"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idFpAiReferralsGetParametersQueryClassifierValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/ai-referrals"]["get"]["parameters"]["query"]["classifier"]> = ["both", "ga4_ai_assistant_channel", "own_rules"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryChangeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["change"]> = ["lost", "added"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryLink_scopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["link_scope"]> = ["editorial", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksChangesLinksGetParametersQueryOnlyValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/changes/links"]["get"]["parameters"]["query"]["only"]> = ["top", "all"];
@@ -23728,11 +26969,14 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPage
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[status]"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[flags]"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[worklist]"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change", "rank", "-rank", "citations", "-citations", "anchor", "-anchor", "tier", "-tier", "clicks", "-clicks", "title", "-title", "indexable", "-indexable", "in_sitemap", "-in_sitemap"];
-export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterViewAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[view]"]> = ["live", "indexable", "not_indexable", "redirects", "errors", "client_errors", "server_errors", "blocked", "other", "variants", "in_sitemap_indexable", "not_in_sitemap", "sitemap_not_live", "sitemap_not_indexable", "reachable", "unreachable"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFilterIssueAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["filter[issue]"]> = ["status-4xx", "status-5xx", "clicks-page-broken", "rank-page-broken", "cited-page-broken", "clicks-page-orphan", "redirect-broken", "redirect-chain", "links-to-redirect", "redirect-pages", "canonical-broken", "noindex", "canonical-elsewhere", "sitemap-broken", "sitemap-nonindexable", "not-in-sitemap", "broken-internal-links", "orphans", "editorial-orphans", "links-to-nonindexable", "deep-pages", "nofollow-internal", "mixed-content", "hreflang", "slow-pages", "title-missing", "title-duplicate", "title-long", "title-short", "description-missing", "description-duplicate", "h1-missing", "h1-multiple", "thin-content", "duplicate-content", "image-alt", "schema-errors", "social-tags", "url-format", "url-long", "off-target"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQuerySortValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["sort"]> = ["path", "-path", "click_depth", "-click_depth", "linking_pages", "-linking_pages", "outlinks", "-outlinks", "equity_share", "-equity_share", "status_code", "-status_code", "change", "-change", "rank", "-rank", "citations", "-citations", "anchor", "-anchor", "tier", "-tier", "clicks", "-clicks", "impressions", "-impressions", "title", "-title", "indexable", "-indexable", "in_sitemap", "-in_sitemap"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc", "issue"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksTierFlowGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idIssuesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsGetParametersQueryFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports"]["get"]["parameters"]["query"]["filter[status]"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordImportsImport_idRowsGetParametersQueryFilterOutcome_inAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-imports/{import_id}/rows"]["get"]["parameters"]["query"]["filter[outcome_in]"]> = ["new", "duplicate", "variant", "conflict", "invalid"];
@@ -23784,12 +27028,19 @@ export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<co
 export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
 export const brandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
+export const breakdownDimensionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BreakdownDimension"]> = ["query", "country", "device"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetCreateWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "site_crawl", "all"];
 export const budgetStatusStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetStatus"]["state"]> = ["ok", "soft_exceeded", "hard_exceeded"];
 export const budgetUpdateAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetUpdate"]["action_on_hard"]> = ["pause", "alert_only"];
+export const cannKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannKeyword"]["device"]> = ["desktop", "mobile"];
+export const cannKeywordPrevious_verdictAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannKeyword"]["previous_verdict"]> = ["likely", "co_ranking", "unstable", "none", "unranked", "insufficient"];
+export const cannKeywordVerdictValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannKeyword"]["verdict"]> = ["likely", "co_ranking", "unstable", "none", "unranked", "insufficient"];
+export const cannMetaDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannMeta"]["days"]> = [14, 30, 90];
+export const cannMetaDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannMeta"]["device"]> = ["desktop", "mobile"];
+export const cannStripCellKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CannStripCell"]["kind"]> = ["page", "none", "unreadable"];
 export const cardItemWidthAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CardItem"]["width"]> = ["third", "half", "two_thirds", "full"];
 export const changeAlertChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeAlert"]["channel"]> = ["app", "email", "slack"];
 export const changeAlertDelivery_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ChangeAlert"]["delivery_state"]> = ["shown_in_app", "channel_unavailable"];
@@ -23805,6 +27056,7 @@ export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<c
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citedAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citedPageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedPageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const compareValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Compare"]> = ["none", "previous_period", "previous_year"];
 export const compareEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareEntity"]["role"]> = ["own", "competitor", "watch"];
 export const compareSourceDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareSource"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
@@ -23861,6 +27113,13 @@ export const integrationSyncPhaseValues: ReadonlyArray<FlattenedDeepRequired<com
 export const internalLinksSettingsScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettings"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
 export const internalLinksSettingsPatchScheduleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["InternalLinksSettingsPatch"]["schedule"]> = ["weekly", "every_two_weeks", "monthly", "off"];
 export const invitationStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Invitation"]["status"]> = ["pending", "accepted", "declined", "cancelled", "expired"];
+export const issueCheckFound_byValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["found_by"]> = ["crawl", "ranks", "gsc", "ga4", "ai"];
+export const issueCheckIdValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["id"]> = ["status-4xx", "status-5xx", "clicks-page-broken", "rank-page-broken", "cited-page-broken", "clicks-page-orphan", "redirect-broken", "redirect-chain", "links-to-redirect", "redirect-pages", "canonical-broken", "noindex", "canonical-elsewhere", "sitemap-broken", "sitemap-nonindexable", "not-in-sitemap", "broken-internal-links", "orphans", "editorial-orphans", "links-to-nonindexable", "deep-pages", "nofollow-internal", "mixed-content", "hreflang", "slow-pages", "title-missing", "title-duplicate", "title-long", "title-short", "description-missing", "description-duplicate", "h1-missing", "h1-multiple", "thin-content", "duplicate-content", "image-alt", "schema-errors", "social-tags", "url-format", "url-long", "off-target"];
+export const issueCheckReasonAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["reason"]> = ["source_not_connected", "not_collected", "no_sitemap", "links_dropped"];
+export const issueCheckSeverityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["severity"]> = ["error", "warning", "notice"];
+export const issueCheckStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["state"]> = ["ran", "not_run"];
+export const issueCheckTabValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueCheck"]["tab"]> = ["technical", "on_page"];
+export const issueGscStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["IssueGsc"]["state"]> = ["ok", "pending", "not_connected"];
 export const keywordCheckStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordCheck"]["status"]> = ["idle", "queued", "processing", "completed", "inconclusive", "failed"];
 export const keywordImportSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["source"]> = ["upload", "paste", "api"];
 export const keywordImportStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["KeywordImport"]["status"]> = ["uploaded", "parsing", "needs_mapping", "preview_ready", "writing", "completed", "completed_with_errors", "failed", "cancelled", "expired"];
@@ -23894,13 +27153,30 @@ export const operationStatusValues: ReadonlyArray<FlattenedDeepRequired<componen
 export const opportunityOriginValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Opportunity"]["origin"]> = ["keyword", "anchor"];
 export const opportunityStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Opportunity"]["status"]> = ["open", "accepted", "dismissed"];
 export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OpportunityDecisions"]["status"]> = ["open", "accepted", "dismissed"];
+export const outlineCanonicalStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OutlineCanonical"]["state"]> = ["self", "elsewhere", "none"];
+export const outlineTextStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OutlineText"]["state"]> = ["ok", "short", "long", "missing"];
+export const overviewSitemapStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OverviewSitemap"]["state"]> = ["read", "no_sitemap"];
+export const pageBreakdownMetaDimensionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageBreakdownMeta"]["dimension"]> = ["query", "country", "device"];
+export const pageBreakdownMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageBreakdownMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
+export const pageDeclaredSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageDeclared"]["source"]> = ["json_ld", "meta_modified", "og_updated", "sitemap"];
 export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
+export const pageFilterViewAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["view"]> = ["live", "indexable", "not_indexable", "redirects", "errors", "client_errors", "server_errors", "blocked", "other", "variants", "in_sitemap_indexable", "not_in_sitemap", "sitemap_not_live", "sitemap_not_indexable", "reachable", "unreachable"];
 export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pageHealthBasisValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHealth"]["basis"]> = ["clicks", "impressions"];
+export const pageHealthVerdictValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHealth"]["verdict"]> = ["no_data", "new", "lost", "low_data", "sharp_drop", "declining", "growing", "stable"];
+export const pageHistoryWhyAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHistory"]["why"]> = ["redirect", "error"];
+export const pageHistoryChangeTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHistoryChange"]["type"]> = ["title", "description", "heading_added", "heading_removed", "words", "links", "edited"];
+export const pageHistoryVersionKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHistoryVersion"]["kind"]> = ["content", "site_wide", "first"];
+export const pageNoteMentionTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageNoteMention"]["type"]> = ["page", "user", "issue", "keyword"];
+export const pageNoteMentionInTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageNoteMentionIn"]["type"]> = ["page", "user", "issue", "keyword"];
+export const pageOutlineStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageOutline"]["state"]> = ["ok", "redirect", "error", "not_html", "no_html"];
 export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "broken", "blocked", "redirect", "non_indexable", "generic_anchors", "variant"];
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
 export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
+export const pageSearchDailyStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageSearchDaily"]["state"]> = ["ok", "pending", "not_connected"];
+export const pageSearchMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageSearchMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const placementCountPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PlacementCount"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const pointPoolReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PointPool"]["reason"]> = ["prompt_point", "few_prompts"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
@@ -23991,6 +27267,7 @@ export const sourceDomainRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequir
 export const sourcePageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourcePageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const suggestionReasonKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SuggestionReason"]["kind"]> = ["clicks", "rank"];
+export const suggestionsMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SuggestionsMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
 export const summaryLostStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryLost"]["state"]> = ["available", "no_comparison", "dropped"];
 export const summaryWorklistKeyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryWorklist"]["key"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "broken_and_redirected", "links_to_non_indexable", "weak_outlinks"];
@@ -24006,6 +27283,7 @@ export const tierRulePreviewRequestMatch_typeValues: ReadonlyArray<FlattenedDeep
 export const tierRuleViewMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleView"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierSuggestionMetaGsc_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierSuggestionMeta"]["gsc_state"]> = ["ok", "pending", "not_connected"];
 export const topLinkDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TopLink"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const trackOutcomeOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackOutcome"]["outcome"]> = ["added", "ok", "already_tracked", "invalid_url", "wrong_host", "not_crawled", "over_limit"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];
@@ -24046,6 +27324,8 @@ export const trackedKeywordRowIntent_sourceAnyOf0Values: ReadonlyArray<Flattened
 export const trackedKeywordRowOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["os"]> = ["windows", "macos", "android", "ios"];
 export const trackedKeywordRowSearch_engineValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["search_engine"]> = ["google", "bing"];
 export const trackedKeywordRowSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["source"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const trackedPageRowHistoryValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedPageRow"]["history"]> = ["ready", "loading"];
+export const trackedPagesMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedPagesMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const trackedVariantDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedVariant"]["device"]> = ["desktop", "mobile"];
 export const vocabularyKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Vocabulary"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const vocabularyCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["VocabularyCreate"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];

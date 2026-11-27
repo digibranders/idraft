@@ -18,6 +18,7 @@ from pydantic import (
 
 from idraft.api.pagination import CursorPageInfo
 from idraft.api.schemas.common import Body, Patch, UserRef, printable, refuse_null
+from idraft.api.schemas.issues import IssueDetail
 from idraft.api.schemas.metrics import Usd
 
 TierName = Annotated[
@@ -92,6 +93,25 @@ PageWorklist = Literal[
     "lost_links_top",
     "weak_outlinks",
 ]
+# The views of the Pages list (spec section 7.3), each one a predicate of `inventory.py`.
+PageView = Literal[
+    "live",
+    "indexable",
+    "not_indexable",
+    "redirects",
+    "errors",
+    "client_errors",
+    "server_errors",
+    "blocked",
+    "other",
+    "variants",
+    "in_sitemap_indexable",
+    "not_in_sitemap",
+    "sitemap_not_live",
+    "sitemap_not_indexable",
+    "reachable",
+    "unreachable",
+]
 INT64_MAX: Final = 9_223_372_036_854_775_807
 
 
@@ -136,7 +156,16 @@ class PageFilter(Body):
         "left out unless this is true or the `variant` flag is asked for.",
     )
     worklist: PageWorklist | None = None
+    view: PageView | None = None
+    folder: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    depth: Annotated[int, Field(ge=0, le=6)] | None = None
     q: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+
+    @model_validator(mode="after")
+    def _one_list(self) -> PageFilter:
+        if self.view is not None and self.worklist is not None:
+            raise ValueError("give one of `view` and `worklist`, not both")
+        return self
 
 
 class PageSelection(Body):
@@ -315,6 +344,8 @@ PageSort = Literal[
     "-tier",
     "clicks",
     "-clicks",
+    "impressions",
+    "-impressions",
     "title",
     "-title",
     "indexable",
@@ -392,6 +423,7 @@ class PageExtras(BaseModel):
     citations: CitationCounts | None = None
     anchors: AnchorSummary | None = None
     gsc: GscPage | None = None
+    issue: IssueDetail | None = None
 
 
 class KeywordRow(BaseModel):
@@ -553,6 +585,10 @@ class PageDetail(BaseModel):
         "counts are then empty, not zero."
     )
     extras: PageDetailExtras
+    notes_count: int = Field(
+        default=0,
+        description="Notes on this address that are not deleted (they stay across crawls)",
+    )
 
 
 class PageDetailResponse(BaseModel):
@@ -613,6 +649,39 @@ class TierFlow(BaseModel):
 
 class TierFlowResponse(BaseModel):
     data: TierFlow
+
+
+class GraphNode(BaseModel):
+    url_id: UrlIdText
+    path: str
+    title: str | None
+    tier_id: UUID | None = Field(description="The page's tier; null is Untiered.")
+    links_in: int = Field(description="Pages that link to it, redirects folded.")
+    links_out: int = Field(description="Pages it links to, redirects folded.")
+    sitewide_from: int = Field(
+        description="Pages that link to it from a menu, header, footer, sidebar or breadcrumb; "
+        "0 unless that is at least half the pages. Those links are never edges."
+    )
+
+
+class GraphEdge(BaseModel):
+    source: UrlIdText
+    target: UrlIdText
+    links: int = Field(ge=1, description="How many links the source has to the target.")
+
+
+class LinkGraph(BaseModel):
+    run_id: UUID
+    include_auto: bool
+    pages_total: int = Field(description="Live pages that count in the crawl, before `max_pages`.")
+    truncated: bool = Field(description="True when `pages_total` is more than the nodes returned.")
+    home_url_id: UrlIdText | None = Field(description="The page the crawl started from.")
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+
+
+class LinkGraphResponse(BaseModel):
+    data: LinkGraph
 
 
 class Worklists(BaseModel):

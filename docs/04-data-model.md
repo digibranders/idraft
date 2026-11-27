@@ -249,6 +249,7 @@ CREATE TABLE core.workspace_quotas (
     max_active_prompts    integer NOT NULL DEFAULT 1000,
     max_ai_observations_per_month integer NOT NULL DEFAULT 20000,
     max_serp_checks_per_month     integer NOT NULL DEFAULT 200000,
+    max_note_file_bytes   bigint NOT NULL DEFAULT 1073741824 CHECK (max_note_file_bytes >= 0),  -- migration 0044
     updated_at            timestamptz NOT NULL DEFAULT now()
 );
 
@@ -411,6 +412,65 @@ Intent, funnel stage and priority are **columns** on keywords and prompts, not t
 Topic, cluster, product, service, market, campaign, persona and tags are terms. A keyword can have many terms per vocabulary unless the vocabulary is `is_single_valued`.
 
 **As built (migration 0025, internal links).** Page tags are `core.page_terms` rows of `tag` vocabularies. Tiers: `core.page_tier_levels` (workspace, positions 1 to 8), `core.tier_rules`, `core.project_pages`. Crawls live in `seo.crawl_runs`, `seo.crawl_pages`, `seo.crawl_links` (partitioned by crawl, made and dropped by `seo.add_crawl_links_partition` and `seo.drop_crawl_links_partition`), `seo.crawl_tier_flow` and `seo.crawl_tier_stats`. Plan: docs/superpowers/plans/2026-11-16-internal-links-02-backend-slice-1.md.
+
+**As built (migration 0046, page history).** `seo.page_checks` is one row per page and crawl (`run_id, url_id`): `main_hash` and `full_hash` (bytea, 16 bytes of sha256), `declared_at` and `declared_source` (`json_ld`, `meta_modified`, `og_updated` or `sitemap`, both null when the page declares nothing) and `snapshot_id`, the snapshot that holds the crawl's content. It is removed with its crawl run. `seo.page_snapshots` is kept only when a page's main content changed (`id` identity, `project_id`, `url_id`, `run_id`, `taken_at`, `title`, `description`, `headings` jsonb, `words`, `links_all`, `links_editorial`, `canonical`, the two hashes). Its `run_id` has no key, so a snapshot outlives the crawl run that first saw it and goes only with the project; `page_checks.snapshot_id` points at it by `(snapshot_id, workspace_id)`. `seo.page_history_runs` is one summary row per crawl (`pages_checked`, `pages_main_changed`, `pages_site_wide`, `site_wide`, `declared_unreliable`). `seo.page_google_crawl` (`project_id, url_id`) holds Google's last crawl time and coverage state of a page and when it was inspected. `seo.crawl_pages.sitemap_lastmod` (timestamptz) is the provider's sitemap `lastmod`. All four tables carry `workspace_id` with the `tenant_isolation` policy; the API only reads them, the worker inserts (and updates `page_history_runs` and `page_google_crawl`). Design: docs/superpowers/specs/2026-11-27-page-history-design.md.
+
+### 5.4 Page notes
+
+```sql
+CREATE TABLE core.page_notes (
+    id           uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id uuid NOT NULL,
+    project_id   uuid NOT NULL,
+    url_id       bigint NOT NULL REFERENCES core.urls(id),
+    author_id    uuid NOT NULL REFERENCES auth.users(id),
+    body         text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000 AND body = btrim(body)),
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    edited_at    timestamptz,
+    deleted_at   timestamptz,
+    deleted_by   uuid REFERENCES auth.users(id),
+    CHECK ((deleted_at IS NULL) = (deleted_by IS NULL)),
+    UNIQUE (id, workspace_id),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
+);
+CREATE INDEX page_notes_page ON core.page_notes (project_id, url_id, created_at DESC, id DESC)
+    WHERE deleted_at IS NULL;
+```
+
+A note is what the team wrote about one page of a project, shown newest first on the page's Notes tab. It is keyed by the address (`core.urls.id`), not by a crawl's page row, so it stays on the page in every crawl, old and new, and on an address that now redirects or errors. A delete is soft: the API sets `deleted_at` and `deleted_by`, and no role has `DELETE`, so Undo is one update and a row leaves only with its project. Only the API reads and writes the table (migration 0042): it may insert, and update `body`, `edited_at`, `deleted_at` and `deleted_by`; the worker has no access.
+
+Migration 0043 adds `mentions jsonb NOT NULL DEFAULT '[]'` with `CHECK (jsonb_typeof(mentions) = 'array' AND jsonb_array_length(mentions) <= 20)`, and the API may update it. Each entry is `{type, label, target}` (`page`, `user`, `issue` or `keyword`); the API checks every target against the workspace and project before it writes the list and keeps only the entries whose label is in the body, and the page's path for a chip is read from `core.urls`, never stored.
+
+Migration 0044 relaxes the body check to `char_length(body) <= 2000 AND body = btrim(body)`, because a note may hold files and no text; the service refuses an empty body with no live file.
+
+### 5.5 Page note files
+
+```sql
+CREATE TABLE core.page_note_attachments (
+    id            uuid PRIMARY KEY DEFAULT uuidv7(),
+    workspace_id  uuid NOT NULL,
+    project_id    uuid NOT NULL,
+    url_id        bigint NOT NULL REFERENCES core.urls(id),
+    note_id       uuid,
+    uploaded_by   uuid NOT NULL REFERENCES auth.users(id),
+    storage_key   text NOT NULL UNIQUE,
+    original_name text NOT NULL CHECK (char_length(original_name) BETWEEN 1 AND 255),
+    size_bytes    bigint NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    content_type  text NOT NULL CHECK (content_type IN ('image/png', 'image/jpeg', 'image/gif',
+                  'image/webp', 'application/pdf', 'text/plain', 'text/csv')),
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    removed_at    timestamptz,
+    CHECK (removed_at IS NULL OR note_id IS NOT NULL),
+    FOREIGN KEY (note_id, workspace_id) REFERENCES core.page_notes(id, workspace_id),
+    FOREIGN KEY (project_id, workspace_id) REFERENCES core.projects(id, workspace_id) ON DELETE CASCADE
+);
+CREATE INDEX page_note_attachments_note ON core.page_note_attachments (note_id)
+    WHERE note_id IS NOT NULL AND removed_at IS NULL;
+CREATE INDEX page_note_attachments_workspace ON core.page_note_attachments (workspace_id)
+    INCLUDE (size_bytes);
+```
+
+A file is sent on its own before the note exists, so its row has `note_id` null until a note is saved with its id (attached once), and `removed_at` marks a file taken off a note. The bytes are in the raw bucket under `storage_key`, `notes/v1/<workspace_id>/<project_id>/<id>.zst` (compressed, never named after the file), and the type is the one the content showed, never the browser's. Migration 0044: the API may insert and update `note_id` and `removed_at` only; no role has `DELETE`, so a row leaves only with its project; the worker has no access. A workspace may store `core.workspace_quotas.max_note_file_bytes` (1 GiB by default) of note files, counted over every row, attached, removed and orphaned alike, under an advisory lock taken per workspace.
 
 ## 6. Entities: brands, aliases, competitors
 

@@ -137,7 +137,11 @@ test.describe('rankings', () => {
     await expect(drawer.getByText('On Desktop')).toBeVisible();
 
     // On Mobile only one of its keywords is checked: the row and the drawer follow
-    await page.getByRole('radiogroup', { name: 'Device' }).getByRole('radio', { name: 'Mobile' }).click();
+    // The 640 px card covers the Mobile radio at 1440, so change the device with the arrow key, which ignores overlap
+    const device = page.getByRole('radiogroup', { name: 'Device' });
+    await device.getByRole('radio', { name: 'Desktop' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(device.getByRole('radio', { name: 'Mobile' })).toBeChecked();
     await expect(tree.getByRole('rowheader', { name: /^Local, 1 keyword$/ })).toBeVisible();
     await expect(drawer.getByText('1 keyword', { exact: true })).toBeVisible();
     await expect(drawer.getByText('On Mobile')).toBeVisible();

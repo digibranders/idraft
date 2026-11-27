@@ -1644,3 +1644,70 @@ async def test_the_latest_crawl_of_a_project_is_recounted_by_its_ids(
     assert outcome is not None
     assert (outcome.run_id, outcome.pages_variant) == (crawled.task.run_id, 2)
     assert other is None
+
+
+FACTS_HTML = (
+    '<html><head><meta name="description" content="About the blog"></head>'
+    '<body><h1>Blog</h1><p>one two three</p><img src="a.png"></body></html>'
+)
+FACT_COLUMNS = (
+    "meta_description",
+    "h1_count",
+    "word_count",
+    "text_hash",
+    "images_without_alt",
+    "og_complete",
+    "jsonld_errors",
+    "hreflang_errors",
+    "http_resources",
+)
+
+
+def _site_with_facts() -> FakeOnPage:
+    """The synthetic site where `/blog` has a page worth reading facts from and took 1200 ms."""
+    site = synthetic_site()
+    site.html[f"{SITE}/blog"] = FACTS_HTML
+    site.page_items = [
+        item.model_copy(update={"response_ms": 1200}) if item.url == f"{SITE}/blog" else item
+        for item in site.page_items
+    ]
+    return site
+
+
+async def test_a_page_read_from_its_html_keeps_its_facts_and_its_response_time(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_facts()
+    crawled = await _crawled(migrated, worker_db, on_page)
+
+    await _ingest(worker_db, on_page, MemoryStore(), crawled.task)
+
+    pages = await _pages(migrated, crawled.task.run_id)
+    blog = pages["/blog"]
+    assert blog["facts_read"] is True
+    assert (blog["meta_description"], blog["h1_count"], blog["word_count"]) == (
+        "About the blog",
+        1,
+        4,
+    )
+    assert (blog["images_without_alt"], blog["og_complete"], blog["jsonld_errors"]) == (1, False, 0)
+    assert (blog["hreflang_errors"], blog["http_resources"], blog["response_ms"]) == (0, 0, 1200)
+    assert isinstance(blog["text_hash"], int)
+    assert pages["/pricing"]["facts_read"] is True
+    assert pages["/pricing"]["response_ms"] is None
+
+
+async def test_a_page_whose_html_the_provider_could_not_give_has_no_facts(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    on_page = _site_with_facts()
+    crawled = await _crawled(migrated, worker_db, on_page)
+
+    await _ingest(worker_db, on_page, MemoryStore(), crawled.task)
+
+    pages = await _pages(migrated, crawled.task.run_id)
+    # `/orphan` has no HTML: its links come from the provider. `/old` is a redirect, never read.
+    for path in ("/orphan", "/old", "/gone"):
+        assert pages[path]["facts_read"] is False
+        assert [pages[path][column] for column in FACT_COLUMNS] == [None] * len(FACT_COLUMNS)
+    assert pages["/orphan"]["links_state"] == "from_provider"

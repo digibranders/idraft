@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import io
 import re
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
@@ -98,6 +99,17 @@ def decompress(data: bytes) -> bytes:
     if not reader.eof or reader.unused_data or len(body) != size:
         raise RawStorageError("the compressed payload is not one whole frame")
     return body
+
+
+def inflate_head(data: bytes, limit: int) -> tuple[bytes, bool]:
+    """The first `limit` bytes of a stored payload, and whether it holds more. Unlike
+    `decompress` it never inflates the whole frame: a page of any size costs `limit` bytes."""
+    try:
+        with zstandard.ZstdDecompressor().stream_reader(io.BytesIO(data)) as reader:
+            body = reader.read(limit + 1)
+    except zstandard.ZstdError:
+        raise RawStorageError("not a compressed payload") from None
+    return body[:limit], len(body) > limit
 
 
 def _md5(data: bytes) -> str:

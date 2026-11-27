@@ -69,7 +69,9 @@ export function TopPromptsTable({ prompts, engines, onOpen }: TopPromptsTablePro
         <Button
           variant="link"
           size="sm"
-          className="block max-w-32 min-w-0 justify-start text-left text-foreground"
+          // A table cell does not shrink its text by itself: the cap steps with the card (the box below is the
+          // container), so a wide card shows more of the prompt and the figures stay in view at the least width
+          className="block max-w-32 min-w-0 justify-start text-left text-foreground @md:max-w-48 @xl:max-w-80 @3xl:max-w-lg @4xl:max-w-2xl"
           onClick={() => onOpen(prompt.prompt_id)}
         >
           <Truncate text={prompt.text} />
@@ -107,7 +109,7 @@ export function TopPromptsTable({ prompts, engines, onOpen }: TopPromptsTablePro
 
   return (
     // As the preview's card: the table runs edge to edge under the title, with no border of its own inside the card's
-    <div className="-mx-4 -mb-4 overflow-hidden rounded-b-lg [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-b-0">
+    <div className="@container -mx-4 -mb-4 overflow-hidden rounded-b-lg [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-b-0">
       <PlainTable<PromptSummaryRow>
         caption={t('topPrompts')}
         columns={columns}

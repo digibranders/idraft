@@ -19,6 +19,7 @@ const week = (weekStart: string, value: number | null, denominator = MIN_OBSERVA
   mentioned: cell(value, denominator),
   cited: cell(null),
   share_of_voice: cell(null),
+  visibility: cell(null),
 });
 /** An engine row of a summary; `series` is left out when it is `undefined`. */
 const engine = (code: string, series: readonly WeekCells[] | null | undefined): EngineSummary =>

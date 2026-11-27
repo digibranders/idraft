@@ -28,7 +28,9 @@ from typing import Any, Final, Literal
 
 from idraft.extraction.urls import CanonicalUrl, UrlRejectedError, canonicalize, has_known_suffix
 
-PARSER_VERSION: Final = 4
+PARSER_VERSION: Final = 5
+# The longest AI Overview answer kept, in characters.
+AI_TEXT_MAX: Final = 20_000
 # What a result shows in place of its address: the origin, then the path pieces, each after a
 # single right-pointing angle quotation mark (U+203A).
 _CRUMB_SEPARATOR: Final = "›"  # noqa: RUF001
@@ -103,6 +105,9 @@ READS_PATHS: Final = (
     "tasks[].result[].items[].links[].url",
     "tasks[].result[].items[].references[].url",
     "tasks[].result[].items[].asynchronous_ai_overview",
+    "tasks[].result[].items[].markdown",
+    "tasks[].result[].items[].items[].text",
+    "tasks[].result[].items[].items[].markdown",
     "tasks[].data.depth",
     "tasks[].data.device",
     "tasks[].data.language_code",
@@ -163,6 +168,9 @@ class Citation:
     # A reference card (a source the block lists) or an inline link inside its text that is not
     # also listed as a reference.
     kind: CitationKind
+    # What the block shows for the page: the first title and source name it gave.
+    title: str | None = None
+    source_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,6 +179,9 @@ class AiOverview:
     # What it cites, in order of first appearance: the references of the block, then the links
     # inside its elements. Empty unless a present state.
     citations: tuple[Citation, ...]
+    # The answer as markdown: None when the block shows none or is not loaded. Kept out of the
+    # feature payload, which is capped.
+    text: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -551,14 +562,20 @@ class _Builder:
             ordered.extend(element_references)
             references.extend(element_references)
         reference_hashes = {found.url_hash for found in self._urls(*references) if found}
+        shown: dict[object, tuple[str | None, str | None]] = {}
+        for entry in [*_mappings(item.get("references")), *_ai_entries(item)]:
+            shown.setdefault(
+                entry.get("url"), (_text(entry.get("title")), _text(entry.get("source")))
+            )
         citations: dict[bytes, Citation] = {}
-        for found in self._urls(*ordered):
+        for raw, found in zip(ordered, self._urls(*ordered), strict=True):
             if found is None or found.url_hash in citations:
                 continue
             kind: CitationKind = (
                 "reference_card" if found.url_hash in reference_hashes else "inline"
             )
-            citations[found.url_hash] = Citation(found, kind)
+            title, source = shown.get(raw, (None, None))
+            citations[found.url_hash] = Citation(found, kind, title, source)
         return tuple(citations.values())
 
     def _sources(self, kind: str, item: Mapping[str, Any]) -> list[CanonicalUrl | None]:
@@ -749,7 +766,31 @@ class _Builder:
             state = "present_not_loaded"
         else:
             state = "present_async_loaded" if asynchronous else "present"
-        return AiOverview(state, citations)
+        return AiOverview(state, citations, _ai_text(item))
+
+
+def _ai_entries(item: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """The links and references inside the elements of an AI Overview."""
+    return [
+        entry
+        for element in _mappings(item.get("items"))
+        for entry in (*_mappings(element.get("links")), *_mappings(element.get("references")))
+    ]
+
+
+def _ai_text(item: Mapping[str, Any]) -> str | None:
+    """The answer of an AI Overview: the block's own markdown, else its elements' markdown or
+    text joined by blank lines (an element of another type, a table, has none). Cleaned for the
+    database and cut at `AI_TEXT_MAX`; None when empty."""
+    whole = _text(item.get("markdown")) or ""
+    if not whole.strip():
+        parts = (
+            _text(element.get("markdown")) or _text(element.get("text")) or ""
+            for element in _mappings(item.get("items"))
+        )
+        whole = "\n\n".join(part.strip() for part in parts if part.strip())
+    cleaned: str = scrub_text(whole.strip())
+    return cleaned[:AI_TEXT_MAX] or None
 
 
 def _placeholder() -> SerpFeature:

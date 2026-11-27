@@ -18,6 +18,7 @@ from idraft.api.ai.sources import SourceService
 from idraft.api.ai.summary import SummaryService
 from idraft.api.auth.service import AuthService
 from idraft.api.auth.sessions import SessionStore
+from idraft.api.cannibalization.service import CannibalizationService
 from idraft.api.entities.project_service import ProjectEntityService
 from idraft.api.entities.service import EntityService
 from idraft.api.favicons.service import FaviconService
@@ -26,6 +27,8 @@ from idraft.api.integrations.service import IntegrationService
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawls import CrawlService
 from idraft.api.internal_links.opportunities import OpportunityService
+from idraft.api.internal_links.page_note_files import PageNoteFileService
+from idraft.api.internal_links.page_notes import PageNoteService
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.public_summary import PublicSummaryService
 from idraft.api.internal_links.reads import LinkReadService
@@ -33,6 +36,7 @@ from idraft.api.internal_links.route_finder import RouteFinder
 from idraft.api.internal_links.shares import ShareService
 from idraft.api.internal_links.suggestions import SuggestionService
 from idraft.api.internal_links.tier_levels import TierLevelService
+from idraft.api.issues.service import IssueService
 from idraft.api.keywords.group_service import GroupService
 from idraft.api.keywords.service import KeywordService
 from idraft.api.operations.costs import CostService
@@ -94,6 +98,8 @@ class Resources:
     ai_citation_board: CitationBoardService
     tier_levels: TierLevelService
     page_tiers: PageTierService
+    page_notes: PageNoteService
+    page_note_files: PageNoteFileService
     link_reads: LinkReadService
     link_changes: ChangeService
     link_opportunities: OpportunityService
@@ -105,6 +111,8 @@ class Resources:
     client_report: ClientReportService
     public_summary: PublicSummaryService
     crawls: CrawlService
+    cannibalization: CannibalizationService
+    issues: IssueService
 
 
 def get_resources(request: Request) -> Resources:

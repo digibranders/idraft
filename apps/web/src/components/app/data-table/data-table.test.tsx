@@ -2016,10 +2016,12 @@ describe('DataTable column groups', () => {
     server,
     status = 'ready',
     bare = false,
+    toolbarStart,
   }: {
     rows?: Row[];
     columns?: readonly DataTableColumn<Row>[];
     columnGroups?: boolean;
+    toolbarStart?: ReactElement;
     server?: ServerPaging;
     status?: TableStatus;
     /** No selection and no row actions: the data columns are the whole table, so a group can end it. */
@@ -2036,6 +2038,7 @@ describe('DataTable column groups', () => {
           itemNoun={{ one: 'keyword', other: 'keywords' }}
           columns={columns}
           columnGroups={columnGroups}
+          toolbarStart={toolbarStart}
           getRowId={rowId}
           rows={rows}
           total={server === undefined ? rows.length : 4812}
@@ -2073,6 +2076,40 @@ describe('DataTable column groups', () => {
     if (cell === null) throw new Error(`No cell ${String(row)}:${String(column)}`);
     return cell;
   };
+
+  it('draws toolbarStart in the toolbar before the search box', () => {
+    renderWithProviders(<GroupHarness toolbarStart={<button type="button">View</button>} />);
+    const view = screen.getByRole('button', { name: 'View' });
+    expect(view.compareDocumentPosition(screen.getByRole('searchbox'))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('shows each group label as a heading over its columns in the column chooser, only with columnGroups', async () => {
+    const on = renderWithProviders(<GroupHarness />);
+    await on.user.click(screen.getByRole('button', { name: 'Columns' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Columns' });
+    const headings = [...dialog.querySelectorAll('li[role="presentation"]')].map((li) => li.textContent);
+    expect(headings).toEqual(['Engine A', 'Engine B']);
+    on.unmount();
+    const off = renderWithProviders(<GroupHarness columnGroups={false} />);
+    await off.user.click(screen.getByRole('button', { name: 'Columns' }));
+    const plain = await screen.findByRole('dialog', { name: 'Columns' });
+    expect(plain.querySelectorAll('li[role="presentation"]')).toHaveLength(0);
+  });
+
+  it('heads a group once in the column chooser when some of its columns are hidden', async () => {
+    const columns = GROUPED.map((column) => (column.id === 'volume' ? { ...column, defaultVisible: false } : column));
+    const { user } = renderWithProviders(<GroupHarness columns={columns} />);
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Columns' });
+    const headings = [...dialog.querySelectorAll('li[role="presentation"]')].map((li) => li.textContent);
+    expect(headings).toEqual(['Engine A', 'Engine B']);
+    // The hidden Volume sits with its group, and Move up on a shown column still acts on the shown order
+    const names = [...dialog.querySelectorAll('li:not([role="presentation"])')].map((li) => li.textContent);
+    expect(names.indexOf('Volume')).toBe(names.indexOf('KD') + 1);
+    expect(screen.queryByRole('button', { name: 'Move Volume up' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Move Rank up' }));
+    expect(headerCell(/^KD/).compareDocumentPosition(headerCell(/^Rank/))).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+  });
 
   it('draws one header row when columns have groups but columnGroups is off', () => {
     const { unmount } = renderWithProviders(<GroupHarness columns={GROUPED} columnGroups={false} />);

@@ -176,7 +176,8 @@ function TopList<TRow extends SourceDomainRow | SourcePageRow>({
       }
     >
       {data === undefined || top === null ? null : (
-        <div aria-busy={read.refreshing ? true : undefined} className="flex flex-col gap-3">
+        // The box the identity cells take their cap from (`IDENTITY_WIDTH`)
+        <div aria-busy={read.refreshing ? true : undefined} className="@container flex flex-col gap-3">
           {lead?.(data.meta)}
           <PlainTable<TopRow<TRow>>
             caption={caption}

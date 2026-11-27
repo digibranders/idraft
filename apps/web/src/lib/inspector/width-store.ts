@@ -1,20 +1,32 @@
-import { INSPECTOR_WIDTH, type InspectorType } from './placement';
+'use client';
+
+import { createContext } from 'react';
+
+import { INSPECTOR_TYPES, INSPECTOR_WIDTH } from './placement';
+import { preferenceKey } from '@/lib/preferences/storage';
 
 /**
- * The inspector width a person chose, per object type, in `localStorage` (16-drawers-dialogs-popovers.md
- * section 2.2). A convenience of one browser: storage may be missing, full or blocked, and then the
- * default width applies. Readers subscribe, so a write in this tab or another one reaches them.
+ * The inspector width a person chose, one for every drawer, in `localStorage` under their user id with their other
+ * preferences (16-drawers-dialogs-popovers.md section 2.2), so signing out removes it. A convenience of one browser:
+ * storage may be missing, full or blocked, and then the width lasts until the page reloads.
  */
-const keyOf = (type: InspectorType): string => `inspector-width:${type}`;
-const listeners = new Set<() => void>();
-// Where a width lives when storage refused it (blocked, or full): until the page reloads
-const memory = new Map<InspectorType, number | null>();
 
-export function readInspectorWidth(type: InspectorType): number | null {
-  if (memory.has(type)) return memory.get(type) ?? null;
+/** Whose width it is. The workspace provides the user id; without one (a preview, a test) the width stays in memory. */
+export const InspectorWidthUserContext = createContext<string | null>(null);
+
+const NAME = 'inspector-width';
+const listeners = new Set<() => void>();
+// Where a width lives without a user id, or when storage refused it: until the page reloads
+const memory = new Map<string, number | null>();
+const slotOf = (userId: string | null): string => userId ?? '';
+
+export function readInspectorWidth(userId: string | null): number | null {
+  const slot = slotOf(userId);
+  if (memory.has(slot)) return memory.get(slot) ?? null;
+  if (userId === null) return null;
   try {
-    const stored = window.localStorage.getItem(keyOf(type));
-    if (stored === null) return null;
+    const stored = window.localStorage.getItem(preferenceKey(userId, NAME));
+    if (stored === null || stored === '') return null;
     const width = Number(stored);
     return Number.isInteger(width) && width >= INSPECTOR_WIDTH.min && width <= INSPECTOR_WIDTH.max ? width : null;
   } catch {
@@ -22,15 +34,21 @@ export function readInspectorWidth(type: InspectorType): number | null {
   }
 }
 
-/** Stores a width, or forgets it with `null` (Reset width). */
-export function writeInspectorWidth(type: InspectorType, width: number | null): void {
-  try {
-    if (width === null) window.localStorage.removeItem(keyOf(type));
-    else window.localStorage.setItem(keyOf(type), String(width));
-    memory.delete(type);
-  } catch {
-    // Storage is blocked or full: the width in memory serves until the page reloads
-    memory.set(type, width);
+/** Stores a width, or forgets it with `null` (a reset). */
+export function writeInspectorWidth(userId: string | null, width: number | null): void {
+  if (userId === null) {
+    memory.set('', width);
+  } else {
+    try {
+      if (width === null) window.localStorage.removeItem(preferenceKey(userId, NAME));
+      else window.localStorage.setItem(preferenceKey(userId, NAME), String(width));
+      // The widths kept per object type before there was one width: no longer read
+      for (const type of INSPECTOR_TYPES) window.localStorage.removeItem(`inspector-width:${type}`);
+      memory.delete(userId);
+    } catch {
+      // Storage is blocked or full: the width in memory serves until the page reloads
+      memory.set(userId, width);
+    }
   }
   for (const listener of listeners) listener();
 }

@@ -442,7 +442,7 @@ describe('SmallMultiples', () => {
       await screen.findAllByTestId('echart-canvas');
       await user.click(screen.getByRole('button', { name: 'More actions for Mention rate by engine' }));
       expect(screen.queryByRole('menuitem', { name: 'Download PNG' })).toBeNull();
-      expect(screen.getByRole('menuitem', { name: 'Copy link' })).toBeInTheDocument();
+      expect(await screen.findByRole('menuitem', { name: 'Copy link' })).toBeInTheDocument();
       await user.click(screen.getByRole('menuitem', { name: 'Download CSV' }));
       const [blob, name] = vi.mocked(csvWrite.downloadBlob).mock.calls[0] ?? [];
       expect(name).toBe('mention-rate-by-engine.csv');

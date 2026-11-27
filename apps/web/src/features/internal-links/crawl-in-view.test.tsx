@@ -1,10 +1,8 @@
 import { screen, waitFor } from '@testing-library/react';
-import { http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EVENTUS_LINKS, internalLinksAs } from '@/test/internal-links-harness';
 import { HISTORY_RUN_IDS, setLinksScenario } from '@/mocks/internal-links-world';
-import { mswPath, problem } from '@/mocks/respond';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
@@ -19,7 +17,6 @@ const LATEST = HISTORY_RUN_IDS[0] ?? '';
 const OLDER = HISTORY_RUN_IDS[1] ?? '';
 const DROPPED = HISTORY_RUN_IDS[4] ?? '';
 const DROPPED_TEXT = /This crawl’s links are no longer stored\. Pick a newer crawl\./;
-const PAGES = mswPath('/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages');
 const READS = [
   '/internal-links/pages',
   '/internal-links/edges',
@@ -45,19 +42,6 @@ function reads(): () => URL[] {
 const routeOf = (url: URL): string => READS.find((route) => url.pathname.endsWith(route)) ?? '';
 
 describe('the crawl in view', () => {
-  it('sends the chosen crawl with every read of the Pages tab: the list, the summary strip and the worklist chips', async () => {
-    const seen = reads();
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${OLDER}` });
-    await screen.findByRole('grid', { name: 'Pages' });
-    await waitFor(() => {
-      const routes = new Set(seen().map(routeOf));
-      expect(routes).toEqual(
-        new Set(['/internal-links/pages', '/internal-links/tier-flow', '/internal-links/worklists']),
-      );
-    });
-    for (const url of seen()) expect(url.searchParams.get('run')).toBe(OLDER);
-  });
-
   it('sends the chosen crawl with the reads of the Links and Tier flow tabs', async () => {
     const seen = reads();
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?tab=links&run=${OLDER}` });
@@ -81,7 +65,7 @@ describe('the crawl in view', () => {
         searchParams: `?run=${run}`,
       });
       await screen.findByRole('heading', { name: 'That crawl was not found' });
-      // The header still reads the latest crawl; the Pages tab reads nothing
+      // The header still reads the latest crawl; the open tab reads nothing
       await waitFor(() => expect(seen().length).toBeGreaterThan(0));
       expect(seen().some((url) => routeOf(url) === '/internal-links/pages')).toBe(false);
       for (const url of seen()) expect(url.searchParams.has('run')).toBe(false);
@@ -119,7 +103,8 @@ describe('a crawl whose links are gone', () => {
       seen.push(new URL(request.url).pathname);
     });
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), {
-      searchParams: `?run=${DROPPED}&inspect=page:108`,
+      // The Tier flow reads no links, so only the inspector's two sections carry the message
+      searchParams: `?tab=flow&run=${DROPPED}&inspect=page:108&itab=links`,
     });
     expect((await screen.findAllByText(DROPPED_TEXT)).length).toBe(2);
     expect(seen.some((path) => path.endsWith('/internal-links/neighbors'))).toBe(false);
@@ -134,15 +119,8 @@ describe('a crawl whose links are gone', () => {
     for (const url of seen()) expect(url.searchParams.has('run')).toBe(false);
   });
 
-  it('shows the message, not an error, when the Pages list itself answers 410', async () => {
-    server.use(http.get(PAGES, ({ request }) => problem(request, 'links_dropped')));
-    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: `?run=${OLDER}` });
-    expect(await screen.findByText(DROPPED_TEXT)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
-  });
-
-  it('falls back to Pages for a tab id that names no tab (?tab=nowhere)', async () => {
+  it('falls back to the Journey for a tab id that names no tab (?tab=nowhere)', async () => {
     renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=nowhere' });
-    expect(await screen.findByRole('grid', { name: 'Pages' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: /Link journey canvas/ })).toBeInTheDocument();
   });
 });

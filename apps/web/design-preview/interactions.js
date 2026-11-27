@@ -1533,9 +1533,9 @@
   // carry ?inspect= keep working. The old #/rankings address still opens it. Destinations that are not built say so
   // instead of navigating.
 
-  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', citations: 'Citations', reports: 'Reports', settings: 'Settings' };
+  const VIEWS = { overview: 'Overview', ai: 'AI visibility', keywords: 'Keywords', pages: 'Pages', 'internal-links': 'Internal links', prompts: 'Prompts', citations: 'Citations', insights: 'Insights', competitors: 'Competitors', reports: 'Reports', settings: 'Settings' };
   // Pages with tabs keep the tab in the route: #/prompts (Topics), #/prompts/explorer
-  const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'map', 'flow', 'changes', 'opportunities'], prompts: ['topics', 'explorer'], citations: ['pages', 'gaps'] };
+  const PAGE_TABS = { pages: ['performance', 'landing'], 'internal-links': ['pages', 'links', 'journey', 'map', 'flow', 'changes', 'opportunities'], prompts: ['topics', 'explorer'], citations: ['pages', 'gaps'], competitors: ['competitors', 'mentions', 'citations', 'sov', 'visibility', 'seo'] };
   let route = { view: 'keywords', section: null };
 
   function parseRoute(hash) {

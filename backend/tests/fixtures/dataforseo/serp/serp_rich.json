@@ -67,6 +67,7 @@
               "rank_absolute": 3,
               "position": "left",
               "asynchronous_ai_overview": false,
+              "markdown": "Small teams do well with a simple CRM. Pick by team size.\n\n- Example CRM suits startups\n- Compare options before you commit",
               "references": [
                 {"type": "ai_overview_reference", "source": "Example CRM", "domain": "www.example-crm.com", "url": "https://www.example-crm.com/startups", "title": "The best CRM for startups"},
                 {"type": "ai_overview_reference", "source": "Reviews", "domain": "reviews.example.org", "url": "https://reviews.example.org/crm", "title": "CRM for startups compared"}
@@ -76,6 +77,7 @@
                   "type": "ai_overview_element",
                   "title": "Pick by team size",
                   "text": "Small teams do well with a simple CRM.",
+                  "markdown": "Small teams do well with a simple CRM.",
                   "links": [
                     {"type": "link_element", "url": "https://blog.example.net/crm-guide", "title": "A CRM guide"}
                   ],

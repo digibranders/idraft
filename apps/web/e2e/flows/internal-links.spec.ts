@@ -7,7 +7,7 @@ import {
   ADMIN,
   CRAWL_WAIT,
   EDITOR,
-  EVENTUS_LINKS,
+  EVENTUS_PAGES_ALL,
   LINKS_SETTINGS,
   THEME_STORAGE_KEY,
   TIERS_SETTINGS,
@@ -19,6 +19,7 @@ import {
   inspectorOf,
   linksGrid,
   openLinks,
+  openPages,
   pagesGrid,
   tierPageCount,
   treeOf,
@@ -41,6 +42,8 @@ async function pickFromMore(page: Page, item: string): Promise<void> {
 
 test.describe('Internal links (spec 11)', () => {
   test('a new project with the box ticked shows its first crawl in progress', async ({ page }) => {
+    // The mock crawl takes about 30 s to leave the queue, longer than the default test timeout
+    test.setTimeout(2 * CRAWL_WAIT);
     await signIn(page, EDITOR);
     await page.goto('/digibranders/onboarding');
     await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Map Test');
@@ -51,7 +54,7 @@ test.describe('Internal links (spec 11)', () => {
     // A client navigation: the mock API keeps its state in the page's memory, so no reload
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Internal links' }).click();
     await expect(page.getByRole('heading', { name: /^Mapping / })).toBeVisible();
-    const progress = page.getByRole('progressbar', { name: 'Pages found against the crawl limit' });
+    const progress = page.getByRole('progressbar', { name: 'URLs found against the crawl limit' });
     await expect(progress).toBeVisible();
     // Queued first, then crawling: the count of pages found leaves zero. The mock never finishes this crawl.
     await expect(progress).not.toHaveAttribute('aria-valuenow', '0', { timeout: CRAWL_WAIT });
@@ -64,12 +67,13 @@ test.describe('Internal links (spec 11)', () => {
   });
 
   test('Crawl now runs from queued through crawling to ready', async ({ page }) => {
+    test.setTimeout(2 * CRAWL_WAIT);
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     await expectPagesLoaded(page);
     await expect(page.getByText(/^Crawled .*pages?$/)).toBeVisible();
     await page.getByRole('button', { name: 'Crawl now' }).click();
-    await expect(page.getByText('Crawl started')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Crawl started' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Crawling' })).toBeVisible();
     // The banner shows once the crawl leaves the queue; the tables keep showing the last crawl
     await expect(page.getByText(/Crawling now: /)).toBeVisible({ timeout: CRAWL_WAIT });
@@ -83,7 +87,7 @@ test.describe('Internal links (spec 11)', () => {
 
   test('the Pages tab filters, sorts, opens a page, and exports the table', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     const grid = pagesGrid(page);
     await expectPagesLoaded(page);
     await expectNoEquity(page);
@@ -102,13 +106,13 @@ test.describe('Internal links (spec 11)', () => {
     await page.getByRole('button', { name: /^Remove filter Tier/ }).click();
     await expect.poll(async () => grid.getByRole('rowheader').count()).toBe(all);
 
-    // A sort by Linking pages, in the address and on the header
-    const header = grid.getByRole('columnheader', { name: /^Linking pages/ });
-    await header.getByRole('button', { name: 'Linking pages', exact: true }).click();
+    // A sort by Clicks (a default column; the table opens sorted by address), in the address and on the header
+    const header = grid.getByRole('columnheader', { name: /^Clicks/ });
+    await header.getByRole('button', { name: 'Clicks', exact: true }).click();
     await expect(header).toHaveAttribute('aria-sort', /^(ascending|descending)$/);
-    await expect(page).toHaveURL(/[?&]sort=-?linking_pages/);
+    await expect(page).toHaveURL(/[?&]sort=-?clicks/);
 
-    // A row opens its inspector beside the table; no equity there either
+    // A row opens its inspector over the table; no equity there either
     await grid
       .getByRole('rowheader', { name: /\/pricing/ })
       .first()
@@ -116,6 +120,10 @@ test.describe('Internal links (spec 11)', () => {
     await expect(inspectorOf(page, '/pricing')).toBeVisible();
     await expect(page).toHaveURL(/[?&]inspect=page(%3A|:)/);
     await expectNoEquity(page);
+
+    // The card lays over the page header's actions, so the export waits until it is closed
+    await page.keyboard.press('Escape');
+    await expect(inspectorOf(page, '/pricing')).toBeHidden();
 
     // The export is a CSV of this tab with the server's columns: none of them is equity
     await page.getByRole('button', { name: 'Export', exact: true }).click();
@@ -137,7 +145,9 @@ test.describe('Internal links (spec 11)', () => {
     const before = await tierPageCount(page, 'T4');
 
     // Bulk: every blog page to T4 through the bulk bar
-    await page.getByRole('tab', { name: 'Pages' }).click();
+    // Client navigations, not reloads: the mock API's changes live in the page's memory
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Pages', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Pages views' }).getByRole('link', { name: 'All pages' }).click();
     await page.getByRole('searchbox', { name: 'Search in table' }).fill('/blog');
     await expect(page).toHaveURL(/[?&]q=/);
     const grid = pagesGrid(page);
@@ -153,6 +163,9 @@ test.describe('Internal links (spec 11)', () => {
     await expectNoEquity(page);
 
     // A rule: everything under /industries/ to T2, added as the third rule
+    // The rules are edited from the More actions menu of Internal links; the Pages screen has no such item
+    await page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Internal links' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Internal links' })).toBeVisible();
     await pickFromMore(page, 'Tier rules');
     const rules = page.getByRole('dialog', { name: 'Tier rules' });
     await rules.getByRole('button', { name: 'Add rule' }).click();
@@ -163,7 +176,6 @@ test.describe('Internal links (spec 11)', () => {
     await expect(page.getByText('3 rules saved.')).toBeVisible();
     await expect(rules).toBeHidden();
 
-    // The tab, not a reload: the mock API's changes live in the page's memory
     await page.getByRole('tab', { name: 'Tier flow' }).click();
     await expect(flowTable(page)).toBeVisible();
     await expect.poll(async () => tierPageCount(page, 'T4')).toBeGreaterThan(before);
@@ -173,7 +185,6 @@ test.describe('Internal links (spec 11)', () => {
   test('checks a CSV of tiers before it applies, and names the line that needs fixing', async ({ page }) => {
     await signIn(page, EDITOR);
     await openLinks(page);
-    await expectPagesLoaded(page);
     await pickFromMore(page, 'Import tiers from CSV');
     const dialog = page.getByRole('dialog', { name: 'Import tiers from CSV' });
     const field = dialog.getByRole('textbox', { name: 'Tiers as CSV' });
@@ -246,6 +257,10 @@ test.describe('Internal links (spec 11)', () => {
     await expect(page).toHaveURL(/[?&]inspect=page(%3A|:)/);
     await expectNoEquity(page);
 
+    // The card lays over the right of the canvas, so the next steps wait until it is closed
+    await page.keyboard.press('Escape');
+    await expect(inspectorOf(page, '/contact')).toBeHidden();
+
     // Re-center on /pricing, then the tree list of the same journey
     await card(page, '/pricing').hover();
     await canvasOf(page).getByRole('button', { name: 'Make /pricing the focus' }).click();
@@ -257,24 +272,24 @@ test.describe('Internal links (spec 11)', () => {
     // A reload shows the same view from the address
     await page.reload();
     await expect(treeOf(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Focus page: /pricing. Change it.' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Focus page: /pricing. Change it.' })).toBeVisible();
   });
 
   test('the settings screens for page tiers and for the project crawl open and read', async ({ page }) => {
     await signIn(page, ADMIN);
     await page.goto(TIERS_SETTINGS);
-    await expect(page.getByRole('heading', { level: 1, name: 'Page tiers' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Page tiers' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Page tiers' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add tier' })).toBeVisible();
     await expectNoEquity(page);
 
     await page.goto(LINKS_SETTINGS);
-    await expect(page.getByRole('heading', { level: 1, name: 'Internal links' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Internal links' })).toBeVisible();
     await expect(page.getByText('Recent crawls')).toBeVisible();
     await expectNoEquity(page);
 
-    // The page's own tab, from the project's Internal links
-    await page.goto(EVENTUS_LINKS);
+    // The Pages screen's own menu, on All pages
+    await page.goto(EVENTUS_PAGES_ALL);
     await expectPagesLoaded(page);
     await pickFromMore(page, 'Crawl settings');
     await expect(page).toHaveURL(/\/eventus-security\/settings\/links$/);
@@ -307,14 +322,14 @@ test.describe('Internal links (spec 11)', () => {
         { query: 'tab=flow', kind: 'flow' },
       ] as const;
       for (const { query, kind } of states) {
-        await openLinks(page, query);
+        await (kind === 'pages' ? openPages(page, query) : openLinks(page, query));
         await waitForState(page, kind);
         await expectAccessible(page);
         await expectNoEquity(page);
       }
 
-      // The two dialogs of the Pages tab
-      await openLinks(page);
+      // The two dialogs of All pages
+      await openPages(page);
       await expectPagesLoaded(page);
       await pickFromMore(page, 'Tier rules');
       await expect(

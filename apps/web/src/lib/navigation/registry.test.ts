@@ -19,15 +19,19 @@ const keysOf = (sections: ReturnType<typeof visibleNavigation>): string[] =>
 
 describe('the navigation registry', () => {
   it('has the 15 destinations of 11 section 1.1 (without Sources, WP-77 D-8) and Internal links, in 3 sections', () => {
-    expect(NAVIGATION).toHaveLength(16);
+    expect(NAVIGATION).toHaveLength(19);
     expect(new Set(NAVIGATION.map((item) => item.section))).toEqual(new Set([1, 2, 3]));
     expect(NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key)).toEqual([
       'rankings',
       'keywords',
+      'cannibalization',
+    ]);
+    expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(4);
+    expect(NAVIGATION.filter((item) => item.group === 'audit').map((item) => item.key)).toEqual([
       'pages',
+      'issues',
       'internalLinks',
     ]);
-    expect(NAVIGATION.filter((item) => item.group === 'ai')).toHaveLength(3);
   });
 
   it('asks only for permissions the API has', () => {
@@ -36,13 +40,17 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Cannibalization, AI Overview, Prompts, Citations, Insights, Pages, Issues, Internal links, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
-      'internalLinks',
+      'cannibalization',
       'aiOverview',
       'prompts',
       'citations',
+      'insights',
+      'pages',
+      'issues',
+      'internalLinks',
       'competitors',
       'reports',
       'integrations',
@@ -66,10 +74,14 @@ describe('the navigation registry', () => {
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
     expect(shownTo('viewer')).toEqual([
       'keywords',
-      'internalLinks',
+      'cannibalization',
       'aiOverview',
       'prompts',
       'citations',
+      'insights',
+      'pages',
+      'issues',
+      'internalLinks',
       'competitors',
       'reports',
       'integrations',
@@ -78,10 +90,14 @@ describe('the navigation registry', () => {
     ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
-      'internalLinks',
+      'cannibalization',
       'aiOverview',
       'prompts',
       'citations',
+      'insights',
+      'pages',
+      'issues',
+      'internalLinks',
       'competitors',
       'reports',
       'integrations',
@@ -111,7 +127,7 @@ describe('the navigation registry', () => {
 
   it('keeps the groups of the first section in order for a reader', () => {
     const [first] = visibleNavigation(ALL_LIVE, permissionsFor('viewer'));
-    expect(first?.groups.map((group) => group.group)).toEqual([null, 'seo', 'ai']);
+    expect(first?.groups.map((group) => group.group)).toEqual([null, 'seo', 'ai', 'audit']);
   });
 
   it('builds hrefs from the slugs', () => {
@@ -188,7 +204,6 @@ describe('the navigation registry', () => {
       'overview',
       'matrix',
       'rankings',
-      'pages',
       'discover',
     ]);
   });
@@ -217,6 +232,14 @@ describe('the navigation registry', () => {
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {
-    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/seo/pages', 'digibranders', 'fynix')).toBeNull();
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/matrix', 'digibranders', 'fynix')).toBeNull();
+  });
+
+  it('Pages is live in the Website audit group before Issues and Internal links, and both of its tabs are its destination', () => {
+    const audit = LIVE_NAVIGATION.filter((item) => item.group === 'audit').map((item) => item.key);
+    expect(audit).toEqual(['pages', 'issues', 'internalLinks']);
+    for (const path of ['/seo/pages', '/seo/pages/all', '/seo/pages/monitoring']) {
+      expect(destinationOf(LIVE_NAVIGATION, `/digibranders/fynix${path}`, 'digibranders', 'fynix')?.key).toBe('pages');
+    }
   });
 });

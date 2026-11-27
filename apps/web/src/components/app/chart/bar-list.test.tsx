@@ -335,6 +335,14 @@ describe('BarList distribution', () => {
     ]);
   });
 
+  it('draws a warning scale row with its bg-warning-solid utility', () => {
+    const warning: readonly DistributionRow[] = [
+      { id: 'deep', label: 'Deep', scale: 'warning', value: value(0.4, '40%'), accessibleText: 'Deep: 40%' },
+    ];
+    const { container } = renderWithProviders(<BarList {...distribution(warning)} />);
+    expect(bars(container)[0]).toHaveClass('bg-warning-solid');
+  });
+
   it('draws a sequential scale row with its bg-seq utility (CH-18)', () => {
     const seq: readonly DistributionRow[] = [
       { id: 'heat', label: 'Heat', scale: 'seq-3', value: value(0.4, '40%'), accessibleText: 'Heat: 40%' },

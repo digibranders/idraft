@@ -9,7 +9,7 @@ This document defines how every screen adapts from a 1920 px monitor down to a 3
 ## 1. Principles
 
 1. **Desktop first, 1440 is the reference.** Every screen is designed at 1440 x 900, then checked at each class in section 2. A layout that only works at 1440 is not finished.
-2. **Extra width goes to data.** Wider screens show more table columns and dock the inspector. Content is never centered in a narrow column, except prose and settings forms ([05-layout-grid.md](05-layout-grid.md)).
+2. **Extra width goes to data.** Wider screens show more table columns and leave more of the table visible beside the inspector. Content is never centered in a narrow column, except prose and settings forms ([05-layout-grid.md](05-layout-grid.md)).
 3. **Same product at every width.** Routes, URLs, filters, sort and saved views are identical across classes. A link copied on desktop and opened on a phone shows the same filtered view; only the presentation changes.
 4. **Nothing disappears silently.** A hidden column is reachable through the inspector and the column chooser. A feature that is not offered on a phone says so and names the feature (section 11).
 5. **Viewport breakpoints are for the shell; container queries are for components.** The sidebar, top bar, page header, filter bar, dialog mode and table column tiers respond to the viewport. Anything that can sit in both the page and the inspector responds to its container (section 12).
@@ -31,10 +31,10 @@ A desktop browser zoomed to 200% on a 1280 px screen is 640 CSS px wide. It gets
 
 | Class | CSS width | Tailwind range | Sidebar | Inspector | Table tiers shown | Page gutter |
 |---|---|---|---|---|---|---|
-| Wide desktop | 1680 and up (1680, 1920, 2560 tested) | `3xl:` and `4xl:` | Expanded 208 px | Docked, default width per inspector type (section 7) | 1 to 4 | 20 px |
-| Desktop (reference) | 1440 to 1679 | `2xl:` | Expanded 208 px | Docked at the default width per inspector type; a wider stored width is narrowed by the docking rule (section 7) | 1 to 3 | 20 px |
-| Small desktop | 1280 to 1439 | `xl:` | Expanded 208 px | Docked when the docking rule allows (from 1,288 px with the expanded sidebar), otherwise overlay (section 7) | 1 to 2 | 20 px |
-| Tablet | 768 to 1279 | `md:` and `lg:` | Collapsed rail 56 px at 1024 to 1279; drawer at 768 to 1023 | Overlay drawer | 1 | 20 px at 1024 and up, 16 px below |
+| Wide desktop | 1680 and up (1680, 1920, 2560 tested) | `3xl:` and `4xl:` | Expanded 208 px | Overlay at the saved width, 640 px by default (section 7) | 1 to 4 | 20 px |
+| Desktop (reference) | 1440 to 1679 | `2xl:` | Expanded 208 px | Overlay at the saved width, 640 px by default; a wider stored width is clamped to 60% of the viewport (section 7) | 1 to 3 | 20 px |
+| Small desktop | 1280 to 1439 | `xl:` | Expanded 208 px | Overlay at the saved width, 640 px by default; at 1280 the maximum is 768 px (section 7) | 1 to 2 | 20 px |
+| Tablet | 768 to 1279 | `md:` and `lg:` | Collapsed rail 56 px at 1024 to 1279; drawer at 768 to 1023 | Overlay drawer from 900 px, full-width sheet below 900 px | 1 | 20 px at 1024 and up, 16 px below |
 | Mobile | 360 to 767 (320 must not break) | base and `sm:` | Drawer | Full-screen sheet | List rows (section 6.7) | 12 px |
 
 Rules:
@@ -197,7 +197,7 @@ Every column in every `DataTable` declares a priority from 1 to 4.
 | 4 | Detail and metadata | 1680 and up |
 
 Rules:
-1. **Tiers follow the viewport, not the table container.** Opening, closing or resizing the inspector never hides or reveals columns; the docked inspector narrows the table, which then scrolls horizontally with the identity column pinned. A table that reshuffles its columns when the user opens a record breaks the "context is preserved" principle ([00-design-principles.md](00-design-principles.md)).
+1. **Tiers follow the viewport, not the table container.** Opening, closing or resizing the inspector never hides or reveals columns; the inspector lays over the table without narrowing it, and the identity column stays pinned. A table that reshuffles its columns when the user opens a record breaks the "context is preserved" principle ([00-design-principles.md](00-design-principles.md)).
 2. Hidden columns are removed from the column model (TanStack column visibility), not hidden with `display: none`. This keeps the header count and grid keyboard navigation consistent with what is on screen, so `aria-colcount` is omitted ([20-accessibility.md](20-accessibility.md) section 6.2).
 3. The checkbox column and the row actions column are not tiered: both are present whenever selection and row actions are available at that width.
 4. The identity column is pinned left at every width and absorbs spare width up to its maximum (480 px for keywords, 640 px for prompts, [12-tables.md](12-tables.md) section 5). These are column maximums, unrelated to the inspector widths.
@@ -314,37 +314,14 @@ The inspector pattern is defined in [16-drawers-dialogs-popovers.md](16-drawers-
 
 | Class | Mode | Width | Modality |
 |---|---|---|---|
-| Wide desktop 1920 and up | Docked | Stored width, default per inspector type: 440 px (`--size-inspector-wide`: prompt, citation, answer evidence), 400 px (`--size-inspector`) for every other type (keyword, page, competitor, domain, source, run, candidate) ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2) | Non-modal |
-| Wide desktop 1680 to 1919 | Docked | Stored width, default per inspector type (same as 1920) | Non-modal |
-| Desktop 1440 to 1679 | Docked; a stored width wider than the space left is narrowed | See the docking rule | Non-modal |
-| Small desktop 1280 to 1439 | Docked when the docking rule allows (collapsed rail, or the expanded sidebar from 1,288 px), otherwise overlay | See the docking rule | Non-modal |
-| Tablet 768 to 1279 | Overlay card from the right, 12 px under the top bar and from the right and bottom edges, `shadow-inspector`, no scrim, content stays interactive | `min(stored width, 640px, 100vw - 56px)` ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6) | Non-modal |
-| Mobile | Full-screen sheet with a back button in its 48 px header | 100vw | Modal |
+| 900 px and wider (every desktop class and tablet landscape) | Overlay: a fixed card that lays over the page and never resizes it, 12 px under the top bar and from the right and bottom edges, `shadow-inspector`, no scrim, content stays interactive | One saved width per user: 640 px by default, 480 px to 60% of the viewport (960 px at most) ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) sections 2.2 and 2.6) | Non-modal |
+| Below 900 px (tablet portrait, mobile) | A full-width sheet with a back button in its 48 px header, no resize handle | 100vw | Modal |
 
-**Docking rule** (applies at 1280 and up). The main column must keep at least 720 px ([05-layout-grid.md](05-layout-grid.md)).
-
-```
-dockable = viewport width - sidebar width - 720
-if dockable >= 360: dock at min(preferred width, dockable)
-else: overlay at preferred width
-```
-
-The 360 px threshold is the inspector minimum (`--size-inspector-min`); the same rule is in [05-layout-grid.md](05-layout-grid.md).
-
-| Viewport | Sidebar | Dockable | Result for a 400 px inspector | Result for a 440 px prompt inspector |
-|---|---|---|---|---|
-| 1920 | 208 | 992 | Docked 400 | Docked 440 |
-| 1680 | 208 | 752 | Docked 400 | Docked 440 |
-| 1440 | 208 | 512 | Docked 400 | Docked 440 |
-| 1440 | 56 | 664 | Docked 400 | Docked 440 |
-| 1280 | 208 | 352 | Overlay 400 | Overlay 440 |
-| 1280 | 56 | 504 | Docked 400 | Docked 440 |
-
-At the defaults, narrowing happens only between 1,288 and 1,367 px with the expanded sidebar (dockable 360 to 439 px); it matters more for users who widened the inspector toward the 640 px maximum.
+The rule is the same at every desktop width, so there is no per-class table: the width is `fit(saved or 640, maximum)` with `maximum = max(480, floor8(min(960, 0.6 x viewport)))`. The full table of left edges and visible table strips is in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6. A stored width wider than the maximum of a smaller window is clamped when the card is drawn and never rewritten, so it returns on a larger window.
 
 Rules:
-1. A docked inspector narrowed by the rule shows its own content at that width; its components respond through container queries (section 12). The user's stored width is not overwritten by automatic narrowing.
-2. Resizing (drag on the left edge, or the keyboard and menu alternatives in [20-accessibility.md](20-accessibility.md)) is available when docked or overlaid, bounded 360 to 640 px (`--size-inspector-min`, `--size-inspector-max`) and by the docking rule. It is not available on the mobile sheet.
+1. The inspector shows its own content at the saved width; its components respond through container queries (section 12). The page behind it does not reflow, so the table keeps its width, its scroll position and its pinned identity column.
+2. Resizing (drag on the left edge, or the keyboard alternatives in [20-accessibility.md](20-accessibility.md)) is available in the overlay, bounded 480 px to 60% of the viewport (`--size-inspector-min`, `--size-inspector-max`). It is not available on the sheet.
 3. Changing mode (for example, rotating a tablet or resizing the window) keeps the same record open and the inspector's scroll position.
 4. On mobile, the sheet's back button and the browser back button close the sheet and return to the list at the same scroll position; the record is in the URL, so the back button works without special handling.
 
@@ -454,7 +431,7 @@ Arbitrary container values (`@min-[500px]:`) are not allowed, matching the arbit
 
 ### 12.3 Components that must use container queries
 
-| Component | Narrow (inspector at 400 px) | Wide (page) |
+| Component | Narrow (inspector, 480 to 640 px) | Wide (page) |
 |---|---|---|
 | `MetricStrip` | Key-value grid (`size="sm"`, [23-application-patterns.md](23-application-patterns.md) section 2.2) | Single row when the width rule in section 5 is met, otherwise two rows |
 | `KeyValueTable` | Label above value below `@xs`; two columns (label 40%) above | Two columns, label 200 px |
@@ -485,13 +462,13 @@ Example:
 
 | Viewport (CSS px) | Class | Pointer | Required checks |
 |---|---|---|---|
-| 2560 x 1440 | Wide desktop | fine | Inspector docked at its type default (keyword 400, prompt 440), all tiers, no centered narrow content |
-| 1920 x 1080 | Wide desktop | fine | Tiers 1 to 4, keyword inspector docked 400, prompt inspector docked 440 |
-| 1680 x 1050 | Wide desktop | fine | Tier 4 boundary, prompt inspector docked 440 |
-| 1440 x 900 | Desktop (reference) | fine | Visual baseline for every template, inspector docking at both defaults, narrowing of a widened inspector |
-| 1280 x 800 | Small desktop | fine | Tier 2 boundary, inspector overlay with expanded sidebar, docked with collapsed |
+| 2560 x 1440 | Wide desktop | fine | Inspector overlay at the default 640 px, all tiers, no centered narrow content |
+| 1920 x 1080 | Wide desktop | fine | Tiers 1 to 4, inspector overlay at 640 px, widened to the 960 px maximum |
+| 1680 x 1050 | Wide desktop | fine | Tier 4 boundary, inspector overlay at 640 px |
+| 1440 x 900 | Desktop (reference) | fine | Visual baseline for every template, inspector overlay at 640 px, a widened inspector clamped to 60% of the viewport |
+| 1280 x 800 | Small desktop | fine | Tier 2 boundary, inspector overlay at 640 px (768 px maximum), 400 px of table left of it |
 | 1024 x 768 | Tablet landscape | coarse | Collapsed rail, overlay inspector, Compact density (Comfortable adds the secondary identity line), visible row actions |
-| 768 x 1024 | Tablet portrait | coarse | Drawer navigation, date window in the top bar, filter badge |
+| 768 x 1024 | Tablet portrait | coarse | Drawer navigation, date window in the top bar, filter badge, inspector sheet (below 900 px) |
 | 390 x 844 | Mobile | coarse | List rows, filter sheet, inspector sheet, 44 px targets, desktop-only notices |
 | 360 x 740 | Mobile (minimum) | coarse | Same as 390, no truncated primary values |
 | 320 x 568 | Reflow floor | fine | No horizontal page scroll, all features present, List / Table switch |
@@ -502,7 +479,7 @@ Example:
 
 1. `document.scrollingElement.scrollWidth <= clientWidth` at every viewport in 13.1 (no horizontal page scroll).
 2. Visible column ids equal the expected tier set for Rank Tracker and Prompt Explorer at 1280, 1440 and 1680.
-3. Inspector mode (docked, overlay, sheet) and width match the docking table in section 7.
+3. Inspector mode (overlay from 900 px, sheet below) and width match section 7 and the geometry table in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6.
 4. The focused row after keyboard navigation is fully visible below the sticky stack (bounding box check).
 5. Touch-primary 390 px: every interactive element in the filter sheet, inspector sheet and list is at least 44 x 44 px, except inline text links.
 6. Desktop-only entry points open `DesktopOnlyNotice` on touch-primary 390 px and open the feature on fine-pointer 390 px.

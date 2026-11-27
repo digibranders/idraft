@@ -37,7 +37,8 @@ const COPY = {
     'WP-15. The frame while a card is picked up: a ring on the card in the hand, and the card being dragged at half strength. Its body cannot be reached while customizing. The live layout above shows the real pick up.',
   pickedSpecimen: 'Picked up, and dragged',
   drawerTitle: 'Drawer form, one column',
-  drawerNote: "WP-15. The keyword drawer's cards in one column with no widths, in the 400 px of the inspector.",
+  drawerNote:
+    "WP-15. The keyword drawer's cards in one column with no widths, at the 640 px default width of the inspector.",
   drawerSpecimen: 'Keyword drawer',
   drawerGrid: 'Keyword cards',
   overviewGrid: 'Overview cards',

@@ -63,7 +63,13 @@ describe('Citations of a project', () => {
         tab: 'pages',
         promptDrawer: {
           type: PromptDrawerHost,
-          props: { workspaceId: 'w1', projectId: cleanstart.project_id, timeZone: cleanstart.timezone },
+          props: {
+            workspaceId: 'w1',
+            workspaceSlug: 'digibranders',
+            projectId: cleanstart.project_id,
+            projectSlug: 'cleanstart',
+            timeZone: cleanstart.timezone,
+          },
         },
       },
     });

@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from idraft.collectors import gsc_pages, gsc_store
+from idraft.collectors import gsc_page_detail, gsc_pages, gsc_store
 from idraft.collectors.gsc_limits import GscLimiter
 from idraft.collectors.gsc_store import DayRow, IntegrationFacts
 from idraft.db.engine import workspace_transaction
@@ -42,11 +42,13 @@ from idraft.domain.gsc_pull import (
     history_start,
     window_of,
 )
+from idraft.domain.page_search import compare_window, last_full_month
 from idraft.keywords.text import normalize
 from idraft.providers.google.client import (
     SEARCH_ANALYTICS_ROW_LIMIT,
     AnalyticsRow,
     Dimension,
+    DimensionFilter,
     GoogleClient,
 )
 from idraft.providers.google.errors import (
@@ -57,6 +59,7 @@ from idraft.providers.google.errors import (
     GoogleQuotaError,
     GoogleResponseError,
     GoogleUnauthorizedError,
+    GoogleUnavailableError,
 )
 from idraft.vault import store as vault
 from idraft.vault.envelope import EnvelopeCipher, SecretUnreadableError
@@ -152,6 +155,9 @@ class _Pass:
         self._access: str | None = None
         self._deadline = ctx.monotonic() + ctx.budget.total_seconds()
         self.state = facts.state
+        # The checkpoint after the sweep resets `state.failures`; a failure after it still counts
+        # on top of the ones the pass began with, so the retry wait grows.
+        self.failures_before = facts.state.failures
         self.calls = 0
         self.days_written = 0
         self.rows_written = 0
@@ -164,7 +170,14 @@ class _Pass:
         return self._access
 
     async def _query(
-        self, *, start: date, end: date, dimensions: Sequence[Dimension], start_row: int = 0
+        self,
+        *,
+        start: date,
+        end: date,
+        dimensions: Sequence[Dimension],
+        start_row: int = 0,
+        filters: Sequence[DimensionFilter] = (),
+        row_limit: int | None = None,
     ) -> list[AnalyticsRow]:
         """One call, within the budgets. A 401 gets one new access token and one more try."""
         facts = self._facts
@@ -179,9 +192,13 @@ class _Pass:
                     start_date=start,
                     end_date=end,
                     dimensions=dimensions,
-                    aggregation="byProperty" if tuple(dimensions) == ("date",) else "auto",
+                    # Google refuses property aggregation for a call that filters by page.
+                    aggregation=(
+                        "byProperty" if tuple(dimensions) == ("date",) and not filters else "auto"
+                    ),
                     start_row=start_row,
-                    row_limit=self._ctx.page_size,
+                    row_limit=row_limit or self._ctx.page_size,
+                    filters=filters,
                 )
             except GoogleUnauthorizedError:
                 if renew:
@@ -221,7 +238,8 @@ class _Pass:
 
     async def _pages_window(self, probe: Sequence[date], start: date, end: date) -> bool:
         """The page rows of the days of the window that have none yet, one call per day, and the
-        pruning of days past `PAGE_KEEP_DAYS`. True when it stopped on the budget."""
+        pruning of days older than the history the pull keeps (a tracked page keeps them all).
+        True when it stopped on the budget."""
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             have = await gsc_pages.stored_page_days(db, self._facts, start, end)
         for day in probe:
@@ -243,8 +261,61 @@ class _Pass:
                 )
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
             await gsc_pages.prune_pages(
-                db, self._facts, end - timedelta(days=gsc_pages.PAGE_KEEP_DAYS)
+                db, self._facts, history_start(pacific_today(self._ctx.now()))
             )
+        return False
+
+    async def _page_query(
+        self,
+        *,
+        start: date,
+        end: date,
+        dimensions: Sequence[Dimension],
+        filters: Sequence[DimensionFilter],
+        row_limit: int,
+    ) -> list[AnalyticsRow]:
+        return await self._query(
+            start=start, end=end, dimensions=dimensions, filters=filters, row_limit=row_limit
+        )
+
+    async def _tracked_pages(self, latest: date) -> bool:
+        """The history and the two default months of every tracked page that lacks them, then
+        the pruning of old fetches. True when it stopped on the budget."""
+        async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
+            pages = await gsc_page_detail.tracked_refs(db, self._facts)
+        today = pacific_today(self._ctx.now())
+        month = last_full_month(latest)
+        before = compare_window(*month, "previous_period")
+        first_error: GoogleError | None = None
+        for page in pages:
+            if self._out_of_time():
+                return True
+            sessions, facts = self._ctx.sessions, self._facts
+            try:
+                await gsc_page_detail.ensure_history(
+                    sessions, self._page_query, facts, page, today=today, final_through=latest
+                )
+                # `ensure_breakdown` asks only for what has no marker, so the month before is
+                # fetched once, when the page is tracked, and a later month reuses it (D21).
+                for window in (month, before):
+                    if window is not None:
+                        await gsc_page_detail.ensure_breakdown(
+                            sessions, self._page_query, facts, page, *window
+                        )
+            except (GoogleResponseError, GoogleUnavailableError) as error:
+                # One page Google cannot answer for must not stop the others. The pass still
+                # ends as failed, so the planner waits before this page is tried again.
+                _log.warning(
+                    "gsc tracked page skipped",
+                    integration_id=str(facts.integration_id),
+                    url_id=page.url_id,
+                    reason=error.reason,
+                )
+                first_error = first_error or error
+        async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
+            await gsc_page_detail.prune(db, self._facts, now=self._ctx.now())
+        if first_error is not None:
+            raise first_error
         return False
 
     async def _store(self, day: date, *, history_next: date | None = None) -> None:
@@ -315,19 +386,16 @@ class _Pass:
             )
         await self._checkpoint(replace(state, recent_done=True, window_end=latest).succeeded())
 
-        if (
-            self.state.complete
-            or self.state.history_next is None
-            or self.state.history_until is None
-        ):
-            return False
-        sweep = [day for day in probe if self.state.history_next <= day < self.state.history_until]
-        for day in sweep:
-            if self._out_of_time():
-                return True
-            await self._store(day, history_next=day + timedelta(days=1))
-        await self._checkpoint(replace(self.state, complete=True))
-        return False
+        # The tracked pages come after the sweep, so a page Google cannot answer for never holds
+        # the property's own pull back. All three ways out of the sweep reach them.
+        first, until = self.state.history_next, self.state.history_until
+        if not self.state.complete and first is not None and until is not None:
+            for day in [day for day in probe if first <= day < until]:
+                if self._out_of_time():
+                    return True
+                await self._store(day, history_next=day + timedelta(days=1))
+            await self._checkpoint(replace(self.state, complete=True))
+        return self._ctx.page_totals and await self._tracked_pages(latest)
 
     async def _stored(self, start: date, end: date) -> set[date]:
         async with workspace_transaction(self._ctx.sessions, self._facts.workspace_id) as db:
@@ -340,7 +408,7 @@ async def sync_integration(
     """One pass over one property. Every error of Google or of the stored credential ends in a
     recorded outcome; an error of this code or of the database is raised."""
     async with workspace_transaction(ctx.sessions, workspace_id) as db:
-        facts = await gsc_store.load_integration(db, workspace_id, integration_id)
+        facts = await gsc_store.load_integration(db, workspace_id, integration_id, "gsc")
         if facts is None or not facts.runnable or facts.credential_ref is None:
             return SyncReport(Outcome.SKIPPED)
         try:
@@ -377,7 +445,8 @@ async def sync_integration(
             _log.error("gsc pass failed", reason=error.reason, **context)
         else:
             _log.warning("gsc pass failed", reason=error.reason, **context)
-        state = pull.state.failed(ctx.now())
+        failures = max(pull.state.failures, pull.failures_before)
+        state = replace(pull.state, failures=failures).failed(ctx.now())
         async with workspace_transaction(ctx.sessions, workspace_id) as db:
             await gsc_store.save_state(db, facts, state, last_error=error.reason)
         return _report(Outcome.FAILED, pull, error=error.reason)

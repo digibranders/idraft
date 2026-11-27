@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import ROUND_UP, Decimal
 from typing import Final, Literal, Protocol
 from urllib.parse import urlsplit
@@ -37,6 +38,8 @@ _COST_STEP: Final = Decimal("0.000001")
 COST_MAX: Final = Decimal("300")
 # Raw HTML above this is treated as missing: the page's links come from the provider instead.
 HTML_MAX: Final = 10 * 1024 * 1024
+# Ten minutes: more than any page takes, so a larger number is a fault of the answer.
+RESPONSE_MS_MAX: Final = 600_000
 _PROGRESS: Final = frozenset({"in_progress", "finished"})
 _LINK_TYPES: Final = {"anchor": "text", "image": "image"}
 K = ProviderErrorKind
@@ -96,6 +99,9 @@ class PageItem(_Model):
     title: str | None
     canonical: str | None
     from_sitemap: bool
+    sitemap_lastmod: datetime | None = None
+    # `page_timing.duration_time` of the answer; None when the provider gave none.
+    response_ms: int | None = None
 
 
 class PageBatch(_Model):
@@ -152,6 +158,14 @@ def _cost(value: object) -> Decimal | None:
     return number.quantize(_COST_STEP, rounding=ROUND_UP)
 
 
+def _milliseconds(value: object) -> int | None:
+    """How long a page took to answer, in milliseconds, or None: absent, not a whole number, or
+    outside 0 to `RESPONSE_MS_MAX` (a value no real page has)."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= RESPONSE_MS_MAX:
+        return None
+    return value
+
+
 def _total(found: Mapping[str, object], count: int) -> int:
     """`total_items_count` of a list answer. A list with items and no usable total is a
     mismatch: guessing it from the items would end a paged read after the first batch."""
@@ -189,6 +203,21 @@ def _summary(result: Mapping[str, object]) -> CrawlSummary:
     )
 
 
+_ZONE_GAP: Final = re.compile(r"\s+(?=[+-]\d{2}:?\d{2}$)")  # "2024-01-02 03:04:05 +00:00"
+
+
+def _sitemap_lastmod(value: object) -> datetime | None:
+    """`last_modified.sitemap` as a moment, or None (absent, null or not a date). The shape is
+    not verified on a real payload; the header's value is never read."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(_ZONE_GAP.sub("", value.strip()))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
 def _page(raw: object) -> PageItem:
     item = _mapping(raw)
     meta = _mapping(item.get("meta"))
@@ -202,6 +231,8 @@ def _page(raw: object) -> PageItem:
             "title": meta.get("title"),
             "canonical": meta.get("canonical"),
             "from_sitemap": checks.get("from_sitemap") is True,
+            "sitemap_lastmod": _sitemap_lastmod(_mapping(item.get("last_modified")).get("sitemap")),
+            "response_ms": _milliseconds(_mapping(item.get("page_timing")).get("duration_time")),
         }
     )
 

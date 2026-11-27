@@ -59,13 +59,14 @@ export interface LayoutGridProps {
 }
 
 /**
- * The 12-column spans of each width as classes: `md:` is the `medium` breakpoint and `xl:` the `wide` one of
- * `lib/layouts/rows.ts`; the grid test holds the two together.
+ * The 12-column spans of each width as classes: `@2xl:` is the `medium` breakpoint and `@4xl:` the `wide` one of
+ * `lib/layouts/rows.ts`, read from the width of the grid and not of the window (the sidebar and the inspector take
+ * width from the page); the grid test holds the two together.
  */
 export const SPAN_CLASS: Readonly<Record<Width, string>> = {
-  third: 'col-span-12 md:col-span-6 xl:col-span-4',
-  half: 'col-span-12 md:col-span-6',
-  two_thirds: 'col-span-12 xl:col-span-8',
+  third: 'col-span-12 @2xl:col-span-6 @4xl:col-span-4',
+  half: 'col-span-12 @2xl:col-span-6',
+  two_thirds: 'col-span-12 @4xl:col-span-8',
   full: 'col-span-12',
 };
 
@@ -180,7 +181,7 @@ export function LayoutGrid({
   useFocusRequests(root, screen);
 
   const customizing = mode === 'customize';
-  const containerClass = columns === 'one' ? 'flex flex-col gap-4' : 'grid grid-cols-12 gap-4';
+  const containerClass = columns === 'one' ? 'flex flex-col gap-4' : '@container grid grid-cols-12 gap-4';
   const cellClass = (item: CardItem): string => (columns === 'one' ? '' : SPAN_CLASS[item.width ?? 'full']);
   const viewCellClass = (item: CardItem): string => cn(cellClass(item), cardClassName?.(item));
   const cards = document.cards ?? [];

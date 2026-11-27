@@ -249,6 +249,14 @@ function CostsContent({
     },
   ];
   const sources = total.data?.meta.cost_sources;
+  const sourcesText =
+    sources === undefined
+      ? undefined
+      : t('sources', {
+          provider: usd(sources.provider_reported),
+          tokens: usd(sources.computed_from_tokens),
+          estimate: usd(sources.price_book_estimate),
+        });
 
   return (
     <div className={PAGE_CLASS}>
@@ -322,15 +330,11 @@ function CostsContent({
               height={240}
               summary={t('chartSummary', { month: label, total: totalUsd === undefined ? EMPTY_VALUE : usd(totalUsd) })}
               status={byDay.isPending ? 'loading' : 'ready'}
-              footnote={
-                sources === undefined
-                  ? undefined
-                  : t('sources', {
-                      provider: usd(sources.provider_reported),
-                      tokens: usd(sources.computed_from_tokens),
-                      estimate: usd(sources.price_book_estimate),
-                    })
-              }
+              footnote={sourcesText}
+              info={{
+                what: t('chartInfoWhat'),
+                how: sourcesText === undefined ? t('chartInfoHow') : `${t('chartInfoHow')} ${sourcesText}`,
+              }}
             />
           )}
         </div>

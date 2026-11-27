@@ -81,7 +81,7 @@ export function createSelect({ name, options, get, set, searchable = false, widt
   };
   const refresh = () => {
     const current = options.find((option) => option.id === get()) ?? options[0];
-    trigger.replaceChildren(el('span', 'text-foreground-secondary', `${name}:`), labelOf(current), icon('chevron-down', 'size-icon-sm shrink-0 ml-auto text-foreground-tertiary'));
+    trigger.replaceChildren(labelOf(current), icon('chevron-down', 'size-icon-sm shrink-0 ml-auto text-foreground-tertiary'));
     trigger.setAttribute('aria-label', `${name}: ${current.label}`);
     buttons.forEach(({ button, option }) => button.setAttribute('aria-selected', String(option.id === current.id)));
   };

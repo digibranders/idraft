@@ -99,7 +99,7 @@ export function PageHeader({
           {meta === undefined ? null : <p className="type-meta">{meta}</p>}
         </div>
         {toolbar === undefined ? null : (
-          // Narrow: its own row under the title and actions. Wide (the header's own width, so a docked inspector counts): between them
+          // Narrow: its own row under the title and actions. Wide (the header's own width): between them
           <div className="order-3 min-w-0 basis-full @6xl:order-2 @6xl:flex-1 @6xl:basis-80">{toolbar}</div>
         )}
         {actions === undefined ? null : (

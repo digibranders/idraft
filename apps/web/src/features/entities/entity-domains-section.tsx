@@ -19,6 +19,7 @@ import { toast } from '@/components/ui/toast';
 import { isApiProblem } from '@/lib/api/problem';
 import { apiMutation } from '@/lib/api/query';
 import { domainMessageKey, normalizeDomain } from '@/lib/domains/normalize';
+import { parseAddress } from '@/lib/internal-links/pasted-url';
 
 const ADD = apiMutation('post', '/api/v1/workspaces/{workspace_id}/entities/{entity_id}/domains');
 const REMOVE = apiMutation(
@@ -238,7 +239,10 @@ export function EntityDomainsSection({ scope, entity, canWrite }: EntityDomainsS
                 autoComplete="off"
                 spellCheck={false}
                 onValueChange={(value) => {
-                  setPathPrefix(value);
+                  // A pasted address gives its path, and its host when the domain is still empty
+                  const address = parseAddress(value);
+                  setPathPrefix(address?.path ?? value);
+                  if (address !== null && domain.trim() === '') setDomain(address.host);
                   setPathError(null);
                 }}
               />

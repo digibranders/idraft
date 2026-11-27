@@ -116,7 +116,7 @@ Project-level restriction (Phase 1 schema, Phase 12 UI): a membership can be lim
 | `alerts:write` (rules, webhook endpoints, acknowledging alert events) | yes | yes | yes | | | |
 | `views:write` (saved views; private views for analyst, workspace views editor and above) | yes | yes | yes | yes | | |
 | `layouts:manage` (set or remove the workspace's team default layout; every member may arrange their own view without a permission key) | yes | yes | | | | |
-| `notes:write` (add and delete notes on a project's charts) | yes | yes | yes | | | |
+| `notes:write` (add and delete notes on a project's charts, write notes on a page, and upload and attach files to a page note; reading a file needs `data:read`) | yes | yes | yes | | | |
 | `imports:write` (keyword, prompt and first-party file imports) | yes | yes | yes | | | |
 | `api_keys:manage` | yes | yes | | | | |
 | `ops:read` (task lists, dead letters, workspace ops summary; run lists and freshness need only `data:read`, provider status `providers:manage`) | yes | yes | yes | | | |
@@ -228,6 +228,10 @@ Features that fetch user-supplied URLs: target URL validation (HEAD request), si
 ### 7.4 Provider callbacks (pingbacks)
 
 Not applicable in V1. Readiness is polling only (`tasks_ready` plus the id sweeper, [ADR-022](adr/ADR-022-python-backend-simplified-platform.md), superseding ADR-018), so no callback route exists and nothing can be forged. If callbacks are ever added, treat them as unsigned hints: source-IP allowlist at Caddy, a rotating route token, and a handler that only enqueues an idempotent fetch of a task we own.
+
+### 7.5 Files on a page note
+
+A page note may carry up to 5 files of 10 MB each, uploaded by a member with `notes:write`. The content decides the type (PNG, JPEG, GIF, WebP, PDF, CSV or plain text); the name and the browser's type never do, SVG, HTML, XML and script files are refused in every disguise, and a name is kept only to show. A file is served only through the API (`data:read`, checked on every read, no signed URL), with the stored `Content-Type`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, and `Content-Disposition: inline` for the four image types and `attachment` for the rest, and it is hidden at once when its note is deleted. Files are not scanned for malware: the defence is what is served and how, and a person who downloads a PDF is as exposed as with any PDF. Each workspace stores at most 1 GiB of note files. Nothing deletes a stored file yet (the store cannot delete and no purge exists), so files of deleted notes, removed files and orphans stay in the bucket.
 
 ## 8. Rate limiting and abuse control
 

@@ -134,6 +134,7 @@ export function DateRangePicker({
   const fromId = `${ids}-from`;
   const toId = `${ids}-to`;
   const noteId = `${ids}-note`;
+  const formId = `${ids}-form`;
   const presetsId = `${ids}-presets`;
   const limitId = `${ids}-limit`;
 
@@ -376,6 +377,29 @@ export function DateRangePicker({
       open={open}
       onOpenChange={handleOpenChange}
       initialFocus={appliedRef}
+      // Pinned, so Cancel and Apply stay in view when the calendar is taller than the screen
+      footer={
+        customOpen ? (
+          <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <p className="min-w-0 type-meta break-words">{t('zone', { zone: timeZone })}</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                {common('cancel')}
+              </Button>
+              <Button
+                type="submit"
+                form={formId}
+                variant="primary"
+                size="sm"
+                disabled={problem !== null}
+                aria-describedby={noteId}
+              >
+                {t('apply')}
+              </Button>
+            </div>
+          </div>
+        ) : undefined
+      }
     >
       <div ref={paneRef} className="flex flex-col gap-3 md:flex-row md:items-start">
         <div
@@ -431,6 +455,7 @@ export function DateRangePicker({
             <legend className="sr-only">{t('custom')}</legend>
             {/* A form, so Enter in a date field applies a valid range as Apply does */}
             <form
+              id={formId}
               noValidate
               className="flex flex-col gap-3"
               onSubmit={(event) => {
@@ -469,23 +494,9 @@ export function DateRangePicker({
                   className="absolute top-0 right-0"
                 />
               </div>
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <p className="min-w-0 type-meta break-words">{t('zone', { zone: timeZone })}</p>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-                    {common('cancel')}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    disabled={problem !== null}
-                    aria-describedby={noteId}
-                  >
-                    {t('apply')}
-                  </Button>
-                </div>
-              </div>
+              {/* The visible Apply sits in the pinned footer, outside this form. A submit button inside the form keeps
+                  Enter in a date field working in every browser, and it is disabled with Apply */}
+              <button type="submit" hidden disabled={problem !== null} />
             </form>
           </fieldset>
         ) : null}

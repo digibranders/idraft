@@ -40,7 +40,7 @@ export interface CompetitorInspectorProps {
 }
 
 /**
- * The competitor drawer (OV-DRW-01 to OV-DRW-08, 440 px): the inspector of the page for one tracked brand. It reads the
+ * The competitor drawer (OV-DRW-01 to OV-DRW-08, 480 to 960 px wide): the inspector of the page for one tracked brand. It reads the
  * page scope, so its numbers are the cards' (R12) and follow the scope when it changes. The header names the competitor,
  * its domain, the platform and the group; Previous, Next, J and K step through the competitors in the order of the
  * Competitor gap card and wrap around.

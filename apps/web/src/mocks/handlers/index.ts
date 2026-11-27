@@ -1,6 +1,7 @@
 import type { HttpHandler } from 'msw';
 
 import { authHandlers } from './auth';
+import { cannibalizationHandlers, cannibalizationTargetHandlers } from './cannibalization';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
 import { integrationHandlers } from './integrations';
@@ -9,11 +10,13 @@ import { internalLinkChangeHandlers } from './internal-links-changes';
 import { internalLinkOpportunityHandlers } from './internal-links-opportunities';
 import { internalLinkShareHandlers } from './internal-links-shares';
 import { invitationHandlers } from './invitations';
+import { issueHandlers } from './issues';
 import { keywordGroupHandlers } from './keyword-groups';
 import { keywordImportHandlers } from './keyword-imports';
 import { keywordQuotaHandlers } from './keyword-quota';
 import { keywordHandlers } from './keywords';
 import { meHandlers } from './me';
+import { pageSearchHandlers } from './page-search';
 import { pendingHandlers } from './pending';
 import { projectEntityHandlers } from './project-entities';
 import { projectHandlers } from './projects';
@@ -120,9 +123,12 @@ export const handlers: readonly HttpHandler[] = [
   ...taxonomyHandlers,
   ...registryHandlers,
   ...keywordHandlers,
+  // Before the Keywords handlers: it answers the target write of the Cannibalization keywords and leaves any other to them
+  ...cannibalizationTargetHandlers,
   ...trackedKeywordHandlers,
   ...rankEventsHandlers,
   ...keywordQuotaHandlers,
+  ...cannibalizationHandlers,
   ...rankHistoryHandlers,
   ...serpHandlers,
   ...keywordGroupHandlers,
@@ -211,6 +217,10 @@ export const handlers: readonly HttpHandler[] = [
   ...internalLinkChangeHandlers,
   ...internalLinkOpportunityHandlers,
   ...internalLinkShareHandlers,
+  // Page search and tracked pages (page search and Monitoring plan 02)
+  ...pageSearchHandlers,
+  // Issues (the checks of a crawl)
+  ...issueHandlers,
   ...pendingHandlers,
 ];
 

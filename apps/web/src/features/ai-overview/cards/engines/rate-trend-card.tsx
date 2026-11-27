@@ -503,7 +503,6 @@ export default function RateTrendCard({ item, live }: CardProps): ReactElement {
       extendOption={extendOption}
       legendValues={legendValues}
       legendMarkers
-      tableIcon
       menu={{ fileName: t('fileName'), png: true, csv: true }}
       {...frame}
     />

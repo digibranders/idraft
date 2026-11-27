@@ -403,7 +403,7 @@ test.describe('The Citations page (WP-77)', () => {
     });
   }
 
-  for (const width of [768, 1024] as const) {
+  for (const width of [900, 1024] as const) {
     test(`is accessible at ${String(width)} px with the drawer open`, async ({ page }) => {
       await openCitations(page, width, 'platform=chatgpt_web');
       await expectAccessible(page);

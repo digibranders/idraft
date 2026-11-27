@@ -22,6 +22,8 @@ export interface CrawlHeaderProps {
   activeTab?: string | undefined;
   /** Line 2: the crawl picker and the context line. */
   context?: ReactNode | undefined;
+  /** `one-line` draws the context in the first row, between the tabs and the actions; the default has two lines. */
+  layout?: 'two-line' | 'one-line' | undefined;
   active: CrawlRun | null;
   timeZone: string;
   canCrawl: boolean;
@@ -57,6 +59,7 @@ export function CrawlHeader({
   tabs,
   activeTab,
   context,
+  layout = 'two-line',
   active,
   timeZone,
   canCrawl,
@@ -77,6 +80,7 @@ export function CrawlHeader({
   const tabsRef = useRef<HTMLDivElement>(null);
   const wide = useMediaQuery(MEDIA.md);
   const running = active !== null && isActive(active);
+  const oneLine = layout === 'one-line';
   // A tab list wider than the room scrolls inside itself: the chosen tab must never be the one that is cut off
   useEffect(() => {
     const list = tabsRef.current?.querySelector<HTMLElement>('[role="tablist"]');
@@ -135,6 +139,12 @@ export function CrawlHeader({
             {tabs}
           </div>
         )}
+        {oneLine && context !== undefined ? (
+          // Its own room: the line scrolls sideways inside it and never wraps or pushes the actions away
+          <div className="scrollbar-none flex min-w-0 flex-1 basis-full items-center gap-3 overflow-x-auto md:basis-0">
+            {context}
+          </div>
+        ) : null}
         <div className="flex shrink-0 basis-full items-center justify-end gap-2 md:ml-auto md:basis-auto">
           <CrawlButton
             label={running ? t('crawling') : t('crawlNow')}
@@ -161,7 +171,7 @@ export function CrawlHeader({
           />
         </div>
       </div>
-      {context === undefined ? null : <div className="flex min-w-0 items-center gap-3">{context}</div>}
+      {context === undefined || oneLine ? null : <div className="flex min-w-0 items-center gap-3">{context}</div>}
     </div>
   );
 }

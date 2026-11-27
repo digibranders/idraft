@@ -1,5 +1,8 @@
 @import "../src/styles/globals.css";
 @source "./index.html";
+@source "./ins.js";
+@source "./comp.js";
+@source "./tables.js";
 @source "./charts.js";
 @source "./interactions.js";
 @source "./customize.js";
@@ -76,17 +79,11 @@ table thead th [data-keep-case] {
   letter-spacing: normal;
 }
 
-/* A bar drawn as a cylinder lying down: lit along its top edge, shaded underneath, rounded ends, a soft shadow in its own color */
+/* A flat bar with rounded ends: one solid colour, no gradient, no glow */
 .bar-cylinder {
   height: 14px;
   border-radius: 9999px;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in oklch, var(--bar-color) 55%, white) 0%,
-    var(--bar-color) 45%,
-    color-mix(in oklch, var(--bar-color) 70%, black) 100%
-  );
-  box-shadow: 0 3px 6px color-mix(in oklch, var(--bar-color) 35%, transparent);
+  background: var(--bar-color);
   transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @media (prefers-reduced-motion: reduce) {

@@ -4,19 +4,21 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import {
-  citingCompetitorsCount,
+  citingCompetitorRows,
   insightWindows,
-  untrackedCount,
+  untrackedKeywords,
   type InsightCount,
   type InsightKey,
+  type UntrackedKeyword,
 } from './insights-model';
 import { mapRead, useRead, type Gate, type Read } from '../data/read-state';
 import { useOverview } from '../overview-context';
 import { apiQuery } from '@/lib/api/query';
-import { gapsQuery } from '@/lib/citations/board-queries';
+import { gapsQuery, type CitationGapRow } from '@/lib/citations/board-queries';
 import { sourceChangesQuery, sourceDomainsQuery } from '@/lib/citations/source-queries';
 import { projectEntitiesQuery } from '@/lib/entities/project-entities';
 import { useZoneDay } from '@/lib/dom/use-zone-day';
+import type { Schemas } from '@/lib/api/types';
 
 const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const KEYWORDS = `${P}/tracked-keywords` as const;
@@ -31,14 +33,33 @@ const DEFAULT_RUNS = 4;
 /** At least this many citation units for a "new" domain, as the route's own default. */
 const NEW_MIN_SUPPORT = 2;
 
-export type InsightReads = Readonly<Record<InsightKey, Read<InsightCount>>>;
+/** A line's count with the rows it counted: a cut list makes `count` a floor, which `atLeast` says. */
+export interface InsightLine<Row> extends InsightCount {
+  rows: readonly Row[];
+}
+
+export interface InsightLines {
+  untracked: InsightLine<UntrackedKeyword>;
+  /** The prompts lost on at least one platform, with the competitors the gap was read against. */
+  gaps: InsightLine<CitationGapRow>;
+  citingCompetitors: InsightLine<Schemas['SourceDomainRow']>;
+  newDomains: InsightLine<Schemas['SourceChangeRow']>;
+}
+
+export type InsightReads = { readonly [K in InsightKey]: Read<InsightLines[K]> };
+
+export interface Insights {
+  reads: InsightReads;
+  /** Tracked competitors by brand id, for the names a row carries only as ids. */
+  competitorNames: ReadonlyMap<string, string>;
+}
 
 /**
  * The four lines of the Insights box, each its own read: one that fails or waits leaves the others alone. The box
  * counts the whole project (every enabled platform, every group, branded prompts as the pages count them), so the
  * Overview's scope does not change it. `idle` is a line that cannot be asked (no platform on, no tracked competitor).
  */
-export function useInsights(): InsightReads {
+export function useInsights(): Insights {
   const { workspaceId, project, enabledEngines, engines: enginesRead } = useOverview();
   const today = useZoneDay(project.timeZone);
   const source = useMemo(() => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
@@ -72,7 +93,11 @@ export function useInsights(): InsightReads {
     ...apiQuery(KEYWORDS, {
       params: {
         path: { workspace_id: workspaceId, project_id: project.id },
-        query: { 'filter[aio_state]': ['present_not_cited', 'present_cited'], limit: PAGE },
+        query: {
+          'filter[aio_state]': ['present_not_cited', 'present_cited'],
+          include: ['aio', 'metrics'],
+          limit: PAGE,
+        },
       },
     }),
   });
@@ -97,7 +122,7 @@ export function useInsights(): InsightReads {
     ...sourceChangesQuery(
       source,
       { ...windows.month, engines, roles: ['third_party'] },
-      { kind: 'new', minSupport: NEW_MIN_SUPPORT, limit: 1 },
+      { kind: 'new', minSupport: NEW_MIN_SUPPORT, limit: PAGE },
     ),
     enabled: hasEngines,
   });
@@ -128,22 +153,43 @@ export function useInsights(): InsightReads {
   const changesRead = dependsOn(useRead(changes, engineGate), false);
   const idSet = useMemo(() => new Set(competitorIds), [competitorIds]);
 
-  return useMemo(
+  const competitorNames = useMemo(
+    () =>
+      new Map(
+        (entities.data?.data ?? [])
+          .filter((row) => row.removed_at === null && row.role === 'competitor')
+          .map((row) => [row.entity.entity_id, row.entity.canonical_name] as const),
+      ),
+    [entities.data],
+  );
+  const reads = useMemo(
     (): InsightReads => ({
-      untracked: mapRead(untrackedRead, ({ keywords: k, prompts: p }) =>
-        untrackedCount(
-          k.data.map((row) => row.keyword.text),
+      untracked: mapRead(untrackedRead, ({ keywords: k, prompts: p }) => {
+        const rows = untrackedKeywords(
+          k.data.map((row) => ({
+            text: row.keyword.text,
+            volume: row.metrics?.search_volume.value ?? null,
+            cited: row.aio?.state === 'present_cited',
+          })),
           p.data.map((row) => row.current_version.text),
-          { moreKeywords: k.page.has_more, morePrompts: p.page.has_more },
-        ),
-      ),
-      gaps: mapRead(gapsRead, (data) => ({ count: data.meta.gaps, atLeast: false })),
-      citingCompetitors: mapRead(domainsRead, (data) =>
-        citingCompetitorsCount(data.data, idSet, data.page.total > data.data.length),
-      ),
+          { morePrompts: p.page.has_more },
+        );
+        // Prompts that were cut could hide a match: nothing true can be said, which is a floor of zero
+        return { count: rows.length, atLeast: k.page.has_more || p.page.has_more, rows };
+      }),
+      gaps: mapRead(gapsRead, (data) => ({
+        count: data.meta.gaps,
+        atLeast: false,
+        rows: data.data.filter((row) => row.gap > 0),
+      })),
+      citingCompetitors: mapRead(domainsRead, (data) => {
+        const rows = citingCompetitorRows(data.data, idSet);
+        return { count: rows.length, atLeast: data.page.total > data.data.length, rows };
+      }),
       // shortcut: `page.total` counts rows, one per domain and role, as `use-new-sources.ts` does
-      newDomains: mapRead(changesRead, (data) => ({ count: data.page.total, atLeast: false })),
+      newDomains: mapRead(changesRead, (data) => ({ count: data.page.total, atLeast: false, rows: data.data })),
     }),
     [untrackedRead, gapsRead, domainsRead, changesRead, idSet],
   );
+  return { reads, competitorNames };
 }

@@ -2,6 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Link2 } from 'lucide-react';
+import type { Route } from 'next';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useState, type ReactElement } from 'react';
 
@@ -9,6 +11,7 @@ import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { TierBadge } from '@/components/app/tier/tier-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TextLink } from '@/components/ui/text-link';
 import type { Direction } from '@/lib/internal-links/journey-layout';
 import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { READ_LIMIT } from '@/lib/internal-links/journey-layout';
@@ -29,7 +32,8 @@ export interface NeighborSectionProps {
   total: number;
   title: string;
   onOpen: (urlId: string) => void;
-  onViewAll: () => void;
+  /** Where View all in Links goes: a link that carries the crawl and the scope. */
+  viewAllHref: Route;
 }
 
 /** One read of `READ_LIMIT` neighbors; a failed read says so and offers Try again, so the pages before it stay. */
@@ -94,7 +98,7 @@ function NeighborRows({
 export function NeighborSection({
   total,
   title,
-  onViewAll,
+  viewAllHref,
   linksAvailable,
   ...read
 }: NeighborSectionProps): ReactElement {
@@ -126,11 +130,7 @@ export function NeighborSection({
             {t('showMore')}
           </Button>
         ) : null}
-        {linksAvailable && total > 0 ? (
-          <Button variant="link" size="sm" onClick={onViewAll}>
-            {t('viewAll')}
-          </Button>
-        ) : null}
+        {linksAvailable && total > 0 ? <TextLink render={<Link href={viewAllHref} />}>{t('viewAll')}</TextLink> : null}
       </div>
     </InspectorSection>
   );

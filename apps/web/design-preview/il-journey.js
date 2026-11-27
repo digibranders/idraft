@@ -10,7 +10,7 @@ import {
   setFocus, setTier, suggestedLinks, state, statusBadge, tierBadge, tierBg, tierCode, tierEdge, tierIdOf, tierLabel, tierPosition, tiers,
 } from './il-model.js';
 import { openInspector } from './il-drawer.js';
-import { HOST } from './il-data.js';
+import { HOST, searchPathOf } from './il-data.js';
 import { MAX_K, MIN_K, createMinimap, createViewport } from './il-canvas.js';
 import { MAX_CARDS, backsOf, buildJourney, canOpen, depthText, linksOf, markerScope, treeRows } from './il-journey-layout.js';
 
@@ -1555,7 +1555,7 @@ function pagePicker({ prefix, current, onPick, ariaLabel, popoverLabel }) {
     const isRedirect = (page) => page.status >= 300 && page.status < 400;
     const sorted = activePages().sort((a, b) => Number(isRedirect(a)) - Number(isRedirect(b)) || (tierPosition(tierIdOf(a)) || 99) - (tierPosition(tierIdOf(b)) || 99) || a.path.localeCompare(b.path));
     const fill = () => {
-      const query = search.value.trim().toLowerCase();
+      const query = searchPathOf(search.value).toLowerCase();
       const found = sorted.filter((candidate) => !query || candidate.path.toLowerCase().includes(query) || candidate.title.toLowerCase().includes(query));
       list.replaceChildren(...(found.length === 0 ? [el('p', 'px-2 py-3 type-body text-foreground-secondary', 'No crawled page matches. Check the spelling or search for part of the path.')] : found.map((candidate) => {
         const item = el('button', `flex h-row-compact w-full items-center gap-2 rounded-sm px-2 text-left hover:bg-surface-hover ${FOCUS_RING} ${candidate.id === current ? 'bg-surface-selected' : ''}`);

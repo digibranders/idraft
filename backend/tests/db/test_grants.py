@@ -115,6 +115,18 @@ PAGE_WORKER_UPDATE = (
     "generic_anchors",
     # Migration 0037: the canonical page a variant folds into.
     "variant_of_url_id",
+    # Migration 0047: what a page's HTML says, and how long the page took to answer.
+    "facts_read",
+    "meta_description",
+    "h1_count",
+    "word_count",
+    "text_hash",
+    "images_without_alt",
+    "og_complete",
+    "jsonld_errors",
+    "hreflang_errors",
+    "http_resources",
+    "response_ms",
 )
 
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")
@@ -493,6 +505,20 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT, DELETE", UPDATE=("tier_id", "tier_source", "rule_id", "set_at")),
     ),
     "core.page_terms": (access("SELECT, INSERT, DELETE"), NONE),
+    # Migrations 0042 and 0043: the API adds a note, changes its body and mentions and marks it
+    # deleted; nobody deletes.
+    "core.page_notes": (
+        access(
+            "SELECT, INSERT",
+            UPDATE=("body", "mentions", "edited_at", "deleted_at", "deleted_by"),
+        ),
+        NONE,
+    ),
+    # Migration 0044: a file is added, attached once and marked removed; nobody deletes.
+    "core.page_note_attachments": (
+        access("SELECT, INSERT", UPDATE=("note_id", "removed_at")),
+        NONE,
+    ),
     "seo.crawl_runs": (
         access(
             "SELECT, INSERT",
@@ -514,6 +540,10 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     # Migration 0027: what changed between crawls, written by `crawl_enrich`, read by the API.
     "seo.crawl_link_changes": (READ, access("SELECT, INSERT, DELETE")),
     "seo.crawl_page_changes": (READ, access("SELECT, INSERT, DELETE")),
+    "seo.page_snapshots": (READ, access("SELECT, INSERT")),
+    "seo.page_checks": (READ, access("SELECT, INSERT")),
+    "seo.page_history_runs": (READ, access("SELECT, INSERT, UPDATE")),
+    "seo.page_google_crawl": (READ, access("SELECT, INSERT, UPDATE")),
     "seo.crawl_alerts": (READ, access("SELECT, INSERT, DELETE")),
     "seo.crawl_mentions": (READ, access("SELECT, INSERT, DELETE")),
     # The people's decisions: the API alone writes them.
@@ -545,8 +575,23 @@ MATRIX: dict[str, tuple[Access, Access]] = {
         access("SELECT, INSERT, DELETE", UPDATE=("is_primary", "status")),
         READ,
     ),
-    # Page totals from Search Console, replaced by the worker a day at a time.
-    "fp.gsc_page_daily": (READ, access("SELECT, INSERT, DELETE")),
+    # Page totals from Search Console, replaced by the worker a day at a time (migration 0045: the
+    # API stores a page's history it fetched on demand; both roles may correct a row).
+    "fp.gsc_page_daily": (
+        access("SELECT, INSERT, UPDATE"),
+        access("SELECT, INSERT, UPDATE, DELETE"),
+    ),
+    # Migration 0045: page search detail. The worker learns the address forms; the API and the
+    # worker both store (INSERT ... ON CONFLICT DO UPDATE needs UPDATE) and prune what a page
+    # fetch brings; the API tracks and untracks pages.
+    "fp.gsc_page_forms": (READ, access("SELECT, INSERT, UPDATE")),
+    "fp.gsc_page_fetches": (CRUD, CRUD),
+    "fp.gsc_page_breakdown": (CRUD, CRUD),
+    "core.tracked_pages": (access("SELECT, INSERT, DELETE"), READ),
+    # Migration 0041: the referrer rules are global and read only; the worker replaces the
+    # classified AI referral numbers a window at a time.
+    "fp.ai_referrer_rules": (READ, READ),
+    "fp.ai_referral_daily": (READ, access("SELECT, INSERT, DELETE")),
 }
 
 _TABLES = """

@@ -1,5 +1,6 @@
-import { FileText, Grid3x3, History, Link2, type LucideIcon, Sparkles, Workflow } from 'lucide-react';
+import { Grid3x3, History, Link2, type LucideIcon, Sparkles, Waypoints, Workflow } from 'lucide-react';
 import type { Route } from 'next';
+import dynamic from 'next/dynamic';
 import type { useTranslations } from 'next-intl';
 import { createElement, type ReactNode } from 'react';
 
@@ -8,13 +9,22 @@ import { FlowTab } from './flow/flow-tab';
 import { JourneyTab } from './journey/journey-tab';
 import { LinksTab } from './links/links-tab';
 import { OpportunitiesTab } from './opportunities/opportunities-tab';
-import { PagesTab } from './pages/pages-tab';
+import { SkeletonRows } from './crawl-states';
 import type { LinksState, LinksTabId, SetLinksSearch } from './url-state';
 import type { CrawlInView } from '@/lib/internal-links/crawl-choice';
 import type { LinksScope, PageTier } from '@/lib/internal-links/types';
 
 /** The translator of `internalLinks`, as `useTranslations('internalLinks')` gives it. */
 export type LinksTranslate = ReturnType<typeof useTranslations<'internalLinks'>>;
+
+/**
+ * The Link map loads when its tab opens: its canvas and ECharts are the heaviest code of the page, and most visits
+ * never open it. It draws on a canvas, so it is never rendered on the server.
+ */
+const MapTab = dynamic(() => import('./map/map-tab').then((module) => module.MapTab), {
+  ssr: false,
+  loading: () => createElement(SkeletonRows),
+});
 
 /** What a tab of the page is handed. */
 export interface LinksTabContext {
@@ -62,12 +72,12 @@ export interface LinksTabEntry {
 }
 
 const ORDER: Readonly<Record<LinksTabId, number>> = {
-  pages: 0,
-  links: 1,
-  journey: 2,
+  journey: 0,
+  map: 1,
+  links: 2,
   flow: 3,
-  changes: 4,
-  opportunities: 5,
+  changes: 5,
+  opportunities: 6,
 };
 
 /** The tabs in the page's order; a repeated id is a mistake of the code that lists them. */
@@ -80,14 +90,8 @@ export function defineLinksTabs(entries: readonly LinksTabEntry[]): readonly Lin
   return [...entries].sort((a, b) => ORDER[a.id] - ORDER[b.id]);
 }
 
-/** The tabs built so far: each tab's task adds its entry here (Pages, Links, Journey, Tier flow, Changes, Opportunities). */
+/** The tabs built so far: each tab's task adds its entry here (Journey, Link map, Links, Tier flow, Changes, Opportunities). */
 export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
-  {
-    id: 'pages',
-    label: (t) => t('tabs.pages'),
-    icon: FileText,
-    render: (context) => createElement(PagesTab, { context }),
-  },
   {
     id: 'links',
     label: (t) => t('tabs.links'),
@@ -99,6 +103,12 @@ export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
     label: (t) => t('tabs.journey'),
     icon: Workflow,
     render: (context) => createElement(JourneyTab, { context }),
+  },
+  {
+    id: 'map',
+    label: (t) => t('tabs.map'),
+    icon: Waypoints,
+    render: (context) => createElement(MapTab, { context }),
   },
   {
     id: 'flow',
@@ -124,6 +134,7 @@ export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
 export const LINK_LEVEL_TABS: ReadonlySet<LinksTabId> = new Set<LinksTabId>([
   'links',
   'journey',
+  'map',
   'changes',
   'opportunities',
 ]);

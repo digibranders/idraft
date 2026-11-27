@@ -144,7 +144,7 @@ export function build({ get, set, scope }) {
     });
     updaters.push((state) => {
       const chosen = [...state[key]].map((code) => items.find((item) => item.code === code)?.name ?? code);
-      trigger.text.textContent = chosen.length === 0 ? `${name}: All` : chosen.length === 1 ? chosen[0] : `${chosen[0]} +${chosen.length - 1}`;
+      trigger.text.textContent = chosen.length === 0 ? `All ${name.toLowerCase()}s` : chosen.length === 1 ? chosen[0] : `${chosen[0]} +${chosen.length - 1}`;
     });
     return trigger;
   };

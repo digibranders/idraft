@@ -89,6 +89,9 @@ class _Text(HTMLParser):
         # open one of its name and every one opened inside it, so an element a page never
         # closed does not hide the rest of the page; `</body>` ends them all.
         self.skipping: list[str] = []
+        # How many of each name are in `skipping`, so a closing tag with no open match is O(1)
+        # and one with a match pops only what it ends (a scan per closing tag was quadratic).
+        self._skipping_count: Counter[str] = Counter()
         self.main = 0
         self.has_main = False
         # The text of the page, one entry per block (paragraph, list item, cell...), whole
@@ -102,24 +105,32 @@ class _Text(HTMLParser):
         if tag in _VOID:
             self._break(tag)
             return
-        if tag == "a" and "a" in self.skipping:
+        if tag == "a" and self._skipping_count["a"]:
             # A link cannot hold a link: a second one means the first was never closed.
-            del self.skipping[len(self.skipping) - 1 - self.skipping[::-1].index("a") :]
+            self._close_skipped("a")
         if tag in _SKIP:
             self.skipping.append(tag)
+            self._skipping_count[tag] += 1
         elif tag in ("main", "article") and not self.skipping:
             self.main += 1
             self.has_main = True
         self._break(tag)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in self.skipping:
-            del self.skipping[len(self.skipping) - 1 - self.skipping[::-1].index(tag) :]
+        if self._skipping_count[tag]:
+            self._close_skipped(tag)
         elif tag == "body":
             self.skipping.clear()
+            self._skipping_count.clear()
         elif tag in ("main", "article") and self.main and not self.skipping:
             self.main -= 1
         self._break(tag)
+
+    def _close_skipped(self, tag: str) -> None:
+        """End the innermost open `tag` and everything opened inside it (one is open)."""
+        while (top := self.skipping.pop()) != tag:
+            self._skipping_count[top] -= 1
+        self._skipping_count[tag] -= 1
 
     def _break(self, tag: str) -> None:
         if tag in _BLOCKS:
