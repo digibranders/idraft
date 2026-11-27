@@ -129,3 +129,20 @@ async def test_a_crawl_read_by_an_older_html_reader_says_it_is_stale_and_counts_
     assert (old["html_reader_stale"], old["pages_links_suspect"]) == (True, None)
     assert (current["html_reader_stale"], current["pages_links_suspect"]) == (False, 4)
     assert provider["html_reader_stale"] is False
+
+
+async def test_a_crawl_whose_links_were_dropped_is_not_called_stale(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    base, headers, _ = await _site(resources, migrated)
+    run = (
+        await fetchrow(migrated, "SELECT id FROM seo.crawl_runs ORDER BY created_at DESC LIMIT 1")
+    )["id"]
+    await execute(
+        migrated, "UPDATE seo.crawl_pages SET links_state = 'from_html' WHERE run_id = $1", run
+    )
+    await execute(migrated, "UPDATE seo.crawl_runs SET links_dropped_at = now() WHERE id = $1", run)
+
+    crawls = await api.get(base.replace("internal-links", "link-crawls"), headers=headers)
+
+    assert crawls.json()["data"][0]["html_reader_stale"] is False

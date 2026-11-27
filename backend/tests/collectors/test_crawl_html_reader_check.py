@@ -261,3 +261,23 @@ def test_a_page_with_more_links_than_a_smallint_holds_stores_a_clamped_number_an
         "links_read": 32_767,
         "links_suspect": True,
     }
+
+
+async def test_a_fresh_crawl_with_a_page_the_check_could_not_read_is_not_stamped_old(
+    migrated: PostgresServer, worker_db: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(html: str, page_url: str = "") -> int:
+        raise ValueError("unreadable")
+
+    monkeypatch.setattr(crawl_ingest, "anchor_count", broken)
+    on_page = synthetic_site()
+    crawled = await _crawled(migrated, worker_db, on_page)
+    await _ingest(worker_db, on_page, MemoryStore(), crawled.task)
+
+    run = await _run(migrated, crawled.task.run_id)
+    pages = [
+        p for p in await _checks(migrated, crawled.task.run_id) if p["links_state"] == "from_html"
+    ]
+
+    assert run["html_reader_version"] == HTML_READER_VERSION
+    assert all(p["links_suspect"] is None and p["links_read"] is not None for p in pages)

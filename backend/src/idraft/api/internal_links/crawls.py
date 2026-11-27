@@ -147,6 +147,7 @@ def _record(row: Row[tuple[object, ...]]) -> CrawlRecord:
         enrich_state=row.enrich_state,
         html_reader_stale=(
             row.state in DATA_STATES
+            and row.links_dropped_at is None
             and row.html_read
             and (row.html_reader_version or 1) < HTML_READER_VERSION
         ),

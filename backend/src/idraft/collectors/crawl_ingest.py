@@ -220,14 +220,16 @@ _SMALLINT_MAX: Final = 32_767
 
 def check_values(read: _PageLinks) -> dict[str, object]:
     """The `crawl_pages` columns of the link check (migration 0048); none for a page that was not
-    read from HTML, which keeps them null: unchecked is never fine."""
-    if read.suspect is None or read.html_anchors is None or read.links_read is None:
+    read from HTML, which keeps them null: unchecked is never fine. `links_read` is set for every
+    page read from HTML (it marks a page read by code that has the check); the anchor count and
+    the verdict stay null for a page the check could not read."""
+    if read.links_read is None:
         return {}
-    return {
-        "html_anchors": min(read.html_anchors, _SMALLINT_MAX),
-        "links_read": min(read.links_read, _SMALLINT_MAX),
-        "links_suspect": read.suspect,
-    }
+    values: dict[str, object] = {"links_read": min(read.links_read, _SMALLINT_MAX)}
+    if read.html_anchors is not None and read.suspect is not None:
+        values["html_anchors"] = min(read.html_anchors, _SMALLINT_MAX)
+        values["links_suspect"] = read.suspect
+    return values
 
 
 def facts_values(facts: PageFacts | None) -> dict[str, object]:
@@ -668,7 +670,7 @@ async def _from_html(
         history=kept,
         facts=await asyncio.to_thread(read_facts, html, crawled_url),
         html_anchors=anchors,
-        links_read=None if anchors is None else usable,
+        links_read=usable,
         suspect=None if anchors is None else links_suspect(anchors, usable),
     )
 
@@ -877,7 +879,7 @@ async def _links(
                 crawl_pages.c.run_id == run.id,
                 crawl_pages.c.workspace_id == run.workspace_id,
                 crawl_pages.c.links_state == "from_html",
-                crawl_pages.c.links_suspect.is_(None),
+                crawl_pages.c.links_read.is_(None),
             )
             stamp["html_reader_version"] = case(
                 (earlier, 1),

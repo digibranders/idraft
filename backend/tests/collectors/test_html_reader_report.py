@@ -68,3 +68,16 @@ async def test_an_older_crawl_of_a_project_is_not_listed_when_a_newer_one_is_fin
 
     assert second in ids
     assert first not in ids
+
+
+async def test_a_crawl_without_pages_is_listed_with_no_pages_by_state(
+    migrated: PostgresServer, worker_db: Sessions
+) -> None:
+    workspace = await make_workspace(migrated)
+    project = await keyword_project(migrated, workspace)
+    run, _ = await seed_crawl(migrated, workspace, project, [])
+
+    rows = {row.run_id: row for row in await reader_report(worker_db)}
+
+    assert rows[run].pages_by_state == {}
+    assert rows[run].stale is False

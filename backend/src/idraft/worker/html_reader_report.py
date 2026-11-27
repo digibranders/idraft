@@ -27,16 +27,20 @@ from idraft.config.settings import load_settings
 from idraft.crawl.integrity import HTML_READER_VERSION
 from idraft.db.engine import create_engine, create_session_factory
 
+# The latest finished crawl of each project is picked first, and only then are its pages counted.
 _LATEST = text(
     """
-    SELECT DISTINCT ON (r.project_id) r.workspace_id, r.project_id, r.id AS run_id,
-           coalesce(r.html_reader_version, 1) AS version, r.pages_links_suspect,
-           (SELECT jsonb_object_agg(links_state, n) FROM
-               (SELECT links_state, count(*) AS n FROM seo.crawl_pages
-                WHERE run_id = r.id GROUP BY links_state) s) AS pages_by_state
-    FROM seo.crawl_runs r
-    WHERE r.state = ANY(CAST(:states AS text[]))
-    ORDER BY r.project_id, r.created_at DESC, r.id DESC
+    SELECT l.workspace_id, l.project_id, l.run_id, l.version, l.pages_links_suspect,
+           s.pages_by_state
+    FROM (SELECT DISTINCT ON (r.project_id) r.workspace_id, r.project_id, r.id AS run_id,
+                 coalesce(r.html_reader_version, 1) AS version, r.pages_links_suspect
+          FROM seo.crawl_runs r
+          WHERE r.state = ANY(CAST(:states AS text[]))
+          ORDER BY r.project_id, r.created_at DESC, r.id DESC) l
+    LEFT JOIN LATERAL
+        (SELECT jsonb_object_agg(links_state, n) AS pages_by_state
+         FROM (SELECT links_state, count(*) AS n FROM seo.crawl_pages
+               WHERE run_id = l.run_id GROUP BY links_state) c) s ON true
     """
 )
 
