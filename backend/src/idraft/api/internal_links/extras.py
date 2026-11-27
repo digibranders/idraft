@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Final
 
 from sqlalchemy import ARRAY, BigInteger, Row, Text, and_, bindparam, exists, select, text
@@ -26,6 +26,7 @@ from idraft.api.schemas.internal_links import (
     KeywordSummary,
     PageChange,
 )
+from idraft.api.schemas.internal_links_extra import PageSearchDaily, PageSearchDay
 from idraft.collectors.gsc_pages import page_clicks
 from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.db.tables import crawl_page_changes, crawl_pages, crawl_runs, gsc_page_daily
@@ -413,3 +414,46 @@ async def gsc_of(db: AsyncSession, scope: PageScope, ids: Sequence[int]) -> dict
         )
         for url in ids
     }
+
+
+async def page_search_daily(db: AsyncSession, scope: PageScope, url_id: int) -> PageSearchDaily:
+    """One page's Search Console clicks and impressions for every day of the stored window,
+    in the states of `gsc_window`; a day with no stored row is 0 and 0, a count."""
+    state = await gsc_window(db, scope)
+    if state.integration_id is None or state.window is None:
+        return PageSearchDaily(
+            state=state.state,
+            window_start=None,
+            window_end=None,
+            clicks=None,
+            impressions=None,
+            days=[],
+        )
+    start, end = state.window
+    stored = {
+        row.metric_date: (row.clicks, row.impressions)
+        for row in await db.execute(
+            select(
+                gsc_page_daily.c.metric_date, gsc_page_daily.c.clicks, gsc_page_daily.c.impressions
+            ).where(
+                gsc_page_daily.c.workspace_id == scope.workspace_id,
+                gsc_page_daily.c.project_id == scope.project_id,
+                gsc_page_daily.c.integration_id == state.integration_id,
+                gsc_page_daily.c.url_id == url_id,
+                gsc_page_daily.c.metric_date.between(start, end),
+            )
+        )
+    }
+    days: list[PageSearchDay] = []
+    for offset in range((end - start).days + 1):
+        day = start + timedelta(days=offset)
+        clicks, impressions = stored.get(day, (0, 0))
+        days.append(PageSearchDay(date=day, clicks=clicks, impressions=impressions))
+    return PageSearchDaily(
+        state="ok",
+        window_start=start,
+        window_end=end,
+        clicks=sum(day.clicks for day in days),
+        impressions=sum(day.impressions for day in days),
+        days=days,
+    )

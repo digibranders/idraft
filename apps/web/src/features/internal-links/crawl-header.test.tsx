@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import type { Route } from 'next';
 import { FileText } from 'lucide-react';
 import { delay, http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,7 @@ import { mswPath } from '@/mocks/respond';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
+import { CrawlHeader, type CrawlHeaderProps } from './crawl-header';
 
 // All six tabs as text, so the header is tested on its own; a test turns two off to see only the four built ones
 const registry = vi.hoisted(() => ({ six: true }));
@@ -23,9 +25,8 @@ vi.mock('./tabs', async (importOriginal) => {
     render: () => `Panel of ${label}`,
   });
   const four = actual.defineLinksTabs([
-    entry('pages', 'Pages'),
-    entry('links', 'Links'),
     entry('journey', 'Journey'),
+    entry('links', 'Links'),
     entry('flow', 'Tier flow'),
   ]);
   const six = actual.defineLinksTabs([...four, entry('changes', 'Changes'), entry('opportunities', 'Opportunities')]);
@@ -95,11 +96,11 @@ describe('the crawl picker', () => {
   });
 
   it('disables a crawl whose links were dropped only for the tabs that read links', async () => {
-    const pages = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS));
-    await pages.user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
-    const onPages = await screen.findAllByRole('menuitemradio');
-    expect(onPages[4]).not.toHaveAttribute('aria-disabled', 'true');
-    pages.unmount();
+    const flow = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=flow' });
+    await flow.user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
+    const onFlow = await screen.findAllByRole('menuitemradio');
+    expect(onFlow[4]).not.toHaveAttribute('aria-disabled', 'true');
+    flow.unmount();
     const links = renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), { searchParams: '?tab=links' });
     await links.user.click(await screen.findByRole('button', { name: CRAWL_SHOWN }));
     const onLinks = await screen.findAllByRole('menuitemradio');
@@ -151,12 +152,12 @@ describe('a crawl the address names that cannot be shown', () => {
       onUrlUpdate: ({ queryString }) => writes.push(queryString),
     });
     expect(await screen.findByRole('heading', { name: 'That crawl was not found' })).toBeInTheDocument();
-    expect(screen.queryByText('Panel of Pages')).toBeNull();
+    expect(screen.queryByText('Panel of Journey')).toBeNull();
     // The picker shows the latest crawl, not the crawl that was asked for
     expect(screen.getByRole('button', { name: CRAWL_SHOWN })).toHaveTextContent(/18 pages$/);
     await user.click(screen.getByRole('button', { name: 'Back to latest' }));
     await waitFor(() => expect(writes.at(-1)).not.toContain('run='));
-    expect(await screen.findByText('Panel of Pages')).toBeInTheDocument();
+    expect(await screen.findByText('Panel of Journey')).toBeInTheDocument();
   });
 });
 
@@ -410,4 +411,50 @@ describe('the header is accessible', () => {
       expect(await axe(document.body)).toHaveNoViolations();
     },
   );
+});
+
+describe('the one-line layout', () => {
+  const props = (over: Partial<CrawlHeaderProps>): CrawlHeaderProps => ({
+    tabs: <div role="tablist">Tabs</div>,
+    context: <span>Context text</span>,
+    active: null,
+    timeZone: 'UTC',
+    canCrawl: true,
+    canEditTiers: false,
+    crawlPending: false,
+    onCrawlNow: vi.fn(),
+    onExport: null,
+    settingsHref: '/settings' as Route,
+    tiersHref: '/tiers' as Route,
+    ...over,
+  });
+  const actionsOf = (): HTMLElement => {
+    const group = screen.getByRole('button', { name: 'Crawl now' }).parentElement;
+    if (group === null) throw new Error('Crawl now has no parent');
+    return group;
+  };
+
+  it('draws the context in the row of the tabs and the actions, between them, and scrolls it sideways', () => {
+    renderWithProviders(<CrawlHeader {...props({ layout: 'one-line' })} />);
+    const row = actionsOf().parentElement;
+    const context = screen.getByText('Context text').parentElement;
+    expect(context).not.toBeNull();
+    expect(context?.parentElement).toBe(row);
+    expect(context).toHaveClass('min-w-0', 'flex-1', 'overflow-x-auto', 'scrollbar-none');
+    const order = Array.from(row?.children ?? []);
+    expect(order.indexOf(screen.getByRole('tablist').parentElement as Element)).toBeLessThan(
+      order.indexOf(context as Element),
+    );
+    expect(order.indexOf(context as Element)).toBeLessThan(order.indexOf(actionsOf()));
+    // No second row: the row is the header's only child
+    expect(row?.parentElement?.children).toHaveLength(1);
+  });
+
+  it('keeps the two lines without the prop', () => {
+    renderWithProviders(<CrawlHeader {...props({})} />);
+    const row = actionsOf().parentElement;
+    const context = screen.getByText('Context text').parentElement;
+    expect(context?.parentElement).not.toBe(row);
+    expect(row?.parentElement?.children).toHaveLength(2);
+  });
 });

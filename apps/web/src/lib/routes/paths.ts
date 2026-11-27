@@ -43,6 +43,10 @@ export const promptPath = (workspace: string, project: string, promptId: string)
 export const rankingsPath = (workspace: string, project: string): Route =>
   projectPath(workspace, project, '/seo/keywords');
 
+/** SEO > Pages of a project: the Overview, or All pages (`/all`). Not `pagesPath`, which is the API path of the list. */
+export const pagesTabPath = (workspace: string, project: string, tab: 'overview' | 'all' = 'overview'): Route =>
+  projectPath(workspace, project, tab === 'all' ? '/seo/pages/all' : '/seo/pages');
+
 /** The page of one tracked keyword (`trackedKeywordId` is its uuid), the child of Keywords. */
 export const keywordDetailPath = (workspace: string, project: string, trackedKeywordId: string): Route =>
   projectPath(workspace, project, `/seo/keywords/${encodeURIComponent(trackedKeywordId)}`);

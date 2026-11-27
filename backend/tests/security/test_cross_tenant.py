@@ -293,6 +293,18 @@ BODIES: dict[tuple[str, str], dict[str, Any]] = {
     # WP-31 settings-engines
     # WP-32 overview-aggregates
     # WP-38 notes-annotations
+    # Notes on a page (spec 9.7, 9.8): the page and its files.
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes"): {
+        "body": "Planted note"
+    },
+    ("PATCH", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}"): {
+        "body": "Taken over"
+    },
+    (
+        "POST",
+        _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore",
+    ): {},
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments"): {},
     # WP-41 versions
     # WP-42 panels-api
     # WP-44 links-generate
@@ -405,8 +417,29 @@ SCREENSHOT_ROUTES = {
         "no_screenshot",
     ),
 }
+# What a member inside their own scope is answered for the seeded page note, which another user
+# wrote and nobody deleted: only its author changes it, and only a deleted note is restored. Its
+# file has a row and no stored object in this suite, so a read of it is not found.
+NOTE_ROUTES = {
+    (
+        "GET",
+        _W
+        + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}",
+    ): (404, "not_found"),
+    ("PATCH", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}"): (
+        403,
+        "forbidden",
+    ),
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore"): (
+        404,
+        "not_found",
+    ),
+}
 # Routes that take a file instead of JSON.
-UPLOADS = {("POST", _W + "/projects/{project_id}/keyword-imports/upload")}
+UPLOADS = {
+    ("POST", _W + "/projects/{project_id}/keyword-imports/upload"),
+    ("POST", _W + "/projects/{project_id}/internal-links/pages/{url_id}/note-attachments"),
+}
 # Query parameters a route requires, so that it answers for its path and not for a missing
 # parameter.
 QUERIES: dict[tuple[str, str], dict[str, str]] = {
@@ -972,9 +1005,6 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
     # rows under its own line (docs/ai-visibility/MASTER-PLAN.md section 3.6).
     more_ids: dict[str, str] = {}
     # WP-03 contract-pack
-    # No notes table yet: a note id that names nothing. WP-38 seeds a real note under its own
-    # line and removes this one.
-    more_ids["note_id"] = str(uuid.uuid4())
 
     # WP-11 layouts-api
     # The owner's own layout and the team default of the screen the suite fills in (`WORDS`).
@@ -1281,6 +1311,31 @@ async def _tenant(resources: Resources, pg: PostgresServer, label: str, fake: Fa
         tag_term["id"],
         workspace.id,
     )
+    page_note = await fetchrow(
+        pg,
+        "INSERT INTO core.page_notes (workspace_id, project_id, url_id, author_id, body) "
+        "VALUES ($1, $2, $3, $4, 'Rewrite the intro before the launch.') RETURNING id",
+        workspace.id,
+        project_id,
+        crawl_ids[pricing],
+        owner.id,
+    )
+    more_ids["note_id"] = str(page_note["id"])
+    attachment_id = uuid.uuid4()
+    more_ids["attachment_id"] = str(attachment_id)
+    await execute(
+        pg,
+        "INSERT INTO core.page_note_attachments (id, workspace_id, project_id, url_id, note_id, "
+        "uploaded_by, storage_key, original_name, size_bytes, content_type) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, 'brief.pdf', 1024, 'application/pdf')",
+        attachment_id,
+        workspace.id,
+        project_id,
+        crawl_ids[pricing],
+        page_note["id"],
+        owner.id,
+        f"notes/v1/{workspace.id}/{project_id}/{attachment_id}.zst",
+    )
     async with workspace_transaction(resources.sessions, workspace.id) as flow_db:
         await recompute_tier_flow(flow_db, workspace_id=workspace.id, run_id=crawl_run)
     # A crawl waiting for the worker (cancelling it would succeed; Crawl now is refused while it
@@ -1571,6 +1626,8 @@ _TENANT_ROWS = {
     "core.tier_rules": "workspace_id",
     "core.project_pages": "workspace_id",
     "core.page_terms": "workspace_id",
+    "core.page_notes": "workspace_id",
+    "core.page_note_attachments": "workspace_id",
     "seo.crawl_runs": "workspace_id",
     "seo.crawl_pages": "workspace_id",
     "seo.crawl_links": "workspace_id",
@@ -1763,6 +1820,8 @@ async def test_a_project_outside_the_members_scope_is_not_found(
         assert _problem(inside) == (409, "crawl_in_progress")
     elif (method, path) in SCREENSHOT_ROUTES:
         assert _problem(inside) == SCREENSHOT_ROUTES[(method, path)]
+    elif (method, path) in NOTE_ROUTES:
+        assert _problem(inside) == NOTE_ROUTES[(method, path)]
     elif (method, path) in NOT_BUILT:
         # Inside the member's scope a published contract answers that its body is not built.
         assert _problem(inside) == (501, "not_implemented")

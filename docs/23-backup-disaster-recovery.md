@@ -745,6 +745,8 @@ raw/v1/serp_raw/dataforseo/serp_google_organic_advanced/2026/09/29/9f86d0...0f00
 raw/v1/ai_raw/dataforseo/chatgpt_llm_scraper/2026/09/29/2c26b4...e7ae.json.zst
 ```
 
+Files attached to page notes live in the same bucket under `notes/v1/<workspace_id>/<project_id>/<attachment_id>.zst`. That prefix is outside the three `raw/v1/<retention_class>/` prefixes, so no lifecycle rule expires it; nothing deletes these objects until a purge is built (doc 24 section 7.5).
+
 Doc 04 section 11.3 uses this layout. Since `object_key` is stored per row, no other schema change is needed. The date path also lets the disaster-recovery replay (section 11 step 13) list payloads fetched after a given backup.
 
 ### 9.2 Retention per class

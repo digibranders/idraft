@@ -1,4 +1,4 @@
-import { FileText, Grid3x3, History, Link2, type LucideIcon, Sparkles, Waypoints, Workflow } from 'lucide-react';
+import { Grid3x3, History, Link2, type LucideIcon, Sparkles, Waypoints, Workflow } from 'lucide-react';
 import type { Route } from 'next';
 import dynamic from 'next/dynamic';
 import type { useTranslations } from 'next-intl';
@@ -10,7 +10,6 @@ import { JourneyTab } from './journey/journey-tab';
 import { LinksTab } from './links/links-tab';
 import { OpportunitiesTab } from './opportunities/opportunities-tab';
 import { SkeletonRows } from './crawl-states';
-import { PagesTab } from './pages/pages-tab';
 import type { LinksState, LinksTabId, SetLinksSearch } from './url-state';
 import type { CrawlInView } from '@/lib/internal-links/crawl-choice';
 import type { LinksScope, PageTier } from '@/lib/internal-links/types';
@@ -73,11 +72,10 @@ export interface LinksTabEntry {
 }
 
 const ORDER: Readonly<Record<LinksTabId, number>> = {
-  pages: 0,
-  links: 1,
-  journey: 2,
-  map: 3,
-  flow: 4,
+  journey: 0,
+  map: 1,
+  links: 2,
+  flow: 3,
   changes: 5,
   opportunities: 6,
 };
@@ -92,14 +90,8 @@ export function defineLinksTabs(entries: readonly LinksTabEntry[]): readonly Lin
   return [...entries].sort((a, b) => ORDER[a.id] - ORDER[b.id]);
 }
 
-/** The tabs built so far: each tab's task adds its entry here (Pages, Links, Journey, Link map, Tier flow, Changes, Opportunities). */
+/** The tabs built so far: each tab's task adds its entry here (Journey, Link map, Links, Tier flow, Changes, Opportunities). */
 export const LINKS_TABS: readonly LinksTabEntry[] = defineLinksTabs([
-  {
-    id: 'pages',
-    label: (t) => t('tabs.pages'),
-    icon: FileText,
-    render: (context) => createElement(PagesTab, { context }),
-  },
   {
     id: 'links',
     label: (t) => t('tabs.links'),

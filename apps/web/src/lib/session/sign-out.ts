@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { isSignedOut, SIGN_OUT_META } from '@/lib/api/query-client';
 import { apiMutation } from '@/lib/api/query';
 import { hardNavigate } from '@/lib/navigation/hard-navigate';
+import { clearAllNoteDrafts } from '@/lib/pages/note-drafts';
 import { clearPreferences } from '@/lib/preferences/storage';
 import { SIGN_IN_PATH } from '@/lib/routes/paths';
 
@@ -35,6 +36,7 @@ export function useSignOut(): SignOut {
     }
     setLeaving(true);
     clearPreferences();
+    clearAllNoteDrafts();
     hardNavigate(SIGN_IN_PATH);
   };
   return { signOut, pending: request.isPending || leaving };

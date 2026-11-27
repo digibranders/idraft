@@ -3288,6 +3288,21 @@
         "title": "Body_upload_import_api_v1_workspaces__workspace_id__projects__project_id__keyword_imports_upload_post",
         "type": "object"
       },
+      "Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "The file, at most 10 MB.",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post",
+        "type": "object"
+      },
       "BrandCell": {
         "properties": {
           "answers": {
@@ -15163,6 +15178,303 @@
         "title": "OutcomeCells",
         "type": "object"
       },
+      "OutlineCanonical": {
+        "properties": {
+          "href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Href"
+          },
+          "state": {
+            "enum": [
+              "self",
+              "elsewhere",
+              "none"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "href"
+        ],
+        "title": "OutlineCanonical",
+        "type": "object"
+      },
+      "OutlineContent": {
+        "properties": {
+          "images": {
+            "title": "Images",
+            "type": "integer"
+          },
+          "images_without_alt": {
+            "title": "Images Without Alt",
+            "type": "integer"
+          },
+          "read_minutes": {
+            "title": "Read Minutes",
+            "type": "integer"
+          },
+          "thin": {
+            "title": "Thin",
+            "type": "boolean"
+          },
+          "words": {
+            "title": "Words",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "words",
+          "read_minutes",
+          "thin",
+          "images",
+          "images_without_alt"
+        ],
+        "title": "OutlineContent",
+        "type": "object"
+      },
+      "OutlineHeading": {
+        "properties": {
+          "level": {
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Level",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "text"
+        ],
+        "title": "OutlineHeading",
+        "type": "object"
+      },
+      "OutlineLanguagePair": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "is_self": {
+            "title": "Is Self",
+            "type": "boolean"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "href",
+          "is_self",
+          "valid",
+          "suggestion"
+        ],
+        "title": "OutlineLanguagePair",
+        "type": "object"
+      },
+      "OutlineLanguages": {
+        "properties": {
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineLanguagePair"
+            },
+            "title": "Pairs",
+            "type": "array"
+          },
+          "x_default": {
+            "title": "X Default",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "x_default",
+          "pairs"
+        ],
+        "title": "OutlineLanguages",
+        "type": "object"
+      },
+      "OutlineRobots": {
+        "properties": {
+          "meta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The content of the first robots meta tag, as read.",
+            "title": "Meta"
+          },
+          "noindex": {
+            "description": "From the crawl row, so it also covers a noindex header.",
+            "title": "Noindex",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "meta",
+          "noindex"
+        ],
+        "title": "OutlineRobots",
+        "type": "object"
+      },
+      "OutlineSocial": {
+        "properties": {
+          "og_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Og Description"
+          },
+          "og_image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Og Image"
+          },
+          "og_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Og Title"
+          },
+          "og_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Og Type"
+          },
+          "twitter_card": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Twitter Card"
+          }
+        },
+        "required": [
+          "og_title",
+          "og_description",
+          "og_image",
+          "og_type",
+          "twitter_card"
+        ],
+        "title": "OutlineSocial",
+        "type": "object"
+      },
+      "OutlineStructuredBlock": {
+        "properties": {
+          "parses": {
+            "title": "Parses",
+            "type": "boolean"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "types",
+          "parses"
+        ],
+        "title": "OutlineStructuredBlock",
+        "type": "object"
+      },
+      "OutlineText": {
+        "properties": {
+          "chars": {
+            "description": "The length after trimming, before any cut of `text`.",
+            "title": "Chars",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "short",
+              "long",
+              "missing"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "text",
+          "chars",
+          "state"
+        ],
+        "title": "OutlineText",
+        "type": "object"
+      },
       "OverlapWarning": {
         "description": "Another property of the same site is already linked to a project. The two are never\nadded together, so the person must pick one.",
         "properties": {
@@ -15286,6 +15598,44 @@
         "title": "OverviewCompetitorsResponse",
         "type": "object"
       },
+      "OverviewDepth": {
+        "properties": {
+          "clicks": {
+            "description": "0 to 6; 6 is 6 clicks and more.",
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clicks",
+          "pages"
+        ],
+        "title": "OverviewDepth",
+        "type": "object"
+      },
+      "OverviewSection": {
+        "properties": {
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "section": {
+            "description": "The first folder of the path, `/` for a top-level page.",
+            "title": "Section",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section",
+          "pages"
+        ],
+        "title": "OverviewSection",
+        "type": "object"
+      },
       "OverviewSeoCells": {
         "description": "Declared and never returned in this package: SEO share of voice is built nowhere yet.",
         "properties": {
@@ -15303,6 +15653,114 @@
           "visibility"
         ],
         "title": "OverviewSeoCells",
+        "type": "object"
+      },
+      "OverviewSitemap": {
+        "properties": {
+          "indexable_in_sitemap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexable In Sitemap"
+          },
+          "indexable_missing": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexable Missing"
+          },
+          "listed_not_indexable": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed Not Indexable"
+          },
+          "listed_not_live": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listed Not Live"
+          },
+          "state": {
+            "enum": [
+              "read",
+              "no_sitemap"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "indexable_in_sitemap",
+          "indexable_missing",
+          "listed_not_live",
+          "listed_not_indexable"
+        ],
+        "title": "OverviewSitemap",
+        "type": "object"
+      },
+      "OverviewStatus": {
+        "properties": {
+          "blocked": {
+            "title": "Blocked",
+            "type": "integer"
+          },
+          "client_error": {
+            "title": "Client Error",
+            "type": "integer"
+          },
+          "live": {
+            "title": "Live",
+            "type": "integer"
+          },
+          "other": {
+            "title": "Other",
+            "type": "integer"
+          },
+          "redirected": {
+            "title": "Redirected",
+            "type": "integer"
+          },
+          "server_error": {
+            "title": "Server Error",
+            "type": "integer"
+          },
+          "variant": {
+            "title": "Variant",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live",
+          "variant",
+          "redirected",
+          "client_error",
+          "server_error",
+          "blocked",
+          "other"
+        ],
+        "title": "OverviewStatus",
         "type": "object"
       },
       "OwnEntityInput": {
@@ -15490,6 +15948,12 @@
             "title": "Links Available",
             "type": "boolean"
           },
+          "notes_count": {
+            "default": 0,
+            "description": "Notes on this address that are not deleted (they stay across crawls)",
+            "title": "Notes Count",
+            "type": "integer"
+          },
           "outlinks": {
             "items": {
               "$ref": "#/components/schemas/Neighbor"
@@ -15638,6 +16102,19 @@
         "additionalProperties": false,
         "description": "The Pages list's filters as a bulk body (`run` is always the latest crawl).",
         "properties": {
+          "depth": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth"
+          },
           "flags": {
             "anyOf": [
               {
@@ -15661,6 +16138,19 @@
               }
             ],
             "title": "Flags"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
           },
           "include_variants": {
             "default": false,
@@ -15754,6 +16244,35 @@
             ],
             "title": "Tier Ids"
           },
+          "view": {
+            "anyOf": [
+              {
+                "enum": [
+                  "live",
+                  "indexable",
+                  "not_indexable",
+                  "redirects",
+                  "errors",
+                  "client_errors",
+                  "server_errors",
+                  "blocked",
+                  "other",
+                  "variants",
+                  "in_sitemap_indexable",
+                  "not_in_sitemap",
+                  "sitemap_not_live",
+                  "sitemap_not_indexable",
+                  "reachable",
+                  "unreachable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          },
           "worklist": {
             "anyOf": [
               {
@@ -15775,6 +16294,506 @@
           }
         },
         "title": "PageFilter",
+        "type": "object"
+      },
+      "PageNote": {
+        "properties": {
+          "attachments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PageNoteFile"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PageNoteAuthor"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "can_delete": {
+            "title": "Can Delete",
+            "type": "boolean"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mentions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PageNoteMention"
+            },
+            "title": "Mentions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "author",
+          "body",
+          "created_at",
+          "edited_at",
+          "can_edit",
+          "can_delete"
+        ],
+        "title": "PageNote",
+        "type": "object"
+      },
+      "PageNoteAuthor": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PageNoteAuthor",
+        "type": "object"
+      },
+      "PageNoteFile": {
+        "description": "A file sent for a note (spec 9.8.5). `url` is an API path, never a host.",
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_image": {
+            "title": "Is Image",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "size",
+          "content_type",
+          "is_image",
+          "url"
+        ],
+        "title": "PageNoteFile",
+        "type": "object"
+      },
+      "PageNoteFileResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageNoteFile"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageNoteFileResponse",
+        "type": "object"
+      },
+      "PageNoteList": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PageNote"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageNoteListMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "PageNoteList",
+        "type": "object"
+      },
+      "PageNoteListMeta": {
+        "properties": {
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "next_cursor",
+          "has_more",
+          "total"
+        ],
+        "title": "PageNoteListMeta",
+        "type": "object"
+      },
+      "PageNoteMention": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Label",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "target": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "page",
+              "user",
+              "issue",
+              "keyword"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "target"
+        ],
+        "title": "PageNoteMention",
+        "type": "object"
+      },
+      "PageNoteMentionIn": {
+        "additionalProperties": false,
+        "description": "One `@` in a note. The label is display text the server never interprets; the target is\nchecked against the database by type (spec 9.8.1).",
+        "properties": {
+          "label": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Label",
+            "type": "string"
+          },
+          "target": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "page",
+              "user",
+              "issue",
+              "keyword"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "target"
+        ],
+        "title": "PageNoteMentionIn",
+        "type": "object"
+      },
+      "PageNoteResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageNote"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageNoteResponse",
+        "type": "object"
+      },
+      "PageNoteWrite": {
+        "additionalProperties": false,
+        "description": "The body of a create and of a change. Trimmed, at most 2,000 characters, no null character.\nIt may be empty only when the note holds a file: the service refuses a note with neither.\n`mentions` omitted on a change: the stored ones whose label is still in the text stay.\n`attachment_ids` omitted on a change: the files are unchanged; given, it is the exact list of\nthe note's files afterwards. More than `FILES_MAX` is refused by the service, with its code.",
+        "properties": {
+          "attachment_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Files uploaded for this page and not yet attached, at most 5.",
+            "maxItems": 5,
+            "title": "Attachment Ids"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "mentions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PageNoteMentionIn"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "PageNoteWrite",
+        "type": "object"
+      },
+      "PageOutline": {
+        "properties": {
+          "outline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageOutlineBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "redirect",
+              "error",
+              "not_html",
+              "no_html"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          }
+        },
+        "required": [
+          "state",
+          "run_id",
+          "status_code",
+          "outline"
+        ],
+        "title": "PageOutline",
+        "type": "object"
+      },
+      "PageOutlineBody": {
+        "properties": {
+          "canonical": {
+            "$ref": "#/components/schemas/OutlineCanonical"
+          },
+          "content": {
+            "$ref": "#/components/schemas/OutlineContent"
+          },
+          "description": {
+            "$ref": "#/components/schemas/OutlineText"
+          },
+          "headings": {
+            "description": "Headings with text, in document order, at most 200.",
+            "items": {
+              "$ref": "#/components/schemas/OutlineHeading"
+            },
+            "title": "Headings",
+            "type": "array"
+          },
+          "headings_total": {
+            "description": "Every heading the parser saw, also one with no text and those past 200.",
+            "title": "Headings Total",
+            "type": "integer"
+          },
+          "html_lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html Lang"
+          },
+          "languages": {
+            "$ref": "#/components/schemas/OutlineLanguages"
+          },
+          "level_counts": {
+            "description": "Headings per level, H1 to H6, counted over all of them; with `headings` it can differ, since a heading with no text is counted and not listed.",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 6,
+            "minItems": 6,
+            "title": "Level Counts",
+            "type": "array"
+          },
+          "robots": {
+            "$ref": "#/components/schemas/OutlineRobots"
+          },
+          "skipped_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Index in `headings` of the first heading more than one level deeper than the one before it.",
+            "title": "Skipped At"
+          },
+          "social": {
+            "$ref": "#/components/schemas/OutlineSocial"
+          },
+          "structured_data": {
+            "items": {
+              "$ref": "#/components/schemas/OutlineStructuredBlock"
+            },
+            "title": "Structured Data",
+            "type": "array"
+          },
+          "title": {
+            "$ref": "#/components/schemas/OutlineText"
+          },
+          "truncated": {
+            "description": "The HTML was longer than the byte cap and was cut.",
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "truncated",
+          "title",
+          "description",
+          "canonical",
+          "robots",
+          "html_lang",
+          "headings",
+          "headings_total",
+          "level_counts",
+          "skipped_at",
+          "languages",
+          "social",
+          "structured_data",
+          "content"
+        ],
+        "title": "PageOutlineBody",
+        "type": "object"
+      },
+      "PageOutlineResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageOutline"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageOutlineResponse",
         "type": "object"
       },
       "PageRow": {
@@ -16108,6 +17127,119 @@
         "title": "PageRowPage",
         "type": "object"
       },
+      "PageSearchDaily": {
+        "properties": {
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "days": {
+            "description": "One row per day of the window with `ok`, a day without a stored row as zeros; empty otherwise.",
+            "items": {
+              "$ref": "#/components/schemas/PageSearchDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window End"
+          },
+          "window_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Start"
+          }
+        },
+        "required": [
+          "state",
+          "window_start",
+          "window_end",
+          "clicks",
+          "impressions",
+          "days"
+        ],
+        "title": "PageSearchDaily",
+        "type": "object"
+      },
+      "PageSearchDailyResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageSearchDaily"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageSearchDailyResponse",
+        "type": "object"
+      },
+      "PageSearchDay": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "clicks",
+          "impressions"
+        ],
+        "title": "PageSearchDay",
+        "type": "object"
+      },
       "PageSelection": {
         "additionalProperties": false,
         "description": "Exactly one of `url_ids` and `filter`.",
@@ -16389,6 +17521,112 @@
           "tier_id"
         ],
         "title": "PageTierSet",
+        "type": "object"
+      },
+      "PagesOverview": {
+        "properties": {
+          "addresses": {
+            "title": "Addresses",
+            "type": "integer"
+          },
+          "crawled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crawled At"
+          },
+          "depth": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewDepth"
+            },
+            "title": "Depth",
+            "type": "array"
+          },
+          "indexable": {
+            "title": "Indexable",
+            "type": "integer"
+          },
+          "not_indexable": {
+            "title": "Not Indexable",
+            "type": "integer"
+          },
+          "orphans": {
+            "title": "Orphans",
+            "type": "integer"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "sections_total": {
+            "title": "Sections Total",
+            "type": "integer"
+          },
+          "sitemap": {
+            "$ref": "#/components/schemas/OverviewSitemap"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OverviewStatus"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierCount"
+            },
+            "title": "Tiers",
+            "type": "array"
+          },
+          "unreachable": {
+            "title": "Unreachable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "crawled_at",
+          "addresses",
+          "status",
+          "indexable",
+          "not_indexable",
+          "reachable",
+          "unreachable",
+          "orphans",
+          "sitemap",
+          "depth",
+          "tiers",
+          "sections",
+          "sections_total"
+        ],
+        "title": "PagesOverview",
+        "type": "object"
+      },
+      "PagesOverviewResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PagesOverview"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PagesOverviewResponse",
         "type": "object"
       },
       "PasswordChangeRequest": {
@@ -41953,6 +43191,80 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/overview": {
+      "get": {
+        "operationId": "overview_api_v1_workspaces__workspace_id__projects__project_id__internal_links_overview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagesOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Counts of a crawl's pages for the Pages overview",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages": {
       "get": {
         "operationId": "list_pages_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages_get",
@@ -42173,6 +43485,76 @@
           },
           {
             "in": "query",
+            "name": "filter[view]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "live",
+                    "indexable",
+                    "not_indexable",
+                    "redirects",
+                    "errors",
+                    "client_errors",
+                    "server_errors",
+                    "blocked",
+                    "other",
+                    "variants",
+                    "in_sitemap_indexable",
+                    "not_in_sitemap",
+                    "sitemap_not_live",
+                    "sitemap_not_indexable",
+                    "reachable",
+                    "unreachable"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[View]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[folder]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Folder]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filter[depth]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 6,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter[Depth]"
+            }
+          },
+          {
+            "in": "query",
             "name": "q",
             "required": false,
             "schema": {
@@ -42220,6 +43602,8 @@
                 "-tier",
                 "clicks",
                 "-clicks",
+                "impressions",
+                "-impressions",
                 "title",
                 "-title",
                 "indexable",
@@ -42429,6 +43813,685 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments": {
+      "post": {
+        "description": "Multipart, one part `file`, one file per request. The type is decided by the content, never by the name or the type the browser sends: an image (PNG, JPEG, GIF, WebP), a PDF, a CSV or a text file. The file belongs to no note until a note is saved with its id. `413 payload_too_large` over 10 MB (`limit_bytes`), `415 unsupported_media_type` for any other kind of file (a web page, an SVG, a script, an archive), `422` for an empty file or a missing `file` part and for `quota_exceeded` (`limit`, `used`, `requested`: the workspace stores 1 GiB of note files unless its limit says otherwise), `503 storage_unavailable` when the file could not be stored, and `404 not_found` for an address no crawl of the project holds.",
+        "operationId": "upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNoteFileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Upload a file for a note",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}": {
+      "get": {
+        "description": "`data:read`. The file as it was stored, through the API so that the permission and the workspace are checked on every read. `404 not_found` for a file that is not attached to a note, was removed from its note, belongs to a deleted note, or is of another page, project or workspace; the file of a note comes back when the note is restored. The `Content-Type` is the one stored from the content, `X-Content-Type-Options: nosniff` and a sandboxing `Content-Security-Policy` are always sent, and `Content-Disposition` is `inline` for PNG, JPEG, GIF and WebP images and `attachment` for every other type.",
+        "operationId": "download_page_note_file_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__note_attachments__attachment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {},
+              "image/gif": {},
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {},
+              "text/csv": {},
+              "text/plain": {}
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The bytes of a note's file",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes": {
+      "get": {
+        "description": "The notes that are not deleted, of every crawl: a note is kept by address. `can_edit` and `can_delete` say what the caller may do with each. `404 not_found` for an address no crawl of the project holds.",
+        "operationId": "list_page_notes_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`meta.next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`meta.next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNoteList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: its notes, newest first",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "post": {
+        "description": "Plain text, 1 to 2,000 characters once trimmed; line breaks inside are kept.",
+        "operationId": "create_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageNoteWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Add a note to a page",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}": {
+      "delete": {
+        "description": "The one who wrote it, an owner or an admin. The one who deleted can bring it back with `POST .../restore`. Deleting a deleted note is `404 not_found`.",
+        "operationId": "delete_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Delete a note",
+        "tags": [
+          "internal-links"
+        ]
+      },
+      "patch": {
+        "description": "Only the one who wrote the note; anyone else gets `403 forbidden`. `edited_at` is set only when the body really changed.",
+        "operationId": "update_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageNoteWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Change your note",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/notes/{note_id}/restore": {
+      "post": {
+        "description": "Only the one who deleted it. A note that is not deleted is `404 not_found`.",
+        "operationId": "restore_page_note_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__notes__note_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "note_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Note Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageNoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Bring a deleted note back",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/outline": {
+      "get": {
+        "description": "Title, description, canonical, robots, headings, language versions, sharing tags, structured data and content size. Read on demand; nothing is stored. Always the latest crawl.",
+        "operationId": "page_outline_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__outline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageOutlineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: its outline, read from the stored HTML of the latest crawl",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/search": {
+      "get": {
+        "operationId": "page_search_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageSearchDailyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: Search Console clicks and impressions by day",
         "tags": [
           "internal-links"
         ]

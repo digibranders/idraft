@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Final
+from typing import Any, Final, Literal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, FromClause, and_, func, literal, select, text
@@ -36,7 +36,9 @@ from idraft.db.tables import (
     tracked_keywords,
 )
 
-EXTRA_SORTS: Final = frozenset({"rank", "citations", "anchor", "tier", "clicks", "title"})
+EXTRA_SORTS: Final = frozenset(
+    {"rank", "citations", "anchor", "tier", "clicks", "impressions", "title"}
+)
 # Tiers are at most 8, so a page with none sorts after T8 (or before T1 when descending).
 TIER_LAST: Final = 99
 # `current_rank` is a smallint: past it, and below any real value, a null still sorts last.
@@ -174,14 +176,16 @@ def _tier(scope: PageScope, *, descending: bool) -> ExtraSort:
     )
 
 
-def _clicks(scope: PageScope, gsc: GscWindow | None) -> ExtraSort:
-    """Google's clicks of the window; without a property or stored page days every page is 0,
-    as the column shows nothing for it."""
+def _gsc_total(
+    scope: PageScope, gsc: GscWindow | None, column: Literal["clicks", "impressions"]
+) -> ExtraSort:
+    """Google's clicks or impressions of the window; without a property or stored page days
+    every page is 0, as the column shows nothing for it."""
     if gsc is None:
         return ExtraSort(literal(0), lambda rows: rows)
     integration_id, (start, end) = gsc
     totals = (
-        select(gsc_page_daily.c.url_id, func.sum(gsc_page_daily.c.clicks).label("clicks"))
+        select(gsc_page_daily.c.url_id, func.sum(gsc_page_daily.c[column]).label("total"))
         .where(
             gsc_page_daily.c.workspace_id == scope.workspace_id,
             gsc_page_daily.c.project_id == scope.project_id,
@@ -189,10 +193,10 @@ def _clicks(scope: PageScope, gsc: GscWindow | None) -> ExtraSort:
             gsc_page_daily.c.metric_date.between(start, end),
         )
         .group_by(gsc_page_daily.c.url_id)
-        .subquery("page_clicks")
+        .subquery("page_gsc_total")
     )
     return ExtraSort(
-        func.coalesce(totals.c.clicks, 0),
+        func.coalesce(totals.c.total, 0),
         lambda rows: rows.outerjoin(totals, totals.c.url_id == crawl_pages.c.url_id),
     )
 
@@ -218,7 +222,9 @@ def extra_sort(scope: PageScope, sort: str, *, gsc: GscWindow | None = None) -> 
     if key == "tier":
         return _tier(scope, descending=descending)
     if key == "clicks":
-        return _clicks(scope, gsc)
+        return _gsc_total(scope, gsc, "clicks")
+    if key == "impressions":
+        return _gsc_total(scope, gsc, "impressions")
     if key == "title":
         return _title(descending=descending)
     return None

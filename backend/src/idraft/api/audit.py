@@ -18,7 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from idraft.api.request_info import RequestInfo
 from idraft.db.tables import audit_logs
 
-type Snapshot = Mapping[str, str | int | bool | list[str] | None]
+type Snapshot = Mapping[
+    str, str | int | bool | list[str] | Sequence[Mapping[str, str | int]] | None
+]
 # A statement carries at most 32,767 parameters (asyncpg), and an entry takes 11.
 ROWS_PER_STATEMENT = 1000
 AuditAction = Literal[
@@ -94,6 +96,11 @@ AuditAction = Literal[
     "tier_rule.deleted",
     "page_tiers.changed",
     "page_tags.changed",
+    "page_note.created",
+    "page_note.updated",
+    "page_note.deleted",
+    "page_note.restored",
+    "page_note.file_uploaded",
     "link_crawl.requested",
     "link_crawl.cancelled",
     "link_opportunity.decided",

@@ -156,6 +156,7 @@ describe('ProjectShell', () => {
     expect(listed).toEqual({
       editor: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Pages /digibranders/fynix/seo/pages',
         'Internal links /digibranders/fynix/seo/internal-links',
         'AI visibility /digibranders/fynix/ai',
         'Prompts /digibranders/fynix/ai/prompts',
@@ -170,6 +171,7 @@ describe('ProjectShell', () => {
       ],
       viewer: [
         'Keywords /digibranders/fynix/seo/keywords',
+        'Pages /digibranders/fynix/seo/pages',
         'Internal links /digibranders/fynix/seo/internal-links',
         'AI visibility /digibranders/fynix/ai',
         'Prompts /digibranders/fynix/ai/prompts',
@@ -347,11 +349,11 @@ describe('ProjectShell', () => {
   });
 
   it('names no destination on the 404 page of a planned one', async () => {
-    navigation.pathname = '/digibranders/fynix/seo/pages';
+    navigation.pathname = '/digibranders/fynix/matrix';
     renderWithProviders(shell());
     await screen.findByRole('heading', { name: 'Profile' });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).queryByText('Pages')).toBeNull();
+    expect(within(crumbs).queryByText('Matrix')).toBeNull();
   });
 
   it('opens the keyboard shortcuts with ?', async () => {

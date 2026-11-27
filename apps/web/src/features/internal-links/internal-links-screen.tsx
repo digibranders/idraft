@@ -2,17 +2,16 @@
 
 import { Ban, ListFilter, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 
 import { ContextLine } from './context-line';
-import { CrawlButton } from './crawl-button';
 import { CrawlHeader } from './crawl-header';
 import { CrawlNotFound } from './crawl-not-found';
 import { CrawlPicker } from './crawl-picker';
-import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from './crawl-reads';
-import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from './crawl-states';
+import { useCrawlShell, usePageExport } from './crawl-shell';
 import { ShareDialog } from './export/share-dialog';
 import { useClientSummary } from './export/use-client-summary';
+import { drawerContextOf } from './inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { ImportDialog } from './rules/import-dialog';
@@ -28,25 +27,16 @@ import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
-import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
 import type { MenuItemDef } from '@/components/ui/menu';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
-import { toast } from '@/components/ui/toast';
-import { announce } from '@/lib/a11y/announcer';
 import { useFocusReturn } from '@/lib/inspector/use-focus-return';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
-import { isApiProblem } from '@/lib/api/problem';
-import { crawlInView } from '@/lib/internal-links/crawl-choice';
-import { failedText } from '@/lib/internal-links/crawl-failure';
-import type { CrawlRun, LinksScope, PageTier } from '@/lib/internal-links/types';
 import { useCan } from '@/lib/permissions';
-import { projectPath, withQuery, workspaceSettingsPath } from '@/lib/routes/paths';
+import { pagesTabPath, projectPath, withQuery } from '@/lib/routes/paths';
 
 const CHANGES_QUERY = 'tab=changes';
 const HEADING_ID = 'internal-links-heading';
-/** One empty list for every render: a new one each time re-runs the tabs' effects that depend on the tiers. */
-const NO_TIERS: readonly PageTier[] = [];
 const TAB_LIST_CLASS = 'max-w-full overflow-x-auto scrollbar-none';
 
 export interface InternalLinksProject {
@@ -85,35 +75,22 @@ export function InternalLinksScreen(props: InternalLinksScreenProps): ReactNode 
 
 function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalLinksScreenProps): ReactElement {
   const t = useTranslations('internalLinks');
-  const states = useTranslations('internalLinks.states');
-  const header = useTranslations('internalLinks.header');
-  const common = useTranslations('common');
-  const scope = useMemo((): LinksScope => ({ workspaceId, projectId: project.id }), [workspaceId, project.id]);
-  const host = project.host ?? '';
-  const canCrawl = useCan('runs:trigger');
-  const canEditTiers = useCan('workspace:update');
   const { state, setSearch } = useLinksState();
-  // The end of a crawl is spoken once, when the poll sees it: a cancel is the person's own act and is not
-  const announceEnd = useCallback(
-    (run: CrawlRun): void => {
-      if (run.state === 'failed') announce(states('endedFailed'), { key: 'internal-links-crawl' });
-      else if (run.state !== 'cancelled') {
-        announce(states('endedFinished', { count: run.pages }), { key: 'internal-links-crawl' });
-      }
-    },
-    [states],
-  );
-  const crawls = useCrawls(scope, project.host !== null, announceEnd);
-  const tiers = useWorkspaceTiers(workspaceId);
-  const view = crawlView(
-    project.host !== null,
-    crawls.data?.data,
-    crawls.isError ? 'error' : crawls.isPending ? 'loading' : 'ready',
-    crawls.data?.page.has_more ?? false,
-  );
-  const crawl = useCrawlNow(scope, host);
-  // The crawl every tab reads: the one `run` names, else the latest (an unknown id reads the latest, never wider)
-  const inView = useMemo(() => crawlInView(crawls.data?.data ?? [], state.run), [crawls.data, state.run]);
+  // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
+  const canWrite = useCan('projects:write');
+  const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | 'share' | null>(null);
+  const ruleButtons = canWrite ? (
+    <>
+      <Button variant="secondary" size="sm" onClick={() => setDialog('rules')}>
+        {t('rules.setUp')}
+      </Button>
+      <Button variant="secondary" size="sm" onClick={() => setDialog('import')}>
+        {t('csv.open')}
+      </Button>
+    </>
+  ) : undefined;
+  const shell = useCrawlShell({ workspaceId, workspaceSlug, project, run: state.run, firstCrawlActions: ruleButtons });
+  const { scope, host, view, inView, crawl, canCrawl, canEditTiers, runs } = shell;
 
   const ready = view.kind === 'ready';
   const registered = (id: LinksTabId): boolean => LINKS_TABS.some((entry) => entry.id === id);
@@ -135,9 +112,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   };
 
   const base = projectPath(workspaceSlug, project.slug, '/seo/internal-links');
-  const settingsHref = projectPath(workspaceSlug, project.slug, '/settings/links');
-  const tiersHref = workspaceSettingsPath(workspaceSlug, 'tiers');
-  const domainsHref = projectPath(workspaceSlug, project.slug, '/settings/domains');
+  const { settings: settingsHref, tiers: tiersHref } = shell.hrefs;
   const inspector = useInspector();
   const inspected = inspectedPage(inspector.target);
   // Closing the drawer returns focus to what opened it: a row, a canvas card's Details button or the map card's.
@@ -150,23 +125,11 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   };
   // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
   const [order, setOrder] = useState<readonly string[]>([]);
-  const canWrite = useCan('projects:write');
-  // Anyone who reads the project reads the rules; only a member who may write sets them or imports tiers
-  const [dialog, setDialog] = useState<'rules' | 'import' | 'alerts' | 'share' | null>(null);
+  const canNote = useCan('notes:write');
   const ruleItems: MenuItemDef[] = [
     { id: 'rules', label: t('rules.open'), icon: ListFilter, onSelect: () => setDialog('rules') },
     ...(canWrite ? [{ id: 'import', label: t('csv.open'), icon: Upload, onSelect: () => setDialog('import') }] : []),
   ];
-  const ruleButtons = canWrite ? (
-    <>
-      <Button variant="secondary" size="sm" onClick={() => setDialog('rules')}>
-        {t('rules.setUp')}
-      </Button>
-      <Button variant="secondary" size="sm" onClick={() => setDialog('import')}>
-        {t('csv.open')}
-      </Button>
-    </>
-  ) : undefined;
   const inspectorWords = useTranslations('internalLinks.inspector');
   const stepping = useInspectorStepping({
     inspector,
@@ -175,50 +138,9 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     typeLabel: inspectorWords('typeLabel'),
     typeNoun: inspectorWords('typeNoun'),
   });
-  const [exportRun, setExportRun] = useState<(() => Promise<void>) | null>(null);
-  const registerExport = useCallback((run: (() => Promise<void>) | null) => setExportRun(() => run), []);
-  // One download at a time: a second press while the file is being made would start the same file again
-  const [exporting, setExporting] = useState(false);
-  const exportingNow = useRef(false);
-  const onExport =
-    exportRun === null
-      ? null
-      : () => {
-          if (exportingNow.current) return;
-          exportingNow.current = true;
-          setExporting(true);
-          exportRun()
-            .catch((error: unknown) => {
-              // What the API said, when it said something (a problem's detail, else its title)
-              const reason = isApiProblem(error) ? (error.detail ?? error.string('title')) : null;
-              toast({
-                type: 'error',
-                title: header('exportFailed'),
-                ...(reason === null ? {} : { description: reason }),
-              });
-            })
-            .finally(() => {
-              exportingNow.current = false;
-              setExporting(false);
-            });
-        };
+  const { registerExport, onExport, exporting } = usePageExport();
 
   const summary = useClientSummary({ scope, view: inView, host, timeZone: project.timeZone });
-
-  // Only someone who may crawl can have pressed Crawl now, so only they are told crawls are not switched on yet
-  // It is a child of the page's own column (`gap-3`) or of the tabs' (`gap-3`), so its spacing comes from the layout
-  const notice =
-    crawl.crawlsOff && canCrawl ? <CrawlsOffNotice pending={crawl.pending} onCheckAgain={() => crawl.start()} /> : null;
-  const crawlButton = (label: string): ReactElement => (
-    <CrawlButton
-      label={label}
-      canCrawl={canCrawl}
-      pending={crawl.pending}
-      crawlsOff={crawl.crawlsOff}
-      startedAgo={null}
-      onClick={() => crawl.start()}
-    />
-  );
 
   const context: LinksTabContext = {
     scope,
@@ -229,7 +151,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     state,
     crawl: inView,
     setSearch,
-    tiers: tiers.data?.data ?? NO_TIERS,
+    tiers: shell.tiers,
     // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
     inspect: { open: openPage, setOrder, ...inspected },
     openJourney: (urlId) =>
@@ -243,78 +165,19 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   };
 
   const tab = activeLinksTab(LINKS_TABS, state.tab);
-  let body: ReactNode;
-  switch (view.kind) {
-    case 'no-website':
-      body = <NoWebsite settingsHref={domainsHref} />;
-      break;
-    case 'loading':
-      body = <SkeletonRows />;
-      break;
-    case 'error':
-    case 'unknown':
-      body = (
-        <InlineError
-          title={states('loadFailed')}
-          reason={view.kind === 'error' ? states('loadFailedReason') : states('unknownReason')}
-          errorId={null}
-          onRetry={() => void crawls.refetch()}
-          retrying={crawls.isFetching}
-          retryLabel={common('retry')}
-        />
-      );
-      break;
-    case 'never':
-      body = (
-        <>
-          {notice}
-          <NeverCrawled host={host} crawlNow={crawlButton(header('crawlNow'))} />
-        </>
-      );
-      break;
-    case 'first':
-      body = <FirstCrawl run={view.run} host={host} timeZone={project.timeZone} actions={ruleButtons} />;
-      break;
-    case 'failed-first':
-      body = (
-        <>
-          {notice}
-          <EmptyState
-            title={states('failedLead')}
-            reason={failedText(states, view.run, host)}
-            headingLevel={2}
-            primaryAction={crawlButton(states('retry'))}
-          />
-        </>
-      );
-      break;
-    case 'ready':
-      body = (
-        <>
-          {notice}
-          <CrawlBanners
-            latest={view.latest}
-            shown={inView.crawl}
-            active={view.active}
-            failed={view.failed}
-            host={host}
-            timeZone={project.timeZone}
-            settingsHref={settingsHref}
-            canCrawl={canCrawl}
-            onRetry={() => crawl.start()}
-            onHigherLimit={() => crawl.start(true)}
-          />
-          {tab === null ? null : (
-            <TabsPanel value={tab.id} className="flex min-w-0 flex-col gap-3">
-              {crawlNotFound ? <CrawlNotFound onBack={backToLatest} /> : tab.render(context)}
-            </TabsPanel>
-          )}
-        </>
-      );
-      break;
-  }
+  const body: ReactNode = shell.stateBody ?? (
+    <>
+      {shell.notice}
+      {shell.banners}
+      {tab === null ? null : (
+        <TabsPanel value={tab.id} className="flex min-w-0 flex-col gap-3">
+          {crawlNotFound ? <CrawlNotFound onBack={backToLatest} /> : tab.render(context)}
+        </TabsPanel>
+      )}
+    </>
+  );
 
-  const needsLinks = LINK_LEVEL_TABS.has(tab?.id ?? 'pages');
+  const needsLinks = LINK_LEVEL_TABS.has(tab?.id ?? 'journey');
   // The page actions belong to a crawl that is read or under way; the other states carry their own action
   const toolbar = (tabList: ReactElement | undefined): ReactElement => (
     <PageToolbar title={t('title')} headingId={HEADING_ID}>
@@ -326,7 +189,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
             ready ? (
               <>
                 <CrawlPicker
-                  runs={crawls.data?.data ?? []}
+                  runs={runs}
                   run={inView.run}
                   timeZone={project.timeZone}
                   needsLinks={needsLinks}
@@ -338,7 +201,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
                   scope={scope}
                   run={inView.run}
                   timeZone={project.timeZone}
-                  untieredHref={withQuery(base, UNTIERED_QUERY)}
+                  untieredHref={withQuery(pagesTabPath(workspaceSlug, project.slug, 'all'), UNTIERED_QUERY)}
                   changesHref={registered('changes') ? withQuery(base, CHANGES_QUERY) : null}
                 />
               </>
@@ -372,9 +235,8 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       ) : (
         <PageInspector
           key={inspected.urlId}
-          context={context}
+          context={drawerContextOf(context, { write: canWrite, note: canNote })}
           urlId={inspected.urlId}
-          canWrite={canWrite}
           positionText={stepping.positionText}
           navigation={stepping.navigation}
           onStep={stepping.onStep}
@@ -389,13 +251,13 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           <Tabs
             variant="segmented"
             label={t('tabs.label')}
-            value={tab?.id ?? 'pages'}
+            value={tab?.id ?? 'journey'}
             // The tab is the one change of the page that makes a history entry
             onValueChange={(next) =>
               // The inspector opened from the journey belongs to it: it closes with the tab
               setSearch(
                 {
-                  tab: next === 'pages' ? null : next,
+                  tab: next === 'journey' ? null : next,
                   ...(state.tab === 'journey' ? { inspect: null, itab: null } : {}),
                 },
                 { history: 'push' },
@@ -462,7 +324,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
           open={dialog === 'alerts'}
           onOpenChange={(next) => setDialog(next ? 'alerts' : null)}
           scope={scope}
-          tierCount={tiers.data?.data.length ?? null}
+          tierCount={shell.tierCount}
           fallbackFocus={() => document.getElementById(HEADING_ID)}
         />
       ) : null}

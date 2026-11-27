@@ -160,6 +160,7 @@ export function DataTable<TRow extends RowData>({
   rowTree,
   onToggleGroup,
   groupRowOpens = false,
+  toolbarStart,
   toolbarEnd,
   compactToolbar = false,
   compactChooser = false,
@@ -904,10 +905,24 @@ export function DataTable<TRow extends RowData>({
   const chooserColumns = (() => {
     const chosen = chosenColumns(meta, columnState.visible);
     const rest = columns.filter((column) => !chosen.includes(column.id)).map((column) => column.id);
-    return [...chosen, ...rest].map((id) => ({
+    const ordered = [...chosen];
+    if (columnGroups) {
+      // A hidden column goes after the last column of its group, so a group is headed once; the shown
+      // columns keep their chosen order, which is what Move up and Move down act on
+      for (const id of rest) {
+        const groupId = byId.get(id)?.group?.id;
+        const last =
+          groupId === undefined ? -1 : ordered.findLastIndex((other) => byId.get(other)?.group?.id === groupId);
+        ordered.splice(last === -1 ? ordered.length : last + 1, 0, id);
+      }
+    } else {
+      ordered.push(...rest);
+    }
+    return ordered.map((id) => ({
       id,
       label: labelOf(id),
       icon: byId.get(id)?.headerIcon,
+      group: columnGroups ? byId.get(id)?.group?.label : undefined,
       visible: chosen.includes(id),
       locked: byId.get(id)?.identity === true,
     }));
@@ -1209,6 +1224,7 @@ export function DataTable<TRow extends RowData>({
           onDensityChange={onDensityChange}
           parts={toolbarParts}
           compact={compactToolbar}
+          start={toolbarStart}
           end={toolbarEnd}
           columns={(trigger) => (
             <ColumnChooser

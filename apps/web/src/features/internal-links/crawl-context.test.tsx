@@ -21,8 +21,8 @@ vi.mock('./tabs', async (importOriginal) => {
     ...original,
     LINKS_TABS: original.defineLinksTabs([
       {
-        id: 'pages',
-        label: () => 'Pages',
+        id: 'journey',
+        label: () => 'Journey',
         icon: FileText,
         render: (context: LinksTabContext) => (
           <p data-testid="context">

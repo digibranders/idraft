@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
 from idraft.api.schemas.common import Body
-from idraft.api.schemas.internal_links import PlacementName, TierRef, UrlId, UrlIdText
+from idraft.api.schemas.internal_links import PlacementName, TierCount, TierRef, UrlId, UrlIdText
 
 AlertChannel = Literal["app", "email", "slack"]
 DeliveryState = Literal["shown_in_app", "channel_unavailable"]
@@ -56,6 +56,173 @@ class ChangesSummary(BaseModel):
 
 class ChangesSummaryResponse(BaseModel):
     data: ChangesSummary
+
+
+class OverviewStatus(BaseModel):
+    live: int
+    variant: int
+    redirected: int
+    client_error: int
+    server_error: int
+    blocked: int
+    other: int
+
+
+class OverviewSitemap(BaseModel):
+    state: Literal["read", "no_sitemap"]
+    indexable_in_sitemap: int | None
+    indexable_missing: int | None
+    listed_not_live: int | None
+    listed_not_indexable: int | None
+
+
+class OverviewDepth(BaseModel):
+    clicks: int = Field(description="0 to 6; 6 is 6 clicks and more.")
+    pages: int
+
+
+class OverviewSection(BaseModel):
+    section: str = Field(description="The first folder of the path, `/` for a top-level page.")
+    pages: int
+
+
+class PagesOverview(BaseModel):
+    run_id: UUID
+    crawled_at: datetime | None
+    addresses: int
+    status: OverviewStatus
+    indexable: int
+    not_indexable: int
+    reachable: int
+    unreachable: int
+    orphans: int
+    sitemap: OverviewSitemap
+    depth: list[OverviewDepth]
+    tiers: list[TierCount]
+    sections: list[OverviewSection]
+    sections_total: int
+
+
+class PagesOverviewResponse(BaseModel):
+    data: PagesOverview
+
+
+class PageSearchDay(BaseModel):
+    date: date
+    clicks: int
+    impressions: int
+
+
+class PageSearchDaily(BaseModel):
+    state: Literal["ok", "pending", "not_connected"]
+    window_start: date | None
+    window_end: date | None
+    clicks: int | None
+    impressions: int | None
+    days: list[PageSearchDay] = Field(
+        description="One row per day of the window with `ok`, a day without a stored row as "
+        "zeros; empty otherwise."
+    )
+
+
+class PageSearchDailyResponse(BaseModel):
+    data: PageSearchDaily
+
+
+class OutlineText(BaseModel):
+    text: str | None
+    chars: int = Field(description="The length after trimming, before any cut of `text`.")
+    state: Literal["ok", "short", "long", "missing"]
+
+
+class OutlineCanonical(BaseModel):
+    state: Literal["self", "elsewhere", "none"]
+    href: str | None
+
+
+class OutlineRobots(BaseModel):
+    meta: str | None = Field(description="The content of the first robots meta tag, as read.")
+    noindex: bool = Field(description="From the crawl row, so it also covers a noindex header.")
+
+
+class OutlineHeading(BaseModel):
+    level: int = Field(ge=1, le=6)
+    text: str
+
+
+class OutlineLanguagePair(BaseModel):
+    code: str
+    href: str
+    is_self: bool
+    valid: bool
+    suggestion: str | None
+
+
+class OutlineLanguages(BaseModel):
+    x_default: bool
+    pairs: list[OutlineLanguagePair]
+
+
+class OutlineSocial(BaseModel):
+    og_title: str | None
+    og_description: str | None
+    og_image: str | None
+    og_type: str | None
+    twitter_card: str | None
+
+
+class OutlineStructuredBlock(BaseModel):
+    types: list[str]
+    parses: bool
+
+
+class OutlineContent(BaseModel):
+    words: int
+    read_minutes: int
+    thin: bool
+    images: int
+    images_without_alt: int
+
+
+class PageOutlineBody(BaseModel):
+    url: str
+    truncated: bool = Field(description="The HTML was longer than the byte cap and was cut.")
+    title: OutlineText
+    description: OutlineText
+    canonical: OutlineCanonical
+    robots: OutlineRobots
+    html_lang: str | None
+    headings: list[OutlineHeading] = Field(
+        description="Headings with text, in document order, at most 200."
+    )
+    headings_total: int = Field(
+        description="Every heading the parser saw, also one with no text and those past 200."
+    )
+    level_counts: list[int] = Field(
+        min_length=6,
+        max_length=6,
+        description="Headings per level, H1 to H6, counted over all of them; with `headings` "
+        "it can differ, since a heading with no text is counted and not listed.",
+    )
+    skipped_at: int | None = Field(
+        description="Index in `headings` of the first heading more than one level deeper than "
+        "the one before it."
+    )
+    languages: OutlineLanguages
+    social: OutlineSocial
+    structured_data: list[OutlineStructuredBlock]
+    content: OutlineContent
+
+
+class PageOutline(BaseModel):
+    state: Literal["ok", "redirect", "error", "not_html", "no_html"]
+    run_id: UUID
+    status_code: int | None
+    outline: PageOutlineBody | None
+
+
+class PageOutlineResponse(BaseModel):
+    data: PageOutline
 
 
 class ChangeLink(BaseModel):

@@ -27,7 +27,7 @@ describe('the scope of a hand typed link worklist address', () => {
     );
     expect(parseLinksSearch({ tab: 'links', lview: 'broken_and_redirected', scope: 'nope' }).scope).toBe('editorial');
     expect(parseLinksSearch({ tab: 'links' }).scope).toBe('editorial');
-    expect(parseLinksSearch({ tab: 'pages', lview: 'broken_and_redirected' }).scope).toBe('editorial');
+    expect(parseLinksSearch({ tab: 'journey', lview: 'broken_and_redirected' }).scope).toBe('editorial');
     expect(parseLinksSearch({ tab: 'links', lview: 'unknown' }).scope).toBe('editorial');
   });
 });
@@ -66,12 +66,9 @@ describe('the chosen crawl and the keys of the Changes and Opportunities tabs', 
 describe('the address of Internal links (URL state table)', () => {
   it('reads the defaults from an empty address', () => {
     expect(parseLinksSearch({})).toEqual({
-      tab: 'pages',
+      tab: 'journey',
       scope: 'editorial',
-      worklist: null,
       edgeWorklist: null,
-      sort: '-linking_pages',
-      q: null,
       lq: null,
       source: null,
       target: null,
@@ -99,10 +96,8 @@ describe('the address of Internal links (URL state table)', () => {
     const state = parseLinksSearch({
       tab: 'journey',
       scope: 'all',
-      view: 'orphans',
       lview: 'links_to_non_indexable',
-      sort: 'click_depth',
-      q: ' /blog ',
+      lq: ' /blog ',
       focus: '101',
       jv: 'tree',
       dir: 'in',
@@ -114,10 +109,8 @@ describe('the address of Internal links (URL state table)', () => {
     expect(state).toMatchObject({
       tab: 'journey',
       scope: 'all',
-      worklist: 'orphans',
       edgeWorklist: 'links_to_non_indexable',
-      sort: 'click_depth',
-      q: '/blog',
+      lq: '/blog',
       focus: '101',
       journeyView: 'tree',
       treeDir: 'in',
@@ -126,12 +119,11 @@ describe('the address of Internal links (URL state table)', () => {
     expect([...state.groups]).toEqual(['g:o:f:template']);
     expect([...state.more]).toEqual([['m:o|f', 2]]);
     expect([...state.treeOpen]).toEqual(['t.103']);
-    expect(parseLinksSearch({ tab: 'nope', sort: '-equity_share', focus: '12x', view: 'lost' })).toMatchObject({
-      tab: 'pages',
-      sort: '-linking_pages',
-      focus: null,
-      worklist: null,
-    });
+    expect(parseLinksSearch({ tab: 'nope', focus: '12x' })).toMatchObject({ tab: 'journey', focus: null });
+    // The Pages tab has left: its id reads as the default tab, and its keys are no longer in the state
+    const gone = parseLinksSearch({ tab: 'pages' });
+    expect(gone.tab).toBe('journey');
+    for (const key of ['worklist', 'sort', 'q']) expect(gone).not.toHaveProperty(key);
   });
 
   it('reads the Path finder view (jv=paths) and any other journey view as the canvas', () => {
@@ -139,18 +131,6 @@ describe('the address of Internal links (URL state table)', () => {
     expect(parseLinksSearch({ jv: 'tree' }).journeyView).toBe('tree');
     expect(parseLinksSearch({ jv: 'route' }).journeyView).toBe('canvas');
     expect(parseLinksSearch({}).journeyView).toBe('canvas');
-  });
-
-  it('reads the two slice 2 worklists and the change sort, and no other new value', () => {
-    expect(parseLinksSearch({ view: 'lost_links_top', sort: '-change' })).toMatchObject({
-      worklist: 'lost_links_top',
-      sort: '-change',
-    });
-    expect(parseLinksSearch({ view: 'weak_outlinks', sort: 'change' })).toMatchObject({
-      worklist: 'weak_outlinks',
-      sort: 'change',
-    });
-    expect(parseLinksSearch({ sort: 'equity_change' }).sort).toBe('-linking_pages');
   });
 
   it('reads the layout and the lanes turned off, and falls back to By step with every lane on', () => {

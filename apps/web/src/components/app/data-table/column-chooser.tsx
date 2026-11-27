@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement, ReactNode } from 'react';
+import { Fragment, type ReactElement, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -16,6 +16,8 @@ export interface ColumnChooserColumn {
   label: string;
   /** A mark drawn before the name (a platform's logo); hidden from assistive technology, the name stays `label`. */
   icon?: ReactNode;
+  /** The translated group label: a heading is drawn before each run of columns that share it. */
+  group?: string | undefined;
   visible: boolean;
   /** The identity column: always shown, not movable. */
   locked: boolean;
@@ -83,49 +85,57 @@ export function ColumnChooser({
       }
     >
       <ul className="flex flex-col">
-        {columns.map((column) => {
+        {columns.map((column, position) => {
           const index = shown.findIndex((candidate) => candidate.id === column.id);
+          const heading = column.group !== undefined && column.group !== columns[position - 1]?.group;
           return (
-            <li key={column.id} className="group flex h-control-sm items-center gap-1">
-              <Checkbox
-                checked={column.visible}
-                label={
-                  column.icon === undefined ? (
-                    column.label
-                  ) : (
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span aria-hidden="true" className="flex shrink-0 items-center">
-                        {column.icon}
-                      </span>
-                      <span className="truncate">{column.label}</span>
-                    </span>
-                  )
-                }
-                disabled={column.locked}
-                onCheckedChange={(checked) => onToggle(column.id, checked)}
-                className="min-w-0 flex-1"
-              />
-              {column.visible && !column.locked ? (
-                <>
-                  <IconButton
-                    icon={ArrowUp}
-                    size="icon-xs"
-                    variant="ghost"
-                    label={t('moveUp', { column: column.label })}
-                    disabled={index <= firstMovable}
-                    onClick={() => move(column, -1)}
-                  />
-                  <IconButton
-                    icon={ArrowDown}
-                    size="icon-xs"
-                    variant="ghost"
-                    label={t('moveDown', { column: column.label })}
-                    disabled={index === shown.length - 1}
-                    onClick={() => move(column, 1)}
-                  />
-                </>
+            <Fragment key={column.id}>
+              {heading ? (
+                <li role="presentation" className="px-2 pt-2 pb-1 type-label text-foreground-tertiary">
+                  {column.group}
+                </li>
               ) : null}
-            </li>
+              <li className="group flex h-control-sm items-center gap-1">
+                <Checkbox
+                  checked={column.visible}
+                  label={
+                    column.icon === undefined ? (
+                      column.label
+                    ) : (
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span aria-hidden="true" className="flex shrink-0 items-center">
+                          {column.icon}
+                        </span>
+                        <span className="truncate">{column.label}</span>
+                      </span>
+                    )
+                  }
+                  disabled={column.locked}
+                  onCheckedChange={(checked) => onToggle(column.id, checked)}
+                  className="min-w-0 flex-1"
+                />
+                {column.visible && !column.locked ? (
+                  <>
+                    <IconButton
+                      icon={ArrowUp}
+                      size="icon-xs"
+                      variant="ghost"
+                      label={t('moveUp', { column: column.label })}
+                      disabled={index <= firstMovable}
+                      onClick={() => move(column, -1)}
+                    />
+                    <IconButton
+                      icon={ArrowDown}
+                      size="icon-xs"
+                      variant="ghost"
+                      label={t('moveDown', { column: column.label })}
+                      disabled={index === shown.length - 1}
+                      onClick={() => move(column, 1)}
+                    />
+                  </>
+                ) : null}
+              </li>
+            </Fragment>
           );
         })}
       </ul>

@@ -18,6 +18,8 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Keywords, Pages, Prompts, Citations, Competitors, Reports, Integrations, Runs, Costs, Settings | Rankings, Topics, Engines, Sources (as a page name) |
 | Citation opportunities (working name for the planned WP-61 page; confirm when it ships) | Sources |
 | Link map (a tab of Internal links: every live page and its body links as one graph) | Site map, Network, Graph (as the tab name) |
+| Outline (a tab of the page drawer: what one page says to a search engine) | Structure, On-page, SEO audit, Content outline (as the tab name) |
+| Notes (a tab of the page drawer: what the team wrote about one page) | Comments, Annotations, Remarks, Log (as the tab name) |
 
 ## Where we ask and where we check
 
@@ -56,6 +58,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Schedule | Panel, Cadence |
 | Screenshot (image of an AI answer) | Capture |
 | Job type (Costs and Budgets); Started by (Schedule, Manual, Backfill, Retry) | Workload, Trigger |
+| Add note (the button that saves a new note on a page) | Post, Comment, Submit, Save note (for a new note) |
 
 ## What the answers contain
 

@@ -35,8 +35,12 @@ import {
   neighborsQuery,
   pageDetailQuery,
   pageFilterOf,
+  pageNotesQuery,
+  pageOutlineQuery,
   pageParams,
+  pageSearchQuery,
   pagesQuery,
+  overviewQuery,
   publicSummaryQuery,
   sharesQuery,
   tierFlowQuery,
@@ -91,6 +95,61 @@ describe('the pages query (the backend OpenAPI)', () => {
       include_variants: false,
     });
     expect(pageFilterOf(DEFAULT_PAGE_QUERY)).toEqual({ include_variants: false });
+  });
+
+  it('sends the view, folder, depth and variants only when set', () => {
+    expect(
+      pageParams({ ...DEFAULT_PAGE_QUERY, view: 'live', folder: '/blog/', depth: 2, includeVariants: true }),
+    ).toMatchObject({
+      'filter[view]': 'live',
+      'filter[folder]': '/blog/',
+      'filter[depth]': 2,
+      'filter[include_variants]': true,
+    });
+    const plain = pageParams(DEFAULT_PAGE_QUERY);
+    for (const key of ['filter[view]', 'filter[folder]', 'filter[depth]', 'filter[include_variants]']) {
+      expect(plain).not.toHaveProperty(key);
+    }
+  });
+
+  it('refuses a view together with a worklist', () => {
+    expect(() => pageParams({ ...DEFAULT_PAGE_QUERY, view: 'live', worklist: 'orphans' })).toThrow(
+      new Error('A pages query has a view or a worklist, not both'),
+    );
+  });
+
+  it('carries the view, folder, depth and variants into the bulk filter', () => {
+    expect(
+      pageFilterOf({ ...DEFAULT_PAGE_QUERY, view: 'errors', folder: '/a/', depth: 3, includeVariants: true }),
+    ).toEqual({ view: 'errors', folder: '/a/', depth: 3, include_variants: true });
+  });
+
+  it('keys the overview per crawl, under the project reads', () => {
+    const startsWith = (key: readonly unknown[], prefix: readonly unknown[] | undefined): boolean =>
+      prefix !== undefined && prefix.every((part, index) => key[index] === part);
+    const latest = overviewQuery(SCOPE, null).queryKey;
+    expect(overviewQuery(SCOPE, 'RUN').queryKey).not.toEqual(latest);
+    expect(startsWith(latest, internalLinksKeys(SCOPE)[0])).toBe(true);
+    expect(latest).toContain('internal-links');
+  });
+
+  it('reads the page search and outline by url id, and refuses a bad id', () => {
+    expect(() => pageSearchQuery(SCOPE, 'abc', null)).toThrow(UrlIdError);
+    expect(() => pageOutlineQuery(SCOPE, 'abc')).toThrow(UrlIdError);
+    const key = pageOutlineQuery(SCOPE, '108').queryKey;
+    expect(key).toContain('internal-links');
+    expect(key[0]).toEqual(pagesQuery(SCOPE, DEFAULT_PAGE_QUERY, null).queryKey[0]);
+    expect(JSON.stringify(key)).not.toContain('"run"');
+  });
+
+  it('keys the notes of a page under the project and the page, and refuses a bad id', () => {
+    expect(() => pageNotesQuery(SCOPE, 'abc')).toThrow(UrlIdError);
+    const key = pageNotesQuery(SCOPE, '108').queryKey;
+    const [reads] = internalLinksKeys(SCOPE);
+    expect(key.slice(0, reads?.length)).toEqual(reads);
+    expect(key).toContain('notes');
+    expect(key).toContain('108');
+    expect(pageNotesQuery(SCOPE, '109').queryKey).not.toEqual(key);
   });
 
   it('keys every read under the project, so a tier change reaches all of them', () => {

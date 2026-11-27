@@ -72,8 +72,13 @@ from idraft.api.internal_links.change_routes import router as change_routes_rout
 from idraft.api.internal_links.changes import ChangeService
 from idraft.api.internal_links.crawl_routes import router as crawl_routes_router
 from idraft.api.internal_links.crawls import CrawlService
+from idraft.api.internal_links.mention_sources import NoIssueChecks
 from idraft.api.internal_links.opportunities import OpportunityService
 from idraft.api.internal_links.opportunity_routes import router as opportunity_routes_router
+from idraft.api.internal_links.page_note_file_routes import router as page_note_file_routes_router
+from idraft.api.internal_links.page_note_files import PageNoteFileService
+from idraft.api.internal_links.page_note_routes import router as page_note_routes_router
+from idraft.api.internal_links.page_notes import PageNoteService
 from idraft.api.internal_links.page_tier_routes import router as page_tier_routes_router
 from idraft.api.internal_links.page_tiers import PageTierService
 from idraft.api.internal_links.path_routes import router as path_routes_router
@@ -248,7 +253,6 @@ def create_app(
                 sender=settings.email_from,
             )
             throttle = LoginThrottle(redis)
-            link_reads = LinkReadService(sessions=sessions)
             link_changes = ChangeService(sessions=sessions)
             session_store = SessionStore(
                 sessions, redis, cache_key=derive_key(settings.totp_key, SESSION_CACHE_KEY_LABEL)
@@ -256,6 +260,7 @@ def create_app(
             sources = import_store
             if sources is None and settings.raw_storage_configured:
                 sources = await stack.enter_async_context(_open_import_store(settings))
+            link_reads = LinkReadService(sessions=sessions, raw_store=sources)
             page_tiers = PageTierService(sessions=sessions)
             ai_summary = SummaryService(sessions=sessions)
             ai_sources = SourceService(sessions=sessions)
@@ -321,6 +326,9 @@ def create_app(
                 ai_citation_board=CitationBoardService(sessions=sessions),
                 tier_levels=TierLevelService(sessions=sessions),
                 page_tiers=page_tiers,
+                # No Issues catalogue on this branch: its session passes its checks here.
+                page_notes=PageNoteService(sessions=sessions, issues=NoIssueChecks()),
+                page_note_files=PageNoteFileService(sessions=sessions, store=sources),
                 link_reads=link_reads,
                 link_changes=link_changes,
                 public_summary=PublicSummaryService(
@@ -425,6 +433,8 @@ def create_app(
     app.include_router(prompt_routes_router)
     app.include_router(tier_level_routes_router)
     app.include_router(page_tier_routes_router)
+    app.include_router(page_note_routes_router)
+    app.include_router(page_note_file_routes_router)
     app.include_router(read_routes_router)
     app.include_router(change_routes_router)
     app.include_router(opportunity_routes_router)

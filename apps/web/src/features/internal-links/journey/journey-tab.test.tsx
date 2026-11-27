@@ -155,7 +155,10 @@ describe('the Journey tab (spec 7.5)', () => {
       onUrlUpdate,
     });
     await canvas();
-    await user.click(screen.getByRole('tab', { name: 'Links' }));
+    // The page drawer has a Links tab of its own: the screen's tabs are the list named for them
+    await user.click(
+      within(screen.getByRole('tablist', { name: 'Internal links views' })).getByRole('tab', { name: 'Links' }),
+    );
     await waitFor(() => expect(seen.at(-1)).toContain('tab=links'));
     expect(seen.at(-1)).not.toContain('inspect=');
   });

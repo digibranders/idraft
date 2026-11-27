@@ -36,9 +36,10 @@ describe('the navigation registry', () => {
     }
   });
 
-  it('lists only what is live: Keywords, Internal links, AI Overview, Prompts, Citations, Insights, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
+  it('lists only what is live: Keywords, Pages, Internal links, AI Overview, Prompts, Citations, Insights, Competitors, Reports, Integrations, Runs, Costs and Settings, for now', () => {
     expect(keysOf(visibleNavigation(NAVIGATION, permissionsFor('owner')))).toEqual([
       'keywords',
+      'pages',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -67,6 +68,7 @@ describe('the navigation registry', () => {
       keysOf(visibleNavigation(NAVIGATION, permissionsFor(role)));
     expect(shownTo('viewer')).toEqual([
       'keywords',
+      'pages',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -80,6 +82,7 @@ describe('the navigation registry', () => {
     ]);
     expect(shownTo('analyst')).toEqual([
       'keywords',
+      'pages',
       'internalLinks',
       'aiOverview',
       'prompts',
@@ -191,7 +194,6 @@ describe('the navigation registry', () => {
       'overview',
       'matrix',
       'rankings',
-      'pages',
       'discover',
     ]);
   });
@@ -220,6 +222,14 @@ describe('the navigation registry', () => {
   });
 
   it('finds no destination for the path of a planned one among the live ones', () => {
-    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/seo/pages', 'digibranders', 'fynix')).toBeNull();
+    expect(destinationOf(LIVE_NAVIGATION, '/digibranders/fynix/matrix', 'digibranders', 'fynix')).toBeNull();
+  });
+
+  it('Pages is live between Keywords and Internal links, and both of its tabs are its destination', () => {
+    const seo = LIVE_NAVIGATION.filter((item) => item.group === 'seo').map((item) => item.key);
+    expect(seo).toEqual(['keywords', 'pages', 'internalLinks']);
+    for (const path of ['/seo/pages', '/seo/pages/all']) {
+      expect(destinationOf(LIVE_NAVIGATION, `/digibranders/fynix${path}`, 'digibranders', 'fynix')?.key).toBe('pages');
+    }
   });
 });

@@ -9201,6 +9201,498 @@
       }
     }
   },
+  "pages": {
+    "title": "Pages",
+    "drawer": {
+      "tabsLabel": "Page sections",
+      "tabsMore": "More sections",
+      "tabs": {
+        "overview": "Overview",
+        "search": "Search",
+        "outline": "Outline",
+        "issues": "Issues",
+        "ai": "AI",
+        "links": "Links",
+        "notes": "Notes"
+      },
+      "overview": {
+        "chips": {
+          "label": "Page facts",
+          "indexable": "Indexable",
+          "inSitemap": "In sitemap",
+          "notInSitemap": "Not in sitemap",
+          "variant": "Parameter variant"
+        },
+        "tiles": {
+          "label": "Page numbers",
+          "clicks": "Clicks",
+          "impressions": "Impressions",
+          "keywords": "Tracked keywords",
+          "citations": "AI citations",
+          "linksIn": "Links in",
+          "linksOut": "Links out",
+          "depth": "Depth",
+          "issues": "Issues",
+          "last28": "last 28 days",
+          "bestRank": "best rank {rank, number}",
+          "noRank": "none rank yet",
+          "linksNote": "{scope}, {count, number} in all",
+          "depthNote": "clicks from the home page",
+          "notReachable": "Not reachable by links",
+          "notConnected": "Not connected",
+          "notCollected": "Not collected yet",
+          "couldNotLoad": "Could not load",
+          "issuesNone": "None found",
+          "issuesNote": "{count, plural, one {# error} other {# errors}}",
+          "issuesWarnings": "{count, plural, one {# warning} other {# warnings}}",
+          "issuesNotices": "{count, plural, one {# notice} other {# notices}}",
+          "opens": "{label}: {value}, {note}. Opens the {tab} tab.",
+          "opensNoNote": "{label}: {value}. Opens the {tab} tab."
+        },
+        "attention": {
+          "title": "Needs attention",
+          "none": "Nothing needs attention on this page",
+          "seeAll": "See all issues"
+        },
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "notice": "Notice"
+        },
+        "about": {
+          "title": "About",
+          "pageTitle": "Title",
+          "address": "Address",
+          "canonical": "Canonical",
+          "redirectsTo": "Redirects to",
+          "lastCrawled": "Last crawled",
+          "noTitle": "No title",
+          "noCanonical": "None set",
+          "notCrawled": "Not crawled yet",
+          "copyUrl": "Copy address"
+        }
+      },
+      "search": {
+        "title": "Search Console, last 28 days",
+        "label": "Search Console totals",
+        "clicks": "Clicks",
+        "impressions": "Impressions",
+        "day": "Day",
+        "summary": "{clicks} clicks and {impressions} impressions from {start} to {end}",
+        "notConnectedTitle": "Search Console is not connected",
+        "notConnectedReason": "Connect Search Console to see this page's clicks and impressions.",
+        "connect": "Open Integrations",
+        "pendingTitle": "Not collected yet",
+        "pendingReason": "The page numbers arrive after the next Search Console update.",
+        "none": "Google reported no clicks or impressions for this page in these 28 days",
+        "loadFailed": "The Search Console numbers could not be loaded",
+        "unavailable": "The Search Console numbers of this page are not available yet."
+      },
+      "issues": {
+        "pending": "Checks from the Issues page appear here once they are available",
+        "none": "No issues found on this page",
+        "seeAll": "See all pages with this issue",
+        "seeAllNamed": "See all pages with this issue: {issue}",
+        "loadFailed": "The issues of this page could not be loaded",
+        "title": "Issues",
+        "flags": "Flags",
+        "severity": {
+          "error": "Error",
+          "warning": "Warning",
+          "notice": "Notice"
+        }
+      },
+      "notes": {
+        "addLabel": "Add a note to {path}",
+        "placeholder": "What changed on this page, what is planned, what to check later. Type @ to mention, / for commands.",
+        "suggestions": {
+          "label": "Suggestions",
+          "count": "{count, plural, one {# suggestion} other {# suggestions}}, use the arrow keys",
+          "searching": "Searching",
+          "failed": "Could not load suggestions",
+          "tooLong": "That would make the note longer than the limit, so nothing was added",
+          "teammate": "Teammate",
+          "page": "Page",
+          "issue": "Issue on this page",
+          "keyword": "Tracked keyword"
+        },
+        "chips": {
+          "openPage": "Open {path}",
+          "openIssue": "Open {name} on the Issues page",
+          "user": "Teammate {name}",
+          "keyword": "Tracked keyword {keyword}"
+        },
+        "commands": {
+          "page": "Link a page of the site",
+          "issue": "Link an issue found on this page",
+          "keyword": "Mention a tracked keyword of this page",
+          "date": "Put in today's date"
+        },
+        "add": "Add note",
+        "save": "Save",
+        "cancel": "Cancel",
+        "hint": "Cmd or Ctrl + Enter saves",
+        "count": "{count} of {max}",
+        "listLabel": "Notes, newest first",
+        "edited": "edited",
+        "editedAt": "Edited {when}",
+        "edit": "Edit note",
+        "editLabel": "Edit your note",
+        "delete": "Delete note",
+        "showOlder": "Show older notes",
+        "empty": "No notes on this page yet.",
+        "emptyWhy": "Write down what you changed and when, so the next drop or rise in its numbers has a reason beside it.",
+        "footer": "Everyone in this workspace can read these notes. They stay with this address when the site is crawled again.",
+        "loadFailed": "The notes of this page could not be loaded",
+        "added": "Note added",
+        "saved": "Note saved",
+        "deleted": "Note deleted",
+        "restoring": "Restoring note",
+        "restored": "Note restored",
+        "undo": "Undo",
+        "addFailed": "The note could not be added. Your text is still in the box.",
+        "saveFailed": "The note could not be saved. Your text is still in the box.",
+        "deleteFailed": "The note could not be deleted",
+        "restoreFailed": "The note could not be restored",
+        "saveNoText": "A note needs text or a file.",
+        "changedElsewhere": "The note changed elsewhere. Reopen it to edit.",
+        "fileGone": "A file you kept was removed elsewhere, so it was not saved.",
+        "files": {
+          "attach": "Attach files",
+          "remove": "Remove {name}",
+          "drop": "Drop files to attach",
+          "list": "Files in this note",
+          "tooMany": "At most {max} files per note.",
+          "wrongType": "{name}: only images (PNG, JPEG, GIF, WebP), PDF, text and CSV files.",
+          "tooBig": "{name}: over {max}.",
+          "empty": "{name} is empty.",
+          "duplicate": "{name} is already in this note.",
+          "quota": "Your workspace has no room left for files.",
+          "storage": "Files cannot be stored right now. Try again later.",
+          "failed": "{name} could not be uploaded.",
+          "busy": "Files are still uploading. Add more when they are done.",
+          "uploading": "Uploading {done} of {total} files",
+          "progress": "Uploading {name}",
+          "open": "{name}, {size}. Opens in a new tab.",
+          "thumb": "{name}"
+        }
+      },
+      "ai": {
+        "none": "No AI answer cited this page in the last 28 days"
+      },
+      "outline": {
+        "fine": "Fine",
+        "toFix": "To fix",
+        "seeInIssues": "See in Issues",
+        "footer": "Read from the stored HTML of the latest crawl, so it shows the page as the crawler saw it.",
+        "olderCrawl": "This is the outline from the latest crawl, not from the crawl you are viewing.",
+        "truncated": "This page is very long. The outline covers its first part.",
+        "loadFailed": "The outline of this page could not be loaded",
+        "state": {
+          "redirect": "This address redirects to {path}, so it has no content of its own. Open the page it leads to for its outline.",
+          "redirectUnknown": "This address redirects to another page, so it has no content of its own. Open the page it leads to for its outline.",
+          "error": "This address answers with {status}, so there is no page to read.",
+          "errorNoStatus": "This address did not answer, so there is no page to read.",
+          "notHtml": "This address is not an HTML page, so it has no outline.",
+          "noHtml": "The HTML of this page was not kept in the latest crawl, so its outline cannot be shown. It appears after the next crawl.",
+          "notInCrawl": "This page is not in the latest crawl."
+        },
+        "strip": {
+          "label": "Outline numbers",
+          "h1": "H1",
+          "h1None": "None",
+          "h1One": "as it should be",
+          "h1Missing": "missing",
+          "h1Many": "more than one",
+          "headings": "Headings",
+          "headingsNote": "H2 {h2}, H3 {h3}",
+          "words": "Words",
+          "readTime": "{minutes} min read",
+          "thin": "very little text",
+          "images": "Images",
+          "imagesFine": "all described",
+          "imagesNoAlt": "{count} without alt text"
+        },
+        "listing": {
+          "title": "Search listing",
+          "summaryFine": "Title and description are the right length",
+          "summaryToFix": "{count, plural, one {# thing to fix} other {# things to fix}}",
+          "previewLabel": "How the page can look in search results",
+          "noDescription": "No description. Google picks a sentence from the page.",
+          "noTitle": "No title",
+          "factTitle": "Title",
+          "factDescription": "Description",
+          "factCanonical": "Canonical",
+          "factRobots": "Robots",
+          "factLanguage": "Language",
+          "lengthOk": "{chars, plural, one {# character} other {# characters}}",
+          "lengthShort": "{chars, plural, one {# character} other {# characters}}, short of {min}",
+          "lengthLong": "{chars, plural, one {# character} other {# characters}}, over {max}",
+          "lengthMissing": "Missing",
+          "canonicalSelf": "This page",
+          "canonicalSelfChip": "Self",
+          "canonicalElsewhereChip": "Elsewhere",
+          "canonicalNone": "None given",
+          "robotsNone": "No robots tag",
+          "indexable": "Indexable",
+          "notIndexed": "Not indexed",
+          "languageNone": "Not set"
+        },
+        "headings": {
+          "title": "Headings",
+          "summary": "{count, plural, one {# heading} other {# headings}}",
+          "summaryWithH1": "{count, plural, one {# heading} other {# headings}}, H1: {h1}",
+          "none": "No headings",
+          "listLabel": "Headings in page order",
+          "level": "H{level}",
+          "emptyText": "No text",
+          "showAll": "Show all {count} headings",
+          "showFewer": "Show fewer headings",
+          "capped": "The first {shown} of {total} headings",
+          "withoutText": "{count, plural, one {# heading has} other {# headings have}} no text, so no row"
+        },
+        "languages": {
+          "title": "Languages",
+          "summary": "{count, plural, one {# version} other {# versions}}, with x-default",
+          "summaryNoDefault": "{count, plural, one {# version} other {# versions}}, no x-default",
+          "summaryOne": "One language ({lang}), no versions",
+          "summaryOneUnknown": "No language versions",
+          "none": "The page names no other language versions. That is fine for a site in one language.",
+          "thisPage": "This page",
+          "wrongCode": "Wrong code",
+          "listLabel": "Language versions"
+        },
+        "sharing": {
+          "title": "Social sharing",
+          "summaryFine": "Open Graph and X card set",
+          "summaryPartly": "Open Graph set, no X card",
+          "summaryNone": "No Open Graph tags",
+          "factTitle": "Title",
+          "factDescription": "Description",
+          "factImage": "Image",
+          "factType": "Type",
+          "factCard": "X card",
+          "missing": "Missing"
+        },
+        "structured": {
+          "title": "Structured data",
+          "summary": "{count, plural, one {# block} other {# blocks}}: {types}",
+          "summaryUnnamed": "{count, plural, one {# block} other {# blocks}}",
+          "summaryNone": "No structured data",
+          "none": "The page has no structured data blocks.",
+          "unnamed": "Unnamed block",
+          "valid": "Valid JSON",
+          "unreadable": "Cannot be read",
+          "listLabel": "Structured data blocks"
+        },
+        "content": {
+          "title": "Content",
+          "summary": "{words} words, {images, plural, one {# image} other {# images}}",
+          "factWords": "Words",
+          "factImages": "Images",
+          "factLinksOut": "Links out",
+          "readTime": "{minutes} min read",
+          "allAlt": "All have alt text",
+          "noAlt": "{count} without alt text",
+          "noImages": "No images",
+          "linksOut": "{count, plural, one {# internal link} other {# internal links}}",
+          "linksOutNote": "to other pages of the site"
+        },
+        "finding": {
+          "titleMissing": "The page has no title, so Google writes one from the page.",
+          "titleShort": "The title is short. Add the words people search for.",
+          "titleLong": "The title is long and Google will cut it off.",
+          "descriptionMissing": "There is no meta description, so Google writes its own text under the title.",
+          "descriptionShort": "The meta description is short. Use the room to say what the visitor gets.",
+          "descriptionLong": "The meta description is long and Google will cut it off.",
+          "descriptionDuplicate": "Other pages use this same description.",
+          "noindex": "The page tells search engines not to index it.",
+          "canonicalElsewhere": "The canonical points to another address, so this page is not the one Google keeps.",
+          "h1Missing": "The page has no H1, so nothing says what it is about.",
+          "h1Multiple": "The page has {count} H1 headings. Keep one and make the others H2.",
+          "skippedLevel": "“{text}” is an H{level} straight after an H{before}. Do not skip a level.",
+          "hreflang": "“{code}” is not a language code Google reads.",
+          "hreflangSuggest": "“{code}” is not a language code Google reads: use {suggestion}.",
+          "socialTags": "The page has no Open Graph tags, so a shared link has no title or image.",
+          "schemaErrors": "A structured data block cannot be read, so search engines skip it.",
+          "thinContent": "The page has very little text. Add what a visitor needs to know, or merge it into a fuller page.",
+          "imageAlt": "{count, plural, one {# image has} other {# images have}} no alt text, so screen readers and Google cannot tell what they show."
+        }
+      }
+    },
+    "tabs": {
+      "label": "Pages views",
+      "overview": "Overview",
+      "all": "All pages"
+    },
+    "view": {
+      "trigger": "View: {view}",
+      "sections": {
+        "pages": "Pages",
+        "sitemap": "Sitemap",
+        "reach": "Reach",
+        "linkProblems": "Link problems"
+      },
+      "all": "All pages",
+      "live": "Live pages",
+      "indexable": "Indexable",
+      "notIndexable": "Not indexable",
+      "redirects": "Redirects",
+      "errors": "Error pages",
+      "clientErrors": "Client errors",
+      "serverErrors": "Server errors",
+      "blocked": "Blocked",
+      "other": "Other addresses",
+      "variants": "Parameter variants",
+      "untiered": "Untiered",
+      "inSitemapIndexable": "Indexable and in the sitemap",
+      "notInSitemap": "Missing from the sitemap",
+      "sitemapNotLive": "In the sitemap, not live",
+      "sitemapNotIndexable": "In the sitemap, not indexable",
+      "reachable": "Reachable by links",
+      "unreachable": "Not reachable by links",
+      "opensLinks": "Opens Internal links, Links",
+      "announce": "{view}: {count, plural, one {# page} other {# pages}}"
+    },
+    "strip": {
+      "label": "Page counts of this crawl",
+      "addresses": "Addresses crawled",
+      "live": "Live pages",
+      "indexable": "Indexable",
+      "orphans": "Orphan pages",
+      "errors": "Error pages",
+      "withIssue": "Pages with an issue",
+      "addressesTip": "Every address the crawl read, parameter variants included",
+      "liveTip": "Pages that answered 200 with HTML, of every address",
+      "liveBaseTip": "Of live pages"
+    },
+    "groups": {
+      "page": "Page",
+      "indexing": "Indexing",
+      "issues": "Issues",
+      "search": "Search",
+      "ai": "AI",
+      "links": "Links"
+    },
+    "filters": {
+      "folder": "Folder",
+      "depthChip": "{depth, plural, =0 {Home page} =6 {6 clicks and more from the home page} one {# click from the home page} other {# clicks from the home page}}",
+      "variantsChip": "With parameter variants",
+      "remove": "Remove the filter {filter}"
+    },
+    "columns": {
+      "issues": "Issues",
+      "issuesTip": "Issues found on this page, from the Issues page",
+      "issuesCount": "{error, plural, one {# error} other {# errors}}, {warning, plural, one {# warning} other {# warnings}}, {notice, plural, one {# notice} other {# notices}}",
+      "tracked": "Tracked",
+      "trackedYes": "Tracked",
+      "trackedNo": "Not tracked"
+    },
+    "track": {
+      "action": "Track in Monitoring",
+      "onlySelection": "Choose the pages one by one to track them",
+      "done": "{added, plural, one {# page added} other {# pages added}}",
+      "already": "{count} already tracked",
+      "notLive": "{count} not added: not a live page",
+      "overLimit": "{count} not added: the limit is {limit} pages",
+      "failed": "The pages could not be tracked"
+    },
+    "overview": {
+      "loadFailed": "The page counts could not be loaded",
+      "loadFailedReason": "Try again. If it keeps failing, the crawl may still be saving."
+    },
+    "cards": {
+      "status": {
+        "title": "Addresses by status",
+        "info": "Every address the crawl read, by what it answered. Shares are of every address.",
+        "center": "{count} live",
+        "rows": {
+          "live": "Live pages",
+          "variant": "Parameter variants",
+          "redirected": "Redirects",
+          "clientError": "Client errors",
+          "serverError": "Server errors",
+          "blocked": "Blocked",
+          "other": "Other addresses"
+        }
+      },
+      "funnel": {
+        "title": "From crawled to indexable",
+        "info": "How many addresses are live pages, how many of those Google may index, and how many of those the sitemap lists.",
+        "rows": {
+          "addresses": "Addresses crawled",
+          "live": "Live pages",
+          "indexable": "Indexable",
+          "inSitemapIndexable": "Indexable and in the sitemap"
+        }
+      },
+      "sections": {
+        "title": "Pages by section",
+        "info": "Live pages by the first folder of their address. Shares are of live pages.",
+        "other": "{count, plural, one {Other sections (#)} other {Other sections (#)}}"
+      },
+      "tiers": {
+        "title": "Pages by tier",
+        "info": "Live pages by their tier today. Shares are of live pages."
+      },
+      "depth": {
+        "title": "Click depth",
+        "info": "How many clicks from the home page each live page is. Shares are of live pages.",
+        "row": "{depth, plural, =0 {Home page} =6 {6 clicks and more} one {# click} other {# clicks}}",
+        "unreachable": "Not reachable by links"
+      },
+      "sitemap": {
+        "title": "Sitemap coverage",
+        "info": "Indexable pages the sitemap lists and misses, and addresses it lists that are not live or not indexable.",
+        "rows": {
+          "inSitemapIndexable": "In the sitemap and indexable",
+          "notInSitemap": "Indexable, missing from the sitemap",
+          "sitemapNotLive": "In the sitemap, not live",
+          "sitemapNotIndexable": "In the sitemap, not indexable"
+        },
+        "emptyTitle": "The crawl found no sitemap",
+        "emptyReason": "Add a sitemap to the website, then crawl again.",
+        "bases": "Shares are of live pages, except addresses in the sitemap that are not live, which are of every address."
+      },
+      "bases": {
+        "addresses": "Every address the crawl read, parameter variants included.",
+        "live": "Pages that answered 200 with HTML.",
+        "mixed": "Addresses and live pages, as each row says."
+      },
+      "table": {
+        "row": "Group",
+        "pages": "Pages",
+        "share": "Share"
+      },
+      "shareOfAddresses": "{share} of every address",
+      "shareOfLive": "{share} of live pages",
+      "opens": "{label}, {count}. Opens All pages",
+      "summary": "{title}: {rows}",
+      "issues": {
+        "title": "Issues",
+        "errors": "Pages with an error",
+        "warnings": "Pages with a warning",
+        "notices": "Pages with a notice",
+        "opens": "{label}, {count}. Opens Issues"
+      },
+      "changes": {
+        "title": "Since the last crawl",
+        "pagesAdded": "Pages added",
+        "pagesRemoved": "Pages removed",
+        "editorial": "Editorial links added and lost",
+        "editorialValue": "{added} added, {lost} lost",
+        "lostToTop": "Links lost to important tiers",
+        "opens": "{label}, {value}. Opens Internal links, Changes",
+        "firstCrawl": "This is the first crawl. Changes appear after the next one.",
+        "pending": "Comparing with the crawl before"
+      },
+      "export": {
+        "card": "Card",
+        "row": "Row",
+        "count": "Count"
+      }
+    }
+  },
   "internalLinks": {
     "title": "Internal links",
     "status": {
@@ -9469,11 +9961,7 @@
       "notStored": "Not stored",
       "notStoredReason": "This crawl no longer holds its links.",
       "matches": "An anchor contains a tracked keyword",
-      "noMatch": "No anchor contains a tracked keyword",
-      "google": "Google Search Console",
-      "gscOk": "{clicks} clicks, {impressions} impressions, last 28 days (Google data)",
-      "gscOff": "Search Console is not connected.",
-      "gscPending": "Search Console is syncing."
+      "noMatch": "No anchor contains a tracked keyword"
     },
     "pages": {
       "caption": "Pages",
@@ -9481,11 +9969,7 @@
       "other": "pages",
       "search": "Search pages",
       "openJourney": "Open {path} in journey",
-      "allPages": "All pages",
       "noIssues": "No issues",
-      "worklistsLabel": "Worklists",
-      "linkCount": "{count, plural, one {# link} other {# links}}",
-      "variantsLink": "{count, plural, one {# parameter variant} other {# parameter variants}}",
       "emptyTitle": "No pages in this crawl",
       "emptyReason": "The crawl found no page. Check the website in the project settings, then crawl again.",
       "noMatchTitle": "No pages match",
@@ -9568,7 +10052,9 @@
       "outlinksTip": "Unique pages this page links to, in the link scope chosen",
       "flags": "Flags",
       "tags": "Tags",
-      "reason": "Indexability reason",
+      "reason": "Indexable",
+      "canonical": "Canonical",
+      "canonicalSelf": "This page",
       "sitemap": "In sitemap",
       "toT1": "Outlinks to T1",
       "broken": "Broken outlinks",
@@ -9612,7 +10098,8 @@
       "noKeywords": "No keywords",
       "clicks": "Clicks",
       "impressions": "Impressions",
-      "googleTip": "Google data, last 28 days",
+      "clicksTip": "Google Search clicks on this page in the last 28 days, from Search Console",
+      "impressionsTip": "Times this page was shown in Google Search in the last 28 days, from Search Console",
       "syncing": "Syncing",
       "syncingTip": "Search Console is still syncing, so there are no figures yet.",
       "notConnected": "Not connected",
@@ -9783,7 +10270,6 @@
     },
     "tabs": {
       "label": "Internal links views",
-      "pages": "Pages",
       "links": "Links",
       "journey": "Journey",
       "map": "Link map",

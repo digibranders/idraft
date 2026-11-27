@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Response
+from fastapi.exceptions import RequestValidationError
 
 from idraft.api.internal_links.reads import EdgeQuery, LinkReadService
 from idraft.api.pagination import Commas, Cursor, CursorPageInfo
@@ -25,12 +26,18 @@ from idraft.api.schemas.internal_links import (
     PageFlag,
     PageRowPage,
     PageSort,
+    PageView,
     PageWorklist,
     PlacementName,
     StatusClass,
     TierFlowResponse,
     UrlId,
     WorklistsResponse,
+)
+from idraft.api.schemas.internal_links_extra import (
+    PageOutlineResponse,
+    PageSearchDailyResponse,
+    PagesOverviewResponse,
 )
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
@@ -115,6 +122,11 @@ async def list_pages(
     flags: Flags = None,
     include_variants: Annotated[bool, Query(alias="filter[include_variants]")] = False,
     worklist: Annotated[PageWorklist | None, Query(alias="filter[worklist]")] = None,
+    view: Annotated[PageView | None, Query(alias="filter[view]")] = None,
+    folder: Annotated[str | None, Query(alias="filter[folder]", min_length=1, max_length=200)] = (
+        None
+    ),
+    depth: Annotated[int | None, Query(alias="filter[depth]", ge=0, le=6)] = None,
     q: PathText = None,
     sort: Annotated[PageSort, Query()] = "-equity_share",
     include: Annotated[
@@ -124,6 +136,17 @@ async def list_pages(
     ] = None,
     output: Output = "json",
 ) -> PageRowPage | Response:
+    if view is not None and worklist is not None:
+        # A `ValueError` of the model here would be a 500: this is the caller's mistake.
+        raise RequestValidationError(
+            [
+                {
+                    "loc": ("query", "filter[view]"),
+                    "type": "view_with_worklist",
+                    "msg": "Give `filter[view]` or `filter[worklist]`, not both.",
+                }
+            ]
+        )
     found = PageFilter(
         tier_ids=tiers,
         tag_ids=tags,
@@ -132,19 +155,22 @@ async def list_pages(
         flags=flags,
         include_variants=include_variants,
         worklist=worklist,
+        view=view,
+        folder=folder,
+        depth=depth,
         q=q,
     )
-    view = LinkScope(scope)
+    link_scope = LinkScope(scope)
     if output == "csv":
         text = await reads.pages_csv(
-            access, project_id, run=_run(run), view=view, found=found, sort=sort
+            access, project_id, run=_run(run), view=link_scope, found=found, sort=sort
         )
         return _csv(text, "pages")
     listed = await reads.pages(
         access,
         project_id,
         run=_run(run),
-        view=view,
+        view=link_scope,
         found=found,
         sort=sort,
         cursor=page.cursor,
@@ -180,6 +206,29 @@ async def get_page(
         access, project_id, run=_run(run), url_id=url_id, view=LinkScope(scope)
     )
     return PageDetailResponse(data=detail)
+
+
+@router.get(
+    "/pages/{url_id}/search", summary="One page: Search Console clicks and impressions by day"
+)
+async def page_search(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads, run: Run = "latest"
+) -> PageSearchDailyResponse:
+    return PageSearchDailyResponse(
+        data=await reads.page_search(access, project_id, run=_run(run), url_id=url_id)
+    )
+
+
+@router.get(
+    "/pages/{url_id}/outline",
+    summary="One page: its outline, read from the stored HTML of the latest crawl",
+    description="Title, description, canonical, robots, headings, language versions, sharing tags, "
+    "structured data and content size. Read on demand; nothing is stored. Always the latest crawl.",
+)
+async def page_outline(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
+) -> PageOutlineResponse:
+    return PageOutlineResponse(data=await reads.page_outline(access, project_id, url_id=url_id))
 
 
 @router.get(
@@ -317,3 +366,10 @@ async def worklists(
     project_id: UUID, access: ReadData, reads: Reads, run: Run = "latest"
 ) -> WorklistsResponse:
     return WorklistsResponse(data=await reads.worklists(access, project_id, run=_run(run)))
+
+
+@router.get("/overview", summary="Counts of a crawl's pages for the Pages overview")
+async def overview(
+    project_id: UUID, access: ReadData, reads: Reads, run: Run = "latest"
+) -> PagesOverviewResponse:
+    return PagesOverviewResponse(data=await reads.overview(access, project_id, run=_run(run)))

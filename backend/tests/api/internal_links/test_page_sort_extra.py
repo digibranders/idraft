@@ -190,6 +190,36 @@ async def test_clicks_sort_by_google_clicks_and_are_all_equal_without_a_property
     assert len(set(down)) == len(PAGES)
 
 
+async def test_impressions_sort_by_google_impressions_and_are_all_equal_without_a_property(
+    api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
+) -> None:
+    workspace, project, ids, headers = await _site(migrated, resources)
+
+    plain = await _walk(api, workspace, project, headers, "-impressions")
+    integration = await gsc_property(migrated, workspace, project)
+    # The clicks run the other way, so the order can only come from the impressions.
+    for path, impressions, clicks in (("/c", 900, 1), ("/e", 400, 5)):
+        await execute(
+            migrated,
+            "INSERT INTO fp.gsc_page_daily (integration_id, metric_date, url_id, workspace_id, "
+            "project_id, clicks, impressions) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            integration,
+            date.today() - timedelta(days=3),
+            ids[path],
+            workspace.id,
+            project,
+            clicks,
+            impressions,
+        )
+    down = await _walk(api, workspace, project, headers, "-impressions")
+    up = await _walk(api, workspace, project, headers, "impressions")
+
+    assert plain == sorted(PAGES_ORDER, reverse=True)  # all 0: the page id breaks every tie
+    assert down[:2] == ["/c", "/e"]
+    assert up[-2:] == ["/e", "/c"]
+    assert len(set(down)) == len(PAGES)
+
+
 async def test_title_sorts_in_lower_case_with_untitled_pages_last_both_ways(
     api: httpx.AsyncClient, resources: Resources, migrated: PostgresServer
 ) -> None:

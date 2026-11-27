@@ -10,7 +10,7 @@ import {
   expectNoEquity,
   expectPagesLoaded,
   inspectorOf,
-  openLinks,
+  openPages,
   pagesGrid,
   tierPageCount,
 } from '../support/internal-links';
@@ -41,7 +41,7 @@ const LATEST_HOST = 'eventussecurity.com';
 test.describe('Internal links, slices 2 and 3', () => {
   test('picks an older crawl, and Back to latest clears it', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     await expectPagesLoaded(page);
     await expect(crawlButton(page)).toBeVisible();
     await crawlButton(page).click();
@@ -73,7 +73,7 @@ test.describe('Internal links, slices 2 and 3', () => {
 
   test('Pages: the rank and citations columns, and the suggested tiers', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     await expectPagesLoaded(page);
     await page.getByRole('button', { name: 'Columns' }).click();
     await page.getByRole('checkbox', { name: 'Average rank' }).click();
@@ -216,7 +216,7 @@ test.describe('Internal links, slices 2 and 3', () => {
 
   test('Export: the client summary downloads as an HTML file that names the host', async ({ page }) => {
     await signIn(page, EDITOR);
-    await openLinks(page);
+    await openPages(page);
     await expectPagesLoaded(page);
     await page.getByRole('button', { name: 'Export', exact: true }).click();
     const [download] = await Promise.all([
@@ -270,7 +270,7 @@ test.describe('Internal links, slices 2 and 3', () => {
       await withTheme(page);
       await signIn(page, EDITOR);
 
-      await openLinks(page);
+      await openPages(page);
       await expectPagesLoaded(page);
       await page.getByRole('button', { name: /^Suggested tiers \d+$/ }).click();
       await expect(suggestionsTable(page)).toBeVisible();

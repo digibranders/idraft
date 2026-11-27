@@ -92,6 +92,25 @@ PageWorklist = Literal[
     "lost_links_top",
     "weak_outlinks",
 ]
+# The views of the Pages list (spec section 7.3), each one a predicate of `inventory.py`.
+PageView = Literal[
+    "live",
+    "indexable",
+    "not_indexable",
+    "redirects",
+    "errors",
+    "client_errors",
+    "server_errors",
+    "blocked",
+    "other",
+    "variants",
+    "in_sitemap_indexable",
+    "not_in_sitemap",
+    "sitemap_not_live",
+    "sitemap_not_indexable",
+    "reachable",
+    "unreachable",
+]
 INT64_MAX: Final = 9_223_372_036_854_775_807
 
 
@@ -136,7 +155,16 @@ class PageFilter(Body):
         "left out unless this is true or the `variant` flag is asked for.",
     )
     worklist: PageWorklist | None = None
+    view: PageView | None = None
+    folder: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    depth: Annotated[int, Field(ge=0, le=6)] | None = None
     q: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+
+    @model_validator(mode="after")
+    def _one_list(self) -> PageFilter:
+        if self.view is not None and self.worklist is not None:
+            raise ValueError("give one of `view` and `worklist`, not both")
+        return self
 
 
 class PageSelection(Body):
@@ -315,6 +343,8 @@ PageSort = Literal[
     "-tier",
     "clicks",
     "-clicks",
+    "impressions",
+    "-impressions",
     "title",
     "-title",
     "indexable",
@@ -553,6 +583,10 @@ class PageDetail(BaseModel):
         "counts are then empty, not zero."
     )
     extras: PageDetailExtras
+    notes_count: int = Field(
+        default=0,
+        description="Notes on this address that are not deleted (they stay across crawls)",
+    )
 
 
 class PageDetailResponse(BaseModel):

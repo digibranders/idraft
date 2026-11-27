@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { MOCK_WORKSPACE } from '../fixtures';
-import { EVENTUS } from '../internal-links-world';
+import { PAGE_VIEWS } from '../internal-links-inventory';
+import { setNoteFileLimit } from '../internal-links-notes';
+import { EVENTUS, HISTORY_RUN_IDS, setLinksScenario } from '../internal-links-world';
 import { mockBrowser } from '@/test/mock-api';
+import type { PageView } from '@/lib/internal-links/types';
 
 const W = `/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}`;
 const P = `${W}/projects/${EVENTUS.project_id}`;
@@ -290,5 +293,369 @@ describe('the internal links mock API', () => {
     expect((await patch({ name: ' Pages ', description: '' })).body).toMatchObject({
       data: { name: 'Pages', description: '' },
     });
+  });
+});
+
+const L = `${P}/internal-links`;
+const OVERVIEW = z.object({
+  data: z.object({
+    status: z.object({
+      live: z.number(),
+      variant: z.number(),
+      redirected: z.number(),
+      client_error: z.number(),
+      server_error: z.number(),
+      blocked: z.number(),
+      other: z.number(),
+    }),
+    indexable: z.number(),
+    not_indexable: z.number(),
+    reachable: z.number(),
+    unreachable: z.number(),
+    sitemap: z.object({
+      indexable_in_sitemap: z.number().nullable(),
+      indexable_missing: z.number().nullable(),
+      listed_not_live: z.number().nullable(),
+      listed_not_indexable: z.number().nullable(),
+    }),
+  }),
+});
+const TOTAL = z.object({ meta: z.object({ total: z.number() }) });
+const SEARCH = z.object({
+  data: z.object({
+    state: z.string(),
+    clicks: z.number().nullable(),
+    days: z.array(z.object({ date: z.string(), clicks: z.number(), impressions: z.number() })),
+  }),
+});
+const IMPRESSIONS = z.object({
+  data: z.array(z.object({ path: z.string() })),
+});
+
+describe('the Pages overview, views and page reads of the mock API', () => {
+  it('gives every view the number the overview shows for it', async () => {
+    const browser = mockBrowser('viewer');
+    const { data } = OVERVIEW.parse((await browser.call('GET', `${L}/overview`)).body);
+    const expected: Record<PageView, number | null> = {
+      live: data.status.live,
+      indexable: data.indexable,
+      not_indexable: data.not_indexable,
+      redirects: data.status.redirected,
+      errors: data.status.client_error + data.status.server_error,
+      client_errors: data.status.client_error,
+      server_errors: data.status.server_error,
+      blocked: data.status.blocked,
+      other: data.status.other,
+      variants: data.status.variant,
+      in_sitemap_indexable: data.sitemap.indexable_in_sitemap,
+      not_in_sitemap: data.sitemap.indexable_missing,
+      sitemap_not_live: data.sitemap.listed_not_live,
+      sitemap_not_indexable: data.sitemap.listed_not_indexable,
+      reachable: data.reachable,
+      unreachable: data.unreachable,
+    };
+    for (const view of PAGE_VIEWS) {
+      const answer = await browser.call('GET', `${L}/pages?filter[view]=${view}&limit=200`);
+      expect([view, TOTAL.parse(answer.body).meta.total]).toEqual([view, expected[view]]);
+    }
+  });
+
+  it('narrows the list by folder and by depth', async () => {
+    const browser = mockBrowser('viewer');
+    const folder = await browser.call('GET', `${L}/pages?filter[folder]=${encodeURIComponent('/blog/')}&limit=200`);
+    expect(ROWS.parse(folder.body).data.map((row) => row.path)).toEqual([
+      '/blog/soc-vs-mdr',
+      '/blog/threat-report-2022',
+      '/blog/vapt-checklist',
+      '/blog/what-is-a-soc',
+    ]);
+    const top = await browser.call('GET', `${L}/pages?filter[folder]=${encodeURIComponent('/')}&limit=200`);
+    expect(ROWS.parse(top.body).data.map((row) => row.path)).toContain('/blog');
+    const zero = await browser.call('GET', `${L}/pages?filter[depth]=0&limit=200`);
+    expect(ROWS.parse(zero.body).data.map((row) => row.path)).toEqual(['/']);
+    expect((await browser.call('GET', `${L}/pages?filter[depth]=7`)).status).toBe(422);
+  });
+
+  it('refuses a view beside a worklist, and a view that is none', async () => {
+    const browser = mockBrowser('viewer');
+    expect((await browser.call('GET', `${L}/pages?filter[view]=live&filter[worklist]=orphans`)).status).toBe(422);
+    expect((await browser.call('GET', `${L}/pages?filter[view]=nothing`)).status).toBe(422);
+  });
+
+  it('sorts by impressions, most first', async () => {
+    const answer = await mockBrowser('viewer').call('GET', `${L}/pages?sort=-impressions&limit=3`);
+    expect(IMPRESSIONS.parse(answer.body).data.map((row) => row.path)).toEqual([
+      '/blog/what-is-a-soc',
+      '/',
+      '/services/soc-as-a-service',
+    ]);
+  });
+
+  it('answers the search of a page over 28 days that add up to its clicks', async () => {
+    const answer = SEARCH.parse((await mockBrowser('viewer').call('GET', `${L}/pages/103/search`)).body).data;
+    expect(answer.state).toBe('ok');
+    expect(answer.days).toHaveLength(28);
+    expect(answer.days.reduce((sum, day) => sum + day.clicks, 0)).toBe(answer.clicks);
+  });
+
+  it('answers the search as pending when Search Console has nothing yet', async () => {
+    setLinksScenario({ gsc: 'pending' });
+    const answer = SEARCH.parse((await mockBrowser('viewer').call('GET', `${L}/pages/103/search`)).body).data;
+    expect(answer).toMatchObject({ state: 'pending', clicks: null, days: [] });
+  });
+
+  it('answers the outline of the latest crawl whatever crawl the screen shows, and 404 for an unknown page', async () => {
+    const browser = mockBrowser('viewer');
+    const latest = await browser.call('GET', `${L}/pages/102/outline`);
+    expect(latest.body).toMatchObject({ data: { state: 'ok', run_id: HISTORY_RUN_IDS[0] } });
+    expect((await browser.call('GET', `${L}/pages/9999/outline`)).status).toBe(404);
+  });
+
+  it('answers 404 on the new routes to a member of another workspace', async () => {
+    const browser = mockBrowser('viewer');
+    const stranger = `/api/v1/workspaces/0192d1a8-0000-7000-8000-00000000dead/projects/${EVENTUS.project_id}/internal-links`;
+    for (const tail of ['overview', 'pages/102/search', 'pages/102/outline']) {
+      expect([tail, (await browser.call('GET', `${stranger}/${tail}`)).status]).toEqual([tail, 404]);
+    }
+  });
+});
+
+const NOTE = z.object({
+  id: z.string(),
+  body: z.string(),
+  author: z.object({ id: z.string(), name: z.string() }),
+  edited_at: z.string().nullable(),
+  can_edit: z.boolean(),
+  can_delete: z.boolean(),
+});
+const NOTES = z.object({
+  data: z.array(NOTE),
+  meta: z.object({ total: z.number(), limit: z.number(), has_more: z.boolean(), next_cursor: z.string().nullable() }),
+});
+const NOTES_PATH = `${L}/pages/108/notes`;
+const UNKNOWN_NOTE = '0192e4a0-0000-7000-8000-000000000000';
+
+describe('the notes routes of the mock API', () => {
+  const countOf = async (browser: ReturnType<typeof mockBrowser>): Promise<number | undefined> => {
+    const detail = await browser.call('GET', `${L}/pages/108?scope=editorial`);
+    return z.object({ data: z.object({ notes_count: z.number() }) }).parse(detail.body).data.notes_count;
+  };
+
+  it('lists the notes newest first, with what the caller may do, and pages them by cursor', async () => {
+    const editor = mockBrowser('editor');
+    const all = NOTES.parse((await editor.call('GET', NOTES_PATH)).body);
+    expect(all.meta).toMatchObject({ total: 3, has_more: false, next_cursor: null });
+    expect(all.data.some((note) => note.can_edit)).toBe(true);
+    const viewer = NOTES.parse((await mockBrowser('viewer').call('GET', NOTES_PATH)).body);
+    expect(viewer.data.every((note) => !note.can_edit && !note.can_delete)).toBe(true);
+
+    const first = NOTES.parse((await editor.call('GET', `${NOTES_PATH}?limit=2`)).body);
+    expect(first.data.map((note) => note.id)).toEqual(all.data.slice(0, 2).map((note) => note.id));
+    expect(first.meta).toMatchObject({ limit: 2, has_more: true, total: 3 });
+    const second = NOTES.parse(
+      (await editor.call('GET', `${NOTES_PATH}?limit=2&cursor=${first.meta.next_cursor ?? ''}`)).body,
+    );
+    expect(second.data.map((note) => note.id)).toEqual(all.data.slice(2).map((note) => note.id));
+    expect(second.meta.has_more).toBe(false);
+    expect((await editor.call('GET', `${NOTES_PATH}?limit=0`)).status).toBe(422);
+    expect((await editor.call('GET', `${NOTES_PATH}?limit=101`)).status).toBe(422);
+  });
+
+  it('adds a note with 201, trimmed, and the page detail count follows', async () => {
+    const editor = mockBrowser('editor');
+    expect(await countOf(editor)).toBe(3);
+    const made = await editor.call('POST', NOTES_PATH, { body: '  Checked the title.  ' });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ data: { body: 'Checked the title.', can_edit: true, can_delete: true } });
+    expect(await countOf(editor)).toBe(4);
+    expect(NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data[0]?.body).toBe('Checked the title.');
+  });
+
+  it('stores the mentions of a note with the path of a page, and refuses an unknown target with the field named', async () => {
+    const editor = mockBrowser('editor');
+    const page = { type: 'page', label: '@/pricing', target: '108' };
+    const made = await editor.call('POST', NOTES_PATH, { body: 'See @/pricing', mentions: [page] });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ data: { mentions: [{ ...page, path: '/pricing' }] } });
+
+    const refused = await editor.call('POST', NOTES_PATH, {
+      body: 'See @/gone',
+      mentions: [{ type: 'page', label: '@/gone', target: '999999' }],
+    });
+    expect(refused.status).toBe(422);
+    expect(JSON.stringify(refused.body)).toContain('mentions[0].target');
+    expect(JSON.stringify(refused.body)).toContain('mention_target_unknown');
+  });
+
+  it('refuses a write by a viewer with 403 and a bad body with 422', async () => {
+    expect((await mockBrowser('viewer').call('POST', NOTES_PATH, { body: 'x' })).status).toBe(403);
+    const editor = mockBrowser('editor');
+    for (const body of [{ body: '   ' }, { body: 'a'.repeat(2001) }, {}, { body: 'x', extra: 1 }]) {
+      expect([JSON.stringify(body).slice(0, 20), (await editor.call('POST', NOTES_PATH, body)).status]).toEqual([
+        JSON.stringify(body).slice(0, 20),
+        422,
+      ]);
+    }
+  });
+
+  it('lets only the author change a note, with 200, and answers 404 for what is not there', async () => {
+    const editor = mockBrowser('editor');
+    const mine = NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data.find((note) => note.can_edit);
+    if (mine === undefined) throw new Error('no note of the editor');
+    const changed = await editor.call('PATCH', `${NOTES_PATH}/${mine.id}`, { body: 'Rewritten' });
+    expect(changed.status).toBe(200);
+    expect(changed.body).toMatchObject({ data: { body: 'Rewritten' } });
+    expect(await editor.as('admin').call('PATCH', `${NOTES_PATH}/${mine.id}`, { body: 'Taken over' })).toMatchObject({
+      status: 403,
+    });
+    expect((await editor.call('PATCH', `${NOTES_PATH}/${UNKNOWN_NOTE}`, { body: 'x' })).status).toBe(404);
+    expect((await editor.call('PATCH', `${NOTES_PATH}/${mine.id}`, { body: '' })).status).toBe(422);
+    expect((await editor.call('GET', `${L}/pages/9999/notes`)).status).toBe(404);
+    expect((await editor.call('POST', `${L}/pages/9999/notes`, { body: 'x' })).status).toBe(404);
+  });
+
+  it('deletes with 204, lets an admin delete any note, and restores only for the one who deleted', async () => {
+    const editor = mockBrowser('editor');
+    const notes = NOTES.parse((await editor.call('GET', NOTES_PATH)).body).data;
+    const theirs = notes.find((note) => !note.can_edit);
+    if (theirs === undefined) throw new Error('no note of someone else');
+    expect((await editor.call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(403);
+    expect((await mockBrowser('viewer').call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(403);
+
+    const admin = editor.as('admin');
+    expect((await admin.call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(204);
+    expect(await countOf(admin)).toBe(2);
+    expect((await admin.call('DELETE', `${NOTES_PATH}/${theirs.id}`)).status).toBe(404);
+    expect((await editor.call('POST', `${NOTES_PATH}/${theirs.id}/restore`)).status).toBe(403);
+    const back = await admin.call('POST', `${NOTES_PATH}/${theirs.id}/restore`);
+    expect(back.status).toBe(200);
+    expect(back.body).toMatchObject({ data: { id: theirs.id } });
+    expect(await countOf(admin)).toBe(3);
+    expect((await admin.call('POST', `${NOTES_PATH}/${theirs.id}/restore`)).status).toBe(404);
+  });
+});
+
+const FILES_PATH = `${L}/pages/108/note-attachments`;
+const STORED_FILE = z.object({
+  data: z.object({
+    id: z.string(),
+    name: z.string(),
+    size: z.number(),
+    content_type: z.string(),
+    is_image: z.boolean(),
+    url: z.string(),
+  }),
+});
+
+const formOf = (content: BlobPart, name: string, type: string): FormData => {
+  const form = new FormData();
+  form.append('file', new File([content], name, { type }));
+  return form;
+};
+
+describe('the note file routes of the mock API', () => {
+  const upload = async (
+    browser: ReturnType<typeof mockBrowser>,
+    content: BlobPart = 'hello',
+    name = 'notes.txt',
+    type = 'text/plain',
+  ): Promise<z.infer<typeof STORED_FILE>['data']> => {
+    const answer = await browser.call('POST', FILES_PATH, formOf(content, name, type));
+    expect(answer.status).toBe(201);
+    return STORED_FILE.parse(answer.body).data;
+  };
+
+  it('stores one file with 201 and answers its name, size, type and serving path', async () => {
+    const stored = await upload(mockBrowser('editor'), 'a,b\n1,2', 'rows.csv');
+    expect(stored).toMatchObject({ name: 'rows.csv', size: 7, content_type: 'text/csv', is_image: false });
+    expect(stored.url).toBe(`${FILES_PATH}/${stored.id}`);
+  });
+
+  it('refuses what the API refuses: too big, a wrong type, empty, no file part, a viewer, an unknown page', async () => {
+    const editor = mockBrowser('editor');
+    const big = await editor.call(
+      'POST',
+      FILES_PATH,
+      formOf(new Uint8Array(10 * 1024 * 1024 + 1), 'big.txt', 'text/plain'),
+    );
+    expect(big).toMatchObject({ status: 413, code: 'payload_too_large' });
+    expect(big.body).toMatchObject({ limit_bytes: 10 * 1024 * 1024 });
+    expect(await editor.call('POST', FILES_PATH, formOf('<html></html>', 'page.txt', 'text/plain'))).toMatchObject({
+      status: 415,
+      code: 'unsupported_media_type',
+    });
+    expect(await editor.call('POST', FILES_PATH, formOf('x', 'a.svg', 'image/svg+xml'))).toMatchObject({ status: 415 });
+    const empty = await editor.call('POST', FILES_PATH, formOf('', 'empty.txt', 'text/plain'));
+    expect(empty.status).toBe(422);
+    expect(JSON.stringify(empty.body)).toContain('file_empty');
+    const none = await editor.call('POST', FILES_PATH, new FormData());
+    expect(none.status).toBe(422);
+    expect(JSON.stringify(none.body)).toContain('"path":"file"');
+    expect(await editor.call('POST', FILES_PATH, { file: 'x' })).toMatchObject({ status: 415 });
+    expect((await mockBrowser('viewer').call('POST', FILES_PATH, formOf('x', 'a.txt', 'text/plain'))).status).toBe(403);
+    expect(
+      (await editor.call('POST', `${L}/pages/9999/note-attachments`, formOf('x', 'a.txt', 'text/plain'))).status,
+    ).toBe(404);
+  });
+
+  it('refuses a file past the workspace cap with the figures, orphans counted', async () => {
+    setNoteFileLimit(10);
+    const editor = mockBrowser('editor');
+    await upload(editor, 'ninebytes');
+    const over = await editor.call('POST', FILES_PATH, formOf('xx', 'two.txt', 'text/plain'));
+    expect(over).toMatchObject({ status: 422, code: 'quota_exceeded' });
+    expect(over.body).toMatchObject({ limit: 10, used: 9, requested: 2 });
+  });
+
+  it('attaches files by id to a note, serves them to a reader, and answers 404 for a file that is not live', async () => {
+    const editor = mockBrowser('editor');
+    const stored = await upload(editor);
+    // Pending: nobody can read it yet
+    expect((await editor.call('GET', stored.url)).status).toBe(404);
+
+    const made = await editor.call('POST', NOTES_PATH, { body: '', attachment_ids: [stored.id] });
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ data: { body: '', attachments: [stored] } });
+    const served = await mockBrowser('viewer').call('GET', stored.url);
+    expect(served.status).toBe(200);
+    expect(served.body).toEqual({ text: 'hello' });
+    expect(served.headers.get('content-type')).toContain('text/plain');
+    expect(served.headers.get('x-content-type-options')).toBe('nosniff');
+    expect((await editor.call('GET', `${L}/pages/101/note-attachments/${stored.id}`)).status).toBe(404);
+
+    const noteId = z.object({ data: z.object({ id: z.string() }) }).parse(made.body).data.id;
+    const admin = editor.as('admin');
+    expect((await editor.call('DELETE', `${NOTES_PATH}/${noteId}`)).status).toBe(204);
+    expect((await admin.call('GET', stored.url)).status).toBe(404);
+    expect((await editor.call('POST', `${NOTES_PATH}/${noteId}/restore`)).status).toBe(200);
+    expect((await admin.call('GET', stored.url)).status).toBe(200);
+
+    // A change that sends no list keeps the file; one that sends [] detaches it for good
+    expect((await editor.call('PATCH', `${NOTES_PATH}/${noteId}`, { body: 'Now with text' })).body).toMatchObject({
+      data: { attachments: [stored] },
+    });
+    const detached = await editor.call('PATCH', `${NOTES_PATH}/${noteId}`, {
+      body: 'Now with text',
+      attachment_ids: [],
+    });
+    expect(detached.body).toMatchObject({ data: { attachments: [] } });
+    expect((await admin.call('GET', stored.url)).status).toBe(404);
+  });
+
+  it('refuses a note with neither text nor a file, a file of someone else, and a file that is attached already', async () => {
+    const editor = mockBrowser('editor');
+    const none = await editor.call('POST', NOTES_PATH, { body: ' ', attachment_ids: [] });
+    expect(none.status).toBe(422);
+    expect(JSON.stringify(none.body)).toContain('body_required');
+
+    const stored = await upload(editor);
+    const foreign = await editor.as('admin').call('POST', NOTES_PATH, { body: 'x', attachment_ids: [stored.id] });
+    expect(foreign.status).toBe(422);
+    expect(JSON.stringify(foreign.body)).toContain('attachment_unavailable');
+    expect((await editor.call('POST', NOTES_PATH, { body: 'x', attachment_ids: [stored.id] })).status).toBe(201);
+    const twice = await editor.call('POST', NOTES_PATH, { body: 'y', attachment_ids: [stored.id] });
+    expect(JSON.stringify(twice.body)).toContain('attachment_unavailable');
+    const many = await editor.call('POST', NOTES_PATH, { body: 'z', attachment_ids: Array(6).fill(stored.id) });
+    expect(JSON.stringify(many.body)).toContain('too_long');
   });
 });

@@ -243,6 +243,8 @@ export interface DataTableProps<TRow> {
    * drawer), and only the disclosure button and Right and Left Arrow toggle it. Off: the click and Enter toggle.
    */
   groupRowOpens?: boolean | undefined;
+  /** A slot at the start of the toolbar, before the search box: the view menu. */
+  toolbarStart?: ReactNode;
   /** A slot at the end of the toolbar, before density and columns: the view switch. */
   toolbarEnd?: ReactNode;
   /** Opt out of parts of the toolbar: `{ density: false, count: false, sortNote: false }`. Absent: every part is drawn. */

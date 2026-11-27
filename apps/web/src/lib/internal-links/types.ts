@@ -24,6 +24,15 @@ export type TierRuleView = Schemas['TierRuleView'];
 export type TierRulePreview = Schemas['TierRulePreview'];
 export type TierImportResult = Schemas['TierImportResult'];
 export type PageFilter = Schemas['PageFilter'];
+export type PageView = NonNullable<PageFilter['view']>;
+export type PagesOverview = Schemas['PagesOverview'];
+export type PageSearchDaily = Schemas['PageSearchDaily'];
+export type PageNote = Schemas['PageNote'];
+export type PageNoteList = Schemas['PageNoteList'];
+export type PageNoteMention = Schemas['PageNoteMention'];
+export type PageNoteFile = Schemas['PageNoteFile'];
+export type PageOutline = Schemas['PageOutline'];
+export type PageOutlineBody = Schemas['PageOutlineBody'];
 export type CrawlRun = Schemas['CrawlRun'];
 export type CrawlRunPage = Schemas['CrawlRunPage'];
 export type CrawlState = CrawlRun['state'];
@@ -110,6 +119,8 @@ export type PageSort =
   | '-tier'
   | 'clicks'
   | '-clicks'
+  | 'impressions'
+  | '-impressions'
   | 'indexable'
   | '-indexable'
   | 'in_sitemap'

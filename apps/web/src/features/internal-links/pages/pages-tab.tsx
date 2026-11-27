@@ -1,10 +1,10 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Layers, Tag, Tags, Workflow } from 'lucide-react';
+import { Eye, Layers, Tag as TagIcon, Tags, Workflow } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { parseAsString, useQueryStates } from 'nuqs';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 import { BulkTagDialog } from './bulk-tag-dialog';
 import { LinksDropped } from '../links-dropped';
@@ -12,14 +12,14 @@ import { isLinksDropped } from '@/lib/internal-links/contract-states';
 import { BulkTierDialog } from './bulk-tier-dialog';
 import { useCursorPaging, pageRange } from './cursor-paging';
 import { keysOfSort, pageColumns, sortOfKeys } from './page-columns';
-import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf, variantsOnly } from './page-filters';
+import { capTags, MAX_TAGS, pageExportQuery, pageFilterFields, pageQueryOf, UNTIERED_VALUE } from './page-filters';
 import { useSearchDraft } from './search-draft';
 import { TierKeys } from './tier-keys';
+import { TierSuggestions } from './tier-suggestions';
 import { usePageBulk, type BulkTarget } from './use-page-bulk';
-import { WorklistChips } from './worklist-chips';
+import { activeViewId, useViewLabel, ViewMenu } from './view-menu';
 import { ScopeMenu } from '../scope-menu';
-import { DEFAULT_SORT } from '../url-state';
-import type { LinksTabContext } from '../tabs';
+import type { PagesContext } from './pages-context';
 import { DataTable } from '@/components/app/data-table/data-table';
 import type { DataTableProps, RecordAction } from '@/components/app/data-table/types';
 import { FilterBar } from '@/components/app/filters/filter-bar';
@@ -27,8 +27,11 @@ import { useUrlFilters } from '@/components/app/filters/use-url-filters';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { InlineError } from '@/components/app/status/inline-error';
 import { Button } from '@/components/ui/button';
+import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
+import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
+import { enumValuesOf } from '@/lib/filters/filter-values';
 import { isApiProblem } from '@/lib/api/problem';
 import { formatInteger, formatList } from '@/lib/format';
 import { formatIsoDate } from '@/lib/format/date';
@@ -38,11 +41,14 @@ import {
   changesSummaryQuery,
   isPageRowPage,
   moreIncludes,
+  overviewQuery,
   pagesPath,
   pagesQuery,
   withRun,
 } from '@/lib/internal-links/queries';
-import type { EdgeWorklist, PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
+import type { PageRow, PageRowPage, PageWorklist } from '@/lib/internal-links/types';
+import { ISSUE_COLUMNS_AVAILABLE } from '@/lib/pages/issue-source';
+import { TRACKING_AVAILABLE, useTrackedPages, useTrackPages } from '@/lib/pages/tracking';
 import { useCan } from '@/lib/permissions';
 import { formatColumns, parseColumns, parseDensity } from '@/lib/tables/table-state';
 
@@ -50,9 +56,8 @@ const TABLE_KEYS = { density: parseAsString, cols: parseAsString };
 /** One empty list for every render, so the table does not see new rows while nothing has loaded. */
 const NO_ROWS: readonly PageRow[] = [];
 const REQUIRED_COLUMNS = ['page'];
+const SCOPED_COLUMNS = ['linking', 'fromTiers', 'outlinks'];
 const EXPORT_NAME = 'internal-links-pages.csv';
-/** Where the project's tag vocabularies are made (the bulk tag dialog's link when it has none). */
-const TAXONOMY_PATH = '/settings/taxonomy';
 /** The request waits this long after the last keystroke (13-filters-search.md section 6). */
 const SEARCH_DELAY_MS = 250;
 
@@ -71,15 +76,22 @@ const EMPTY_KEY = {
 } as const satisfies Record<PageWorklist, string>;
 
 /**
- * The Pages tab (spec 7.2, mock `il-pages.js`): worklist chips, the filter bar, the scope chip and the table. The
+ * The Pages tab (spec 7.2, mock `il-pages.js`): the table, whose toolbar holds the View menu, the filter bar and the scope chip. The
  * server filters, sorts and pages (cursors, 100 or 200 rows a page, decision W6). The tab hands the page's Export the
  * server's CSV of the same filter. Equity share is never a column, a sort or an export column (decision W4).
  */
-export function PagesTab({ context }: { context: LinksTabContext }): ReactElement {
+export function PagesTab({ context }: { context: PagesContext }): ReactElement {
   const t = useTranslations('internalLinks');
   const common = useTranslations('common');
+  const groups = useTranslations('pages.groups');
   const locale = useLocale();
-  const { scope, state, setSearch, tiers, registerExport } = context;
+  const { scope, setSearch, tiers, registerExport } = context;
+  // The host may build its state afresh on every render; the effects below follow its values, not its identity
+  const { scope: linkScope, view, worklist, sort, q, depth, variants } = context.state;
+  const state = useMemo(
+    () => ({ scope: linkScope, view, worklist, sort, q, depth, variants }),
+    [linkScope, view, worklist, sort, q, depth, variants],
+  );
   const vocabularies = useVocabularies(scope);
   const tags = useMemo(
     () =>
@@ -88,9 +100,30 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         .flatMap((entry) => entry.terms.map((term) => ({ termId: term.termId, name: term.path }))),
     [vocabularies.loaded],
   );
+  // The sections of the Overview read (shared through the query cache) are the Folder filter's options
+  const pagesWords = useTranslations('pages');
+  const overview = useQuery(overviewQuery(scope, context.crawl.run));
+  const sections = useMemo(() => overview.data?.data.sections.map((entry) => entry.section) ?? [], [overview.data]);
+  const folderLabel = pagesWords('filters.folder');
   const fields = useMemo(
-    () => pageFilterFields(t, tiers, tags, vocabularies.pending || vocabularies.error),
-    [t, tiers, tags, vocabularies.pending, vocabularies.error],
+    () =>
+      pageFilterFields(t, tiers, tags, vocabularies.pending || vocabularies.error, {
+        sections,
+        // A failed read has no sections to check the address against: keep its folder, as while loading
+        loading: overview.isPending || overview.isError,
+        label: folderLabel,
+      }),
+    [
+      t,
+      tiers,
+      tags,
+      vocabularies.pending,
+      vocabularies.error,
+      sections,
+      overview.isPending,
+      overview.isError,
+      folderLabel,
+    ],
   );
   // A filter of a shared link that does not read is left out, and the person is told (13 section 5)
   const [values, setValues] = useUrlFilters(fields, {
@@ -121,7 +154,17 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   }, [values, setValues, t]);
   // A new query starts again at the first page
   const chosenRun = context.crawl.run;
-  const filtersKey = JSON.stringify([state.scope, state.worklist, state.sort, state.q, values, chosenRun]);
+  const filtersKey = JSON.stringify([
+    state.scope,
+    state.view,
+    state.worklist,
+    state.sort,
+    state.q,
+    state.depth,
+    state.variants,
+    values,
+    chosenRun,
+  ]);
   const paging = useCursorPaging(filtersKey);
   // The chooser decides which parts of a row are read (`include`); changing it reads the current page again once
   const [table, setTable] = useQueryStates(TABLE_KEYS, { history: 'replace' });
@@ -137,17 +180,33 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     context.crawl.older && crawled !== null
       ? formatIsoDate(crawled.finished_at ?? crawled.created_at, context.timeZone)
       : null;
+  // The Issues and Tracked columns exist only while their seams are filled (spec D10)
+  const trackedRead = useTrackedPages(scope);
+  const trackedIds = trackedRead.state === 'ready' ? trackedRead.data : null;
+  const columnWords = useTranslations('pages.columns');
   const columns = useMemo(
     () =>
-      pageColumns(t, {
+      pageColumns(t, groups, {
         tiers,
         scope: state.scope,
         openJourney: context.openJourney,
         comparison,
         linksAvailable,
         olderCrawlDate,
+        seams: { issues: ISSUE_COLUMNS_AVAILABLE, tracked: trackedIds, t: columnWords },
       }),
-    [t, tiers, state.scope, context.openJourney, comparison, linksAvailable, olderCrawlDate],
+    [
+      t,
+      groups,
+      tiers,
+      state.scope,
+      context.openJourney,
+      comparison,
+      linksAvailable,
+      olderCrawlDate,
+      trackedIds,
+      columnWords,
+    ],
   );
   const known = useMemo(() => new Set(columns.map((column) => column.id)), [columns]);
   const visible = useMemo(
@@ -157,6 +216,8 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     [table.cols, known, columns],
   );
   const include = useMemo(() => moreIncludes(visible), [visible]);
+  // The link scope only changes what these columns count
+  const scopeShown = SCOPED_COLUMNS.some((id) => visible.includes(id));
   const query = { ...pageQueryOf(state, values, paging.cursor, paging.size, context.host), include };
   // The rows stay while new filters load: no skeleton flash (12-tables.md section 7)
   const read = useQuery({
@@ -198,11 +259,26 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   const searched = state.q !== null;
   // While the rows of the last query stay on screen, the cursors in hand belong to it, not to the one loading
   const settled = !read.isPlaceholderData;
-  const filtered = Object.keys(values).length > 0 || searched || state.worklist !== null;
+  const filtered = Object.keys(values).length > 0 || searched || state.worklist !== null || state.view !== null;
   const clear = (): void => {
     setValues({});
     setSearch({ q: null, view: null });
   };
+  // The View menu: a view is a history entry; Untiered is the tier filter, not a view
+  const tierNow = enumValuesOf(values.tier);
+  const untieredActive = tierNow.length === 1 && tierNow[0] === UNTIERED_VALUE;
+  const activeView = activeViewId({ view: state.view, worklist: state.worklist }, untieredActive);
+  const viewWords = useTranslations('pages.view');
+  const viewLabel = useViewLabel(scope);
+  const viewTrigger = useRef<HTMLButtonElement>(null);
+  const focusView = useCallback((): void => viewTrigger.current?.focus(), []);
+  // The announcement is of the total the new view lists, so it waits for that read and speaks once per change
+  const announcedView = useRef<string>(activeView);
+  useEffect(() => {
+    if (activeView === announcedView.current || !settled || total === null) return;
+    announcedView.current = activeView;
+    announce(viewWords('announce', { view: viewLabel(activeView), count: total }));
+  }, [activeView, settled, total, viewLabel, viewWords]);
   const status: DataTableProps<PageRow>['status'] =
     read.isError && read.data === undefined
       ? 'error'
@@ -215,10 +291,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
               ? 'filtered-empty'
               : 'empty'
             : 'ready';
-  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist]; // The link worklists count links of every scope, so the Links tab opens on All links (whatever scope is chosen
-  // here) and lists as many rows as the chip counts
-  const openEdgeWorklist = (worklist: EdgeWorklist): void =>
-    setSearch({ tab: 'links', lview: worklist, scope: 'all' }, { history: 'push' });
+  const worklistEmpty = state.worklist === null ? null : EMPTY_KEY[state.worklist];
   const openRow = (row: PageRow, intent: 'inspector' | 'new-tab'): void => {
     if (intent === 'inspector') {
       context.inspect.open(row.url_id);
@@ -245,6 +318,28 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   const bulk = usePageBulk(scope, query, clearSelection);
   const target: BulkTarget = { ids: [...chosen.ids], allMatching: chosen.all };
   const targetCount = chosen.all ? (total ?? 0) : chosen.ids.size;
+  // Track in Monitoring: a chosen set of pages only, and the numbers and the limit are the seam's to report
+  const trackPages = useTrackPages(scope);
+  const trackSelected = async (): Promise<void> => {
+    try {
+      const outcome = await trackPages.track(target.ids);
+      const notes = [
+        outcome.alreadyTracked > 0 ? pagesWords('track.already', { count: outcome.alreadyTracked }) : null,
+        outcome.notLive > 0 ? pagesWords('track.notLive', { count: outcome.notLive }) : null,
+        outcome.overLimit > 0
+          ? pagesWords('track.overLimit', { count: outcome.overLimit, limit: outcome.limit })
+          : null,
+      ].filter((note): note is string => note !== null);
+      toast({
+        type: 'success',
+        title: pagesWords('track.done', { added: outcome.added }),
+        ...(notes.length === 0 ? {} : { description: formatList(notes, locale) }),
+      });
+      clearSelection();
+    } catch {
+      toast({ type: 'error', title: pagesWords('track.failed') });
+    }
+  };
   const [tierDialog, setTierDialog] = useState(false);
   const [tagDialog, setTagDialog] = useState<'add' | 'remove' | null>(null);
   // The journey opens from a loaded row: one chosen page that is on another page of the list has none to open from
@@ -264,7 +359,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
     {
       id: 'add-tag',
       label: bulkWords('addTag'),
-      icon: Tag,
+      icon: TagIcon,
       group: 'object',
       onSelect: () => {
         bulk.clearError();
@@ -281,6 +376,20 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         setTagDialog('remove');
       },
     },
+    ...(TRACKING_AVAILABLE
+      ? [
+          {
+            id: 'track',
+            label: pagesWords('track.action'),
+            icon: Eye,
+            group: 'object' as const,
+            disabledReason: chosen.all ? pagesWords('track.onlySelection') : null,
+            onSelect: () => {
+              if (!chosen.all && !trackPages.pending) void trackSelected();
+            },
+          },
+        ]
+      : []),
     {
       id: 'open-journey',
       label: bulkWords('openJourney'),
@@ -295,26 +404,61 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
   ];
 
   return (
-    <div className="flex flex-col gap-3">
-      <WorklistChips
-        scope={scope}
-        run={chosenRun}
-        linksAvailable={linksAvailable}
-        current={state.worklist}
-        onPick={(worklist) => setSearch({ view: worklist })}
-        onPickEdges={openEdgeWorklist}
-        variants={context.crawl.crawl?.pages_variant ?? null}
-        onShowVariants={() => {
-          setSearch({ view: null });
-          setValues(variantsOnly(values));
-        }}
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterBar fields={fields} values={values} onChange={setValues} />
-        <ScopeMenu scope={state.scope} onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })} />
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <DataTable<PageRow>
         caption={t('pages.caption')}
+        columnGroups
+        compactToolbar
+        toolbarParts={{ sortNote: false }}
+        toolbarStart={
+          <ViewMenu
+            scope={scope}
+            run={chosenRun}
+            linksAvailable={linksAvailable}
+            state={{ view: state.view, worklist: state.worklist }}
+            untieredActive={untieredActive}
+            onView={(next) => {
+              // Back to All pages also lets go of the Untiered choice, which is a filter and not a view
+              if (next === null && untieredActive)
+                setValues(Object.fromEntries(Object.entries(values).filter(([key]) => key !== 'tier')));
+              setSearch({ view: next }, { history: 'push' });
+            }}
+            onUntiered={() => {
+              setValues({ ...values, tier: { kind: 'enum', values: [UNTIERED_VALUE] } });
+              setSearch({ view: null }, { history: 'push' });
+            }}
+            onEdgeWorklist={context.openEdgeWorklist}
+            triggerRef={viewTrigger}
+          />
+        }
+        toolbarEnd={
+          <>
+            <TierSuggestions scope={scope} onEmptied={focusView} />
+            <FilterBar compact fields={fields} values={values} onChange={setValues} />
+            {state.depth === null ? null : (
+              <Tag
+                label={pagesWords('filters.depthChip', { depth: state.depth })}
+                removeLabel={pagesWords('filters.remove', {
+                  filter: pagesWords('filters.depthChip', { depth: state.depth }),
+                })}
+                onRemove={() => setSearch({ depth: null })}
+              />
+            )}
+            {state.variants ? (
+              <Tag
+                label={pagesWords('filters.variantsChip')}
+                removeLabel={pagesWords('filters.remove', { filter: pagesWords('filters.variantsChip') })}
+                onRemove={() => setSearch({ variants: null })}
+              />
+            ) : null}
+            {scopeShown ? (
+              <ScopeMenu
+                scope={state.scope}
+                onChange={(next) => setSearch({ scope: next === 'editorial' ? null : next })}
+              />
+            ) : null}
+          </>
+        }
         itemNoun={{ one: t('pages.one'), other: t('pages.other') }}
         columns={columns}
         getRowId={(row) => row.url_id}
@@ -342,9 +486,9 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         // The default sort is not written to the address, as the scope and the density are not
         onSortChange={(keys) => {
           const next = sortOfKeys(keys);
-          setSearch({ sort: next === null || next === DEFAULT_SORT ? null : next });
+          setSearch({ sort: next === null || next === context.defaultSort ? null : next });
         }}
-        defaultSort={keysOfSort(DEFAULT_SORT)}
+        defaultSort={keysOfSort(context.defaultSort)}
         density={parseDensity(table.density)}
         onDensityChange={(density) => void setTable({ density: density === 'compact' ? null : density })}
         columnState={{
@@ -437,7 +581,7 @@ export function PagesTab({ context }: { context: LinksTabContext }): ReactElemen
         count={targetCount}
         tags={tags}
         vocabularies={vocabularies}
-        taxonomyHref={context.hrefOf(TAXONOMY_PATH)}
+        taxonomyHref={context.taxonomyHref}
         pending={bulk.pending}
         alert={bulk.error}
         onApply={(tag, add) => bulk.changeTag(target, tag, add, 'dialog')}

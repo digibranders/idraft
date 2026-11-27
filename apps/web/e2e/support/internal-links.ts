@@ -8,6 +8,8 @@ export const EDITOR = 'priya@digibranders.test';
 export const ADMIN = 'tomas@digibranders.test';
 export const THEME_STORAGE_KEY = 'idraft.theme';
 export const EVENTUS_LINKS = '/digibranders/eventus-security/seo/internal-links';
+/** SEO > Pages > All pages: where the Pages table lives since the tab left Internal links. */
+export const EVENTUS_PAGES_ALL = '/digibranders/eventus-security/seo/pages/all';
 export const TIERS_SETTINGS = '/digibranders/settings/tiers';
 export const LINKS_SETTINGS = '/digibranders/eventus-security/settings/links';
 
@@ -33,6 +35,11 @@ export const inspectorOf = (page: Page, path: string): Locator =>
 export async function openLinks(page: Page, query = ''): Promise<void> {
   await page.goto(`${EVENTUS_LINKS}${query === '' ? '' : `?${query}`}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Internal links' })).toBeAttached();
+}
+
+/** Opens All pages on Eventus Security with the query given; callers wait for the rows with `expectPagesLoaded`. */
+export async function openPages(page: Page, query = ''): Promise<void> {
+  await page.goto(`${EVENTUS_PAGES_ALL}${query === '' ? '' : `?${query}`}`);
 }
 
 /** The rows of the Pages table are drawn: the first page is a row header. */
