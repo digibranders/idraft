@@ -251,7 +251,7 @@ describe('Width', () => {
   it('applies a choice at once: the span changes, it is announced once, and focus stays on the select', async () => {
     const view = await customize();
     const select = within(toolbarOf('trend')).getByRole('combobox');
-    expect(frameOf('trend')).toHaveClass('xl:col-span-8');
+    expect(frameOf('trend')).toHaveClass('@4xl:col-span-8');
     await view.user.click(select);
     await view.user.click(await screen.findByRole('option', { name: 'Full' }));
     await waitFor(() => {
@@ -260,7 +260,7 @@ describe('Width', () => {
     // The provider says it; the toolbar adds nothing
     expect(said()).toEqual(['SEO visibility and mention rate width: Full']);
     expect(frameOf('trend')).toHaveClass('col-span-12');
-    expect(frameOf('trend')).not.toHaveClass('xl:col-span-8');
+    expect(frameOf('trend')).not.toHaveClass('@4xl:col-span-8');
     await waitFor(() => {
       expect(select).toHaveFocus();
     });
