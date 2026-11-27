@@ -411,6 +411,21 @@ describe('the Pages overview, views and page reads of the mock API', () => {
     expect((await browser.call('GET', `${L}/pages/9999/outline`)).status).toBe(404);
   });
 
+  it('answers the history of a page, newest version first and ending in its first crawl, and 404 for an unknown page', async () => {
+    const browser = mockBrowser('viewer');
+    const answer = (await browser.call('GET', `${L}/pages/102/history`)).body as {
+      data: { readable: boolean; versions: { kind: string; run_id: string }[]; first_seen: string };
+    };
+    expect(answer.data.readable).toBe(true);
+    const kinds = answer.data.versions.map((version) => version.kind);
+    expect(kinds.at(-1)).toBe('first');
+    expect(kinds).toContain('content');
+    expect(answer.data.versions.map((version) => version.run_id)).toEqual(
+      expect.arrayContaining([HISTORY_RUN_IDS[0], HISTORY_RUN_IDS.at(-1)]),
+    );
+    expect((await browser.call('GET', `${L}/pages/9999/history`)).status).toBe(404);
+  });
+
   it('answers 404 on the new routes to a member of another workspace', async () => {
     const browser = mockBrowser('viewer');
     const stranger = `/api/v1/workspaces/0192d1a8-0000-7000-8000-00000000dead/projects/${EVENTUS.project_id}/internal-links`;

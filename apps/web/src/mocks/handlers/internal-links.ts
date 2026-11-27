@@ -18,6 +18,7 @@ import {
   crawlsOf,
   edgeRows,
   freshId,
+  HISTORY_RUN_IDS,
   linksWorld,
   neighborsOf,
   otherScopes,
@@ -35,6 +36,7 @@ import {
 } from '../internal-links-world';
 import { linkGraphFixture } from '../fixtures/link-graph';
 import { overviewOf, PAGE_VIEWS, sectionOfPath, viewMatches } from '../internal-links-inventory';
+import { historyOf } from '../internal-links-history';
 import { outlineOf } from '../internal-links-outline';
 import {
   add as addNote,
@@ -1184,6 +1186,18 @@ export const internalLinkHandlers: HttpHandler[] = [
     const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     return HttpResponse.json({ data: outlineOf(pageRow(page, 'all'), latest.run.run_id) });
+  }),
+
+  mock('get', `${P}/internal-links/pages/{url_id}/history`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: [],
+    });
+    if (caller instanceof Response) return caller;
+    const id = String(params.url_id);
+    if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
+    if (crawledPage(id) === undefined) return problem(request, 'not_found');
+    return HttpResponse.json({ data: historyOf(HISTORY_RUN_IDS) });
   }),
 
   mock('get', `${P}/internal-links/pages/{url_id}/notes`, ({ request, cookies, params }) => {
