@@ -6,6 +6,7 @@ import {
   filterSwitches,
   filterSwitchKeywords,
   isKeywordGone,
+  messageKey,
   pageToken,
   pagesColumnWidth,
   parseCann,
@@ -269,5 +270,13 @@ describe('stripFacts past page F', () => {
       ],
     });
     expect(stripFacts(row).pages.map((entry) => entry.letter)).toEqual(['A', 'G']);
+  });
+});
+
+describe('messageKey', () => {
+  it('writes an API value with underscores as the camelCase key of the message catalog', () => {
+    expect(messageKey('co_ranking')).toBe('coRanking');
+    expect(messageKey('left_target')).toBe('leftTarget');
+    expect(messageKey('likely')).toBe('likely');
   });
 });

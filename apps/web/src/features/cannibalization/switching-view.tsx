@@ -16,6 +16,7 @@ import {
 import { useExportSpec } from './cann-export-button';
 import { CannPanel } from './cann-panel';
 import {
+  messageKey,
   filterSwitches,
   filterSwitchKeywords,
   SWITCH_SHOWS,
@@ -435,7 +436,7 @@ export function SwitchingView(props: SwitchingViewProps): ReactElement {
               onValueChange={(sw) => set({ sw })}
               items={SWITCH_SHOWS.map((value) => ({
                 value,
-                label: t(`switchShow.${value}`),
+                label: t(`switchShow.${messageKey(value)}`),
                 count: counts === undefined ? undefined : formatInteger(counts[value]),
               }))}
             />

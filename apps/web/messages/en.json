@@ -8261,17 +8261,17 @@
       "label": "Show",
       "conflicts": "Conflicts",
       "likely": "Likely",
-      "co_ranking": "Co-ranking",
+      "coRanking": "Co-ranking",
       "unstable": "Unstable",
       "all": "All keywords"
     },
     "switchShow": {
       "label": "Show",
       "all": "All switches",
-      "flip_flop": "Flip-flops",
+      "flipFlop": "Flip-flops",
       "improved": "Rank improved",
       "dropped": "Rank dropped",
-      "left_target": "Left the target"
+      "leftTarget": "Left the target"
     },
     "switched": {
       "only": "Only keywords that switched"
@@ -8291,7 +8291,7 @@
         "short": "Likely",
         "what": "Two or more of your pages swap the best rank, and the keyword ranks 3 or more places worse when the other page is the one that ranks."
       },
-      "co_ranking": {
+      "coRanking": {
         "label": "Co-ranking",
         "short": "Co-ranking",
         "what": "Two of your pages are both in the top 20 on at least half of the checks. Often fine, for example a service page beside a guide."
@@ -8448,7 +8448,7 @@
     "cells": {
       "gapValue": "+{count}",
       "gapTip": "{count, plural, one {# place} other {# places}} lower when another page ranks",
-      "pageName": "Page {letter}: ",
+      "pageName": "Page {letter}:",
       "pageTip": "{title} ({path})",
       "notTarget": "Not the target page",
       "notTargetTip": "Ranks with {current}. The target page is {target}.",
@@ -8461,7 +8461,7 @@
       "flipFlop": "Flip-flop",
       "leftTarget": "Left the target",
       "leadsTip": "{a} ranks better on {aCount, plural, one {# keyword} other {# keywords}}, {b} on {bCount}.",
-      "leadSide": " keywords where page {letter} ranks better",
+      "leadSide": "keywords where page {letter} ranks better",
       "improvedBy": "Improved by {count, plural, one {# place} other {# places}}",
       "droppedBy": "Dropped by {count, plural, one {# place} other {# places}}",
       "backOnTarget": "Back on target",

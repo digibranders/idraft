@@ -6,6 +6,13 @@ import { formatSignedInteger } from '@/lib/format';
  * the change against the previous period, and the facts a history strip's text alternative is made of.
  */
 
+/** The key of a message for an API value: the catalog names keys in camelCase, the API writes `co_ranking`. */
+type CamelCase<S extends string> = S extends `${infer Head}_${infer Tail}`
+  ? `${Head}${Capitalize<CamelCase<Tail>>}`
+  : S;
+export const messageKey = <S extends string>(value: S): CamelCase<S> =>
+  value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()) as CamelCase<S>;
+
 export type Device = 'desktop' | 'mobile';
 export type Period = 14 | 30 | 90;
 export type Verdict = CannKeyword['verdict'];

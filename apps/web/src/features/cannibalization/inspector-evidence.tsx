@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { causesOf, evidenceSentence, pageRefs, rankLines, roleOfLetter, type PageRef } from './cann-evidence';
+import { messageKey } from './cann-model';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { Icon } from '@/components/ui/icon';
@@ -59,7 +60,7 @@ export function InspectorEvidence({ detail, days, options }: InspectorEvidencePr
               tip={t('evidence.tips.together')}
             />
           </dl>
-          <p className="type-meta">{t('evidence.note', { what: verdicts(`${keyword.verdict}.what`) })}</p>
+          <p className="type-meta">{t('evidence.note', { what: verdicts(`${messageKey(keyword.verdict)}.what`) })}</p>
         </div>
       </InspectorSection>
       <RankByPage detail={detail} days={days} />

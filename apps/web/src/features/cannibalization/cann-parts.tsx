@@ -4,7 +4,7 @@ import { Target, TriangleAlert } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
-import { pageToken, stripFacts, type Verdict } from './cann-model';
+import { messageKey, pageToken, stripFacts, type Verdict } from './cann-model';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -103,7 +103,10 @@ export function VerdictBadge({ verdict }: { verdict: Verdict }): ReactElement {
   const t = useTranslations('cannibalization.verdict');
   const quiet = verdict === 'insufficient' || verdict === 'unranked';
   return (
-    <Tooltip content={t('tip', { label: t(`${verdict}.label`), what: t(`${verdict}.what`) })} purpose="label">
+    <Tooltip
+      content={t('tip', { label: t(`${messageKey(verdict)}.label`), what: t(`${messageKey(verdict)}.what`) })}
+      purpose="label"
+    >
       <span className="inline-flex">
         <span aria-hidden="true">
           <Badge
@@ -111,10 +114,10 @@ export function VerdictBadge({ verdict }: { verdict: Verdict }): ReactElement {
             icon={verdict === 'likely' ? TriangleAlert : undefined}
             className={cn(quiet && 'text-foreground-tertiary')}
           >
-            {t(`${verdict}.short`)}
+            {t(`${messageKey(verdict)}.short`)}
           </Badge>
         </span>
-        <span className="sr-only">{t(`${verdict}.label`)}</span>
+        <span className="sr-only">{t(`${messageKey(verdict)}.label`)}</span>
       </span>
     </Tooltip>
   );

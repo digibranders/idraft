@@ -9,6 +9,7 @@ import { exportFileName, headerWords, keywordTable, KEYWORD_COLUMNS, type Export
 import { useExportSpec } from './cann-export-button';
 import { CannPanel } from './cann-panel';
 import {
+  messageKey,
   filterKeywords,
   GAP_WARNING,
   KEYWORD_SHOWS,
@@ -186,7 +187,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
       build: () =>
         keywordTable(visible, {
           header: headerWords(KEYWORD_COLUMNS, (key) => t(`export.keywordColumns.${key}`)),
-          status: (verdict) => t(`verdict.${verdict}.label`),
+          status: (verdict) => t(`verdict.${messageKey(verdict)}.label`),
         }),
     };
   }, [read.status, visible, state, list?.meta.date_to, cut, t]);
@@ -202,7 +203,11 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
         label={t('show.label')}
         value={state.show}
         onValueChange={(show) => set({ show })}
-        items={KEYWORD_SHOWS.map((value) => ({ value, label: t(`show.${value}`), count: chipCount(value) }))}
+        items={KEYWORD_SHOWS.map((value) => ({
+          value,
+          label: t(`show.${messageKey(value)}`),
+          count: chipCount(value),
+        }))}
       />
     </>
   );
