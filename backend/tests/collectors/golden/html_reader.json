@@ -1,0 +1,230 @@
+{
+  "output": {
+    "empty comment before the body": {
+      "canonical": null,
+      "capped": false,
+      "edges": [
+        {
+          "anchor": "A",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/a"
+        },
+        {
+          "anchor": "Author",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/author/x"
+        },
+        {
+          "anchor": "Home",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "header",
+          "rel": [],
+          "scope": "template",
+          "target": "https://example.com/"
+        },
+        {
+          "anchor": "Privacy",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "footer",
+          "rel": [],
+          "scope": "template",
+          "target": "https://example.com/privacy"
+        }
+      ],
+      "facts": {
+        "h1_count": 0,
+        "hreflang_errors": 0,
+        "http_resources": 0,
+        "images_without_alt": 0,
+        "jsonld_errors": 0,
+        "meta_description": "",
+        "og_complete": false,
+        "text_hash": 3025372550953654656,
+        "word_count": 4
+      }
+    },
+    "hidden anchors": {
+      "canonical": null,
+      "capped": false,
+      "edges": [
+        {
+          "anchor": "r",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/real"
+        }
+      ],
+      "facts": {
+        "h1_count": 0,
+        "hreflang_errors": 0,
+        "http_resources": 0,
+        "images_without_alt": 0,
+        "jsonld_errors": 0,
+        "meta_description": "",
+        "og_complete": false,
+        "text_hash": -3802570772508386063,
+        "word_count": 1
+      }
+    },
+    "images and fragments": {
+      "canonical": null,
+      "capped": false,
+      "edges": [
+        {
+          "anchor": "A again",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/a"
+        },
+        {
+          "anchor": "A",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/a"
+        },
+        {
+          "anchor": "logo",
+          "followed": true,
+          "kind": "image",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/img"
+        }
+      ],
+      "facts": {
+        "h1_count": 0,
+        "hreflang_errors": 0,
+        "http_resources": 0,
+        "images_without_alt": 0,
+        "jsonld_errors": 0,
+        "meta_description": "",
+        "og_complete": false,
+        "text_hash": 2316615743871920847,
+        "word_count": 2
+      }
+    },
+    "plain": {
+      "canonical": "https://example.com/blog/post",
+      "capped": false,
+      "edges": [
+        {
+          "anchor": "Home",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "navigation",
+          "rel": [],
+          "scope": "template",
+          "target": "https://example.com/"
+        },
+        {
+          "anchor": "Privacy",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "footer",
+          "rel": [],
+          "scope": "template",
+          "target": "https://example.com/privacy"
+        },
+        {
+          "anchor": "Services",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "navigation",
+          "rel": [],
+          "scope": "template",
+          "target": "https://example.com/services"
+        },
+        {
+          "anchor": "our SOC",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/services/soc"
+        }
+      ],
+      "facts": {
+        "h1_count": 1,
+        "hreflang_errors": 0,
+        "http_resources": 0,
+        "images_without_alt": 0,
+        "jsonld_errors": 0,
+        "meta_description": "",
+        "og_complete": false,
+        "text_hash": 2907056555949603281,
+        "word_count": 8
+      }
+    },
+    "short empty comment": {
+      "canonical": null,
+      "capped": false,
+      "edges": [
+        {
+          "anchor": "One",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/one"
+        },
+        {
+          "anchor": "Two",
+          "followed": true,
+          "kind": "text",
+          "occurrences": 1,
+          "placement": "content",
+          "rel": [],
+          "scope": "editorial",
+          "target": "https://example.com/two"
+        }
+      ],
+      "facts": {
+        "h1_count": 0,
+        "hreflang_errors": 0,
+        "http_resources": 0,
+        "images_without_alt": 0,
+        "jsonld_errors": 0,
+        "meta_description": "",
+        "og_complete": false,
+        "text_hash": 561697725256166493,
+        "word_count": 2
+      }
+    }
+  },
+  "version": 2
+}

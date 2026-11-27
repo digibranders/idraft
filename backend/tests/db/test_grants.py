@@ -85,6 +85,9 @@ RUN_WORKER_UPDATE = (
     "progress_at",
     # Migration 0037: pages that are variants of another crawled page.
     "pages_variant",
+    # Migration 0048: the HTML reader's version and the crawl's pages with few links.
+    "html_reader_version",
+    "pages_links_suspect",
 )
 PAGE_WORKER_UPDATE = (
     "is_indexable",
@@ -127,6 +130,10 @@ PAGE_WORKER_UPDATE = (
     "hreflang_errors",
     "http_resources",
     "response_ms",
+    # Migration 0048: the links in a page's HTML against the links read from it.
+    "html_anchors",
+    "links_read",
+    "links_suspect",
 )
 
 URL_COLUMNS = ("url_hash", "canonical_url", "domain_id", "path", "canonicalizer_version")

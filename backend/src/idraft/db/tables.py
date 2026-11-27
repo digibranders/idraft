@@ -1903,6 +1903,9 @@ crawl_runs = Table(
     Column("pages_blocked", Integer),
     Column("progress_at", DateTime(timezone=True)),
     Column("pages_variant", Integer),
+    # Migration 0048: the oldest HTML reader that read the crawl, and its pages with few links.
+    Column("html_reader_version", SmallInteger),
+    Column("pages_links_suspect", Integer),
     Column("error_code", Text),
     Column("error_message", Text),
     Column("cancel_requested", Boolean, nullable=False, server_default=FetchedValue()),
@@ -1992,6 +1995,10 @@ crawl_pages = Table(
     Column("hreflang_errors", SmallInteger),
     Column("http_resources", SmallInteger),
     Column("response_ms", Integer),
+    # Migration 0048: the links in the HTML against the links read; null until checked.
+    Column("html_anchors", SmallInteger),
+    Column("links_read", SmallInteger),
+    Column("links_suspect", Boolean),
     _run_key(),
     ForeignKeyConstraint(
         ["project_id", "workspace_id"], [projects.c.id, projects.c.workspace_id], ondelete="CASCADE"
