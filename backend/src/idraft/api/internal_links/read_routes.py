@@ -39,6 +39,7 @@ from idraft.api.schemas.internal_links_extra import (
     PageSearchDailyResponse,
     PagesOverviewResponse,
 )
+from idraft.api.schemas.internal_links_history import PageHistoryResponse
 from idraft.api.workspaces.access import WorkspaceAccess
 from idraft.api.workspaces.dependencies import require_permission
 from idraft.crawl.scopes import LinkScope
@@ -229,6 +230,17 @@ async def page_outline(
     project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
 ) -> PageOutlineResponse:
     return PageOutlineResponse(data=await reads.page_outline(access, project_id, url_id=url_id))
+
+
+@router.get(
+    "/pages/{url_id}/history",
+    summary="One page: when its content changed",
+    description="Reads the latest crawl; `404` when the URL is not in it.",
+)
+async def get_page_history(
+    project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
+) -> PageHistoryResponse:
+    return PageHistoryResponse(data=await reads.page_history(access, project_id, url_id=url_id))
 
 
 @router.get(

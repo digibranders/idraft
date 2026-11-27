@@ -86,6 +86,12 @@ from idraft.collectors.crawl_store import (
 )
 from idraft.collectors.crawl_store import html_key as html_key  # kept here for its callers
 from idraft.collectors.crawl_variants_sql import EFFECTIVE_LINKS, apply_variants
+from idraft.collectors.page_history_store import (
+    PageHistory,
+    history_of,
+    record_checks,
+    summarize_history,
+)
 from idraft.crawl.anchors import EDGE_PATTERN, GENERIC_ANCHORS
 from idraft.crawl.edges import PageEdge, clean_text, is_clean, page_edges
 from idraft.crawl.graph import (
@@ -196,6 +202,8 @@ class _PageLinks:
     capped: bool
     # The canonical address the page's own HTML names, when its HTML was read.
     canonical: CanonicalUrl | None = None
+    # What the page's HTML says for its history; None when there is no HTML or it was not read.
+    history: PageHistory | None = None
 
 
 type Step = Callable[
@@ -433,6 +441,7 @@ async def _pages(
                     "canonical_url_id": canonical_id,
                     "title": None if item.title is None else clean_text(item.title, limit=1000),
                     "in_sitemap": item.from_sitemap,
+                    "sitemap_lastmod": item.sitemap_lastmod,
                     "links_state": "waiting"
                     if item.resource_type == "html" and item.status_code == 200
                     else "none",
@@ -531,12 +540,12 @@ async def _read_page(
     store: ObjectStore | None,
     run: _Run,
     hosts: frozenset[str],
-    page_row: tuple[int, str, str, bytes],
+    page_row: tuple[int, str, str, bytes, datetime | None],
 ) -> _PageLinks:
     """One page's edges: its raw HTML is kept and classified, or, with no HTML, the provider's
     links stand in. The parsing runs in a thread so that a page of megabytes does not hold up
     the worker's other jobs."""
-    url_id, crawled_url, canonical_url, url_hash = page_row
+    url_id, crawled_url, canonical_url, url_hash, sitemap_lastmod = page_row
     html: str | None = None
     try:
         html = await on_page.raw_html(run.provider_task_id, crawled_url)
@@ -554,7 +563,9 @@ async def _read_page(
         if store is not None:
             packed = await asyncio.to_thread(compress, html.encode())
             await store.put(html_key(run.project_id, url_hash), packed)
-        return await page_links_from_html(html, url_id, crawled_url, canonical_url, hosts)
+        return await _from_html(
+            html, url_id, crawled_url, canonical_url, hosts, sitemap_lastmod, history_run=run.id
+        )
     else:
         try:
             provided = await on_page.links_from(run.provider_task_id, crawled_url)
@@ -580,12 +591,44 @@ async def page_links_from_html(
     """One page's edges and the canonical its own HTML names, read from its raw HTML. The one
     place that turns HTML into edges: a crawl's ingest and a re-read of its stored HTML
     (`crawl_relink`) both use it, so the two cannot differ."""
+    return await _from_html(html, url_id, crawled_url, canonical_url, hosts)
+
+
+async def _from_html(
+    html: str,
+    url_id: int,
+    crawled_url: str,
+    canonical_url: str,
+    hosts: frozenset[str],
+    sitemap_lastmod: datetime | None = None,
+    *,
+    history_run: UUID | None = None,
+) -> _PageLinks:
     links = await asyncio.to_thread(classify, html, crawled_url)
     # The provider's pages listing does not carry the canonical; the HTML does.
-    html_canonical = _canonical(await asyncio.to_thread(canonical_of, html, crawled_url))
+    named = await asyncio.to_thread(canonical_of, html, crawled_url)
+    html_canonical = _canonical(named)
     edges, capped = await asyncio.to_thread(_edges_of, links, canonicalize(canonical_url), hosts)
+    kept: PageHistory | None = None
+    if history_run is not None:  # only a crawl's own ingest keeps a history
+        try:
+            kept = await asyncio.to_thread(
+                history_of, html, crawled_url, named, sitemap_lastmod, links, edges
+            )
+        except Exception as failure:  # one bad page keeps no history; never the page's text
+            _log.warning(
+                "crawl page history not read",
+                run_id=str(history_run),
+                url_id=url_id,
+                error=type(failure).__name__,
+            )
     return _PageLinks(
-        url_id=url_id, state="from_html", edges=edges, capped=capped, canonical=html_canonical
+        url_id=url_id,
+        state="from_html",
+        edges=edges,
+        capped=capped,
+        canonical=html_canonical,
+        history=kept,
     )
 
 
@@ -649,6 +692,7 @@ async def _links(
                 links_stored=run.links_stored,
                 pages_without_links=len(left.all()),
             )
+            await _history_summary(db, run)
             await _checkpoint(db, run, ingest_phase="template")
         return True
     hosts = site_hosts(run.target_host, run.allowed_subdomains)
@@ -660,6 +704,7 @@ async def _links(
                     crawl_pages.c.crawled_url,
                     urls.c.canonical_url,
                     urls.c.url_hash,
+                    crawl_pages.c.sitemap_lastmod,
                 )
                 .join(urls, urls.c.id == crawl_pages.c.url_id)
                 .where(
@@ -675,6 +720,7 @@ async def _links(
         async with sessions() as db, db.begin():
             if not await _claim(db, run):
                 return False
+            await _history_summary(db, run)
             await _checkpoint(db, run, ingest_phase="template")
         return True
     found: list[_PageLinks] = []
@@ -685,7 +731,13 @@ async def _links(
             store,
             run,
             hosts,
-            (page.url_id, page.crawled_url, page.canonical_url, page.url_hash),
+            (
+                page.url_id,
+                page.crawled_url,
+                page.canonical_url,
+                page.url_hash,
+                page.sitemap_lastmod,
+            ),
         )
         found.append(read)
         held += len(read.edges)
@@ -700,6 +752,7 @@ async def _links(
             + [read.canonical for read in found if read.canonical is not None],
         )
         stored = 0
+        recorded: list[tuple[int, PageHistory]] = []
         for read in found:
             # A page is written once: only the step that moves it out of `waiting` stores it.
             moved = (
@@ -717,6 +770,8 @@ async def _links(
             ).scalar_one_or_none()
             if moved is None:
                 continue
+            if read.history is not None:
+                recorded.append((read.url_id, read.history))
             if read.canonical is not None:
                 await _store_html_canonical(db, run, read.url_id, ids[read.canonical.url_hash])
             if read.capped:
@@ -749,8 +804,38 @@ async def _links(
                     insert(crawl_links).values(rows[start : start + _LINK_ROWS_PER_STATEMENT])
                 )
             stored += len(rows)
+        try:
+            # A savepoint: a history that cannot be written must not undo the page's links.
+            async with db.begin_nested():
+                await record_checks(
+                    db,
+                    run_id=run.id,
+                    workspace_id=run.workspace_id,
+                    project_id=run.project_id,
+                    taken_at=run.crawled_at or datetime.now(UTC),
+                    pages=recorded,
+                )
+        except Exception as failure:  # a failing history never fails the crawl
+            _log.warning(
+                "crawl page history not stored",
+                run_id=str(run.id),
+                pages=len(recorded),
+                error=type(failure).__name__,
+            )
         await _checkpoint(db, run, links_stored=crawl_runs.c.links_stored + stored)
         return True
+
+
+async def _history_summary(db: AsyncSession, run: _Run) -> None:
+    """The crawl's page history counts, once its pages' checks are stored. A failure here
+    leaves the crawl without a summary row, never without its links."""
+    try:
+        async with db.begin_nested():
+            await summarize_history(db, run_id=run.id, workspace_id=run.workspace_id)
+    except Exception as failure:  # a failing history never fails the crawl
+        _log.warning(
+            "crawl page history not summarised", run_id=str(run.id), error=type(failure).__name__
+        )
 
 
 async def _template_input(

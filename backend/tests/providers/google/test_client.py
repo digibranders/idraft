@@ -1,7 +1,7 @@
 import base64
 import hashlib
 import json
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -15,6 +15,7 @@ from idraft.providers.google.client import (
     REVOKE_URL,
     SEARCH_CONSOLE_SCOPE,
     SITES_URL,
+    URL_INSPECTION_URL,
     DimensionFilter,
     Ga4Report,
     Ga4Row,
@@ -681,3 +682,144 @@ async def test_search_analytics_sends_a_filter_group_only_when_filters_are_given
     (plain,) = await _search_bodies()
     assert "dimensionFilterGroups" not in plain
     assert plain["aggregationType"] == "auto"
+
+
+INSPECT_SITE = "sc-domain:acme.example"
+INSPECT_PAGE = "https://acme.example/pricing"
+
+
+async def _inspect_fake() -> tuple[FakeGoogle, GoogleClient, str]:
+    fake = FakeGoogle(REDIRECT)
+    account = fake.account("person@example.com", sites=[(INSPECT_SITE, "siteOwner")])
+    google = _client(fake.transport)
+    return fake, google, (await google.refresh(account.refresh_token)).access_token
+
+
+async def test_an_inspection_gives_the_last_crawl_in_utc_and_the_coverage_state() -> None:
+    fake, google, token = await _inspect_fake()
+    fake.inspections[INSPECT_PAGE] = ("2026-11-20T08:15:30.123456Z", "Submitted and indexed")
+
+    found = await google.inspect_url(token, site_url=INSPECT_SITE, page_url=INSPECT_PAGE)
+
+    assert found.last_crawl_time == datetime(2026, 11, 20, 8, 15, 30, 123456, tzinfo=UTC)
+    assert found.last_crawl_time is not None
+    assert found.last_crawl_time.utcoffset() == timedelta(0)
+    assert found.coverage_state == "Submitted and indexed"
+    call = fake.called(URL_INSPECTION_URL)[0]
+    assert call.json_body == {"inspectionUrl": INSPECT_PAGE, "siteUrl": INSPECT_SITE}
+    assert call.authorization == f"Bearer {token}"
+
+
+async def test_an_inspection_with_an_offset_is_converted_to_utc() -> None:
+    fake, google, token = await _inspect_fake()
+    fake.inspections[INSPECT_PAGE] = ("2026-11-20T10:00:00+02:00", "Crawled")
+
+    found = await google.inspect_url(token, site_url=INSPECT_SITE, page_url=INSPECT_PAGE)
+
+    assert found.last_crawl_time == datetime(2026, 11, 20, 8, 0, tzinfo=UTC)
+    assert found.last_crawl_time is not None
+    assert found.last_crawl_time.utcoffset() == timedelta(0)
+
+
+async def test_a_page_google_never_crawled_has_no_crawl_time_and_is_not_an_error() -> None:
+    _, google, token = await _inspect_fake()
+
+    found = await google.inspect_url(token, site_url=INSPECT_SITE, page_url=INSPECT_PAGE)
+
+    assert found.last_crawl_time is None
+    assert found.coverage_state == "URL is unknown to Google"
+
+
+async def test_an_inspection_with_no_status_member_has_nothing_to_say() -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"inspectionResult": {}})
+
+    found = await _client(httpx.MockTransport(answer)).inspect_url(
+        "ya29.x", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+    )
+
+    assert (found.last_crawl_time, found.coverage_state) == (None, None)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        [],
+        "text",
+        {"inspectionResult": "nope"},
+        {"inspectionResult": {"indexStatusResult": {"lastCrawlTime": "yesterday"}}},
+        {"inspectionResult": {"indexStatusResult": {"lastCrawlTime": "2026-11-20T08:00:00"}}},
+        {"inspectionResult": {"indexStatusResult": {"coverageState": 7}}},
+    ],
+)
+async def test_an_inspection_that_is_not_documented_writes_nothing(body: object) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    with pytest.raises(GoogleResponseError) as error:
+        await _client(httpx.MockTransport(answer)).inspect_url(
+            "ya29.secret", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+        )
+    assert "ya29" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "error"),
+    [
+        (401, {"error": {"status": "UNAUTHENTICATED"}}, GoogleUnauthorizedError),
+        (
+            429,
+            {"error": {"status": "RESOURCE_EXHAUSTED", "message": "slow down"}},
+            GoogleQuotaError,
+        ),
+        (403, {"error": {"message": "Quota exceeded for quota metric"}}, GoogleQuotaError),
+        (
+            403,
+            {"error": {"message": "User does not have sufficient permission"}},
+            GooglePermissionError,
+        ),
+        (403, "<html>", GooglePermissionError),
+        (404, {"error": {"message": "not found"}}, GoogleResponseError),
+    ],
+)
+async def test_inspection_errors_are_mapped_and_never_retried(
+    status: int, body: object, error: type[Exception]
+) -> None:
+    seen = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen += 1
+        if isinstance(body, str):
+            return httpx.Response(status, text=body)
+        return httpx.Response(status, json=body)
+
+    with pytest.raises(error):
+        await _client(httpx.MockTransport(answer)).inspect_url(
+            "ya29.x", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+        )
+    assert seen == 1
+
+
+async def test_an_inspection_of_a_property_the_account_does_not_have_is_a_permission_error() -> (
+    None
+):
+    _, google, token = await _inspect_fake()
+    with pytest.raises(GooglePermissionError):
+        await google.inspect_url(token, site_url="sc-domain:other.example", page_url=INSPECT_PAGE)
+
+
+async def test_an_inspection_server_error_is_retried_and_then_unavailable() -> None:
+    attempts = 0
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503)
+
+    with pytest.raises(GoogleUnavailableError):
+        await _client(httpx.MockTransport(answer)).inspect_url(
+            "ya29.x", site_url=INSPECT_SITE, page_url=INSPECT_PAGE
+        )
+    assert attempts == 3

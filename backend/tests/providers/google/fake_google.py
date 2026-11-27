@@ -27,6 +27,7 @@ from idraft.providers.google.client import (
     SEARCH_CONSOLE_SCOPE,
     SITES_URL,
     TOKEN_URL,
+    URL_INSPECTION_URL,
     USERINFO_URL,
 )
 
@@ -88,6 +89,14 @@ class FakeGoogle:
         self.ga4_tokens_remaining = 39_995
         # Answer every `runReport` of a known token with this status, instead of rows.
         self.ga4_status: int | None = None
+        # `urlInspection` answers per page address: (lastCrawlTime as Google writes it or None,
+        # coverageState). A page not listed is one Google never crawled.
+        self.inspections: dict[str, tuple[str | None, str]] = {}
+        # Answer every `inspect` of a known token with this status (and body), instead.
+        self.inspect_status: int | None = None
+        self.inspect_error: dict[str, object] = {"message": "refused"}
+        # Answer an `inspect` of these page addresses with this status.
+        self.inspect_fail_for: dict[str, int] = {}
         self._numbers = itertools.count(1)
         self._codes: dict[str, _Code] = {}
         self._access: dict[str, Account] = {}
@@ -143,6 +152,8 @@ class FakeGoogle:
         authorization = request.headers.get("authorization")
         if url.startswith(ANALYTICS_DATA_URL) and url.endswith(":runReport"):
             return self._run_report(url, authorization, request.content)
+        if url == URL_INSPECTION_URL:
+            return self._inspect(url, authorization, request.content)
         form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
         self.calls.append(Call(request.method, url, form, authorization))
         if url == TOKEN_URL:
@@ -209,6 +220,30 @@ class FakeGoogle:
         if start + self.summaries_page_size < len(account.analytics):
             body["nextPageToken"] = str(start + self.summaries_page_size)
         return httpx.Response(200, json=body)
+
+    def _inspect(self, url: str, authorization: str | None, content: bytes) -> httpx.Response:
+        """The shape of `urlInspection.index.inspect`: `inspectionResult.indexStatusResult` with
+        `lastCrawlTime` (left out for a page never crawled) and `coverageState`. The property
+        must be one of the account's."""
+        body: dict[str, object] = json.loads(content)
+        self.calls.append(Call("POST", url, {}, authorization, body))
+        account = self._bearer(authorization)
+        if account is None:
+            return httpx.Response(401, json={"error": {"code": 401, "status": "UNAUTHENTICATED"}})
+        if self.inspect_status is not None:
+            return httpx.Response(self.inspect_status, json={"error": self.inspect_error})
+        failing = self.inspect_fail_for.get(str(body.get("inspectionUrl")))
+        if failing is not None:
+            return httpx.Response(failing, json={"error": {"message": "refused"}})
+        if body.get("siteUrl") not in {site for site, _ in account.sites}:
+            return httpx.Response(403, json={"error": {"message": "No access to the property"}})
+        crawled, coverage = self.inspections.get(
+            str(body.get("inspectionUrl")), (None, "URL is unknown to Google")
+        )
+        status: dict[str, object] = {"coverageState": coverage, "verdict": "NEUTRAL"}
+        if crawled is not None:
+            status["lastCrawlTime"] = crawled
+        return httpx.Response(200, json={"inspectionResult": {"indexStatusResult": status}})
 
     def _run_report(self, url: str, authorization: str | None, content: bytes) -> httpx.Response:
         """The shape of GA4 `properties.runReport`: dimensionValues[] and metricValues[] per row,

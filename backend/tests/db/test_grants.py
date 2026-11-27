@@ -528,6 +528,10 @@ MATRIX: dict[str, tuple[Access, Access]] = {
     # Migration 0027: what changed between crawls, written by `crawl_enrich`, read by the API.
     "seo.crawl_link_changes": (READ, access("SELECT, INSERT, DELETE")),
     "seo.crawl_page_changes": (READ, access("SELECT, INSERT, DELETE")),
+    "seo.page_snapshots": (READ, access("SELECT, INSERT")),
+    "seo.page_checks": (READ, access("SELECT, INSERT")),
+    "seo.page_history_runs": (READ, access("SELECT, INSERT, UPDATE")),
+    "seo.page_google_crawl": (READ, access("SELECT, INSERT, UPDATE")),
     "seo.crawl_alerts": (READ, access("SELECT, INSERT, DELETE")),
     "seo.crawl_mentions": (READ, access("SELECT, INSERT, DELETE")),
     # The people's decisions: the API alone writes them.

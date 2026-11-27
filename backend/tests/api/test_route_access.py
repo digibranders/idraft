@@ -557,6 +557,11 @@ EXPECTED: dict[tuple[str, str], str] = {
         "GET",
         "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/note-attachments/{attachment_id}",
     ): "data:read",
+    (
+        "GET",
+        "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"
+        "/history",
+    ): "data:read",
     ("GET", "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/edges"): (
         "data:read"
     ),

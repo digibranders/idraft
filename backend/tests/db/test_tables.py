@@ -121,6 +121,10 @@ DECLARED = {
     "fp.gsc_page_fetches",
     "fp.gsc_page_breakdown",
     "core.tracked_pages",
+    "seo.page_snapshots",
+    "seo.page_checks",
+    "seo.page_history_runs",
+    "seo.page_google_crawl",
 }
 # A monthly partition's name ends in `_pYYYYMM`.
 _PARTITION = re.compile(r"_p\d{6}$")

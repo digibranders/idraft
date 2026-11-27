@@ -98,6 +98,10 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | U13 | Job type / Job types | A kind of paid collection work in Costs and Budgets: Rank checks, AI prompts, Search Console sync. Replaces "workload". | Not a group. | Workload, Group (here) | Costs, Budgets ("Scope and job type") | "Workload" translated literally would mislead | D15 |
 | U14 | Started by | What started a run: Schedule, Manual, Backfill, Retry. Replaces "trigger". | Not a person. | Trigger, Origin, Source | Runs, Costs | Safe | D15 |
 | U15 | Add note (button) | Saves the text in the note box as a new note on the page. | Not Add comment. Not a chart note. | Post, Comment, Submit, Save note (for a new note) | Page drawer, Notes tab | Safe | Owner decision 2026-11-26 |
+| U16 | Last edited (History tab, Overview line) | The date the page declares about itself: JSON-LD dateModified, then article:modified_time, then og:updated_time, then the sitemap lastmod. Shown as "None" when the page declares no date or the site's dates are unreliable. | Not the date of the last crawl. Not the HTTP Last-Modified header, which idraft ignores. | Updated, Modified, Last modified | Page drawer History tab and Overview line ("Last edited Nov 12, 2026. See history") | Safe | Firm |
+| U17 | Last change seen | The date of the newest crawl whose page text differs from the crawl before. Only as exact as the crawl schedule. | Not the date the page was edited (U16). | Last changed, Last updated | Page drawer History tab and Overview line | Safe | Firm |
+| U18 | First seen / Google crawled | First seen: the first crawl that found the page. Google crawled: the date Google last fetched the page, from Search Console URL Inspection, for pages in Monitoring. | Not the date the page was published. Not a crawl by idraft. | Created, Published, Indexed (for Google crawled) | Page drawer History tab | Safe | Firm |
+| U19 | Content change / Site-wide change | The two kinds of version in the history of a page. A content change is a change to the text of the page. A site-wide change is a change to the menu or footer that every page shows once, not an edit to this page. | Not a run. | Edit, Revision, Template change | Page drawer History tab timeline | Safe | Firm |
 
 ## 5. What the answers contain
 
@@ -405,3 +409,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-26 | Notes (A17) | | Added as the name of the page drawer tab that shows what the team wrote about one page | Owner added the tab on 2026-11-26 |
 | 2026-11-26 | Add note (U15) | | Added as the button that saves a new note on a page | Owner added the Notes tab on 2026-11-26 |
 | 2026-11-26 | Monitoring (A14), What changed (A13), Health (M18), Track in Monitoring and Stop tracking (B13) | | Added for the Monitoring tab of Pages and the page search detail | Spec 2026-11-26 page search and monitoring, section 12 |
+| 2026-11-27 | History tab (U16 to U19) | | Added Last edited, Last change seen, First seen, Google crawled, Content change, Site-wide change | Page history feature; wording follows the owner-approved mock |

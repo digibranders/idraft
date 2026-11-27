@@ -24,12 +24,12 @@ import re
 import secrets
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 from urllib.parse import quote, urlencode
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from idraft.providers.google.errors import (
     GoogleClientRejectedError,
@@ -51,6 +51,7 @@ ACCOUNT_SUMMARIES_URL = "https://analyticsadmin.googleapis.com/v1beta/accountSum
 ACCOUNT_SUMMARY_PAGE_SIZE = 200
 ACCOUNT_SUMMARY_PAGES = 25
 ANALYTICS_DATA_URL = "https://analyticsdata.googleapis.com/v1beta"
+URL_INSPECTION_URL = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect"
 # Largest GA4 `runReport` page (docs/18 section 7.2).
 GA4_REPORT_ROW_LIMIT = 100_000
 # Largest page the API gives (docs/18 section 4.2).
@@ -227,6 +228,35 @@ class _Ga4Body(BaseModel):
     rows: list[_Ga4Row] = Field(default_factory=list)
     rowCount: int | None = Field(default=None, ge=0)  # noqa: N815
     propertyQuota: _Ga4PropertyQuota = Field(default_factory=_Ga4PropertyQuota)  # noqa: N815
+
+
+class _IndexStatus(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    # Left out of the answer for a page Google has never crawled.
+    lastCrawlTime: AwareDatetime | None = None  # noqa: N815 - Google's member name
+    coverageState: str | None = Field(default=None, max_length=512)  # noqa: N815
+
+
+class _InspectionResult(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    indexStatusResult: _IndexStatus = Field(default_factory=_IndexStatus)  # noqa: N815
+
+
+class _InspectionBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    inspectionResult: _InspectionResult  # noqa: N815
+
+
+@dataclass(frozen=True, slots=True)
+class UrlInspection:
+    """What `urlInspection.index.inspect` says of a page: when Google last crawled it (UTC, None
+    when it never did) and the coverage state in Google's words."""
+
+    last_crawl_time: datetime | None
+    coverage_state: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -451,6 +481,26 @@ class GoogleClient:
             )
             for row in rows
         ]
+
+    async def inspect_url(
+        self, access_token: str, *, site_url: str, page_url: str
+    ) -> UrlInspection:
+        """`urlInspection.index.inspect` for one page of a property (2,000 a day and 600 a minute
+        per property). A page Google never crawled has no `lastCrawlTime`: that is None, not an
+        error."""
+        response = await self._send(
+            "POST",
+            URL_INSPECTION_URL,
+            headers=_bearer(access_token),
+            json={"inspectionUrl": page_url, "siteUrl": site_url},
+        )
+        _raise_for_api(response)
+        status = _parse(_InspectionBody, response).inspectionResult.indexStatusResult
+        crawled = status.lastCrawlTime
+        return UrlInspection(
+            last_crawl_time=None if crawled is None else crawled.astimezone(UTC),
+            coverage_state=status.coverageState,
+        )
 
     async def run_report(
         self,
