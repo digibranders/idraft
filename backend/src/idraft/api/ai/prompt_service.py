@@ -513,7 +513,7 @@ def if_match_allows(if_match: str, current: str) -> bool:
 def _created_snapshot(record: PromptRecord, item: PromptCreate) -> audit.Snapshot:
     """What a new prompt was and where it came from. `generated_from` has no column, so the
     audit entry is its only trace (a snapshot holds flat values, so it is two keys)."""
-    snapshot: dict[str, str | int | bool | list[str] | None] = {
+    snapshot: dict[str, str | int | bool | list[str] | Sequence[Mapping[str, str | int]] | None] = {
         **_snapshot(record),
         "source": record.source,
         "creation_method": record.creation_method,

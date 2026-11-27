@@ -52,8 +52,9 @@ async def google(app_settings: Settings, migrated: PostgresServer) -> AsyncItera
 
 @pytest.fixture
 def limiter(monkeypatch: pytest.MonkeyPatch) -> GscLimiter:
-    """The budget of the routes' Google caller, a fresh one for the test."""
-    shared = GscLimiter()
+    """The budget of the routes' Google caller, a fresh one for the test. Its clock stands still, so a
+    spent budget stays spent however long the request takes (a bucket refills 5 tokens a second)."""
+    shared = GscLimiter(clock=lambda: 0.0)
 
     def build(resources: Resources, facts: Any) -> LiveGoogle | None:
         built = live_google(resources, facts)
