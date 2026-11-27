@@ -10,6 +10,7 @@ import { useExportSpec } from './cann-export-button';
 import { CannPanel } from './cann-panel';
 import {
   filterKeywords,
+  GAP_WARNING,
   KEYWORD_SHOWS,
   pagesColumnWidth,
   SEVERITY,
@@ -149,7 +150,7 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
           row.together_rate > 0 ? (
             <span className="text-foreground">{formatPercent(row.together_rate, { decimals: 0 })}</span>
           ) : (
-            <span className="text-foreground-tertiary">0%</span>
+            <span className="text-foreground-tertiary">{formatPercent(0, { decimals: 0 })}</span>
           ),
       },
       {
@@ -325,11 +326,11 @@ export function KeywordView(props: KeywordViewProps): ReactElement {
 
 function GapCell({ gap }: { gap: number }): ReactElement {
   const t = useTranslations('cannibalization.cells');
-  if (gap <= 0) return <span className="text-foreground-tertiary">0</span>;
+  if (gap <= 0) return <span className="text-foreground-tertiary">{formatInteger(0)}</span>;
   const places = Math.round(gap);
   return (
     <Tooltip content={t('gapTip', { count: places })} purpose="label">
-      <span className={cn(gap >= 3 ? 'text-warning-text' : 'text-foreground-tertiary')}>
+      <span className={cn(gap >= GAP_WARNING ? 'text-warning-text' : 'text-foreground-tertiary')}>
         {t('gapValue', { count: formatInteger(places) })}
       </span>
     </Tooltip>

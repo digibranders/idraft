@@ -2,6 +2,7 @@ import { MIN_PAGE_CHECKS, pageToken } from './cann-model';
 import type { SeriesRole } from '@/lib/charts/category-chart';
 import type { CannKeywordDetail } from '@/lib/api/types';
 import { formatPercent } from '@/lib/format';
+import { checkUrlId, UrlIdError } from '@/lib/internal-links/queries';
 
 /**
  * The pure parts of the keyword inspector (docs/33 section 7.2): the pages of one keyword with their letters, the plain
@@ -89,6 +90,32 @@ function pairOf(refs: readonly PageRef[]): { a: PageRef; b: PageRef | undefined 
   if (first === undefined) return null;
   const a = refs.find((ref) => ref.isPrimary) ?? first;
   return { a, b: competing(refs).find((ref) => ref.id !== a.id) };
+}
+
+/** The pages the keyword can name as its target: its own list, since a page only a check names has no row to choose. */
+export function targetChoices(detail: CannKeywordDetail): PageRef[] {
+  return pageRefs(detail).filter((ref) => ref.letter !== '+');
+}
+
+/**
+ * The address query that opens Internal links on the links between the pair (the page to compare with, then the page
+ * that competes with it): `null` when the keyword has no pair, empty when an id is not a url id the page would take.
+ */
+export function internalLinksQuery(detail: CannKeywordDetail): string | null {
+  const pair = pairOf(pageRefs(detail));
+  if (pair?.b === undefined) return null;
+  try {
+    return `tab=links&src=${checkUrlId(pair.a.id)}&tgt=${checkUrlId(pair.b.id)}`;
+  } catch (error) {
+    if (error instanceof UrlIdError) return '';
+    throw error;
+  }
+}
+
+/** The names of the groups a keyword is in, in the keyword's order; an id with no group in the list is left out. */
+export function groupNames(ids: readonly string[], groups: readonly { id: string; name: string }[]): string[] {
+  const names = new Map(groups.map((group) => [group.id, group.name]));
+  return ids.flatMap((id) => names.get(id) ?? []);
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -167,6 +167,18 @@ export function useStripText(row: CannKeyword): string {
   });
 }
 
+/** The checks on which the ranking page differs from the one on the last earlier check that named a page. */
+function switchIndexes(strip: CannKeyword['strip']): Set<number> {
+  const found = new Set<number>();
+  let before: string | null = null;
+  strip.forEach((cell, index) => {
+    if (cell.kind !== 'page' || cell.url_id === null) return;
+    if (before !== null && before !== cell.url_id) found.add(index);
+    before = cell.url_id;
+  });
+  return found;
+}
+
 /**
  * The page that ranked on each check of the period, one cell per check in the color of that page: a change of color
  * is a switch. A hollow cell is a check whose result address Google hid, a faint one a check with no rank. It is one
@@ -175,14 +187,17 @@ export function useStripText(row: CannKeyword): string {
 export function HistoryStrip({ row }: { row: CannKeyword }): ReactElement {
   const text = useStripText(row);
   const letters = new Map(row.pages.map((page) => [page.url_id, page.letter]));
+  const switches = switchIndexes(row.strip);
   return (
     <Tooltip content={text} purpose="label">
       <span role="img" aria-label={text} className="flex h-4 w-full items-stretch gap-px">
-        {row.strip.map((cell) => (
+        {row.strip.map((cell, index) => (
           <span
-            key={cell.date}
+            key={`${cell.date}:${String(index)}`}
             className={cn(
               'min-w-px flex-1 rounded-xs',
+              // A switch also shows without color: a dark edge where the ranking page changes
+              switches.has(index) && 'border-l border-foreground',
               cell.kind === 'page' && cell.url_id !== null
                 ? FILL[pageToken(letters.get(cell.url_id) ?? '+')]
                 : cell.kind === 'unreadable'

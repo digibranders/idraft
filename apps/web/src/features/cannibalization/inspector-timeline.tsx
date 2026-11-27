@@ -2,7 +2,7 @@
 
 import { ChevronRight, History, ListOrdered } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactElement } from 'react';
+import { useState, type KeyboardEvent, type ReactElement } from 'react';
 
 import type { CellKind, Lane, SwitchItem } from './cann-evidence';
 import { PageLine, PageMark, pageFill } from './cann-parts';
@@ -10,6 +10,7 @@ import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Icon } from '@/components/ui/icon';
+import { Tooltip } from '@/components/ui/tooltip';
 import { formatChartDate, formatInteger } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -54,9 +55,9 @@ export function InspectorTimeline({ lanes, switches, oneCheckChanges }: Inspecto
         status="ready"
       >
         <div className="flex flex-col gap-2">
-          {/* The lanes are a picture; the list of switches below is its text */}
+          {/* The lanes are a picture; the list of switches below is its text. Each cell has a tooltip a keyboard reaches */}
           <div
-            role="img"
+            role="group"
             aria-label={t('lanesLabel', {
               count: checks.length,
               pages: lanes
@@ -69,26 +70,13 @@ export function InspectorTimeline({ lanes, switches, oneCheckChanges }: Inspecto
           >
             {lanes.map((lane) => (
               <div key={lane.page.id} className="flex items-center gap-2">
-                <span
-                  className="flex w-30 shrink-0 items-center gap-1.5 type-meta text-foreground"
-                  title={lane.page.path}
-                >
-                  <PageMark letter={lane.page.letter} />
-                  <span className="truncate">{lane.page.path}</span>
-                </span>
-                <span className="flex h-4 min-w-0 flex-1 items-stretch gap-px">
-                  {lane.cells.map((cell) => (
-                    <span
-                      key={cell.date}
-                      title={cellText(cell.kind, cell.date, cell.rank)}
-                      className={cn(
-                        'min-w-px flex-1 rounded-xs',
-                        cell.kind === 'ranking' || cell.kind === 'beside' ? pageFill(lane.page.token) : '',
-                        CELL[cell.kind],
-                      )}
-                    />
-                  ))}
-                </span>
+                <Tooltip content={lane.page.path} purpose="label">
+                  <span className="flex w-30 shrink-0 items-center gap-1.5 type-meta text-foreground">
+                    <PageMark letter={lane.page.letter} />
+                    <span className="truncate">{lane.page.path}</span>
+                  </span>
+                </Tooltip>
+                <LaneCells lane={lane} cellText={cellText} />
               </div>
             ))}
           </div>
@@ -123,6 +111,66 @@ export function InspectorTimeline({ lanes, switches, oneCheckChanges }: Inspecto
         <SwitchTable switches={switches} />
       </InspectorSection>
     </>
+  );
+}
+
+/**
+ * The cells of one lane. The lane is one tab stop; the arrow keys, Home and End move between its checks, and each
+ * check shows its tooltip on focus as it does on hover. The cell's own name says the same, for a screen reader.
+ */
+function LaneCells({
+  lane,
+  cellText,
+}: {
+  lane: Lane;
+  cellText: (kind: CellKind, date: string, rank: number | null) => string;
+}): ReactElement {
+  const t = useTranslations('cannibalization.inspector.timeline');
+  const [active, setActive] = useState(0);
+  const last = lane.cells.length - 1;
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    const to =
+      event.key === 'ArrowRight'
+        ? active + 1
+        : event.key === 'ArrowLeft'
+          ? active - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : null;
+    if (to === null) return;
+    event.preventDefault();
+    const next = Math.min(Math.max(to, 0), last);
+    setActive(next);
+    (event.currentTarget.children[next] as HTMLElement | undefined)?.focus();
+  };
+  return (
+    <span
+      role="group"
+      aria-label={t('laneGroup', { letter: lane.page.letter, path: lane.page.path })}
+      // The group is one tab stop whose cells take the arrow keys, as a toolbar does; the handler is spread as in the metric strip
+      {...{ onKeyDown }}
+      className="flex h-4 min-w-0 flex-1 items-stretch gap-px"
+    >
+      {lane.cells.map((cell, index) => {
+        const text = cellText(cell.kind, cell.date, cell.rank);
+        return (
+          <Tooltip key={`${cell.date}:${String(index)}`} content={text} purpose="label">
+            <span
+              role="img"
+              aria-label={text}
+              {...{ tabIndex: index === active ? 0 : -1, onFocus: () => setActive(index) }}
+              className={cn(
+                'min-w-px flex-1 rounded-xs outline-none focus-visible:focus-ring',
+                cell.kind === 'ranking' || cell.kind === 'beside' ? pageFill(lane.page.token) : '',
+                CELL[cell.kind],
+              )}
+            />
+          </Tooltip>
+        );
+      })}
+    </span>
   );
 }
 

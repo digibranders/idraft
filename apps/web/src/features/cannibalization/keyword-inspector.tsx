@@ -3,12 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { useContext, useMemo, type ReactElement } from 'react';
 
-import { pageRefs, switchList, timelineLanes } from './cann-evidence';
+import { groupNames, pageRefs, switchList, timelineLanes } from './cann-evidence';
 import type { CannTab } from './cann-model';
 import { useKeywordDetail, type CannScope } from './cann-reads';
 import { useCannState } from './cann-state';
 import { VerdictBadge } from './cann-parts';
 import { InspectorEvidence } from './inspector-evidence';
+import { InspectorOptions } from './inspector-options';
 import { InspectorPages } from './inspector-pages';
 import { InspectorTimeline } from './inspector-timeline';
 import { Inspector } from '@/components/app/inspector/inspector';
@@ -20,7 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatInteger } from '@/lib/format';
 import { CannOrderContext } from '@/lib/inspector/cann-order';
-import { keywordDetailPath } from '@/lib/routes/paths';
+import { useKeywordGroups } from '@/lib/keywords/taxonomy-reads';
 
 export interface CannKeywordInspectorProps {
   workspaceId: string;
@@ -67,6 +68,9 @@ function KeywordDrawer({
   const scope = useMemo((): CannScope => ({ workspaceId, projectId }), [workspaceId, projectId]);
   const read = useKeywordDetail(scope, keywordId, state);
   const detail = read.data;
+  const groups = useKeywordGroups(scope);
+  // With the last keyword kept on screen while the next loads, the detail may not be this keyword's yet
+  const stale = detail !== undefined && (detail.keyword.tracked_keyword_id !== keywordId || read.refetching);
 
   const refs = useMemo(() => (detail === undefined ? [] : pageRefs(detail)), [detail]);
   const lanes = useMemo(() => (detail === undefined ? [] : timelineLanes(detail, refs)), [detail, refs]);
@@ -77,13 +81,23 @@ function KeywordDrawer({
   const current: TabId = isTabId(inspector.tab) ? inspector.tab : DEFAULT_INSPECTOR_TAB;
   const keyword = detail?.keyword;
   const volume = keyword?.volume ?? null;
+  const groupList = useMemo(
+    () =>
+      keyword === undefined || groups.data === undefined
+        ? []
+        : groupNames(
+            keyword.group_ids,
+            groups.data.data.map((group) => ({ id: group.group_id, name: group.path })),
+          ),
+    [keyword, groups.data],
+  );
 
   let body: ReactElement;
   if (read.status === 'error') {
     body = (
       <InspectorBody>
         {read.forbidden ? (
-          <EmptyState variant="inline" title={t('loadFailed')} reason={t('notFound')} headingLevel={3} />
+          <EmptyState variant="inline" title={t('notFoundTitle')} reason={t('notFoundReason')} headingLevel={3} />
         ) : (
           <InlineError
             title={t('loadFailed')}
@@ -117,7 +131,16 @@ function KeywordDrawer({
           <InspectorEvidence
             detail={detail}
             days={state.days}
-            keywordHref={keywordDetailPath(workspaceSlug, projectSlug, keywordId)}
+            options={
+              <InspectorOptions
+                detail={detail}
+                scope={scope}
+                workspaceSlug={workspaceSlug}
+                projectSlug={projectSlug}
+                keywordId={keywordId}
+                stale={stale}
+              />
+            }
           />
         </InspectorPanel>
         <InspectorPanel<TabId> value="timeline">
@@ -157,8 +180,13 @@ function KeywordDrawer({
             </span>
           ),
         freshness:
-          volume === null ? undefined : (
-            <span className="type-meta text-foreground-secondary">{t('volume', { count: volume })}</span>
+          volume === null && groupList.length === 0 ? undefined : (
+            <span className="flex flex-wrap gap-x-3 type-meta text-foreground-secondary">
+              {volume === null ? null : <span>{t('volume', { count: volume })}</span>}
+              {groupList.length === 0 ? null : (
+                <span>{t('groups', { count: groupList.length, names: groupList.join(', ') })}</span>
+              )}
+            </span>
           ),
         moreActions: [],
       }}

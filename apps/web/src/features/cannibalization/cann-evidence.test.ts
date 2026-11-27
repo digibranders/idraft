@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   causesOf,
   evidenceSentence,
+  groupNames,
+  internalLinksQuery,
   pageRefs,
   rankLines,
   switchList,
+  targetChoices,
   timelineLanes,
   titleOverlap,
 } from './cann-evidence';
@@ -180,5 +183,63 @@ describe('switchList', () => {
     const odd = keyword('likely', { switches: [switchEvent('2026-11-03', 'a', 'gone')] });
     const detail = cannDetail(odd);
     expect(switchList(detail, pageRefs(detail))).toEqual([]);
+  });
+});
+
+describe('targetChoices', () => {
+  it("lists the keyword's own pages and leaves out a page only a check names", () => {
+    const detail = cannDetail(keyword('likely', { target_url_id: 'b' }));
+    detail.urls.push({ url_id: 'z', url: 'https://x.example/z', path: '/z', title: null });
+    expect(targetChoices(detail).map((page) => [page.id, page.isTarget])).toEqual([
+      ['a', false],
+      ['b', false],
+      ['c', false],
+    ]);
+  });
+  it('marks the page that is the target', () => {
+    const marked = [{ ...guide, is_target: true }, compared];
+    const detail = cannDetail(keyword('likely', { pages: marked, target_url_id: 'a' }));
+    expect(targetChoices(detail).map((page) => page.isTarget)).toEqual([true, false]);
+  });
+});
+
+describe('internalLinksQuery', () => {
+  const detail = (a: string, b: string) =>
+    cannDetail(
+      keyword('likely', {
+        pages: [cannPage(a, 'A', 12, { path: '/a' }), cannPage(b, 'B', 9, { path: '/b' })],
+      }),
+    );
+  it('points the Links tab at the pair, the page to compare with first', () => {
+    expect(internalLinksQuery(detail('101', '202'))).toBe('tab=links&src=101&tgt=202');
+  });
+  it('is empty when an id is not a url id, and null when there is no second page', () => {
+    expect(internalLinksQuery(detail('a', 'b'))).toBe('');
+    expect(internalLinksQuery(cannDetail(keyword('none', { pages: [guide] })))).toBeNull();
+  });
+});
+
+describe('groupNames', () => {
+  it("names the groups in the keyword's order and skips an id that has no group", () => {
+    const groups = [
+      { id: 'g1', name: 'Services / Audits' },
+      { id: 'g2', name: 'Blog' },
+    ];
+    expect(groupNames(['g2', 'gone', 'g1'], groups)).toEqual(['Blog', 'Services / Audits']);
+    expect(groupNames([], groups)).toEqual([]);
+  });
+});
+
+describe('causesOf sections', () => {
+  it('says different sections when the first folders differ', () => {
+    const detail = cannDetail(
+      keyword('likely', {
+        pages: [cannPage('a', 'A', 12, { path: '/services/soc' }), cannPage('b', 'B', 9, { path: '/blog/guide' })],
+      }),
+    );
+    expect(causesOf(detail).find((cause) => cause.key === 'differentSections')?.values).toEqual({
+      a: '/services/',
+      b: '/blog/',
+    });
   });
 });

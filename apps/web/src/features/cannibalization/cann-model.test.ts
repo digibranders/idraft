@@ -5,6 +5,7 @@ import {
   filterKeywords,
   filterSwitches,
   filterSwitchKeywords,
+  isKeywordGone,
   pageToken,
   pagesColumnWidth,
   parseCann,
@@ -241,5 +242,32 @@ describe('truncation', () => {
     expect(truncation(500, 812)).toEqual({ read: 500, total: 812 });
     expect(truncation(500, 500)).toBeNull();
     expect(truncation(3, undefined)).toBeNull();
+  });
+});
+
+describe('isKeywordGone', () => {
+  const read = { ready: true, refetching: false, ids: ['a', 'b'], total: 2 };
+  it('is true only when a finished, complete read does not hold the keyword', () => {
+    expect(isKeywordGone({ ...read, id: 'c' })).toBe(true);
+    expect(isKeywordGone({ ...read, id: 'a' })).toBe(false);
+  });
+  it('waits while the read is loading, refreshing for a new scope or cut short', () => {
+    expect(isKeywordGone({ ...read, id: 'c', ready: false })).toBe(false);
+    expect(isKeywordGone({ ...read, id: 'c', refetching: true })).toBe(false);
+    expect(isKeywordGone({ ...read, id: 'c', total: 900 })).toBe(false);
+    expect(isKeywordGone({ ...read, id: 'c', total: undefined })).toBe(false);
+  });
+});
+
+describe('stripFacts past page F', () => {
+  it('names a seventh page by its letter in the text alternative', () => {
+    const row = keyword('alpha', 'likely', {
+      pages: [page('a', 'A', 5), page('g', 'G', 5)],
+      strip: [
+        { date: '2026-11-01', kind: 'page', url_id: 'a', rank: 3, together: false },
+        { date: '2026-11-02', kind: 'page', url_id: 'g', rank: 4, together: false },
+      ],
+    });
+    expect(stripFacts(row).pages.map((entry) => entry.letter)).toEqual(['A', 'G']);
   });
 });

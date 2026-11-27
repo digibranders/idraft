@@ -2,14 +2,14 @@
 
 import { Ban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import type { ExportSpec } from './cann-export';
 import { ExportButton } from './cann-export-button';
 import { ConflictStrip, SwitchStrip } from './cann-strip';
 import { KeywordView } from './keyword-view';
 import { PairView } from './pair-view';
-import type { CannTab } from './cann-model';
+import { isKeywordGone, type CannTab } from './cann-model';
 import { useConflicts, usePairs, useSwitches } from './cann-reads';
 import { useCannState } from './cann-state';
 import { ReadError } from './cann-view-parts';
@@ -94,17 +94,41 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
 
   const inspector = useInspector();
   const [order, setOrder] = useState<readonly string[]>([]);
-  // Closing the drawer returns focus to the row that opened it
-  const rememberOpener = useFocusReturn(inspector.target !== null);
+  const openId = inspector.target?.type === 'cann-keyword' ? inspector.target.id : null;
+  // The inspector is a new object on every render; the table's columns must not rebuild with it
+  const inspectorRef = useRef(inspector);
+  useEffect(() => {
+    inspectorRef.current = inspector;
+  });
+  // Closing the drawer returns focus to the row it opened from, or to the row of the keyword it was stepped to
+  const rememberOpener = useFocusReturn(openId);
   const openKeyword = useCallback(
     (id: string, opener: HTMLElement | null, tabId?: string): void => {
       rememberOpener(opener);
-      inspector.open({ type: 'cann-keyword', id }, tabId === undefined ? undefined : { tab: tabId });
+      inspectorRef.current.open({ type: 'cann-keyword', id }, tabId === undefined ? undefined : { tab: tabId });
     },
-    [inspector, rememberOpener],
+    [rememberOpener],
   );
-  const target = inspector.target;
-  const drawer = target?.type === 'cann-keyword' ? (keywordInspector ?? null) : null;
+  const openRow = useCallback(
+    (row: { tracked_keyword_id: string }, opener: HTMLElement | null, tabId?: string): void =>
+      openKeyword(row.tracked_keyword_id, opener, tabId),
+    [openKeyword],
+  );
+  const drawer = openId === null ? null : (keywordInspector ?? null);
+
+  // A keyword that the scope or the group no longer holds has nothing to show: the drawer closes (no raw load error)
+  const gone =
+    openId !== null &&
+    isKeywordGone({
+      ready: conflicts.status === 'ready' && conflicts.data !== undefined,
+      refetching: conflicts.refetching,
+      ids: conflicts.data?.items.map((row) => row.tracked_keyword_id) ?? [],
+      total: conflicts.data?.meta.total,
+      id: openId,
+    });
+  useEffect(() => {
+    if (gone) inspectorRef.current.close();
+  }, [gone]);
 
   // The tabs are routes; the scope goes with them, the view and the filters do not
   const scopeQuery = new URLSearchParams();
@@ -156,7 +180,7 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
         tabs={tabs}
         search={searchText}
         onSearchChange={setSearchText}
-        activeId={target?.type === 'cann-keyword' ? target.id : null}
+        activeId={openId}
         onOpen={openKeyword}
         onOrderChange={setOrder}
         onExportChange={onExportChange}
@@ -183,8 +207,8 @@ function CannContent({ workspaceId, workspaceSlug, project, tab, keywordInspecto
         tabs={tabs}
         search={searchText}
         onSearchChange={setSearchText}
-        activeId={target?.type === 'cann-keyword' ? target.id : null}
-        onOpen={(row, opener, tabId) => openKeyword(row.tracked_keyword_id, opener, tabId)}
+        activeId={openId}
+        onOpen={openRow}
         onOrderChange={setOrder}
         onExportChange={onExportChange}
         keywordsHref={keywordsHref}

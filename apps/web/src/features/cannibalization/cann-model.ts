@@ -291,3 +291,19 @@ export function targetStatus(
 export function truncation(read: number, total: number | undefined): { read: number; total: number } | null {
   return total !== undefined && total > read ? { read, total } : null;
 }
+
+/**
+ * Whether the keyword an open drawer names is no longer in the table's read, so the drawer should close. It waits for a
+ * finished read: not one still loading, nor one refreshing for a new scope (its rows are the old scope's), nor one cut
+ * short of the total (the keyword may sit in the rows not read).
+ */
+export function isKeywordGone(read: {
+  ready: boolean;
+  refetching: boolean;
+  ids: readonly string[];
+  total: number | undefined;
+  id: string;
+}): boolean {
+  if (!read.ready || read.refetching || read.total === undefined || read.total > read.ids.length) return false;
+  return !read.ids.includes(read.id);
+}

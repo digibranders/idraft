@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -89,9 +90,9 @@ function serve(status: 'ok' | 'missing' | 'error' = 'ok'): { asked: URL[] } {
   return { asked };
 }
 
-function render(options: ProvidedRenderOptions = {}) {
+function render(options: ProvidedRenderOptions = {}, role: 'editor' | 'viewer' = 'editor') {
   return renderWithProviders(
-    <PermissionProvider membership={membershipFactory('editor')}>
+    <PermissionProvider membership={membershipFactory(role)}>
       <CannScreen {...PROPS} />
     </PermissionProvider>,
     options,
@@ -119,10 +120,11 @@ describe('the keyword inspector', () => {
     // causes are hypotheses, and the target mismatch is named
     expect(within(drawer).getByText('Hypotheses, not findings')).toBeVisible();
     expect(within(drawer).getByText('The target page is /blog/compared, but /blog/guide ranks.')).toBeVisible();
-    expect(within(drawer).getByRole('link', { name: 'Open this keyword on the Keywords page' })).toHaveAttribute(
+    expect(within(drawer).getByRole('link', { name: 'Open the SERP snapshot' })).toHaveAttribute(
       'href',
-      '/digibranders/fynix/seo/keywords/alpha',
+      '/digibranders/fynix/seo/keywords/alpha?tab=snapshots',
     );
+    expect(within(drawer).getByText('Same section of the site', { exact: false })).toBeVisible();
     expect(asked[0]?.searchParams.get('device')).toBe('mobile');
     expect(asked[0]?.searchParams.get('days')).toBe('14');
     expect(await axe(container)).toHaveNoViolations();
@@ -131,8 +133,13 @@ describe('the keyword inspector', () => {
   it('shows the lanes and the switches on the Timeline tab', async () => {
     serve();
     render({ searchParams: 'inspect=cann-keyword:alpha&itab=timeline' });
-    const lanes = await screen.findByRole('img', { name: /Ranking page on each of the last 2 checks\./ });
+    const lanes = await screen.findByRole('group', { name: /Ranking page on each of the last 2 checks\./ });
     expect(lanes).toHaveAccessibleName(/Page A, \/blog\/guide: ranking page on 1 check\./);
+    const cells = within(screen.getByRole('group', { name: /Page A, \/blog\/guide: one cell per check/ })).getAllByRole(
+      'img',
+    );
+    expect(cells).toHaveLength(2);
+    expect(cells[0]).toHaveAccessibleName('Nov 1: rank 3, the ranking page');
     const table = screen.getByRole('table', { name: 'Confirmed switches of the ranking page' });
     expect(within(table).getByText('Flip-flop')).toBeVisible();
     expect(within(table).getByText('4 to 9')).toBeVisible();
@@ -153,10 +160,94 @@ describe('the keyword inspector', () => {
   it('says so when the keyword is gone, and offers Try again when the read fails', async () => {
     serve('missing');
     const first = render({ searchParams: 'inspect=cann-keyword:alpha' });
-    expect(await screen.findByText(/has no checks in the period/)).toBeVisible();
+    expect(await screen.findByText('This keyword is not in the table')).toBeVisible();
     first.unmount();
     serve('error');
     render({ searchParams: 'inspect=cann-keyword:alpha' });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible());
+  });
+});
+
+describe('the keyword inspector, part 2', () => {
+  const GROUPS = `*/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${fynix.project_id}/keyword-groups`;
+  const PATCH = `*/api/v1/workspaces/${MOCK_WORKSPACE.workspace_id}/projects/${fynix.project_id}/tracked-keywords/alpha`;
+
+  it("names the keyword's groups in the header", async () => {
+    serve();
+    server.use(
+      http.get(GROUPS, () => HttpResponse.json({ data: [{ group_id: 'g1', path: 'Services / Audits' }] })),
+      http.get(`${BASE}/keywords/alpha`, () =>
+        HttpResponse.json({ data: cannDetail({ ...KEYWORD, group_ids: ['g1'] }, CHECKS) }),
+      ),
+    );
+    render({ searchParams: 'inspect=cann-keyword:alpha' });
+    const drawer = await screen.findByRole('complementary', { name: 'alpha' });
+    expect(await within(drawer).findByText('Group: Services / Audits')).toBeVisible();
+  });
+
+  it('explains each figure and says one-check changes were not counted', async () => {
+    serve();
+    server.use(
+      http.get(`${BASE}/keywords/alpha`, () =>
+        HttpResponse.json({ data: cannDetail({ ...KEYWORD, one_check_changes: 2 }, CHECKS) }),
+      ),
+    );
+    const user = userEvent.setup();
+    render({ searchParams: 'inspect=cann-keyword:alpha' });
+    const drawer = await screen.findByRole('complementary', { name: 'alpha' });
+    const switches = await within(drawer).findByText('1');
+    await user.tab();
+    switches.focus();
+    expect(switches).toHaveAccessibleDescription(
+      /Confirmed switches in the last 30 days\. 2 one-check changes were not counted\./,
+    );
+  });
+
+  it('sets a page as the target page with one press and says so', async () => {
+    serve();
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(PATCH, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ data: { tracked_keyword_id: 'alpha' } });
+      }),
+    );
+    const user = userEvent.setup();
+    render({ searchParams: 'inspect=cann-keyword:alpha' });
+    await screen.findByRole('complementary', { name: 'alpha' });
+    await user.click(await screen.findByRole('button', { name: 'Set /blog/guide as target page' }));
+    await waitFor(() => expect(bodies).toEqual([{ target_url: 'https://example.com/a' }]));
+    expect(screen.queryByRole('button', { name: 'Set /blog/compared as target page' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear target page, now /blog/compared' })).toBeVisible();
+  });
+
+  it('clears the target page with null', async () => {
+    serve();
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(PATCH, async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ data: { tracked_keyword_id: 'alpha' } });
+      }),
+    );
+    const user = userEvent.setup();
+    render({ searchParams: 'inspect=cann-keyword:alpha' });
+    await user.click(await screen.findByRole('button', { name: 'Clear target page, now /blog/compared' }));
+    await waitFor(() => expect(bodies).toEqual([{ target_url: null }]));
+  });
+
+  it('offers no write without permission to edit keywords', async () => {
+    serve();
+    render({ searchParams: 'inspect=cann-keyword:alpha' }, 'viewer');
+    await screen.findByRole('complementary', { name: 'alpha' });
+    expect(await screen.findByText('Setting a target page needs permission to edit keywords.')).toBeVisible();
+    expect(screen.queryByRole('button', { name: /target page/ })).not.toBeInTheDocument();
+  });
+
+  it('closes when the keyword is not in the table any more', async () => {
+    serve();
+    server.use(http.get(`${BASE}/keywords/gone`, ({ request }) => problem(request, 'not_found')));
+    render({ searchParams: 'inspect=cann-keyword:gone' });
+    await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument());
   });
 });

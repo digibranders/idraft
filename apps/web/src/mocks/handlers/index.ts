@@ -1,7 +1,7 @@
 import type { HttpHandler } from 'msw';
 
 import { authHandlers } from './auth';
-import { cannibalizationHandlers } from './cannibalization';
+import { cannibalizationHandlers, cannibalizationTargetHandlers } from './cannibalization';
 import { entityHandlers } from './entities';
 import { costHandlers } from './costs';
 import { integrationHandlers } from './integrations';
@@ -121,6 +121,8 @@ export const handlers: readonly HttpHandler[] = [
   ...taxonomyHandlers,
   ...registryHandlers,
   ...keywordHandlers,
+  // Before the Keywords handlers: it answers the target write of the Cannibalization keywords and leaves any other to them
+  ...cannibalizationTargetHandlers,
   ...trackedKeywordHandlers,
   ...rankEventsHandlers,
   ...keywordQuotaHandlers,

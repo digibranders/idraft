@@ -1,15 +1,14 @@
 'use client';
 
 import { CircleHelp, FileSearch, ListChecks } from 'lucide-react';
-import type { Route } from 'next';
-import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo, type ReactElement } from 'react';
+import { useCallback, useMemo, type ReactElement, type ReactNode } from 'react';
 
 import { causesOf, evidenceSentence, pageRefs, rankLines, roleOfLetter, type PageRef } from './cann-evidence';
 import { ChartFrame } from '@/components/app/chart/chart-frame';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { Icon } from '@/components/ui/icon';
+import { Tooltip } from '@/components/ui/tooltip';
 import type { CannKeywordDetail } from '@/lib/api/types';
 import type { CategorySeries } from '@/lib/charts/category-chart';
 import type { ChartTokens } from '@/lib/design/read-tokens';
@@ -18,12 +17,12 @@ import { formatChartDate, formatInteger, formatPercent } from '@/lib/format';
 export interface InspectorEvidenceProps {
   detail: CannKeywordDetail;
   days: number;
-  /** The keyword's page on the Keywords page. */
-  keywordHref: Route;
+  /** The Options section, which writes and so knows the page's scope and permissions. */
+  options: ReactNode;
 }
 
 /** Evidence (docs/33 section 7.2): the sentence and three figures, the rank of each page, the causes to check, the options. */
-export function InspectorEvidence({ detail, days, keywordHref }: InspectorEvidenceProps): ReactElement {
+export function InspectorEvidence({ detail, days, options }: InspectorEvidenceProps): ReactElement {
   const t = useTranslations('cannibalization.inspector');
   const verdicts = useTranslations('cannibalization.verdict');
   const { keyword } = detail;
@@ -40,11 +39,24 @@ export function InspectorEvidence({ detail, days, keywordHref }: InspectorEviden
         <div className="flex flex-col gap-3">
           <p className="type-body text-foreground">{t(`sentence.${sentence.key}`, sentence.values)}</p>
           <dl className="grid grid-cols-3 gap-3">
-            <Figure label={t('evidence.gap')} value={gap > 0 ? `+${formatInteger(gap)}` : '0'} />
-            <Figure label={t('evidence.switches')} value={formatInteger(keyword.switches.length)} />
+            <Figure
+              label={t('evidence.gap')}
+              value={gap > 0 ? `+${formatInteger(gap)}` : formatInteger(0)}
+              tip={t('evidence.tips.gap')}
+            />
+            <Figure
+              label={t('evidence.switches')}
+              value={formatInteger(keyword.switches.length)}
+              tip={
+                keyword.one_check_changes > 0
+                  ? t('evidence.tips.switchesHeld', { days, count: keyword.one_check_changes })
+                  : t('evidence.tips.switches', { days })
+              }
+            />
             <Figure
               label={t('evidence.together')}
-              value={keyword.together_rate > 0 ? formatPercent(keyword.together_rate, { decimals: 0 }) : '0%'}
+              value={formatPercent(keyword.together_rate, { decimals: 0 })}
+              tip={t('evidence.tips.together')}
             />
           </dl>
           <p className="type-meta">{t('evidence.note', { what: verdicts(`${keyword.verdict}.what`) })}</p>
@@ -61,26 +73,27 @@ export function InspectorEvidence({ detail, days, keywordHref }: InspectorEviden
           ))}
         </ul>
       </InspectorSection>
-      <InspectorSection title={t('options.title')} meta={t('options.meta')} status="ready">
-        <div className="flex flex-col gap-2">
-          <Link
-            href={keywordHref}
-            className="inline-flex items-center gap-1 self-start rounded-sm type-body text-link outline-none hover:underline focus-visible:focus-ring"
-          >
-            {t('options.keywordPage')}
-          </Link>
-          <p className="type-meta">{t('options.note')}</p>
-        </div>
-      </InspectorSection>
+      {options}
     </>
   );
 }
 
-function Figure({ label, value }: { label: string; value: string }): ReactElement {
+/** A figure is not a control, but keyboard focus must reach it for its tooltip (as in the metric strip). */
+const REACHABLE = { tabIndex: 0 };
+
+/** One figure; the tooltip says what it counts, and keyboard focus on the number opens it as the strip's figures do. */
+function Figure({ label, value, tip }: { label: string; value: string; tip: string }): ReactElement {
   return (
     <div className="flex min-w-0 flex-col">
       <dt className="type-label text-foreground-tertiary">{label}</dt>
-      <dd className="num type-body-strong text-foreground">{value}</dd>
+      <Tooltip content={tip}>
+        <dd
+          {...REACHABLE}
+          className="self-start rounded-sm num type-body-strong text-foreground outline-none focus-visible:focus-ring"
+        >
+          {value}
+        </dd>
+      </Tooltip>
     </div>
   );
 }

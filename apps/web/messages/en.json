@@ -8569,7 +8569,6 @@
       "volume": "{count, plural, one {# search} other {# searches}} a month",
       "loadFailed": "Could not load this keyword",
       "loadFailedReason": "The server returned an error. The page behind this drawer is unchanged.",
-      "notFound": "This keyword has no checks in the period, or you do not have access to it.",
       "tabs": {
         "overview": "Evidence",
         "timeline": "Timeline",
@@ -8590,7 +8589,13 @@
         "note": "{what} This is evidence of competition between your pages, not proof of cause.",
         "gap": "Rank gap",
         "switches": "Switches",
-        "together": "Together"
+        "together": "Together",
+        "tips": {
+          "gap": "Places lower the keyword ranks when another page, not the page to compare with, is the ranking page.",
+          "switches": "Confirmed switches in the last {days} days.",
+          "switchesHeld": "Confirmed switches in the last {days} days. {count, plural, one {# one-check change was} other {# one-check changes were}} not counted.",
+          "together": "Share of checks with two of your pages in the top 20."
+        }
       },
       "rank": {
         "title": "Rank by page",
@@ -8603,17 +8608,33 @@
         "title": "Possible causes to check",
         "meta": "Hypotheses, not findings",
         "titleOverlap": "The titles share {share} of their words: {a} and {b}.",
-        "sameSection": "Both pages are under {section}, so they may answer the same question and leave Google no clear choice.",
-        "differentSections": "The pages sit in different sections, {a} and {b}. Check which one the searcher wants.",
+        "sameSection": "Same section of the site: both pages are under {section}, so they may answer the same question and leave Google no clear choice.",
+        "differentSections": "Different sections of the site, {a} and {b}. The address is the only page type we have, so check which one the searcher wants.",
         "offTarget": "The target page is {target}, but {current} ranks.",
         "coRanking": "Two pages in the top 20 can be fine: each may win a different searcher.",
         "internalLinks": "Internal links and anchor text may point several pages at the same phrase. Check the links to each page."
       },
       "options": {
         "title": "Options",
-        "meta": "Nothing here changes by itself",
-        "keywordPage": "Open this keyword on the Keywords page",
-        "note": "This drawer does not set a target page or change your tracking. Both stay as they are."
+        "meta": "You decide, nothing changes by itself",
+        "targetLabel": "Pages you can set as the target page",
+        "setTarget": "Set as target page",
+        "setTargetLabel": "Set {path} as target page",
+        "clearTarget": "Clear target page",
+        "clearTargetLabel": "Clear target page, now {path}",
+        "isTarget": "Target page",
+        "noAccess": "Setting a target page needs permission to edit keywords.",
+        "targetSaved": "Target page set",
+        "targetSavedText": "{keyword} now has {path} as its target page.",
+        "targetCleared": "Target page cleared",
+        "targetClearedText": "{keyword} has no target page.",
+        "targetFailed": "Could not change the target page",
+        "targetFailedReason": "The target page of {keyword} is unchanged. Try again.",
+        "targetFailedAccess": "You do not have permission to edit this keyword. Nothing changed.",
+        "plan": "Plan a merge or redirect",
+        "planNote": "Opens Internal links on the links between the two pages.",
+        "serp": "Open the SERP snapshot",
+        "serpNote": "Opens the keyword on the Keywords page, on its SERP snapshots."
       },
       "timeline": {
         "lanesTitle": "Ranking page by day",
@@ -8631,7 +8652,8 @@
         "changedTo": "changed to",
         "emptyTitle": "No confirmed switch",
         "emptyReason": "The ranking page did not change and stay changed in this period.",
-        "emptyOneCheck": "{count, plural, one {# one-check change} other {# one-check changes}} did not hold, so {count, plural, one {it is} other {they are}} not counted."
+        "emptyOneCheck": "{count, plural, one {# one-check change} other {# one-check changes}} did not hold, so {count, plural, one {it is} other {they are}} not counted.",
+        "laneGroup": "Page {letter}, {path}: one cell per check. Use the arrow keys to move between checks."
       },
       "pages": {
         "title": "Your pages for this keyword",
@@ -8645,7 +8667,10 @@
         "emptyTitle": "No page ranks",
         "emptyReason": "None of your pages was in the top 100 in this period.",
         "note": "A sub-result sits under another result at the same rank and is not a second result."
-      }
+      },
+      "groups": "{count, plural, one {Group} other {Groups}}: {names}",
+      "notFoundTitle": "This keyword is not in the table",
+      "notFoundReason": "It has no checks in this device and period, is outside the group, or you do not have access to it."
     },
     "export": {
       "done": "Exported {rows, plural, one {# row} other {# rows}} as {file}.",

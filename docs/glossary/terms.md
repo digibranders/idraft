@@ -151,6 +151,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | K13 | Export (Cannibalization toolbar) | The button that saves the table in view as a CSV file, with the rows the page has read and the filters on. | Not an Excel file. Not a report. | Download, Save as | Cannibalization, Switching | Firm |
 | K14 | Reset column widths | The button that appears while a column of the table in view is not at its default width, and puts every column back. | Not Reset scope. | Restore columns, Reset layout | Cannibalization, Switching | Firm |
 | K15 | Back on target, No target set, Not involved, Not ranked, Not known | The words of a cell with nothing to show, in place of a mark: Target page cell of a switch (Left the target, Back on target, No target set, Not involved: the move was between other pages), Rank and Pages (Not ranked), Volume, Rank gap and Title overlap (Not known). | Not "N/A", not "n/a", not "No data". | N/A, n/a, No data, None (for these cells) | Cannibalization, Switching | Firm |
+| K16 | Set as target page, Clear target page, Plan a merge or redirect, Open the SERP snapshot (Options of the keyword drawer) | The four options of the Cannibalization keyword drawer. Set as target page writes the keyword's Target page to the page it names; Clear target page removes it; Plan a merge or redirect opens Internal links on the links between the two pages; Open the SERP snapshot opens the keyword on the Keywords page, on its SERP snapshots. Nothing changes until the person presses one. | Not Fix, not Resolve, not Redirect now. | Set URL, Canonical, Fix cannibalization, Open the SERP | Cannibalization drawer | Firm |
 
 
 ## 7. Brands, sites and states
@@ -469,3 +470,4 @@ Live numbers in the strip tooltips (`cannibalization.measures.*.whatLive` and `h
 | 2026-11-27 | Cannibalization info texts (10.6) | | Added for the strips and the weekly chart | The web page of docs/33 |
 | 2026-11-27 | Cannibalization drawer (K9 to K12) | | Added for the keyword drawer: its tabs, Possible causes to check, Rank by page, Ranking page by day | The web inspector of docs/33 section 7.2 |
 | 2026-11-27 | Cannibalization Export, Reset column widths, empty-cell words (K13 to K15) | | Added | Closing the gaps of the web page against the mock (docs/33 sections 7.1 and 7.2) |
+| 2026-11-27 | Cannibalization drawer Options (K16) | | Added | Inspector part 2 of the Cannibalization web page (docs/33 section 7.2); SERP snapshot is the glossary form of the mock's Open the SERP |

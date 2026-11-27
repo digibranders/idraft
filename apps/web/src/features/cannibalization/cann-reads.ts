@@ -110,6 +110,8 @@ export function useKeywordDetail(
         },
       }),
       select: (answer): CannKeywordDetail => answer.data,
+      // J and K step to the next keyword with the last one on screen, not a skeleton; the drawer checks whose it is
+      placeholderData: keepPreviousData,
     }),
   );
 }

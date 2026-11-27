@@ -1,4 +1,4 @@
-import { HttpResponse, type HttpHandler } from 'msw';
+import { http, HttpResponse, type HttpHandler } from 'msw';
 
 import { mock, problem } from '../respond';
 import {
@@ -18,6 +18,17 @@ const BASE_DAYS = 30;
 const END = Date.UTC(2026, 10, 26);
 const DAY = 86_400_000;
 const isoOf = (time: number): string => new Date(time).toISOString().slice(0, 10);
+
+/** The page letter a mock keyword has as its target after a write; a keyword not in it keeps the default story. */
+const targets = new Map<string, 'a' | 'b' | null>();
+/** The mock pages' addresses, as `mockKeywordRows` lists them. */
+const PAGE_URLS = {
+  'https://eventus.example/services/soc': 'a',
+  'https://eventus.example/blog/soc-guide': 'b',
+} as const;
+
+/** Forgets every target a test or a visit set. */
+export const resetMockTargets = (): void => targets.clear();
 
 export interface MockScope {
   device: 'desktop' | 'mobile';
@@ -97,7 +108,7 @@ export function mockKeywordRows(scope: MockScope): CannKeyword[] {
       });
       const checks = verdict === 'insufficient' ? 6 : scope.days;
       // Every other keyword has a target page (A), so the target marks and the target column have something to show
-      const target = index % 2 === 0 ? 'a' : null;
+      const target = targets.has(text) ? (targets.get(text) ?? null) : index % 2 === 0 ? 'a' : null;
       const current = strip[scope.days - 1]?.url_id ?? 'a';
       return cannKeyword(text, verdict, {
         // An inspector address holds no spaces, as the real ids (UUIDs) hold none
@@ -117,7 +128,7 @@ export function mockKeywordRows(scope: MockScope): CannKeyword[] {
             path: '/blog/soc-guide',
             url: 'https://eventus.example/blog/soc-guide',
             title: 'SOC guide for buyers',
-            is_target: false,
+            is_target: target === 'b',
           }),
         ],
         rank_gap: verdict === 'likely' ? 7 : 0,
@@ -200,4 +211,31 @@ export const cannibalizationHandlers: HttpHandler[] = [
     const detail = cannDetail(row, checks);
     return HttpResponse.json({ data: { ...detail, meta: { ...detail.meta, ...metaOf(scope, 1) } } });
   }),
+];
+
+/**
+ * The target write of the keyword inspector in the mocked app: `PATCH .../tracked-keywords/{id}` with `target_url`.
+ * It answers for the illustrative keywords of this file only; any other id goes on to the Keywords handlers.
+ */
+export const cannibalizationTargetHandlers: HttpHandler[] = [
+  http.patch(
+    '*/api/v1/workspaces/:workspace_id/projects/:project_id/tracked-keywords/:tracked_keyword_id',
+    async ({ request, params }) => {
+      const id = String(params.tracked_keyword_id);
+      const row = mockKeywordRows({ device: 'desktop', days: BASE_DAYS, group: null }).find(
+        (entry) => entry.tracked_keyword_id === id,
+      );
+      if (row === undefined) return undefined;
+      const body: unknown = await request.json();
+      const url =
+        typeof body === 'object' && body !== null && 'target_url' in body
+          ? (body as { target_url: unknown }).target_url
+          : undefined;
+      if (url === null) targets.set(row.keyword, null);
+      else if (typeof url === 'string' && url in PAGE_URLS)
+        targets.set(row.keyword, PAGE_URLS[url as keyof typeof PAGE_URLS]);
+      else return problem(request, 'validation_failed');
+      return HttpResponse.json({ data: { tracked_keyword_id: id, target_url: url } });
+    },
+  ),
 ];
