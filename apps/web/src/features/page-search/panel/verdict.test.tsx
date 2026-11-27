@@ -137,7 +137,9 @@ describe('Verdict', () => {
     });
     expect(screen.getByText('Average position slipped 2.1 places.')).toBeInTheDocument();
     expect(
-      screen.getByText('Impressions rose but fewer people clicked. Check the title and the snippet.'),
+      screen.getByText(
+        'Impressions rose but fewer people clicked. Check the title and the snippet, and whether an AI answer now sits above the result.',
+      ),
     ).toBeInTheDocument();
   });
 
