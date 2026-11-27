@@ -51,7 +51,7 @@ export interface InspectorHeaderProps {
   /** The More button, for a dialog that opens from its menu to give focus back to. */
   moreButtonRef?: Ref<HTMLButtonElement> | undefined;
   onClose: () => void;
-  /** The sheet below 768 px goes back to the list instead of closing: "Back to Rankings". */
+  /** The sheet below 900 px goes back to the list instead of closing: "Back to Rankings". */
   backLabel?: string | null | undefined;
 }
 
@@ -124,8 +124,8 @@ export function InspectorHeader({
           ) : null}
         </div>
       </div>
-      {/* The frequent command sits beside the badges, not beside the title, so a 400 px card keeps the
-          title on one line where it fits (25 deviation 131) */}
+      {/* The frequent command sits beside the badges, not beside the title, so a narrow card (480 px at
+          least) keeps the title on one line where it fits (25 deviation 131) */}
       {(badges === undefined || badges === null) && (frequentAction === undefined || frequentAction === null) ? null : (
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">{badges}</div>

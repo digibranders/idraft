@@ -38,7 +38,9 @@ export async function CitationsRoute({
       promptDrawer={
         <PromptDrawerHost
           workspaceId={membership.workspace.workspace_id}
+          workspaceSlug={membership.workspace.slug}
           projectId={current.project_id}
+          projectSlug={current.slug}
           timeZone={current.timezone}
         />
       }

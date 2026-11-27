@@ -108,7 +108,7 @@ test.describe('Internal links (spec 11)', () => {
     await expect(header).toHaveAttribute('aria-sort', /^(ascending|descending)$/);
     await expect(page).toHaveURL(/[?&]sort=-?linking_pages/);
 
-    // A row opens its inspector beside the table; no equity there either
+    // A row opens its inspector over the table; no equity there either
     await grid
       .getByRole('rowheader', { name: /\/pricing/ })
       .first()
@@ -116,6 +116,10 @@ test.describe('Internal links (spec 11)', () => {
     await expect(inspectorOf(page, '/pricing')).toBeVisible();
     await expect(page).toHaveURL(/[?&]inspect=page(%3A|:)/);
     await expectNoEquity(page);
+
+    // The card lays over the page header's actions, so the export waits until it is closed
+    await page.keyboard.press('Escape');
+    await expect(inspectorOf(page, '/pricing')).toBeHidden();
 
     // The export is a CSV of this tab with the server's columns: none of them is equity
     await page.getByRole('button', { name: 'Export', exact: true }).click();
@@ -245,6 +249,10 @@ test.describe('Internal links (spec 11)', () => {
     await expect(inspectorOf(page, '/contact')).toBeVisible();
     await expect(page).toHaveURL(/[?&]inspect=page(%3A|:)/);
     await expectNoEquity(page);
+
+    // The card lays over the right of the canvas, so the next steps wait until it is closed
+    await page.keyboard.press('Escape');
+    await expect(inspectorOf(page, '/contact')).toBeHidden();
 
     // Re-center on /pricing, then the tree list of the same journey
     await card(page, '/pricing').hover();

@@ -9,7 +9,7 @@ Every screen is built from one of seven templates. A template fixes the regions,
 ## 1. Reading the wireframes
 
 - Wireframes are schematic: they show information architecture and component placement, not visual design. Sizes in the region tables are authoritative; the drawings are not to scale vertically.
-- Horizontal scale is about 12 px per character. Full-shell drawings are 120 characters wide (1440 px viewport). Screen drawings in section 9 omit the sidebar and top bar (shown once in 9.1) and are 104 characters wide: the 1,232 px main column at 1440 (208 px sidebar), or an 832 px main column plus a 400 px inspector. Inspector columns are drawn about 40 to 50 characters wide for legibility; the real widths are 400 px, and 440 px for prompt, citation and answer evidence ([23-application-patterns.md](23-application-patterns.md) section 4).
+- Horizontal scale is about 12 px per character. Full-shell drawings are 120 characters wide (1440 px viewport). Screen drawings in section 9 omit the sidebar and top bar (shown once in 9.1) and are 104 characters wide: the 1,232 px main column at 1440 (208 px sidebar). Inspector columns are drawn about 40 to 50 characters wide for legibility; the real inspector is a 640 px card by default (480 to 960 px) that lays over the page, and the table keeps its width ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2).
 - Metric strips are drawn with three text rows (label, value, context) for legibility. The built strip is one 76 px panel with two rows: the context follows the delta on the value row ([23-application-patterns.md](23-application-patterns.md) section 2).
 - Screen drawings in section 9 draw the filter bar directly under the title block. When a page has a metric strip, the built page places the strip between the title block (or tabs) and the filter bar, 16 px from each ([23-application-patterns.md](23-application-patterns.md) section 3.1).
 - `[Label]` is a button, `[Label v]` a menu or select, `[Field: Value x]` a filter chip, `(i)` a `MetricInfo` trigger, `[x]` a checked checkbox, `[ ]` unchecked, `~~~` a chart area, `###` a bar, `{Name}` a highlighted mention.
@@ -124,7 +124,7 @@ Rules: at most 5 major sections (S1 to S5). Sections and side-by-side panels are
 | Table toolbar | `DataTable` toolbar: the title row of the table panel, 32 px `sm` controls; replaced by the bulk bar when rows are selected | 48 px | Table search, row count, density, columns, export |
 | Table | `DataTable` inside a panel (1 px `border`, 8 px radius): 40 px header row on `surface-subtle` with 1 px dividers between header cells, 32 px rows (Compact, the default; 40 px in Default density) | Fills remaining height | Body is the scroll container; header sticks; identity column pinned |
 | Footer | `TableFooter`: count and freshness; range text ("1 to 200 of 12,480") with 32 px previous and next buttons only in server mode, no page numbers ([12-tables.md](12-tables.md) section 12) | 48 px | Sticky at the bottom of the table region |
-| Inspector | `Inspector` (400 px) with `InspectorHeader` (44 px underline tabs at its bottom), `MetricStrip` `sm` as the first section, `InspectorSection`; footer in edit mode only ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.1) | Full height below the top bar | Docks when the main column keeps at least 720 px, else overlays ([05-layout-grid.md](05-layout-grid.md) section 6) |
+| Inspector | `Inspector` (640 px by default) with `InspectorHeader` (44 px underline tabs at its bottom), `MetricStrip` `sm` as the first section, `InspectorSection`; footer in edit mode only ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.1) | Fixed card below the top bar, 12 px from the right and bottom edges | Lays over the page and never resizes it; a full-width sheet below 900 px ([05-layout-grid.md](05-layout-grid.md) section 6) |
 
 Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title block 56, strip 76, filter bar 36, three 16 px gaps, table toolbar 48, table header 40 and footer 48 leave 476 px, which is 14 rows at 32 px (Compact, the default) or 11 rows at 40 px (Default density).
 
@@ -134,7 +134,7 @@ Vertical budget at 1440 x 900 without tabs: top bar 52, header offset 20, title 
 
 **URL state:** all filter keys, `q`, `sort`, `view`, `tab`, `by`, `inspect`, `itab`, `stats`.
 
-**Responsive:** column tiers by viewport width ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.1; section 9.3 shows the sets), inspector overlay below 720 px of main column, full-screen sheet below 768 px viewport, filter bar collapses to "Filters (3)" below 768 px.
+**Responsive:** column tiers by viewport width ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.1; section 9.3 shows the sets), the inspector lays over the page at every width from 900 px and is a full-width sheet below 900 px, filter bar collapses to "Filters (3)" below 768 px.
 
 ## 5. T3 Detail
 
@@ -361,8 +361,8 @@ The wireframes below define structure. For the finished visual quality of sectio
 | Top bar | `TopBar` (52 px, `surface`, bottom hairline) | Left: breadcrumb (16 px `House` icon in `foreground-tertiary` for the project root, 14 px `ChevronRight` separators in `foreground-muted`, ancestors in `foreground-tertiary`, current page in `foreground` 500) with the workspace and project menus. Right, 36 px controls 12 px apart: search field that opens the command palette (360 to 440 px, `⌘K` hint box); date range button; location button (both project-wide scope, hidden where they do not apply); notifications; theme menu (moves into the user menu below 1440 px); help menu; 32 px avatar for the user menu ([11-navigation.md](11-navigation.md) section 4, [19-responsive-behavior.md](19-responsive-behavior.md) section 3.2) |
 | Page header | `PageHeader` | T2 variant shown |
 | Content | Template region | Scroll model per template ([05-layout-grid.md](05-layout-grid.md) section 2.2) |
-| Inspector | `Inspector` 400 px (keyword default; 440 px for prompt, citation and answer evidence, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2) | Docked below the top bar, own scroll, sticky header; Escape closes |
-| Toasts | `Toaster` | Bottom right of the main column, 360 px; they never cover a docked inspector ([18-notifications-alerts.md](18-notifications-alerts.md) section 3.1) |
+| Inspector | `Inspector`, 640 px by default, 480 px to 60% of the viewport (960 px at most), one saved width per user ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.2) | Lays over the page below the top bar, own scroll, sticky header; Escape closes |
+| Toasts | `Toaster` | Bottom right of the main column, 360 px; they do not move for an open inspector ([18-notifications-alerts.md](18-notifications-alerts.md) section 3.1) |
 | Landmarks | `nav` Primary, `nav` Breadcrumb, `main`, `complementary` | "Skip to content" first focusable |
 
 ### 9.2 Overview (T1)
@@ -529,12 +529,12 @@ Column chooser extras (not in the default set): Previous rank, Best rank, Target
 | 1920 | 1,672 px | All 11 at default width; Keyword grows to its 480 px maximum |
 | 1680 | 1,432 px | All 11 (1,400 px at default widths) |
 | 1440 | 1,192 px | All except Competitor and Updated (1,176 px) |
-| 1440, inspector docked | 792 px | Same set as 1440; the table scrolls horizontally with Keyword pinned |
+| 1440, inspector open | 1,192 px (the inspector lays over the right side, 560 px of the table stays visible at the 640 px default) | Same set as 1440; the table does not reflow and Keyword stays pinned |
 | 1280 | 1,032 px | Keyword, Rank, Δ, Ranking URL, Volume, AI Overview, Trend (960 px) |
 | 1024 (sidebar collapsed) | 928 px | Keyword, Rank, Δ; Comfortable density adds the secondary line under the keyword ([19-responsive-behavior.md](19-responsive-behavior.md) section 6.6) |
 | 768 | 736 px | Keyword, Rank, Δ, as at 1024 |
 
-At 1280 px the inspector overlays (the main column would be 672 px, 1,072 minus 400, below the 720 px minimum, [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6), so the table keeps its 1,032 px set.
+At 1280 px the inspector lays over the table like at every width, so the table keeps its 1,032 px set and 400 px of it stay visible at the 640 px default ([16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6).
 
 **Grouping.** "Group: none" menu in the toolbar: Keyword group, Topic, Ranking URL, Intent. One level. Group header rows show the group name, keyword count, summed volume and top 10 count; never averaged ranks unless the API supplies them with `n_ranked`.
 
@@ -673,9 +673,9 @@ Toolbar: topic search, the count, "Expand all", Columns. Bulk bar: Run now, Expo
 
 **Strip.** Prompts (with the number of topics below), then one card per engine: the metric of the engine columns as the value with its change, and the other headline rates on the line below ("Cited 21% · Share of voice 27%"). Counts are in the card's tooltip. With one engine in scope: prompts on that engine and its four rates, each with its counts. AI Overview counts "AI Overviews" and is not asked ([ADR-DS-022](adr/ADR-DS-022-topics-and-prompts.md), decisions 11 and 12).
 
-**Topic inspector** (440 px). Header: topic name, category, prompt count and scope badges, "Add prompt". Tabs: Overview (Mention rate, Citation rate and Share of voice as three cards; "Visibility trend", the own brand against the three most mentioned competitors over eight weeks; "By engine", a bar and `k of n` per engine; "In search", the topic's keyword count, SEO visibility and Top 10 with a link to Rankings; "Top prompts in this topic", five rows with "View all"), Prompts (every prompt of the topic in scope), Competitors (mention rate per entity per engine), Related (the other topics of the category, related keywords). Content in [23-application-patterns.md](23-application-patterns.md) section 4.2.
+**Topic inspector** (640 px by default). Header: topic name, category, prompt count and scope badges, "Add prompt". Tabs: Overview (Mention rate, Citation rate and Share of voice as three cards; "Visibility trend", the own brand against the three most mentioned competitors over eight weeks; "By engine", a bar and `k of n` per engine; "In search", the topic's keyword count, SEO visibility and Top 10 with a link to Rankings; "Top prompts in this topic", five rows with "View all"), Prompts (every prompt of the topic in scope), Competitors (mention rate per entity per engine), Related (the other topics of the category, related keywords). Content in [23-application-patterns.md](23-application-patterns.md) section 4.2.
 
-**Prompts tab** (the Prompt Explorer, `/ai/prompts/explorer`). Shown with the prompt inspector open. Its default width is 440 px; at 1440 with the sidebar expanded it docks at its full width (the main column keeps 792 px: 1440 minus 208 minus 440, above the 720 px minimum), per the docking rule in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6. The drawing is schematic.
+**Prompts tab** (the Prompt Explorer, `/ai/prompts/explorer`). Shown with the prompt inspector open. Its default width is 640 px; at 1440 with the sidebar expanded it lays over the page and leaves 560 px of the table visible, per the overlay rules in [16-drawers-dialogs-popovers.md](16-drawers-dialogs-popovers.md) section 2.6. The drawing is schematic.
 
 ```text
 | Prompts [View: Default v]   [Import] [...] [Add] | "What is the best CRM for a     [^][v][...][⤢][x] |
@@ -707,7 +707,7 @@ The drawing narrows the table to fit; at 1440 all columns below except Top compe
 | # | Column | Type | Default / min width | Priority | Notes |
 |---|---|---|---|---|---|
 | 0 | (select) | `select` | 40 / 40 | always | |
-| 1 | Prompt | `prompt` | 360 / 240, flex | 1 (pinned) | One line; `PromptTypeBadge` hidden in Compact density and while the cell is narrower than 384 px (a container query, so it also goes when the inspector docks); lock icon for locked core panel |
+| 1 | Prompt | `prompt` | 360 / 240, flex | 1 (pinned) | One line; `PromptTypeBadge` hidden in Compact density and while the cell is narrower than 384 px (a container query, so it also goes in a narrow column); lock icon for locked core panel |
 | 2 | Topic | `badge` | 144 / 88 | 3 | Deepest term; path in tooltip |
 | 3 | ChatGPT | `engineGroup` | 88 | 2 | Value of the engine-column metric (default Mention rate A1). 88 px, not 72: the header holds the engine name and its sort control |
 | 4 | Gemini | `engineGroup` | 88 | 2 | Same |
@@ -720,11 +720,11 @@ The drawing narrows the table to fit; at 1440 all columns below except Top compe
 | 10 | Updated | `date` | 144 / 104 | 4 | Last valid observation; stale badge |
 | 11 | (actions) | `actions` | 40 / 40 | always | Run now, Edit, Open page |
 
-Priorities follow [19-responsive-behavior.md](19-responsive-behavior.md) section 6.3: 1280 shows Prompt, the three engine columns, Mention rate and Citation rate; 1440 adds Topic and Trend; 1680 adds Top competitor and Updated. Default widths of all columns total 1,360 px, so all fit at 1680 (1,424 px table region). Docking the inspector never changes the set; the table scrolls horizontally with Prompt pinned. Column chooser extras: Recommendation rate, SOV, Change (per engine, colored only when detectable), Volatility, Linked keywords (count and primary keyword rank), Versions, Panel.
+Priorities follow [19-responsive-behavior.md](19-responsive-behavior.md) section 6.3: 1280 shows Prompt, the three engine columns, Mention rate and Citation rate; 1440 adds Topic and Trend; 1680 adds Top competitor and Updated. Default widths of all columns total 1,360 px, so all fit at 1680 (1,424 px table region). Opening the inspector never changes the set; the table scrolls horizontally with Prompt pinned. Column chooser extras: Recommendation rate, SOV, Change (per engine, colored only when detectable), Volatility, Linked keywords (count and primary keyword rank), Versions, Panel.
 
 The toolbar "Engine columns" `MetricSwitcher` sets which metric the engine group shows (Mention, Citation, Recommendation, SOV) and writes `metric=`.
 
-**Inspector** (440 px): header with prompt text in quotes, meta (topic path, type, panel, version); strip (sm) with one item per engine plus the equal-weight citation rate; tabs Latest, History, Citations, Competitors, Stats ([23-application-patterns.md](23-application-patterns.md) section 4.2). "Stats" shows per engine: estimate, `ConfidenceIndicator`, `SampleCount`, aggregation, and the link to the full statistics panel.
+**Inspector** (640 px by default): header with prompt text in quotes, meta (topic path, type, panel, version); strip (sm) with one item per engine plus the equal-weight citation rate; tabs Latest, History, Citations, Competitors, Stats ([23-application-patterns.md](23-application-patterns.md) section 4.2). "Stats" shows per engine: estimate, `ConfidenceIndicator`, `SampleCount`, aggregation, and the link to the full statistics panel.
 
 | Region | Component | Notes |
 |---|---|---|
@@ -732,7 +732,7 @@ The toolbar "Engine columns" `MetricSwitcher` sets which metric the engine group
 | Filter bar | Compare and Engine scopes; `Panel: Core` and `Branded: Excluded` default chips. The date range and location are in the top bar (location filters prompts by market, [13-filters-search.md](13-filters-search.md) section 4) | Device hidden on AI screens |
 | Strip | `MetricStrip` `md` for the filtered scope: Mention, Citation, Recommendation, SOV (per selected engine; with several engines the strip shows per-engine mention items instead) | Never a silently pooled value |
 | Table | `DataTable`. The header has two rows while several engines are in scope: a group cell that names the metric ("Mention rate by engine") over one sortable column per engine. With one engine the group is gone and Mention rate is that engine's | Default sort Mention rate descending. The change shows on Mention rate only |
-| Inspector | 440 px prompt inspector | `j`/`k` stepping |
+| Inspector | Prompt inspector | `j`/`k` stepping |
 
 As built (Topics tab views, 2026-11-13, plan `docs/superpowers/plans/2026-11-13-ai-wp-20-topics-by-engine.md`, code in `apps/web/src/features/prompts/topics-by-engine/`): the Topics tab has three views, chosen by an icon-only switch at the end of the table toolbar and kept in the URL key `view`: the List (the default, no key, the table described above and unchanged), `engines` (By engine) and `heatmap` (Heat map). Any other value reads as the List. `DEFAULT_TOPICS_VIEW` in `topics-view.tsx` is the one constant that flips the default. The engine metric is a Select (Mention, Citation, Share of voice) in By engine and the Heat map that writes `metric`, the key the Prompts tab already uses, so one choice serves the Prompts tab, both views and the drawer's engine panel. The List has no metric Select.
 
@@ -826,7 +826,7 @@ Layout on the T3 grid (section 5), Overview tab: the rate table and the per-engi
 | Rate table | `SimpleTable` with `ConfidenceIndicator` text under each rate | 100% stacked outcome bar per engine, never collapsed |
 | Trends | Small multiples, shared axes, `echarts.connect` crosshair | Version and model boundaries drawn |
 
-As built (Citations tab, 2026-11-13, WP-21): the Citations tab sits in the prompt inspector (the 440 px aside, a sheet on a phone), not on a detail page route. It is the third of the five tabs the inspector lists today: Latest, History, Citations, Competitors and Stats (Fan-out joins with WP-24). The seam `features/prompts/seams/inspector-tabs.ts` took two lines, the import and the `citationsTab` entry, placed after History; `prompt-inspector.tsx` is untouched. At 390 px the row shows Latest, History, Citations and Competitors and puts Stats under More tabs (measured in the e2e run). Code: `apps/web/src/features/prompts/inspector/citations/`. The reads, types and share model are in `apps/web/src/lib/citations/`, which the Citations page imports too, because a feature may not import another feature.
+As built (Citations tab, 2026-11-13, WP-21): the Citations tab sits in the prompt inspector (the overlay aside, a sheet below 900 px), not on a detail page route. It is the third of the five tabs the inspector lists today: Latest, History, Citations, Competitors and Stats (Fan-out joins with WP-24). The seam `features/prompts/seams/inspector-tabs.ts` took two lines, the import and the `citationsTab` entry, placed after History; `prompt-inspector.tsx` is untouched. At 390 px the row shows Latest, History, Citations and Competitors and puts Stats under More tabs (measured in the e2e run). Code: `apps/web/src/features/prompts/inspector/citations/`. The reads, types and share model are in `apps/web/src/lib/citations/`, which the Citations page imports too, because a feature may not import another feature.
 
 As built (what the tab says, 2026-11-13, WP-21), top to bottom:
 
@@ -1088,7 +1088,7 @@ Route `/discover/keywords`.
 | Header | `PageHeader` with count tabs Keywords, Prompts, Opportunities | Prompts tab adds primary "Generate prompts" |
 | Status | `SegmentedControl` in the toolbar, next to the result count | `status=new` default |
 | Table | `DataTable`, Comfortable density (40 px rows, set by the screen for its two-line rows; every other table opens in Compact); second line is the evidence summary in `type-meta` | Keyword columns: Candidate, Sources (neutral chips, max 2 then "+1"), Volume (Estimate), KD, CPC (chooser), Intent, AI demand (Estimate, chooser), GSC impressions (28 days), Competitor best rank (chooser), Opportunity score (chooser, with factor popover), Data as of |
-| Evidence panel | `Inspector` 400 px (no "Open page": candidates have no full page): strip with volume, KD, modeled AI demand (Estimate), GSC impressions; source detail per source; near duplicates; triage footer (the one inspector footer outside edit mode) with `Kbd` hints | Prompt candidates show "Generated phrasing, not an observed user prompt" or "Bing grounding phrase, not a user prompt" at the top; no volume column |
+| Evidence panel | `Inspector` (no "Open page": candidates have no full page): strip with volume, KD, modeled AI demand (Estimate), GSC impressions; source detail per source; near duplicates; triage footer (the one inspector footer outside edit mode) with `Kbd` hints | Prompt candidates show "Generated phrasing, not an observed user prompt" or "Bing grounding phrase, not a user prompt" at the top; no volume column |
 | Bulk bar | Accept, Snooze, Reject, Assign group, Tags, Topic, Intent, Priority, then "Promote to tracked" | Promote dialog: location, device (both creates two), depth profile, group, quota impact, daily cost estimate |
 
 The Opportunities tab lists `OpportunityStatus` conditions (section 7.3 of [23-application-patterns.md](23-application-patterns.md)) and publisher opportunities with the same triage actions (Accept adds to a work list; it creates nothing tracked).

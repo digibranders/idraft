@@ -20,7 +20,7 @@ import { server } from '@/test/msw';
 
 /**
  * What the tests of Rankings share: the screen for a signed-in role, a viewport wide enough for every
- * column and a docked inspector, and readers for the grid.
+ * column and an inspector that lays over the table, and readers for the grid.
  */
 
 function fixtureProject(index: number): (typeof MOCK_PROJECTS)[number] {

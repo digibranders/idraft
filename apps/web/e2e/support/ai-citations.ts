@@ -40,7 +40,7 @@ export const viewsOf = (page: Page): Locator => page.getByRole('navigation', { n
 export const searchOf = (page: Page): Locator => page.getByRole('searchbox', { name: 'Search in table' });
 export const pagesTable = (page: Page): Locator => page.getByRole('table', { name: 'Cited pages' });
 export const gapsTable = (page: Page): Locator => page.getByRole('table', { name: 'Gap analysis' });
-/** The docked or laid over drawer (768 px and up); below that it is a sheet, a dialog. */
+/** The drawer, a card laid over the page from 900 px; below that it is a sheet, a dialog. */
 export const drawerOf = (page: Page): Locator => page.getByRole('complementary');
 /** The drawer's "3 of 148" in its header; the first of the matches, since its tables hold "k of n" counts too. */
 export const positionOf = (drawer: Locator): Locator => drawer.getByText(/^\d+ of \d+$/).first();

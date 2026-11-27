@@ -299,6 +299,7 @@ function CompetitorsContent({
   return (
     <CompetitorsProvider value={context}>
       <AddCompetitorControlProvider open={adding} onClose={closeAdd}>
+        {/* The page column's wrapper: this page has no drawer */}
         <InspectorLayout inspector={null}>
           <TopBarPortal>
             <DateRangePicker

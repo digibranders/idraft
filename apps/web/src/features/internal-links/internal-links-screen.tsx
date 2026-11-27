@@ -22,6 +22,7 @@ import { TabBadge } from './tab-badge';
 import { activeLinksTab, LINK_LEVEL_TABS, LINKS_TABS, type LinksTabContext } from './tabs';
 import { useTabBadges } from './use-tab-badges';
 import { inspectedPage, useLinksState, type LinksTabId } from './url-state';
+import { isInsideDrawer } from '@/components/app/inspector/drawer-title';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
@@ -33,6 +34,7 @@ import type { MenuItemDef } from '@/components/ui/menu';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { announce } from '@/lib/a11y/announcer';
+import { useFocusReturn } from '@/lib/inspector/use-focus-return';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { isApiProblem } from '@/lib/api/problem';
 import { crawlInView } from '@/lib/internal-links/crawl-choice';
@@ -138,6 +140,14 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const domainsHref = projectPath(workspaceSlug, project.slug, '/settings/domains');
   const inspector = useInspector();
   const inspected = inspectedPage(inspector.target);
+  // Closing the drawer returns focus to what opened it: a row, a canvas card's Details button or the map card's.
+  // A page opened from inside the drawer (a neighbour) is not an opener: the drawer remounts and that button is gone
+  const rememberOpener = useFocusReturn(inspector.target !== null);
+  const openPage = (urlId: string): void => {
+    const from = document.activeElement;
+    if (from instanceof HTMLElement && !isInsideDrawer(from)) rememberOpener(from);
+    inspector.open({ type: 'page', id: urlId });
+  };
   // The rows the open tab shows, in order: the inspector's "12 of 986" and its J and K step through them
   const [order, setOrder] = useState<readonly string[]>([]);
   const canWrite = useCan('projects:write');
@@ -221,7 +231,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
     setSearch,
     tiers: tiers.data?.data ?? NO_TIERS,
     // A page the address names that is no url id is a page that does not exist: the tab shows not found for `invalid`
-    inspect: { open: (urlId) => inspector.open({ type: 'page', id: urlId }), setOrder, ...inspected },
+    inspect: { open: openPage, setOrder, ...inspected },
     openJourney: (urlId) =>
       setSearch(
         { tab: 'journey', focus: urlId, open: null, grp: null, more: null, topen: null, inspect: null, itab: null },

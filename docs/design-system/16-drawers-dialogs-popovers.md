@@ -1,9 +1,9 @@
 # 16. Inspector, Drawers, Dialogs, Popovers and Overlays
 
 Status: Accepted (design-system v2)
-Last updated: 2026-09-29
+Last updated: 2026-11-26
 Implementation: `apps/web/src/components/ui/` (Base UI 1.8 primitives: Dialog, AlertDialog, Drawer, Popover, PreviewCard, Tooltip, Menu, ContextMenu, Autocomplete) and `apps/web/src/components/app/inspector/`
-Related: [05-layout-grid.md](05-layout-grid.md) (widths and docking), [06-surfaces-borders-radius.md](06-surfaces-borders-radius.md) (surfaces, radius, shadows), [08-interaction-states.md](08-interaction-states.md) (focus rules), [12-tables.md](12-tables.md), [13-filters-search.md](13-filters-search.md), [17-empty-loading-error-states.md](17-empty-loading-error-states.md), [20-accessibility.md](20-accessibility.md), [21-motion.md](21-motion.md), [25-component-inventory.md](25-component-inventory.md)
+Related: [05-layout-grid.md](05-layout-grid.md) (widths and the inspector overlay rules), [06-surfaces-borders-radius.md](06-surfaces-borders-radius.md) (surfaces, radius, shadows), [08-interaction-states.md](08-interaction-states.md) (focus rules), [12-tables.md](12-tables.md), [13-filters-search.md](13-filters-search.md), [17-empty-loading-error-states.md](17-empty-loading-error-states.md), [20-accessibility.md](20-accessibility.md), [21-motion.md](21-motion.md), [25-component-inventory.md](25-component-inventory.md)
 
 This document decides which container a piece of content lives in, and specifies every container that sits above or beside the page: the right inspector, full-page detail, dialogs, popovers, menus, tooltips, preview cards, the statistics panel and the command palette.
 
@@ -17,7 +17,7 @@ The product has four disclosure levels (scan, hover, inspect, study; [00-design-
 | **PreviewCard** | hover | A read-only summary of a linked object, so the user can decide whether to open it (citation URL, competitor name, domain in a cell) | Actions, forms, the only path to information | 320 px |
 | **Popover** | hover or click | Short, focused interaction anchored to a control: filter editing, quick settings, metric method definition, column chooser | Record detail, multi-step tasks, anything over 400 px tall | 280 to 360 px |
 | **Menu** | click | A list of commands or single choices from a button or a row | Content, forms, navigation trees | 180 to 280 px |
-| **Right inspector** | inspect | Detail of one record picked from a list, while the list stays visible and keeps its scroll, filters and selection | Creating objects, destructive confirmation, multi-record study | 360 to 640 px |
+| **Right inspector** | inspect | Detail of one record picked from a list, while the list stays visible and keeps its scroll, filters and selection | Creating objects, destructive confirmation, multi-record study | 640 px by default, 480 px to 60% of the viewport (960 px at most) |
 | **Statistics panel** (`StatisticsPanel`) | inspect | A deep explanation of one metric (estimate, uncertainty, movers, version boundaries); non-modal, in the inspector region ([23-application-patterns.md](23-application-patterns.md) section 8.6) | Record detail (use the inspector) | 560 px |
 | **Dialog** | task | A bounded task with a clear end: create, add, edit settings of one object, import, confirm | Analytics, charts, tables of records, browsing | 400 / 560 / 720 px |
 | **AlertDialog** | task | Confirming a destructive or irreversible action, discarding unsaved edits | Information that does not need a decision | 400 px |
@@ -27,17 +27,17 @@ The product has four disclosure levels (scan, hover, inspect, study; [00-design-
 
 | Object or task | Container | Notes |
 |---|---|---|
-| Keyword detail | Inspector 400 px from any list; full page `/seo/keywords/[tkId]` for study | Inspector tabs: Overview, SERP, AI, Timeline |
-| Prompt detail | Inspector 440 px; full page `/ai/prompts/[promptId]` | Prompt text needs width; answers are long |
-| Citation | Inspector 440 px only | Shows the answer context and the cited page; no full page |
-| Cited page, gap prompt (Citations board, WP-77) | Inspector 440 px only | Tabs Prompts and Overview for a page, Gap and By platform for a prompt; a page no answer of the scope cites says "Not cited in this scope"; no full page |
-| Answer (observation evidence) | Inspector 440 px | Evidence viewer with the entity side panel stacked below the answer ([20-frontend-specification.md](../20-frontend-specification.md) section 4.9) |
-| Page (owned URL) | Inspector 400 px; full page `/seo/pages/[urlId]` (Page Intelligence) | |
-| Competitor | Inspector 400 px | Study happens in Competitor Intelligence filtered to that entity; no separate page in V1 |
-| Domain (registrable domain) | Inspector 400 px | "Open in Citations" link carries the domain filter |
-| Source (cited URL, third-party or own) | Inspector 400 px | Content per [23-application-patterns.md](23-application-patterns.md) section 4.2; no full page |
-| Run (Operations) | Inspector 400 px from the runs table; full page `ops/runs/[runId]` for the task table | |
-| Discover candidate | Inspector 400 px | Evidence panel per [24-page-templates.md](24-page-templates.md) section 9.11; no full page |
+| Keyword detail | Inspector from any list; full page `/seo/keywords/[tkId]` for study | Inspector tabs: Overview, SERP, AI, Timeline |
+| Prompt detail | Inspector; full page `/ai/prompts/[promptId]` | Prompt text needs width; answers are long |
+| Citation | Inspector only | Shows the answer context and the cited page; no full page |
+| Cited page, gap prompt (Citations board, WP-77) | Inspector only | Tabs Prompts and Overview for a page, Gap and By platform for a prompt; a page no answer of the scope cites says "Not cited in this scope"; no full page |
+| Answer (observation evidence) | Inspector | Evidence viewer with the entity side panel stacked below the answer ([20-frontend-specification.md](../20-frontend-specification.md) section 4.9) |
+| Page (owned URL) | Inspector; full page `/seo/pages/[urlId]` (Page Intelligence) | |
+| Competitor | Inspector | Study happens in Competitor Intelligence filtered to that entity; no separate page in V1 |
+| Domain (registrable domain) | Inspector | "Open in Citations" link carries the domain filter |
+| Source (cited URL, third-party or own) | Inspector | Content per [23-application-patterns.md](23-application-patterns.md) section 4.2; no full page |
+| Run (Operations) | Inspector from the runs table; full page `ops/runs/[runId]` for the task table | |
+| Discover candidate | Inspector | Evidence panel per [24-page-templates.md](24-page-templates.md) section 9.11; no full page |
 | Create project | Full page (onboarding wizard) | Nine steps with engines, locations and cost estimate ([20-frontend-specification.md](../20-frontend-specification.md) section 5.1); too large for a dialog |
 | Add competitor | Dialog 560 px | Name, domains, colour slot preview, SOV effect note |
 | Add keywords (paste or type) | Dialog 560 px | |
@@ -63,9 +63,9 @@ The inspector is the product's main detail pattern: every record in every table 
 The inspector is a floating card under the top bar: rounded, bordered, with a soft shadow, 12 px from the top bar and from the right and bottom edges of the window. Its body is a column of cards on the page background ([ADR-DS-019](adr/ADR-DS-019-card-drawer-inspector.md)).
 
 ```
-| Top bar (always full width; the inspector never narrows it)                                              |
+| Top bar (always full width, the drawer sits below it)                                                     |
 +-----------------------------------------------------+----------------------------------------------------+
-| Rankings table (main column, >= 720 px)             |  12 px                                             |
+| Rankings table (the page, not narrowed)             |  12 px                                             |
 |                                                     |  +----------------------------------------------+  |
 | [] best crm for startups   4   6   ^2  ...          |  | best crm for startups  [Check now] [⋮] [x]   |  |
 | [>] crm pricing  (active row, 2 px edge)            |  | (2 lines max)                                |  |
@@ -99,31 +99,35 @@ The double line is the bottom edge of the tab row. `(i)` stands for the 16 px se
 
 | Part | Specification |
 |---|---|
-| Container | `<aside aria-labelledby="inspector-title">`: `background` fill (the page background, so the `surface` cards inside read as cards), 1 px `border`, radius 10 px (`rounded-xl`), `shadow-inspector`, `overflow-hidden`. It sits under the top bar, 12 px from it and 12 px from the right and bottom window edges, in both docked and overlay mode. The top bar always spans the full width: the inspector is a sibling of the page content below the top bar, never of the top bar. Below 768 px it is a full-screen sheet with no radius, border or margin (section 2.6) |
+| Container | `<aside aria-labelledby="inspector-title">`: `background` fill (the page background, so the `surface` cards inside read as cards), 1 px `border`, radius 10 px (`rounded-xl`), `shadow-inspector`, `overflow-hidden`. It sits under the top bar, 12 px from it and 12 px from the right and bottom window edges. It is a fixed card that lays over the page and never resizes it. The top bar always spans the full width: the inspector starts below the top bar and never covers it. Below 900 px it is a full-width sheet with no radius, border or margin (section 2.6) |
 | Header | Fixed at the top of the card (the body scrolls under it), padding 16 px top and sides; the tab row is its last row and its 1 px `border` bottom line is the header's lower edge |
-| Header row 1 | Title left: `h2`, `type-inspector-title` (18 / 26 px, weight 600), `foreground`, clamped to 2 lines with `text-wrap: balance`; the full text is the first line of the first card when clamped (prompts, long URLs). URLs use middle truncation per [22-content-formatting.md](22-content-formatting.md). At the top right, 4 px apart: the object's most frequent command as a 32 px `secondary` `sm` button with a leading icon when it has one (keyword: "Check now" with `RefreshCw`; prompt: "Run now"), then More actions (`EllipsisVertical`, 32 px ghost `IconButton`), then Close (`X`, tooltip "Close (Esc)"). "Open page" and the width options are in the More menu |
+| Header row 1 | Title left: `h2`, `type-inspector-title` (18 / 26 px, weight 600), `foreground`, clamped to 2 lines with `text-wrap: balance`; the full text is the first line of the first card when clamped (prompts, long URLs). URLs use middle truncation per [22-content-formatting.md](22-content-formatting.md). At the top right, 4 px apart: the object's most frequent command as a 32 px `secondary` `sm` button with a leading icon when it has one (keyword: "Check now" with `RefreshCw`; prompt: "Run now"), then More actions (`EllipsisVertical`, 32 px ghost `IconButton`), then Close (`X`, tooltip "Close (Esc)"). "Open page" (`Maximize2`, 32 px ghost `IconButton`) sits before More and is shown only where the object has a full page (section 1.1); the More button is left out when the drawer has no actions of its own |
 | Row 2: status badges | One row 8 px below the title, 22 px badges, gap 6 px, at most 4: scope (location and device, engine), depth, stale, estimate, version boundary. Badge rules in [14-badges-status.md](14-badges-status.md). A fifth concern moves into the first card |
 | Row 3: context line | Object type label ("Keyword", "Prompt", "Citation"), position counter "12 of 986" (`num`) and `FreshnessIndicator` ([17-empty-loading-error-states.md](17-empty-loading-error-states.md) section 7), all in `type-meta`, separated by " · ". Right-aligned: Previous (`ChevronUp`, tooltip "Previous keyword (K)") and Next (`ChevronDown`, "Next keyword (J)") as 32 px ghost icon buttons, beside the counter they change |
 | Tabs | 44 px underline tabs (section 2.3), last row of the header |
 | Body | Cards (section 2.4), 16 px padding, 12 px between cards, own scroll container |
 | Footer | Edit mode only (section 2.5). The one exception is the triage footer of the Discover `candidate` inspector (Reject, Snooze, Accept; [23-application-patterns.md](23-application-patterns.md) section 4.1) |
 
-Header actions never exceed five: the command button, More and Close in row 1, Previous and Next in row 3. Other object-specific commands (Archive, Copy ID, Open page) live in the More menu.
+Header actions never exceed five besides "Open page": the command button, More and Close in row 1, Previous and Next in row 3. Other object-specific commands (Archive, Copy ID) live in the More menu.
 
 ### 2.2 Widths and resizing
 
-| Inspector type | Default width |
+One width rule serves every inspector type; no type has a width of its own.
+
+| Width | Value |
 |---|---|
-| Keyword, page, competitor, domain, source, run, candidate | 400 px (`--size-inspector`) |
-| Prompt, topic, citation, answer evidence, cited page, gap prompt | 440 px (`--size-inspector-wide`, section 10) |
-| Minimum, maximum (all types) | 360 px (`--size-inspector-min`), 640 px (`--size-inspector-max`) |
+| Default | 640 px (`--size-inspector`) |
+| Minimum | 480 px (`--size-inspector-min`) |
+| Maximum | The smaller of 60% of the viewport and 960 px (`--size-inspector-max`), rounded down to a multiple of 8 px, and never below 480 px |
+
+The width is one saved width per user for the whole app: a person who widens the keyword drawer finds every other drawer at that width. It is kept in `localStorage` under `idraft.pref.<userId>.inspector-width` as a whole number of pixels, so it is cleared with the other preferences at sign-out. A stored value outside 480 to 960 is ignored and the default applies. On a smaller window the stored value is clamped when the card is drawn, never rewritten, so the saved width returns on a larger window. Where storage is blocked or full the width is kept in memory until the page reloads. With no signed-in user (design-system previews) the width is kept in memory only.
 
 Resizing:
 - A vertical separator on the inspector's left edge: 1 px visible line (`border`), 8 px hit area centered on it, `cursor: col-resize`. Hover and drag show a 2 px `border-strong` line; keyboard focus shows the `ring`.
-- Semantics: `role="separator"`, `aria-orientation="vertical"`, `aria-label="Resize inspector"`, `aria-valuenow` (current width in px), `aria-valuemin="360"`, `aria-valuemax` (the effective maximum, section 2.6), `aria-controls` pointing at the inspector, `tabindex="0"`.
-- Keyboard: Left arrow widens by 16 px, Right arrow narrows by 16 px, Shift plus arrow changes by 64 px, Home sets the minimum, End sets the effective maximum, Enter resets to the type's default. Double-click on the handle resets to default. The More menu also contains "Width: Default, Wide, Maximum" (Default is the type's default width, Wide is 440 px `--size-inspector-wide`, Maximum is the effective maximum of section 2.6) and "Reset width" (same as Default) for pointer users who do not find the handle.
-- Width snaps to multiples of 8 px while dragging. The table reflows on pointer up, not on every pointer move (one reflow per drag keeps 10,000-row tables responsive).
-- Width persists per user per inspector type in `localStorage` (a per-viewer convenience; losing it is harmless). Reads are wrapped in try/catch and fall back to the default.
+- Semantics: `role="separator"`, `aria-orientation="vertical"`, `aria-label="Resize inspector"`, `aria-valuenow` (current width in px), `aria-valuemin="480"`, `aria-valuemax` (the effective maximum, section 2.6), `aria-valuetext` ("640 pixels"), `aria-controls` pointing at the inspector, `tabindex="0"`.
+- Keyboard: Left arrow widens by 16 px, Right arrow narrows by 16 px, Shift plus arrow changes by 64 px, Home sets the minimum, End sets the effective maximum, Enter resets to the default width. Double-click on the handle resets to the default width. A key press the limits turn into no change saves nothing. The More menu has no width items.
+- Width snaps to multiples of 8 px while dragging. The card follows the pointer and the width is saved once, on release. Nothing behind the card reflows at any point, because the card lays over the page.
+- The saved width is a per-viewer convenience (losing it is harmless). Reads are wrapped in try/catch and fall back to the default. A reset removes the stored value. Another tab of the same browser follows a change at once.
 
 ### 2.3 Tabs: 44 px underline
 
@@ -133,7 +137,7 @@ Reasons: the reference screens use underline tabs in the inspector; one tab form
 
 Rules:
 - At most 5 tabs. Labels are one word where possible (keyword inspector: "Overview", "SERP", "AI", "Timeline"). An object that needs a sixth tab needs a full page instead.
-- Tabs hug their labels and start at the left content edge; labels never truncate. At the 400 px default the row is 360 px wide (20 px padding on each side), which fits the four keyword labels; at the 440 px wide default the row is 400 px, which fits the five prompt labels. When a narrower width cannot fit every label, the tabs that do not fit move into a trailing "More tabs" menu button outside the tablist (`Tabs` `overflow="menu"`, [25-component-inventory.md](25-component-inventory.md) section 3.38).
+- Tabs hug their labels and start at the left content edge; labels never truncate. At the 640 px default the row is about 606 px wide (16 px padding on each side), which fits the five prompt labels and shows more tabs before "More tabs" than the 480 px minimum does. When a narrower width cannot fit every label, the tabs that do not fit move into a trailing "More tabs" menu button outside the tablist (`Tabs` `overflow="menu"`, [25-component-inventory.md](25-component-inventory.md) section 3.38).
 - Semantics: Base UI Tabs (`role="tablist"`), arrow keys move between tabs with automatic activation ([20-accessibility.md](20-accessibility.md) section 5), the panel is `role="tabpanel"` labelled by its tab. Panels render their skeleton immediately, so arrow keys never wait on a fetch.
 - The first tab is always "Overview" and is the default. Tab state lives in the URL (section 2.7).
 
@@ -161,34 +165,42 @@ Allowed edits are small attribute changes of the inspected record: target URL, t
 - Save is pessimistic for measurement settings and optimistic for tags and notes ([20-frontend-specification.md](../20-frontend-specification.md) section 3.5). Success is shown in place (the section returns to read mode with the new value); no toast.
 - Leaving a dirty inspector (Close, Esc, J, K, clicking another row, browser back) opens the discard AlertDialog (section 4.3).
 
-### 2.6 Docking, overlay and sheet
+### 2.6 Overlay and sheet
 
-The rules in [05-layout-grid.md](05-layout-grid.md) section 6 apply, with this width resolution order:
+The rules in [05-layout-grid.md](05-layout-grid.md) section 6 apply. The inspector lays over the page and never resizes it, so there is no docked mode and no rule that keeps a minimum main column. Two values decide everything:
 
-1. Compute the available inspector width: viewport width minus sidebar width minus 720 px (the minimum main column) minus the 12 px the card keeps from the window edge.
-2. If the available width is at least 360 px (the inspector minimum), the inspector **docks** at `min(preferred width, available width)`. Docking wins over the preferred width.
-3. Otherwise, if the viewport is at least 768 px wide, the inspector **overlays** the main column at its preferred width.
-4. Below 768 px, the inspector is a **full-screen sheet**.
+```
+maximum(viewport) = max(480, floor8(min(960, 0.6 x viewport)))     floor8: rounded down to a multiple of 8
+mode              = viewport < 900 ? sheet : overlay
+width             = fit(saved ?? 640, maximum)                      fit: snap to 8 px, clamp to 480 to the maximum
+```
 
-| Viewport, sidebar | Available width | Keyword (400) | Prompt (440) |
-|---|---|---|---|
-| 1920, expanded 208 | 980 | docks at 400 | docks at 440 |
-| 1440, expanded 208 | 500 | docks at 400 (main 820) | docks at 440 (main 780) |
-| 1440, collapsed 56 | 652 | docks at 400 | docks at 440 |
-| 1280, collapsed 56 | 492 | docks at 400 (main 812) | docks at 440 (main 772) |
-| 1280, expanded 208 | 340 | overlays at 400 | overlays at 440 |
-| 1024, collapsed 56 | 236 | overlays at 400 | overlays at 440 |
-| 390 (mobile) | n/a | full-screen sheet | full-screen sheet |
+The card is `fixed`, 12 px under the top bar and 12 px from the right and bottom window edges. The sheet starts below 900 px.
 
-The effective maximum for the resize separator when docked is `min(640, available width)`; in overlay mode it is `min(640, viewport width minus 56)`.
+| Viewport | Sidebar plus page padding | Maximum | Card left edge at 640 | Table visible left of the card at 640 | Card left edge at the maximum | Table visible at the maximum |
+|---|---|---|---|---|---|---|
+| 900 | 0 + 16 | 536 | 352 (drawn at 536) | 336 | 352 | 336 |
+| 1024 | 56 + 20 | 608 | 404 (drawn at 608) | 328 | 404 | 328 |
+| 1280 | 208 + 20 | 768 | 628 | 400 | 500 | 272 |
+| 1440 | 208 + 20 | 864 | 788 | 560 | 564 | 336 |
+| 1537 | 208 + 20 | 920 | 885 | 657 | 605 | 377 |
+| 1920 | 208 + 20 | 960 | 1268 | 1040 | 948 | 720 |
+| 390 (mobile) | n/a | n/a | full-width sheet | n/a | n/a | n/a |
+
+Below 1280 the sidebar is a 56 px rail or gone, and the smallest strip of table left of the card is 323 px or more. The narrowest strip anywhere is 272 px, at exactly 1280 with the drawer dragged to its maximum. The first column of the table is pinned to the left edge, so a sideways scroll never moves it under the card: at least 232 px of the first data column show at every allowed width.
 
 | Mode | Stacking | Semantics | Behaviour |
 |---|---|---|---|
-| Docked | `--z-inspector` (50), `shadow-inspector` | Non-modal `aside` landmark | The page content below the top bar shrinks; the top bar does not. The card is sticky 12 px under the top bar and as tall as the rest of the window less 12 px. The table keeps scroll position and pinned columns |
-| Overlay | `--z-drawer` (70), `shadow-inspector`, no scrim | Non-modal `aside`; main content stays interactive | Clicking the main content does not close it (users compare rows while it is open); it floats 12 px under the top bar and 12 px from the right and bottom edges; popups opened from inside it portal to the page body and stack above it because `--z-dropdown` (75) is above `--z-drawer` ([01-foundations.md](01-foundations.md) section 6) |
-| Sheet (below 768 px) | `--z-drawer` (70) with `--scrim` | Base UI Drawer, modal: focus trap, `aria-modal="true"`, background inert | Header shows a back button (`ChevronLeft`, "Back to Rankings") instead of Close; the sheet enters from the bottom edge and swipe down closes ([21-motion.md](21-motion.md) section 4.4, [19-responsive-behavior.md](19-responsive-behavior.md)) |
+| Overlay (900 px and wider) | `--z-drawer` (70), `shadow-inspector`, no scrim | Non-modal `aside`; main content stays interactive | The page behind keeps its layout and scroll position. Clicking the main content does not close it (users compare rows while it is open); it is `fixed`, 12 px under the top bar and 12 px from the right and bottom edges; it covers the right side of the page, including the right end of a page header; popups opened from inside it portal to the page body and stack above it because `--z-dropdown` (75) is above `--z-drawer` ([01-foundations.md](01-foundations.md) section 6) |
+| Sheet (below 900 px) | `--z-drawer` (70) with `--scrim` | Base UI Drawer, modal: focus trap, `aria-modal="true"`, background inert | A full-width sheet with no resize handle. Header shows a back button (`ChevronLeft`, "Back to Rankings") instead of Close; the sheet enters from the bottom edge and swipe down closes ([21-motion.md](21-motion.md) section 4.4, [19-responsive-behavior.md](19-responsive-behavior.md)) |
 
-The docked and overlay inspector are one layout component, not a Base UI popup. Only the sheet uses Base UI Drawer.
+The overlay inspector is one layout component, not a Base UI popup. Only the sheet uses Base UI Drawer.
+
+A table whose open row is under the drawer keeps `aria-current="true"` and the active-row style on the left side of the row, which stays in view. A long value in the first column is cut where its column ends, not where the card begins, and its tail can sit under the card; the drawer title shows the full text. A bulk action bar pads its right side by the width the card covers and moves its actions into More, so the bar keeps one row and the table does not move.
+
+A design-system preview that puts a real inspector in a box with a fixed height passes `boxed` to `InspectorLayout`: the card is then positioned inside the box, takes its 60% share from the box width, and does not move the bulk bar of the page. The sheet rule still follows the window.
+
+> As built (2026-11-26): the inspector is one overlay drawer for every record type. The docked mode, the 400 and 440 px widths, the per-type widths and the Default, Wide, Maximum and Reset width menu items are removed; the sheet starts below 900 px instead of 768 px. Decision and technical choices: [the shared overlay drawer spec](../superpowers/specs/2026-11-26-shared-overlay-drawer-design.md).
 
 ### 2.7 URL addressing: one canonical approach
 
@@ -200,7 +212,7 @@ Decision: the inspector is addressed by **query parameters** on the list page, m
 
 | Parameter | Format | Default (omitted from the URL) |
 |---|---|---|
-| `inspect` | `<type>:<id>`; types `keyword`, `prompt`, `citation`, `answer`, `page`, `competitor`, `domain` (a registrable domain), `source` (a cited URL), `cited-page` (a page of the Citations board, by its `url_id`; WP-77, 440 px), `gap-prompt` (a prompt of the Citations gap analysis, by its prompt id; WP-77, 440 px), `run`, `candidate` (a Discover candidate) | none (inspector closed) |
+| `inspect` | `<type>:<id>`; types `keyword`, `prompt`, `citation`, `answer`, `page`, `competitor`, `domain` (a registrable domain), `source` (a cited URL), `cited-page` (a page of the Citations board, by its `url_id`; WP-77), `gap-prompt` (a prompt of the Citations gap analysis, by its prompt id; WP-77), `run`, `candidate` (a Discover candidate) | none (inspector closed) |
 | `itab` | tab slug of that inspector type | `overview` |
 
 The inspector tab uses `itab` because page-level tabs already own `tab` ([20-frontend-specification.md](../20-frontend-specification.md) section 3.6), and a prompt detail page can show its own tab and a citation inspector at once.
@@ -230,14 +242,14 @@ Deep link behaviour: the list page renders normally; the inspector opens immedia
 
 ### 2.8 Focus management
 
-Docked and overlay inspector (non-modal):
+Overlay inspector (non-modal):
 1. Opening moves focus to the inspector title (`h2` with `tabindex="-1"`), so screen readers announce "Keyword, best crm for startups" and the next Tab reaches the header actions.
 2. Tab order: header actions, tabs, section content, footer. Focus is not trapped; Tab past the end of the inspector moves to the next element in document order, and F6 moves focus between the main column and the inspector.
 3. Esc, when focus is inside the inspector and no popup is open inside it, closes the inspector and returns focus to the originating row (the row's identity cell in the table grid, [12-tables.md](12-tables.md)). If the row is outside the virtualized window it is scrolled into view first; if it no longer exists (filtered out, deleted), focus goes to the table grid container.
 4. The row open in the inspector carries the active-row style ([08-interaction-states.md](08-interaction-states.md) section 4) and `aria-current="true"`.
 5. Esc closes one layer per keypress, innermost first: tooltip, then menu or popover, then dialog, then inspector.
 
-Sheet (below 768 px, modal): Base UI Drawer semantics: focus moves to the title, is trapped inside the sheet, Esc and Back close it, focus returns to the originating row.
+Sheet (below 900 px, modal): Base UI Drawer semantics: focus moves to the title, is trapped inside the sheet, Esc and Back close it, focus returns to the originating row.
 
 ### 2.9 Loading, errors and freshness inside the inspector
 
@@ -255,6 +267,10 @@ Sheet (below 768 px, modal): Base UI Drawer semantics: focus moves to the title,
 - The next and previous records are prefetched when a record finishes loading, so J usually renders from cache.
 - On a record switch, sections show skeletons for the new record; previous-record data is never shown under the new title.
 - J and K are single-key shortcuts: active only when focus is in the table or the inspector and not in a text input, and they can be turned off with all single-key shortcuts in Settings > Preferences (WCAG 2.1.4, [20-accessibility.md](20-accessibility.md)).
+- ArrowDown (next) and ArrowUp (previous) also step, in the overlay only and only while focus is inside the inspector. They step only when no modifier is held, the key is not repeating, no inner control handled the key, and focus is not in a text field, select, menu, list, tab list, slider, separator, grid, tree, popup trigger or scroll region (the labelled body region keeps its arrows for scrolling). Left and Right belong to the focused resize handle and never step.
+- The arrows are not character keys, so they are not one of the single-key shortcuts and are not turned off with them: a person who turned J and K off keeps a keyboard way to step. In the table grid the arrow keys keep moving grid focus and the inspector does not follow; Enter or a click on another row swaps it.
+- With focus on the title, a button or a link, ArrowUp and ArrowDown step instead of scrolling the body; Page Up, Page Down, Space, Home and End still scroll it. When a step leaves focus on the page body because the focused control belonged to the old record, focus moves to the new title.
+- Where the list has no `role="grid"` (the Citations board), J and K do nothing from a row; they and the arrows work inside the inspector.
 
 ## 3. Full-page detail
 
@@ -612,7 +628,7 @@ The statistics content of [20-frontend-specification.md](../20-frontend-specific
 
 - A rate inside an open record inspector (prompt) opens that inspector's "Stats" tab (`itab=stats`).
 - A page-level metric (strip item, rate column header, chart "Statistics" action) opens the panel in the inspector region at 560 px (`--size-drawer`), replacing an open record inspector; its header has "Back to <record>" when one was open.
-- Non-modal like every inspector: no focus trap, no scrim, the page stays interactive. Docking, overlay and sheet rules are those of section 2.6; Esc closes it and returns focus to the trigger.
+- Non-modal like every inspector: no focus trap, no scrim, the page stays interactive. The overlay and sheet rules are those of section 2.6; Esc closes it and returns focus to the trigger.
 - URL: `?stats=<metric>:<engine>`, pushed on open, so Back closes it; closing restores `inspect` when a record was open.
 - Header like the inspector header without tabs, previous and next, or resize.
 
@@ -624,9 +640,8 @@ Implementation: CSS transitions on `[data-starting-style]` and `[data-ending-sty
 
 | Overlay | Enter | Exit | Property |
 |---|---|---|---|
-| Inspector and `StatisticsPanel`, docked | 200 ms (`--duration-slow`), `--ease-standard`, content only | Instant (0 ms) | Content opacity only. The column appears at full width instantly and the main column reflows at once, without animated width |
-| Inspector and `StatisticsPanel`, overlay | 200 ms | 150 ms (`--duration-base`), `--ease-exit` | Translates its full width from the right edge plus opacity |
-| Inspector sheet (below 768 px) | 200 ms | 150 ms | Translates its full height from the bottom edge plus opacity; scrim opacity |
+| Inspector, overlay (900 px and wider) | none | none | The card appears and disappears at once. The overlay inspector has no enter or exit motion today (a possible later item), so a swap to another record cannot flicker. The page behind never moves |
+| Inspector sheet (below 900 px) | 200 ms | 150 ms | Translates its full height from the bottom edge plus opacity; scrim opacity |
 | Dialog, AlertDialog | 200 ms | 150 ms | Opacity 0 to 1 and an 8 px translate; no scale; scrim opacity |
 | Command palette | 150 ms (`--duration-base`) | 100 ms | Opacity and a 4 px translate; no scale; scrim opacity |
 | Popover, menu, preview card | 150 ms | 100 ms (`--duration-fast`) | Opacity and a 4 px translate from the side it opens on (`data-side`); no scale. Transform origin `--transform-origin` |
@@ -641,8 +656,9 @@ These sizes appear above and are defined in `tokens.css` (with `--spacing-*` ali
 
 | Token | Value |
 |---|---|
-| `--size-inspector`, `--size-inspector-wide` | 25rem (400 px), 27.5rem (440 px) |
-| `--size-inspector-min`, `--size-inspector-max` | 22.5rem (360 px), 40rem (640 px) |
+| `--size-inspector` | 40rem (640 px), the default width |
+| `--size-inspector-min`, `--size-inspector-max` | 30rem (480 px), 60rem (960 px); the 60% share of the viewport is applied in code |
+| `--size-inspector-top` | The top bar height plus 12 px |
 | `--size-dialog-sm`, `--size-dialog-md`, `--size-dialog-lg` | 25rem, 35rem, 45rem |
 | `--size-drawer` | 35rem (560 px, `StatisticsPanel`) |
 | `--size-popover-min`, `--size-popover-max`, `--size-popover-max-h` | 17.5rem, 22.5rem, 25rem (exceptions: notification center 380 px, `DateRangePicker` 648 px, section 5.1) |

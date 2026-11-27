@@ -389,3 +389,40 @@ describe('Keywords By group', () => {
     expect(await screen.findByRole('complementary', { name: first }, { timeout: 3000 })).toBeInTheDocument();
   });
 });
+
+describe('Keywords By group with a group drawer open', () => {
+  it('keeps the group row marked while its drawer is open, and unmarks it when the drawer closes', async () => {
+    const { user } = renderWithProviders(byDefault('viewer'), {
+      searchParams: `?inspect=group:${MOCK_GROUP_IDS.local}`,
+    });
+    const tree = await loadedTree();
+    const drawer = await screen.findByRole('complementary', { name: 'Local' });
+    const local = groupRow(tree, /^Local/);
+    await waitFor(() => expect(local).toHaveAttribute('aria-current', 'true'));
+    // One row is current, and it is the group's
+    expect(tree.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
+
+    await user.click(within(drawer).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    expect(tree).toBeInTheDocument();
+    expect(tree.querySelector('[aria-current]')).toBeNull();
+  });
+
+  it('closing a deleted group’s drawer does not add a history entry', async () => {
+    const writes: { hasInspect: boolean; history: string }[] = [];
+    const { user } = renderWithProviders(byDefault(), {
+      searchParams: `?inspect=group:${MOCK_GROUP_IDS.local}`,
+      onUrlUpdate: (event) =>
+        writes.push({ hasInspect: event.searchParams.has('inspect'), history: event.options.history }),
+    });
+    const drawer = await screen.findByRole('complementary', { name: 'Local' });
+    await user.click(await within(drawer).findByRole('button', { name: 'More actions for Local' }));
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Delete group/ }));
+    const question = await screen.findByRole('alertdialog', { name: 'Delete Local?' });
+    await user.click(within(question).getByRole('button', { name: 'Delete group' }));
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull(), { timeout: 3000 });
+    const closes = writes.filter((write) => !write.hasInspect);
+    expect(closes.length).toBeGreaterThan(0);
+    expect(closes.every((write) => write.history === 'replace')).toBe(true);
+  });
+});

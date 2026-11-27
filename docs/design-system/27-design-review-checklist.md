@@ -15,7 +15,7 @@ Every new screen, and every change that affects layout, color, typography or int
 - [ ] Is the spacing on the scale: 20 px page gutter, 12 px between page blocks, panels with 16 px padding, 8 px radius and a 48 px title row ([reference/visual-spec.md](reference/visual-spec.md) section 4)?
 - [ ] Are controls 36 px (`h-control`), with 32 px (`h-control-sm`) only for pagination and icon buttons in tables and inspectors? Are the table toolbar and table footer 48 px, and menu, select and combobox option rows 32 px?
 - [ ] Are table rows 32 px (`h-row-compact`, the default density since 2026-10-29), or 40 px (`h-row`) only where a person chose Default density, under a 40 px header row on `surface-subtle`? Are tables embedded in panels and inspectors always 32 px?
-- [ ] Is the inspector 400 px, or 440 px for prompt, citation and answer evidence, with no shadow when docked?
+- [ ] Is the inspector an overlay card that never resizes the page, 640 px by default and 480 px to 60% of the viewport (960 px at most), with `shadow-inspector` and a full-width sheet below 900 px?
 - [ ] Could secondary information move to a tooltip, the inspector or a detail page ([23-application-patterns.md](23-application-patterns.md) progressive disclosure)?
 - [ ] Is the hierarchy clear from position, weight and text color alone, without decoration ([00-design-principles.md](00-design-principles.md) section 4)?
 - [ ] Does the screen follow one of the page templates ([24-page-templates.md](24-page-templates.md))?

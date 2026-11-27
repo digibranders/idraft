@@ -58,6 +58,7 @@ function InspectorSpecimen(): ReactNode {
   return (
     <div className="flex h-120 overflow-hidden rounded-lg border border-border-subtle">
       <InspectorLayout
+        boxed
         inspector={
           open === null ? null : (
             <Inspector
@@ -178,7 +179,7 @@ export function InspectorPreviewSection(): ReactNode {
   return (
     <SpecimenGroup
       title="Inspector"
-      note="16 section 2. Open a row: the inspector docks beside the list when the main column keeps 720 px, lays over it otherwise, and is a sheet below 768 px. J and K step, Escape closes and returns to the row, the left edge resizes (arrows, Home, End, Enter), and the record and tab are in the URL."
+      note="16 section 2. Open a row: the inspector lays over the list from 900 px and never resizes it, and is a full-width sheet below 900 px. The left edge resizes it between 480 px and 60% of the window (arrows, Home, End, Enter). J, K, ArrowDown and ArrowUp step, Escape closes and returns to the row, and the record and tab are in the URL."
     >
       <InspectorSpecimen />
     </SpecimenGroup>

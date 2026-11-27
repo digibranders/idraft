@@ -77,7 +77,7 @@ export interface DataTableListProps<TRow extends RowData> {
   loadProgress?: { loaded: number; total: number } | null | undefined;
   line1: (row: TRow) => ListLine1;
   line2: (row: TRow) => ListLine2;
-  /** Opens the record in the inspector (a full-screen sheet below 768 px). */
+  /** Opens the record in the inspector (a full-screen sheet below 900 px). */
   onRowOpen: (row: TRow) => void;
   activeRowId?: string | null | undefined;
   /** The ids in the list's order each time it changes, for `useInspectorStepping` (as `DataTable`). */

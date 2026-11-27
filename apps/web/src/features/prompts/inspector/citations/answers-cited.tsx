@@ -175,7 +175,8 @@ export function AnswersCited({ answers, citations, labelOf, timeZone, onOpenAnsw
         />
       }
     >
-      <div aria-busy={answers.refreshing ? true : undefined} className="flex flex-col gap-3">
+      {/* The box the cited page takes its cap from (`ANSWER_PAGE_WIDTH`) */}
+      <div aria-busy={answers.refreshing ? true : undefined} className="@container flex flex-col gap-3">
         {citations.status === 'error' ? (
           <p className="flex flex-wrap items-center gap-x-2 type-meta">
             {t('failed')}

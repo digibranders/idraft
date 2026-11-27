@@ -46,7 +46,7 @@ export interface FanoutQueryListProps {
 }
 
 /**
- * The fan-out queries as a stacked list (plan D7): a 440 px aside cannot hold four columns of provider text, so each
+ * The fan-out queries as a stacked list (plan D7): a drawer as narrow as 480 px cannot hold four columns of provider text, so each
  * query is a row of three lines (the query, how often it was used, its prompts and last seen with the domains cited
  * beside it). A row has no action of its own: a query has no inspector to open, so it is no button and no link. The
  * list sorts and searches nothing: the route orders it by the answers that issued each query.

@@ -17,7 +17,6 @@ import { PageDrawer } from './drawers/page-drawer';
 import { GapsTab } from './gaps/gaps-tab';
 import { MeasuresStrip } from './measures-strip';
 import { ScopeToolbar } from './scope-toolbar';
-import { useFocusReturn } from './use-focus-return';
 import { useSearchDraft } from './use-search-draft';
 import { InspectorLayout } from '@/components/app/inspector/inspector-layout';
 import { DEFAULT_INSPECTOR_TAB, useInspector } from '@/components/app/inspector/use-inspector';
@@ -30,6 +29,7 @@ import { allCitedPagesQuery, type BoardScopeParams } from '@/lib/citations/board
 import { csvBlob, downloadBlob } from '@/lib/csv/csv-write';
 import { formatInteger } from '@/lib/format';
 import { PromptOrderContext } from '@/lib/inspector/prompt-order';
+import { useFocusReturn } from '@/lib/inspector/use-focus-return';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { useCan } from '@/lib/permissions';
 import { projectPath, withQuery } from '@/lib/routes/paths';

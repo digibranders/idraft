@@ -15,7 +15,7 @@ export interface SheetProps extends Omit<DrawerPrimitive.Popup.Props, 'className
 }
 
 /**
- * A full-screen sheet from the bottom edge, for detail views below 768 px (16-drawers-dialogs-popovers.md
+ * A full-screen sheet from the bottom edge, for detail views below 900 px (16-drawers-dialogs-popovers.md
  * section 2.6, the inspector's sheet). It is modal: focus stays inside, the page behind is inert, Escape
  * and a swipe down close it, and focus returns to what opened it unless `finalFocus` says otherwise.
  */

@@ -34,7 +34,7 @@ async function openHistory(inspector: Locator): Promise<void> {
 /** The toasts are also spoken by a live region, so the words are looked for in the toasts themselves. */
 const toastsOf = (page: Page): Locator => page.getByRole('region', { name: 'Notifications' });
 
-/** The inspector of a prompt: beside the table on a wide window, a sheet over it on a narrow one. */
+/** The inspector of a prompt: a card over the table from 900 px, a sheet below. */
 const inspectorOf = (page: Page, name: string): Locator =>
   page.getByRole('complementary', { name }).or(page.getByRole('dialog', { name }));
 

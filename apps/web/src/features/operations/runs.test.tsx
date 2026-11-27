@@ -15,7 +15,9 @@ import { MOCK_RUNS } from '@/mocks/operations-fixtures';
 import type { StoredRun } from '@/mocks/operations-state';
 import { mswPath, problem } from '@/mocks/respond';
 import { SESSION_COOKIE } from '@/mocks/session';
+import { InspectorWidthUserContext, writeInspectorWidth } from '@/lib/inspector/width-store';
 import { axe } from '@/test/axe';
+import { expectNoPixelWidth } from '@/test/drawer-width-scan';
 import { server } from '@/test/msw';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
@@ -759,6 +761,20 @@ describe('Runs', () => {
     expect(within(table).queryByRole('button', { name: /^Actions for / })).toBeNull();
   });
 
+  it('says Cancelled in a run drawer that is already open when the row cancels the run', async () => {
+    const running = store({ run_id: uuid(1) });
+    const served = serveRuns([running]);
+    const { user } = renderWithProviders(runsAs('admin'), { searchParams: `?inspect=run:${uuid(1)}` });
+    const panel = await screen.findByRole('complementary');
+    await waitFor(() => expect(within(panel).queryByText('Cancelled')).toBeNull());
+    await user.click(within(await grid()).getByRole('button', { name: /^Actions for / }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Cancel run' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel run' }));
+    await waitFor(() => expect(served.cancels).toEqual([running.run_id]));
+    expect(await within(panel).findByText('Cancelled by a member')).toBeInTheDocument();
+    expect(within(panel).getAllByText('Cancelled').length).toBeGreaterThan(0);
+  });
+
   it('says in words that a cancelled run was cancelled by a member, whatever free text the mock keeps', async () => {
     serveRuns([
       store({ run_id: uuid(1), cancelled_at: new Date(NOW.getTime() - 1_000).toISOString() }),
@@ -980,5 +996,107 @@ describe('Runs', () => {
     expect(await screen.findByText('No projects to show runs for')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'All projects' })).toHaveAttribute('href', '/digibranders');
     expect(asked).toEqual([]);
+  });
+});
+
+describe('The run drawer as an overlay', () => {
+  /** Three ended runs, the newest first in the list; the middle one is an AI run with answers and a missing one. */
+  function serveThree(): void {
+    serveRuns([
+      store({ run_id: uuid(1), created_at: '2026-09-20T01:00:00.000Z' }),
+      store({ run_id: uuid(2), workload: 'ai_prompt', created_at: '2026-09-15T01:00:00.000Z' }),
+      store({ run_id: uuid(3), created_at: '2026-09-10T01:00:00.000Z' }),
+    ]);
+    server.use(
+      http.get(mswPath(COVERAGE), () =>
+        HttpResponse.json({
+          data: {
+            by_engine: [
+              {
+                engine_code: 'chatgpt_web',
+                planned: 150,
+                observed: 148,
+                valid: 141,
+                partial: 3,
+                invalid_by_status: { empty: 2, refused: 1, error: 1 },
+                valid_rate: { numerator: 141, denominator: 150, n_observations: 148, value: 0.94 },
+              },
+            ],
+            missing: [
+              {
+                prompt_id: uuid(7),
+                engine_code: 'chatgpt_web',
+                location_id: null,
+                replicate_index: 0,
+                task_status: 'failed',
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  }
+  const layoutAround = (table: HTMLElement): string[] => {
+    const layout: string[] = [];
+    for (let node: HTMLElement | null = table; node !== null && node !== document.body; node = node.parentElement) {
+      layout.push(`${node.className}|${node.getAttribute('style') ?? ''}`);
+    }
+    return layout;
+  };
+
+  it('opens a run over the table without narrowing it, and has no More button', async () => {
+    serveThree();
+    const { user } = renderWithProviders(runsAs('admin'), { searchParams: '?month=2026-09' });
+    const table = await grid();
+    await waitFor(() => expect(bodyRows(table)).toHaveLength(3));
+    const before = layoutAround(table);
+    const [row] = bodyRows(table);
+    if (row === undefined) throw new Error('no row');
+    await user.click(within(row).getByRole('rowheader'));
+    const panel = await screen.findByRole('complementary');
+    expect(panel).toHaveClass('fixed');
+    expect(layoutAround(await grid())).toEqual(before);
+    expect(within(panel).queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+
+  it('steps to the next run with ArrowDown and keeps "N of M"', async () => {
+    serveThree();
+    const url = urlWrites();
+    const { user } = renderWithProviders(runsAs('admin'), {
+      searchParams: `?inspect=run:${uuid(1)}&month=2026-09`,
+      onUrlUpdate: url.onUrlUpdate,
+    });
+    const panel = await screen.findByRole('complementary');
+    const position = (): string | null => within(panel).getByText(/^\d+ of \d+$/).textContent;
+    await waitFor(() => expect(position()).toBe('1 of 3'));
+    within(panel).getByRole('heading', { level: 2 }).focus();
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(position()).toBe('2 of 3'));
+    expect(url.latest().get('inspect')).toBe(`run:${uuid(2)}`);
+    // The Runs table is not a wrap-around list: the first run has no previous one
+    await user.keyboard('{ArrowUp}{ArrowUp}');
+    await waitFor(() => expect(position()).toBe('1 of 3'));
+    expect(url.latest().get('inspect')).toBe(`run:${uuid(1)}`);
+  });
+
+  describe.each([480, 640, 960])('at %i px', (width) => {
+    const USER = 'runs-drawer-width-user';
+    afterEach(() => writeInspectorWidth(USER, null));
+
+    it('holds no pixel width of its own in the summary, the tasks and the AI run sections', async () => {
+      serveThree();
+      writeInspectorWidth(USER, width);
+      renderWithProviders(<InspectorWidthUserContext value={USER}>{runsAs('admin')}</InspectorWidthUserContext>, {
+        searchParams: `?inspect=run:${uuid(2)}&month=2026-09`,
+      });
+      const panel = await screen.findByRole('complementary');
+      expect(panel.style.width).toBe(`${String(width)}px`);
+      // Everything is drawn, so the scan reads the sections and not their loading cards
+      expect(await within(panel).findByText('141 of 150 answers valid, 94%')).toBeInTheDocument();
+      expect(within(panel).getByRole('table', { name: 'Planned answers that have not arrived' })).toHaveClass('w-full');
+      await waitFor(() => expect(panel.querySelector('[aria-busy="true"]')).toBeNull());
+      expect(panel.querySelectorAll('dl').length).toBeGreaterThan(1);
+      expectNoPixelWidth(panel);
+    });
   });
 });

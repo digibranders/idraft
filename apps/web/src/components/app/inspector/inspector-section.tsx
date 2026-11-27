@@ -29,8 +29,9 @@ export interface InspectorSectionProps {
   /** At most one control, right-aligned: "View all", a `Select`, a badge or Edit. */
   action?: ReactNode;
   /**
-   * The action sits on a second row under the title until the card is 42 rem wide, then beside it at the right (the
-   * preview's card tools, a container query on the card). Default `false`: the action stays on the title row.
+   * The action sits on a second row under the title until the card is 24 rem wide, then beside it at the right (a
+   * container query on the card). A card in the narrowest drawer (480 px) is wider than that, so only a narrow sheet
+   * stacks it. Default `false`: the action stays on the title row.
    */
   stackAction?: boolean | undefined;
   status: InspectorSectionStatus;
@@ -98,7 +99,7 @@ export function InspectorSection({
           {meta === undefined ? null : <span className="min-w-0 num type-meta wrap-anywhere">{meta}</span>}
         </div>
         {action === undefined || action === null ? null : (
-          <div className={cn('shrink-0', stackAction && 'basis-full @2xl:basis-auto')}>{action}</div>
+          <div className={cn('shrink-0', stackAction && 'basis-full @sm:basis-auto')}>{action}</div>
         )}
       </div>
       {/* A flush card pads only a skeleton and an error: a table, a list and an empty state draw their own edges */}

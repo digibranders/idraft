@@ -14,6 +14,11 @@ import { renderWithProviders } from '@/test/render';
 
 // jsdom has no canvas: the History tab's chart is a frame here
 vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: router.push, replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/digibranders/fynix/ai/citations',
+}));
 
 const [fynix] = MOCK_PROJECTS;
 if (fynix === undefined) throw new Error('The Fynix project fixture is missing');
@@ -22,6 +27,7 @@ if (first === undefined || second === undefined) throw new Error('The fixture pr
 
 // Function declarations are hoisted, so the narrowing above does not reach them: keep what they read in constants
 const PROJECT_ID = fynix.project_id;
+const PROJECT_SLUG = fynix.slug;
 const FIRST_ID = first.prompt_id;
 const inspectOf = (target: string): string => `inspect=${encodeURIComponent(target)}`;
 
@@ -33,7 +39,9 @@ function setup(searchParams: string, order: readonly string[] = [FIRST_ID]) {
           inspector={
             <PromptDrawerHost
               workspaceId={MOCK_WORKSPACE.workspace_id}
+              workspaceSlug={MOCK_WORKSPACE.slug}
               projectId={PROJECT_ID}
+              projectSlug={PROJECT_SLUG}
               timeZone="Europe/Berlin"
             />
           }
@@ -66,6 +74,16 @@ describe('the prompt inspector on another page', () => {
     expect(within(inspector).getByText('1 of 2')).toBeVisible();
     await user.keyboard('j');
     expect(await screen.findByRole('complementary', { name: second.text })).toBeVisible();
+  });
+
+  it('offers Open page for a prompt opened on another screen', async () => {
+    router.push.mockClear();
+    const { user } = setup(inspectOf(`prompt:${first.prompt_id}`));
+    const inspector = await screen.findByRole('complementary', { name: first.text });
+    await user.click(within(inspector).getByRole('button', { name: 'Open page' }));
+    expect(router.push).toHaveBeenCalledExactlyOnceWith(
+      `/${MOCK_WORKSPACE.slug}/${fynix.slug}/ai/prompts/${first.prompt_id}`,
+    );
   });
 
   it('shows nothing when the address names another kind of record', () => {

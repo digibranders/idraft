@@ -19,7 +19,8 @@ export interface CustomizableScreenProps extends LayoutProviderProps {
   saveBar?: 'end' | 'none';
   /**
    * `column`: a flex column that lays out the page. `contents`: the box takes no part in the layout, for a screen
-   * whose children must stay direct children of their parent (the drawer: a docked inspector is sticky in its row).
+   * whose children must stay direct children of their parent (the drawer: the customizer's wrapper stays out of the
+   * layout row).
    */
   box?: 'column' | 'contents';
   /** What the Start from menu offers besides the built-in layout and the team default; see `definePresets`. */

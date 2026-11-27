@@ -10,6 +10,8 @@ The product owner reviewed the preview and chose the drawer from the first batch
 
 ## Decision
 
+Superseded in part on 2026-11-26: the inspector no longer docks beside the list, it is always an overlay drawer (see docs/superpowers/specs/2026-11-26-shared-overlay-drawer-design.md).
+
 1. The inspector is a floating card: `background` fill, 1 px `border`, radius 10 px, `shadow-inspector`. It sits 12 px under the top bar and 12 px from the right and bottom window edges, docked or overlaying. Below 768 px it remains a full-screen sheet.
 2. The top bar always spans the full width. The inspector is a sibling of the page content below the top bar.
 3. Every section is a `surface` card (1 px `border`, radius 8 px, 12 px apart) with an icon, a title and at most one control in its header. The first row is 3 metric cards. This is the single exception to "panels are not nested".

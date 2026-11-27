@@ -290,21 +290,8 @@ function Screen({ order: initial }: { order: readonly string[] }): ReactElement 
   );
 }
 
-class AreaObserver {
-  constructor(private readonly callback: ResizeObserverCallback) {}
-  observe(target: Element): void {
-    this.callback(
-      [{ target, contentRect: { width: 1232, height: 800 } } as unknown as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
-    );
-  }
-  unobserve(): void {}
-  disconnect(): void {}
-}
-
 describe('useInspectorStepping inside a real Inspector', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', AreaObserver);
     vi.stubGlobal('innerWidth', 1440);
     Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
   });

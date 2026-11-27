@@ -776,6 +776,14 @@ describe('the answer viewer: loading and failing', () => {
     expect(screen.queryByText('The answer could not be loaded.')).toBeNull();
   });
 
+  it('has no More button now that width is not a menu item, and nothing else is in it', async () => {
+    renderOn('viewer', opened(cited.id));
+    const panel = await viewer();
+    // The answer has loaded when its one command is there
+    expect(await within(panel).findByRole('button', { name: 'Back to the prompt' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: /^More actions/ })).toBeNull();
+  });
+
   it('closes with Escape and leaves the page where it was', async () => {
     const urls: string[] = [];
     const { user } = renderOn('viewer', opened(cited.id), urls);

@@ -26,7 +26,7 @@ Precedence when states combine: disabled > loading > error > selected > focus > 
 
 1. Never remove an outline without a replacement. The global `:focus-visible` style applies to everything; components may switch to the inset variant (`focus-ring-inset`) inside dense containers.
 2. The focus ring color is `ring` (3:1 against every surface, tested). In Windows High Contrast (forced colors), outlines switch to `CanvasText`.
-3. Focus is never obscured by sticky headers, the filter bar or the docked inspector (WCAG 2.4.11): scroll containers set `scroll-padding` equal to their sticky stack height.
+3. Focus is never obscured by sticky headers or the filter bar (WCAG 2.4.11): scroll containers set `scroll-padding` equal to their sticky stack height. The inspector drawer lays over the right side of the page: it never covers the start of the first column (at least 232 px of the first data column stay visible at the widest allowed drawer at 1280 px), the tail of a long first-column value can sit under it, and a cell under it stays covered until the drawer is closed or narrowed, and the person opens, closes (Esc) and resizes it ([20-accessibility.md](20-accessibility.md) section 4.2).
 4. Opening an overlay moves focus into it; closing returns focus to the trigger (Base UI default behavior, verified in component tests).
 5. Table focus is a single roving cell focus ([12-tables.md](12-tables.md) section 9); row hover and row focus look the same.
 

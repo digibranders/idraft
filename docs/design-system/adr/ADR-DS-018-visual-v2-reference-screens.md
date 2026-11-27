@@ -7,6 +7,9 @@ Date: 2026-09-29
 The seven reference screens in [reference/README.md](../reference/README.md) were generated from the v1 tokens to calibrate finish. The user chose them as the exact visual source of truth for the product. Every visual value in them was measured and recorded in [reference/visual-spec.md](../reference/visual-spec.md). They differ from v1 in density, accent saturation, sizes and some component styling. Product and data rules (information architecture, detectability, denominators, `n/a`, accessibility, URL state, keyboard behavior) are not part of this decision and stay as specified.
 
 ## Decision
+
+Superseded in part on 2026-11-26: the inspector no longer docks beside the list, it is always an overlay drawer (see docs/superpowers/specs/2026-11-26-shared-overlay-drawer-design.md).
+
 Adopt visual-spec.md as the visual layer of the design system (v2). `tokens.css` and `globals.css` carry its values, and documents 00 to 27 follow them:
 - Sizing: 14 px body text, 13 px table cells, 36 px controls, 40 px table rows (Default density) and header rows, 32 px rows only in Compact density and embedded tables. Default and Compact are the only two densities.
 - A brighter, more saturated cobalt accent: `--primary` `#1E65E3`, `--primary-text` `#175AD0`, `--primary-subtle` `#EAF1FE`, `--primary-border` `#B5CCF6`.

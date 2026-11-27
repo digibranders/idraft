@@ -2975,3 +2975,78 @@ describe('Prompts: the Platform select and the controls row', () => {
     expect(more.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe('the drawers lie over the page', () => {
+  const first = FIXTURE_PROMPTS.get(fynix.project_id)?.[0];
+  // A prompt of a group the scope lists, so its header has the badge that leads to the group's drawer
+  const grouped = FIXTURE_PROMPTS.get(fynix.project_id)?.find(
+    (prompt) => prompt.text === 'What is the best way to manage paid search on a small budget?',
+  );
+  if (first === undefined || grouped === undefined) throw new Error('The fixture prompts are missing');
+  const inspect = (target: string, tab?: string): string =>
+    `inspect=${encodeURIComponent(target)}${tab === undefined ? '' : `&itab=${tab}`}`;
+
+  it('keeps the control row at full width while a drawer is open', async () => {
+    renderOnPrompts(promptsAs('viewer'), { searchParams: `?${inspect(`prompt:${first.prompt_id}`)}` });
+    await screen.findByRole('complementary', { name: first.text });
+    const row = document.querySelector<HTMLElement>('[data-slot="prompts-controls"]');
+    expect(row).not.toBeNull();
+    // A drawer lays over the right end of the row: nothing makes room for it
+    expect(row?.parentElement?.style.marginRight).toBe('');
+    expect(row?.parentElement?.getAttribute('style')).toBeNull();
+  });
+
+  it('goes from a prompt to its topic and back with a drawer open throughout', async () => {
+    const writes: string[] = [];
+    const { user } = renderOnPrompts(promptsAs('viewer'), {
+      searchParams: `?${inspect(`prompt:${grouped.prompt_id}`)}`,
+      onUrlUpdate: ({ queryString }) => writes.push(queryString),
+    });
+    const prompt = await screen.findByRole('complementary', { name: grouped.text });
+    // The prompt's group badge leads to the group's drawer
+    const badge = await within(prompt).findByRole('button', { name: /^Open the group / });
+    const group = (badge.getAttribute('aria-label') ?? '').replace('Open the group ', '');
+    await user.click(badge);
+    const topic = await screen.findByRole('complementary', { name: group });
+    expect(screen.getAllByRole('complementary')).toHaveLength(1);
+    expect(within(topic).getByRole('heading', { level: 2, name: group })).toHaveFocus();
+    // The Prompts tab lists the group's prompts: one leads back to a prompt
+    await user.click(await within(topic).findByRole('tab', { name: /^Prompts/ }));
+    // The Overview's platform rows are list items too, and stay until the tab has switched
+    await waitFor(() =>
+      expect(within(topic).getByRole('tab', { name: /^Prompts/ })).toHaveAttribute('aria-selected', 'true'),
+    );
+    await waitFor(() => expect(within(topic).queryByRole('link', { name: /^ChatGPT: / })).toBeNull());
+    const lead = await waitFor(() => {
+      for (const item of within(topic).getAllByRole('listitem')) {
+        const button = within(item).queryByRole('button');
+        if (button !== null) return button;
+      }
+      throw new Error('The Prompts tab lists no row with a button yet');
+    });
+    const title = lead.textContent ?? '';
+    await user.click(lead);
+    const again = await screen.findByRole('complementary', { name: title });
+    expect(screen.getAllByRole('complementary')).toHaveLength(1);
+    expect(within(again).getByRole('heading', { level: 2, name: title })).toHaveFocus();
+    // The address named a record at every step: no write closed the drawer between the swaps
+    expect(writes.length).toBeGreaterThan(1);
+    for (const query of writes) expect(new URLSearchParams(query).get('inspect')).not.toBeNull();
+  });
+
+  it('steps through the prompts of the topic with ArrowDown when the prompt was opened from the topic', async () => {
+    const { user } = renderOnPrompts(promptsAs('viewer'), {
+      searchParams: `?${inspect(`topic:${MOCK_TERM_IDS.seo}`, 'prompts')}`,
+    });
+    const topic = await screen.findByRole('complementary', { name: 'SEO' });
+    const items = await within(topic).findAllByRole('listitem');
+    const third = within(items[2] ?? topic).getByRole('button');
+    const title = third.textContent ?? '';
+    await user.click(third);
+    const prompt = await screen.findByRole('complementary', { name: title });
+    expect(within(prompt).getByText('3 of 12')).toBeInTheDocument();
+    within(prompt).getByRole('heading', { level: 2 }).focus();
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => expect(within(screen.getByRole('complementary')).getByText('4 of 12')).toBeInTheDocument());
+  });
+});

@@ -140,7 +140,7 @@ function PromptList({
 }
 
 /**
- * The drawer of one topic (ADR-DS-022 decisions 2, 3, 5, 7 and 8; 440 px, as the prompt drawer it leads to). The header
+ * The drawer of one topic (ADR-DS-022 decisions 2, 3, 5, 7 and 8; the shared drawer, 480 to 960 px, as the prompt drawer it leads to). The header
  * names the category, the prompt count and the scope of the counts, offers Add prompt and Run now and steps through the
  * topics of the Topics tab (`useTopicHeader`). Overview: the three rates averaged over the engines shown (each engine's
  * rate is prompt weighted, and the average says how many engines took part), the engine panel with the weekly trend per

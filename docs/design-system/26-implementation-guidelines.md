@@ -131,8 +131,8 @@ Rules:
 | `h-badge` | 22 px | Badges and domain chips |
 | `size-avatar` | 32 px | Avatar |
 | `h-save-bar` | 56 px | Sticky settings save bar (`SaveBar`, [10-forms.md](10-forms.md) section 13.2); also `pb-save-bar` for the space the form reserves |
-| `w-inspector`, `w-inspector-wide` | 400 px, 440 px | Inspector default; prompt, citation and answer evidence |
-| `min-w-inspector-min`, `max-w-inspector-max` | 360 px, 640 px | Inspector resize limits |
+| `w-inspector` | 640 px | Inspector default width |
+| `min-w-inspector-min`, `max-w-inspector-max` | 480 px, 960 px | Inspector resize limits (the 60% of the viewport share is applied in code) |
 | `w-drawer` | 560 px | Non-modal `StatisticsPanel` |
 | `min-w-popover-min`, `max-w-popover-max` | 280 px, 360 px | Popovers |
 | `min-w-menu-min`, `max-w-menu-max` | 180 px, 280 px | Menus |

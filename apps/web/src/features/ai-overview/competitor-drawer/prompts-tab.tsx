@@ -43,7 +43,7 @@ function RateBars({ row, name, rivalSlot }: { row: PromptRow; name: string; riva
         name,
         rival: formatPercent(rate(row.rival), { decimals: 0 }),
       })}
-      className="flex w-24 shrink-0 flex-col gap-1 pt-1.5"
+      className="flex w-28 shrink-0 flex-col gap-1 pt-1.5"
     >
       {(
         [
@@ -122,7 +122,7 @@ function GroupStrip({
             >
               <span
                 className={cn(
-                  'w-32 shrink-0 truncate type-body',
+                  'w-40 shrink-0 truncate type-body',
                   on ? 'type-body-strong text-primary-text' : 'text-foreground',
                 )}
               >

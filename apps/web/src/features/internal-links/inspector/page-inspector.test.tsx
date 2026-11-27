@@ -289,6 +289,22 @@ describe('the page inspector (spec 7.4)', () => {
     expect(lastQuery(onUrlUpdate)).not.toContain('inspect');
   });
 
+  it('has no More button: there is no action to put in it and no width to choose', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const panel = await panelOf('/pricing');
+    expect(within(panel).queryByRole('button', { name: 'More' })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: /^More/ })).toBeNull();
+  });
+
+  it('keeps its footer with Copy URL, Visit and Open in journey', async () => {
+    renderWithProviders(internalLinksAs('editor', EVENTUS_LINKS), OPEN);
+    const panel = await panelOf('/pricing');
+    const journey = await within(panel).findByRole('button', { name: 'Open in journey' });
+    const footer = journey.parentElement?.parentElement as HTMLElement;
+    expect(within(footer).getByRole('button', { name: 'Copy URL' })).toBeInTheDocument();
+    expect(within(footer).getByRole('button', { name: /^Visit/ })).toBeInTheDocument();
+  });
+
   describe('stepping through the rows of the Pages tab', () => {
     const rowPaths = async (): Promise<string[]> =>
       (await within(await screen.findByRole('grid', { name: 'Pages' })).findAllByRole('rowheader')).map(

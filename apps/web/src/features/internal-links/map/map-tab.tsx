@@ -352,6 +352,7 @@ export function MapTab({ context }: { context: LinksTabContext }): ReactElement 
   return (
     <section
       aria-label={t('label')}
+      // The maximised map sits under the page drawer (z-drawer) on purpose, so a page opened from it shows above it
       className={cn(
         'flex flex-col overflow-hidden border-border bg-surface',
         maximised ? 'fixed inset-0 z-(--z-inspector)' : 'rounded-lg border',

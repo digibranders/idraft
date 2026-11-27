@@ -28,8 +28,8 @@ const BAR_CLASS =
   'flex min-h-save-bar flex-wrap items-center gap-x-3 gap-y-2 border-t border-border bg-surface py-2 transition-opacity duration-(--duration-base) ease-standard starting:opacity-0 motion-reduce:transition-none';
 const VARIANT_CLASS = {
   page: 'sticky bottom-0 z-(--z-sticky) px-3 md:px-4 lg:px-5',
-  // A footer keeps its height when the body is short. At 400 px the actions do not fit beside the count: they
-  // take the row under it, and wrap again when Start from is there too
+  // A footer keeps its height when the body is short. In a narrow drawer (480 px) the actions do not fit beside the
+  // count: they take the row under it, and wrap again when Start from is there too
   drawer: 'shrink-0 px-4',
 } as const satisfies Record<NonNullable<LayoutSaveBarProps['variant']>, string>;
 const ACTIONS_CLASS = {
@@ -147,7 +147,7 @@ export function LayoutSaveBar({ variant = 'page' }: LayoutSaveBarProps): ReactEl
           two lines of the differs line are 40 px: the negative margin keeps them inside the bar's own height. The
           text shows only when the room is wide enough to read some of it: at 1024 px beside the sidebar it is not,
           and a few clipped letters say nothing. The span is the container the text asks about. */}
-      {/* A drawer is 400 px whatever the window: its scope line has a row of its own, always shown */}
+      {/* A drawer is at least 480 px wide, so its scope line has a row of its own, always shown */}
       <span
         title={scope}
         className={cn(

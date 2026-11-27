@@ -396,7 +396,7 @@ describe('the built rows of the topic drawer, confirmed through the real screen'
     expect(within(panel).getByRole('heading', { level: 2, name: 'Paid Search' })).toBeInTheDocument();
     expect(within(panel).getByText('Group')).toBeInTheDocument();
     expect(await within(panel).findByText('2 prompts')).toBeInTheDocument();
-    // The Back button is the sheet's (a phone); a docked drawer leaves with Close, the same way out
+    // The Back button is the sheet's (a phone); the card leaves with Close, the same way out
     await user.click(within(panel).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Paid Search' })).toBeNull());
   });
