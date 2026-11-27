@@ -38,10 +38,18 @@ class FakeInstance {
   }
 }
 
-const echarts = vi.hoisted(() => ({ init: vi.fn(), use: vi.fn() }));
+// What the module registered when it loaded, kept apart from the mocks the tests reset
+const registered = vi.hoisted(() => [] as unknown[]);
+const echarts = vi.hoisted(() => ({
+  init: vi.fn(),
+  use: (modules: unknown[]): void => {
+    registered.push(...modules);
+  },
+}));
 vi.mock('echarts/core', () => echarts);
 vi.mock('echarts/charts', () => ({ GraphChart: {} }));
 vi.mock('echarts/components', () => ({ ThumbnailComponent: {}, TooltipComponent: {} }));
+vi.mock('echarts/features', () => ({ LabelLayout: { feature: 'label-layout' } }));
 vi.mock('echarts/renderers', () => ({ CanvasRenderer: {} }));
 
 let instance: FakeInstance;
@@ -71,6 +79,10 @@ const press = (x: number, y: number): void => {
 };
 
 describe('LinkMapChart', () => {
+  it('registers the label layout feature, without which ECharts ignores `labelLayout.hideOverlap`', () => {
+    expect(registered).toContainEqual({ feature: 'label-layout' });
+  });
+
   it('paints the option the builder gives for its size and view', () => {
     const { build } = setup();
 

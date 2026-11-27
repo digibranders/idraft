@@ -3,6 +3,7 @@
 import { GraphChart } from 'echarts/charts';
 import { ThumbnailComponent, TooltipComponent } from 'echarts/components';
 import { init, use as registerModules, type ECharts } from 'echarts/core';
+import { LabelLayout } from 'echarts/features';
 import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useImperativeHandle, useRef, type ReactElement, type Ref } from 'react';
 
@@ -10,7 +11,7 @@ import { readChartTokens, type ChartTokens } from '@/lib/design/read-tokens';
 import { HEADER_PREFIX, MAP_ZOOM, type MapView } from '@/lib/internal-links/map-option';
 
 // Only what the map draws; the category charts register theirs in `chart/echart.tsx`
-registerModules([GraphChart, TooltipComponent, ThumbnailComponent, CanvasRenderer]);
+registerModules([GraphChart, TooltipComponent, ThumbnailComponent, LabelLayout, CanvasRenderer]);
 
 export interface MapFrame {
   tokens: ChartTokens;
