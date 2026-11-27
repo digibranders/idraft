@@ -3369,6 +3369,52 @@
         "title": "BrandOnPrompt",
         "type": "object"
       },
+      "BreakdownDimension": {
+        "enum": [
+          "query",
+          "country",
+          "device"
+        ],
+        "type": "string"
+      },
+      "BreakdownRow": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageNumbers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The numbers of the period; null for a key outside its stored rows."
+          },
+          "key": {
+            "description": "The query text, the three-letter country code or the device in capitals.",
+            "title": "Key",
+            "type": "string"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageNumbers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The numbers of the compared period; null for a key outside its stored rows."
+          }
+        },
+        "required": [
+          "key",
+          "current",
+          "previous"
+        ],
+        "title": "BreakdownRow",
+        "type": "object"
+      },
       "Budget": {
         "properties": {
           "action_on_hard": {
@@ -5572,6 +5618,14 @@
         ],
         "title": "CollectionDay",
         "type": "object"
+      },
+      "Compare": {
+        "enum": [
+          "none",
+          "previous_period",
+          "previous_year"
+        ],
+        "type": "string"
       },
       "CompareEntities": {
         "properties": {
@@ -15847,6 +15901,181 @@
         "title": "OwnerCounts",
         "type": "object"
       },
+      "PageBreakdownMeta": {
+        "properties": {
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period compared with. Null with `compare=none`, `not_connected` and `pending`."
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stored rows' clicks over the page's clicks in the period, at most 1; the rest are rows Google does not report or past the limit. Null when the page had no clicks or nothing was fetched.",
+            "title": "Coverage"
+          },
+          "dimension": {
+            "description": "What the rows are by.",
+            "enum": [
+              "query",
+              "country",
+              "device"
+            ],
+            "title": "Dimension",
+            "type": "string"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the period's rows were fetched; null before a fetch.",
+            "title": "Fetched At"
+          },
+          "final_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last final day stored. Null with `not_connected` and `pending`.",
+            "title": "Final Through"
+          },
+          "property": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Search Console property; null when none.",
+            "title": "Property"
+          },
+          "row_limit": {
+            "description": "The most rows kept for a period: 100 queries.",
+            "title": "Row Limit",
+            "type": "integer"
+          },
+          "state": {
+            "description": "`ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected",
+              "reauth_required",
+              "no_access"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "truncated": {
+            "description": "More rows came back from Google than were kept. False before a fetch.",
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period the numbers are for. Null with `not_connected` and `pending`."
+          }
+        },
+        "required": [
+          "state",
+          "property",
+          "final_through",
+          "window",
+          "compare_window",
+          "dimension",
+          "row_limit",
+          "truncated",
+          "coverage",
+          "fetched_at"
+        ],
+        "title": "PageBreakdownMeta",
+        "type": "object"
+      },
+      "PageBreakdownResponse": {
+        "properties": {
+          "data": {
+            "description": "The union of both periods' keys, most clicks first.",
+            "items": {
+              "$ref": "#/components/schemas/BreakdownRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageBreakdownMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "PageBreakdownResponse",
+        "type": "object"
+      },
+      "PageCannibalization": {
+        "properties": {
+          "co_ranking": {
+            "description": "Of those, the keywords with the verdict co-ranking.",
+            "title": "Co Ranking",
+            "type": "integer"
+          },
+          "keywords": {
+            "description": "Tracked keywords on which the page competes with another page of the site.",
+            "title": "Keywords",
+            "type": "integer"
+          },
+          "likely": {
+            "description": "Of those, the keywords with the verdict likely.",
+            "title": "Likely",
+            "type": "integer"
+          },
+          "unstable": {
+            "description": "Of those, the keywords with the verdict unstable.",
+            "title": "Unstable",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "keywords",
+          "likely",
+          "co_ranking",
+          "unstable"
+        ],
+        "title": "PageCannibalization",
+        "type": "object"
+      },
       "PageChange": {
         "properties": {
           "depth_delta": {
@@ -16296,6 +16525,74 @@
         "title": "PageFilter",
         "type": "object"
       },
+      "PageHealth": {
+        "properties": {
+          "absolute": {
+            "description": "The difference of the basis metric, the compared period scaled to the length of this one.",
+            "title": "Absolute",
+            "type": "number"
+          },
+          "basis": {
+            "description": "The metric the verdict was decided on.",
+            "enum": [
+              "clicks",
+              "impressions"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The relative change of the basis metric per day against the compared period; null when no change is stated.",
+            "title": "Change"
+          },
+          "flags": {
+            "description": "Extra signals: `ctr_fell_impressions_rose`, `position_slipped`, `position_improved`.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "small": {
+            "description": "The change is 10 percent or more on numbers too small to count.",
+            "title": "Small",
+            "type": "boolean"
+          },
+          "verdict": {
+            "description": "The health verdict of the page for the period.",
+            "enum": [
+              "no_data",
+              "new",
+              "lost",
+              "low_data",
+              "sharp_drop",
+              "declining",
+              "growing",
+              "stable"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "basis",
+          "change",
+          "absolute",
+          "small",
+          "flags"
+        ],
+        "title": "PageHealth",
+        "type": "object"
+      },
       "PageNote": {
         "properties": {
           "attachments": {
@@ -16629,6 +16926,52 @@
         "title": "PageNoteWrite",
         "type": "object"
       },
+      "PageNumbers": {
+        "properties": {
+          "clicks": {
+            "description": "Clicks in the period.",
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Clicks over impressions of the period; null when there were no impressions.",
+            "title": "Ctr"
+          },
+          "impressions": {
+            "description": "Impressions in the period.",
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average position: the sum of position times impressions over the impressions, never an average of days. Null when no stored row carries a position.",
+            "title": "Position"
+          }
+        },
+        "required": [
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "PageNumbers",
+        "type": "object"
+      },
       "PageOutline": {
         "properties": {
           "outline": {
@@ -16794,6 +17137,39 @@
           "data"
         ],
         "title": "PageOutlineResponse",
+        "type": "object"
+      },
+      "PageQueries": {
+        "properties": {
+          "capped": {
+            "description": "True when Google returned its row limit of 25,000, so `value` is a lower bound.",
+            "title": "Capped",
+            "type": "boolean"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same count for the compared period. Null with `compare=none`, when it is not stored, or when it was capped.",
+            "title": "Previous"
+          },
+          "value": {
+            "description": "The number of different queries that gave the page an impression, as Google reports them. It leaves out anonymized queries, so the real number is higher.",
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value",
+          "previous",
+          "capped"
+        ],
+        "title": "PageQueries",
         "type": "object"
       },
       "PageRow": {
@@ -17216,6 +17592,119 @@
         "title": "PageSearchDailyResponse",
         "type": "object"
       },
+      "PageSearchData": {
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageNumbers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The numbers of the period. Null until the page's history is stored."
+          },
+          "health": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageHealth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The health verdict of the period. Null until the page's history is stored."
+          },
+          "path": {
+            "description": "The path of the page.",
+            "title": "Path",
+            "type": "string"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageNumbers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The numbers of the compared period. Null with `compare=none`, before the history is stored, or when the compared period starts before the page's first stored day."
+          },
+          "previous_series": {
+            "description": "One point for every day of the compared period, on its own dates; empty when `previous` is null.",
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoint"
+            },
+            "title": "Previous Series",
+            "type": "array"
+          },
+          "series": {
+            "description": "One point for every day of the period; empty until the history is stored.",
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoint"
+            },
+            "title": "Series",
+            "type": "array"
+          },
+          "tier_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page's tier; null for Untiered.",
+            "title": "Tier Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The title of the page in the latest finished crawl; null when it has none.",
+            "title": "Title"
+          },
+          "tracked": {
+            "description": "Whether the project tracks the page.",
+            "title": "Tracked",
+            "type": "boolean"
+          },
+          "url": {
+            "description": "The canonical address of the page.",
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "tier_id",
+          "tracked",
+          "current",
+          "previous",
+          "health",
+          "series",
+          "previous_series"
+        ],
+        "title": "PageSearchData",
+        "type": "object"
+      },
       "PageSearchDay": {
         "properties": {
           "clicks": {
@@ -17238,6 +17727,121 @@
           "impressions"
         ],
         "title": "PageSearchDay",
+        "type": "object"
+      },
+      "PageSearchMeta": {
+        "properties": {
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period compared with. Null with `compare=none`, `not_connected` and `pending`."
+          },
+          "final_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last final day stored. Null with `not_connected` and `pending`.",
+            "title": "Final Through"
+          },
+          "history_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first day the page's history covers; null before it was fetched.",
+            "title": "History From"
+          },
+          "property": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Search Console property; null when none.",
+            "title": "Property"
+          },
+          "retry_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds to wait before asking again, when the history could not be fetched because this installation's budget is spent. Null otherwise.",
+            "title": "Retry After"
+          },
+          "state": {
+            "description": "`ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected",
+              "reauth_required",
+              "no_access"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period the numbers are for. Null with `not_connected` and `pending`."
+          }
+        },
+        "required": [
+          "state",
+          "property",
+          "final_through",
+          "window",
+          "compare_window",
+          "history_from",
+          "retry_after"
+        ],
+        "title": "PageSearchMeta",
+        "type": "object"
+      },
+      "PageSearchResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageSearchData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageSearchMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "PageSearchResponse",
         "type": "object"
       },
       "PageSelection": {
@@ -23257,6 +23861,34 @@
         "title": "ScreenshotResponse",
         "type": "object"
       },
+      "SearchWindow": {
+        "properties": {
+          "days": {
+            "description": "Number of days in the period.",
+            "title": "Days",
+            "type": "integer"
+          },
+          "from": {
+            "description": "First day, Pacific Time, included.",
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "description": "Last day, Pacific Time, included.",
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "days"
+        ],
+        "title": "SearchWindow",
+        "type": "object"
+      },
       "Seasonality": {
         "properties": {
           "index_by_month": {
@@ -23509,6 +24141,46 @@
           }
         },
         "title": "SeoSettingsPatch",
+        "type": "object"
+      },
+      "SeriesPoint": {
+        "properties": {
+          "clicks": {
+            "description": "Clicks that day; 0 for a day without a stored row.",
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "date": {
+            "description": "The day, Pacific Time.",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "impressions": {
+            "description": "Impressions that day; 0 for a day without a stored row.",
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average position that day; null for a day without a stored row or position.",
+            "title": "Position"
+          }
+        },
+        "required": [
+          "date",
+          "clicks",
+          "impressions",
+          "position"
+        ],
+        "title": "SeriesPoint",
         "type": "object"
       },
       "SerpCurrent": {
@@ -25612,6 +26284,57 @@
         "title": "SuggestionReason",
         "type": "object"
       },
+      "SuggestionRow": {
+        "properties": {
+          "clicks_28d": {
+            "description": "Clicks in the last 28 final days.",
+            "title": "Clicks 28D",
+            "type": "integer"
+          },
+          "impressions_28d": {
+            "description": "Impressions in the last 28 final days.",
+            "title": "Impressions 28D",
+            "type": "integer"
+          },
+          "path": {
+            "description": "The path of the page.",
+            "title": "Path",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The title in the latest finished crawl.",
+            "title": "Title"
+          },
+          "url": {
+            "description": "The canonical address of the page.",
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "clicks_28d",
+          "impressions_28d"
+        ],
+        "title": "SuggestionRow",
+        "type": "object"
+      },
       "SuggestionSelection": {
         "additionalProperties": false,
         "properties": {
@@ -25645,6 +26368,47 @@
           }
         },
         "title": "SuggestionSelection",
+        "type": "object"
+      },
+      "SuggestionsMeta": {
+        "properties": {
+          "state": {
+            "description": "The Search Console state of the project.",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected",
+              "reauth_required",
+              "no_access"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "SuggestionsMeta",
+        "type": "object"
+      },
+      "SuggestionsResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestionRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/SuggestionsMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuggestionsResponse",
         "type": "object"
       },
       "SummaryDetailContext": {
@@ -27325,6 +28089,189 @@
           }
         },
         "title": "TotpVerifyRequest",
+        "type": "object"
+      },
+      "TrackOutcome": {
+        "properties": {
+          "clicks_28d": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Clicks in the 28 final days that end on the last final day, from stored rows; null when none are stored.",
+            "title": "Clicks 28D"
+          },
+          "input": {
+            "description": "The address, path or id as it was sent.",
+            "title": "Input",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "`added` (`ok` with `dry_run`), `already_tracked`, `invalid_url`, `wrong_host`, `not_crawled` (not a page of the project), `over_limit` (the limit is full; inputs are taken in order).",
+            "enum": [
+              "added",
+              "ok",
+              "already_tracked",
+              "invalid_url",
+              "wrong_host",
+              "not_crawled",
+              "over_limit"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The path of the page; null when the input named none.",
+            "title": "Path"
+          },
+          "url_id": {
+            "anyOf": [
+              {
+                "description": "A `core.urls` id: a 64-bit integer as a string.",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page; null when the input named none.",
+            "title": "Url Id"
+          }
+        },
+        "required": [
+          "input",
+          "outcome",
+          "url_id",
+          "path",
+          "clicks_28d"
+        ],
+        "title": "TrackOutcome",
+        "type": "object"
+      },
+      "TrackPagesMeta": {
+        "properties": {
+          "added": {
+            "description": "The pages this request began to track; 0 with `dry_run`.",
+            "title": "Added",
+            "type": "integer"
+          },
+          "limit": {
+            "description": "The most pages a project can track.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "tracked": {
+            "description": "The pages the project tracks after this request.",
+            "title": "Tracked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "tracked",
+          "added"
+        ],
+        "title": "TrackPagesMeta",
+        "type": "object"
+      },
+      "TrackPagesRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "default": false,
+            "description": "Check every input and report `ok` for the ones that fit.",
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "url_ids": {
+            "description": "Ids of pages of the project, as strings.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Url Ids",
+            "type": "array"
+          },
+          "urls": {
+            "description": "Addresses, or paths read against the project's website. Never fetched.",
+            "items": {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Urls",
+            "type": "array"
+          }
+        },
+        "title": "TrackPagesRequest",
+        "type": "object"
+      },
+      "TrackPagesResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrackOutcome"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TrackPagesMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "TrackPagesResponse",
+        "type": "object"
+      },
+      "TrackedIdsMeta": {
+        "properties": {
+          "limit": {
+            "description": "The most pages a project can track.",
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "title": "TrackedIdsMeta",
+        "type": "object"
+      },
+      "TrackedIdsResponse": {
+        "properties": {
+          "data": {
+            "description": "The url ids of the tracked pages.",
+            "items": {
+              "description": "A `core.urls` id: a 64-bit integer as a string.",
+              "type": "string"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TrackedIdsMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "TrackedIdsResponse",
         "type": "object"
       },
       "TrackedKeyword": {
@@ -29468,6 +30415,255 @@
         "title": "TrackedKeywordState",
         "type": "object"
       },
+      "TrackedPageRow": {
+        "properties": {
+          "added_at": {
+            "description": "When the page began to be tracked.",
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "cannibalization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageCannibalization"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reserved for the Cannibalization feature. Always null until it fills the field: the number of tracked keywords on which this page competes with another page of the site, split by verdict."
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageNumbers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The numbers of the period."
+          },
+          "health": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageHealth"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The health verdict of the period."
+          },
+          "history": {
+            "description": "`ready` once the page's daily history is stored; `loading` until then. A loading row has no `current`, `previous`, `health` or `trend`.",
+            "enum": [
+              "ready",
+              "loading"
+            ],
+            "title": "History",
+            "type": "string"
+          },
+          "path": {
+            "description": "The path of the page.",
+            "title": "Path",
+            "type": "string"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageNumbers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The numbers of the compared period. Null with `compare=none`, or when the compared period starts before the page's first stored day."
+          },
+          "queries": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageQueries"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The number of queries of the page in the period, from stored counts only. Null when the period has none stored, which is not 0."
+          },
+          "tier_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page's tier; null for Untiered.",
+            "title": "Tier Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The title of the page in the latest finished crawl; null when it has none.",
+            "title": "Title"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The clicks of each day of the period, oldest first; 0 for a day without a row.",
+            "title": "Trend"
+          },
+          "url": {
+            "description": "The canonical address of the page.",
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "description": "A `core.urls` id: a 64-bit integer as a string.",
+            "title": "Url Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "tier_id",
+          "added_at",
+          "history",
+          "current",
+          "previous",
+          "health",
+          "queries",
+          "trend"
+        ],
+        "title": "TrackedPageRow",
+        "type": "object"
+      },
+      "TrackedPagesMeta": {
+        "properties": {
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period compared with. Null with `compare=none`, `not_connected` and `pending`."
+          },
+          "final_through": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last final day stored. Null with `not_connected` and `pending`.",
+            "title": "Final Through"
+          },
+          "limit": {
+            "description": "The most pages a project can track.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "property": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Search Console property; null when none.",
+            "title": "Property"
+          },
+          "state": {
+            "description": "`ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).",
+            "enum": [
+              "ok",
+              "pending",
+              "not_connected",
+              "reauth_required",
+              "no_access"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "tracked": {
+            "description": "The pages the project tracks now.",
+            "title": "Tracked",
+            "type": "integer"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period the numbers are for. Null with `not_connected` and `pending`."
+          }
+        },
+        "required": [
+          "state",
+          "property",
+          "final_through",
+          "window",
+          "compare_window",
+          "limit",
+          "tracked"
+        ],
+        "title": "TrackedPagesMeta",
+        "type": "object"
+      },
+      "TrackedPagesResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrackedPageRow"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/TrackedPagesMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "TrackedPagesResponse",
+        "type": "object"
+      },
       "TrackedVariant": {
         "properties": {
           "device": {
@@ -29660,6 +30856,52 @@
           "ai_answers_by_engine"
         ],
         "title": "UnitCostRow",
+        "type": "object"
+      },
+      "UntrackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "url_ids": {
+            "description": "Ids of the pages to stop tracking, as strings.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Url Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "url_ids"
+        ],
+        "title": "UntrackRequest",
+        "type": "object"
+      },
+      "UntrackResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UntrackResult"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "UntrackResponse",
+        "type": "object"
+      },
+      "UntrackResult": {
+        "properties": {
+          "removed": {
+            "description": "The pages that were tracked and are not now.",
+            "title": "Removed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "title": "UntrackResult",
         "type": "object"
       },
       "UrlRef": {
@@ -41766,6 +43008,601 @@
           }
         },
         "summary": "Sessions from AI assistants in Google Analytics, under two classifiers",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}": {
+      "get": {
+        "description": "The period is chosen as for the tracked pages (`from`, `to`, `compare`; at most 92 days, `422 window_too_large`). The series has one point for every day of the period; a day without a stored row has 0 clicks and impressions and no position. The first request for a page whose history is not stored fetches it from Google, once. When that cannot be done now (this installation's budget is spent, Google is busy or does not answer, or the state is not `ok`) the answer is still `200`, with `history_from`, `current`, `previous` and `health` null and both series empty, and `retry_after` in seconds when asking again can help. `404 not_found` for a page that is not a page of the project.",
+        "operationId": "page_search_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A page of the project: a `core.urls` id.",
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "description": "A page of the project: a `core.urls` id.",
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, included.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "`previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Compare",
+              "default": "previous_period",
+              "description": "`previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageSearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: Search Console totals, health and daily series",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}/breakdown": {
+      "get": {
+        "description": "The rows of both periods under one key, most clicks first; `current` or `previous` is null for a key outside that period's stored rows. A period with no stored rows is fetched from Google, once, and stored: for `query` the read asks for 25,000 rows and 100 are kept. `coverage` is the stored rows' clicks over the page's clicks. With a state other than `ok` only stored rows are served. `429 gsc_busy` (with `retry_after`) when this installation's budget or Google's quota is spent, `503 google_unavailable` when Google does not answer.",
+        "operationId": "page_search_breakdown_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__breakdown_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A page of the project: a `core.urls` id.",
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "description": "A page of the project: a `core.urls` id.",
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "What the rows are by: `query`, `country`, `device`.",
+            "in": "query",
+            "name": "dimension",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BreakdownDimension",
+              "description": "What the rows are by: `query`, `country`, `device`."
+            }
+          },
+          {
+            "description": "First day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, included.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "`previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Compare",
+              "default": "previous_period",
+              "description": "`previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageBreakdownResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`gsc_busy`: the budget or Google's quota is spent; `retry_after_seconds`."
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "`google_unavailable`: Google does not answer."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: its rows by query, country or device, now and before",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages": {
+      "get": {
+        "description": "At most 200 pages, no paging, ordered by path. `from` and `to` are Pacific Time days, both included, at most 92 (`422 window_too_large`); `to` is cut to the last final day. With neither, the period is the last full calendar month that ends on or before the last final day. `compare` is `previous_period` (default), `previous_year` or `none`. A page whose daily history is not stored yet has `history: loading` and no `current`, `previous`, `health` or `trend`. `queries` is read from stored counts only, and is null for a period with none stored. `cannibalization` is reserved and always null. With `not_connected` or `pending` the pages are listed and every number is null.",
+        "operationId": "list_tracked_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "First day, included.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day, included.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Last day, included.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day, included.",
+              "title": "To"
+            }
+          },
+          {
+            "description": "`previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`.",
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Compare",
+              "default": "previous_period",
+              "description": "`previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedPagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The pages a project tracks, with their Search Console numbers",
+        "tags": [
+          "first-party"
+        ]
+      },
+      "post": {
+        "description": "`urls` (at most 500; a path is read against the project's website) and `url_ids` (at most 500) may both be given, and the answer has one outcome per input, in order: `added` (`ok` with `dry_run`), `already_tracked`, `invalid_url`, `wrong_host`, `not_crawled` (not a page of the project) or `over_limit` (a project tracks at most 200). An address is parsed and never fetched. `dry_run` checks without writing. An audit entry `tracked_page.add` is written for a request that added pages.",
+        "operationId": "track_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackPagesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackPagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Track pages by address or by url id",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/ids": {
+      "get": {
+        "description": "For the Tracked column of the page list. At most 200 ids.",
+        "operationId": "tracked_page_ids_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_ids_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackedIdsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "The url ids of the tracked pages",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/remove": {
+      "post": {
+        "description": "At most 200 url ids. The numbers stored for the pages are kept. An audit entry `tracked_page.remove` is written when a page was untracked.",
+        "operationId": "untrack_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UntrackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UntrackResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Stop tracking pages",
+        "tags": [
+          "first-party"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/suggestions": {
+      "get": {
+        "description": "The 25 pages of the project that are not tracked and had the most clicks in the last 28 final days, from stored rows. Empty unless the state is `ok`, `reauth_required` or `no_access`.",
+        "operationId": "tracked_page_suggestions_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_suggestions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "Untracked pages with the most clicks",
         "tags": [
           "first-party"
         ]

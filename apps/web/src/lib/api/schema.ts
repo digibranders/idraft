@@ -1994,6 +1994,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: Search Console totals, health and daily series
+         * @description The period is chosen as for the tracked pages (`from`, `to`, `compare`; at most 92 days, `422 window_too_large`). The series has one point for every day of the period; a day without a stored row has 0 clicks and impressions and no position. The first request for a page whose history is not stored fetches it from Google, once. When that cannot be done now (this installation's budget is spent, Google is busy or does not answer, or the state is not `ok`) the answer is still `200`, with `history_from`, `current`, `previous` and `health` null and both series empty, and `retry_after` in seconds when asking again can help. `404 not_found` for a page that is not a page of the project.
+         */
+        get: operations["page_search_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/page-search/{url_id}/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: its rows by query, country or device, now and before
+         * @description The rows of both periods under one key, most clicks first; `current` or `previous` is null for a key outside that period's stored rows. A period with no stored rows is fetched from Google, once, and stored: for `query` the read asks for 25,000 rows and 100 are kept. `coverage` is the stored rows' clicks over the page's clicks. With a state other than `ok` only stored rows are served. `429 gsc_busy` (with `retry_after`) when this installation's budget or Google's quota is spent, `503 google_unavailable` when Google does not answer.
+         */
+        get: operations["page_search_breakdown_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The pages a project tracks, with their Search Console numbers
+         * @description At most 200 pages, no paging, ordered by path. `from` and `to` are Pacific Time days, both included, at most 92 (`422 window_too_large`); `to` is cut to the last final day. With neither, the period is the last full calendar month that ends on or before the last final day. `compare` is `previous_period` (default), `previous_year` or `none`. A page whose daily history is not stored yet has `history: loading` and no `current`, `previous`, `health` or `trend`. `queries` is read from stored counts only, and is null for a period with none stored. `cannibalization` is reserved and always null. With `not_connected` or `pending` the pages are listed and every number is null.
+         */
+        get: operations["list_tracked_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_get"];
+        put?: never;
+        /**
+         * Track pages by address or by url id
+         * @description `urls` (at most 500; a path is read against the project's website) and `url_ids` (at most 500) may both be given, and the answer has one outcome per input, in order: `added` (`ok` with `dry_run`), `already_tracked`, `invalid_url`, `wrong_host`, `not_crawled` (not a page of the project) or `over_limit` (a project tracks at most 200). An address is parsed and never fetched. `dry_run` checks without writing. An audit entry `tracked_page.add` is written for a request that added pages.
+         */
+        post: operations["track_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The url ids of the tracked pages
+         * @description For the Tracked column of the page list. At most 200 ids.
+         */
+        get: operations["tracked_page_ids_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_ids_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop tracking pages
+         * @description At most 200 url ids. The numbers stored for the pages are kept. An audit entry `tracked_page.remove` is written when a page was untracked.
+         */
+        post: operations["untrack_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/fp/tracked-pages/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Untracked pages with the most clicks
+         * @description The 25 pages of the project that are not tracked and had the most clicks in the last 28 final days, from stored rows. Empty unless the state is `ok`, `reauth_required` or `no_access`.
+         */
+        get: operations["tracked_page_suggestions_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/integrations": {
         parameters: {
             query?: never;
@@ -5519,6 +5643,20 @@ export interface components {
             platforms: number;
             total: components["schemas"]["BrandCell"];
         };
+        /** @enum {string} */
+        BreakdownDimension: "query" | "country" | "device";
+        /** BreakdownRow */
+        BreakdownRow: {
+            /** @description The numbers of the period; null for a key outside its stored rows. */
+            current: components["schemas"]["PageNumbers"] | null;
+            /**
+             * Key
+             * @description The query text, the three-letter country code or the device in capitals.
+             */
+            key: string;
+            /** @description The numbers of the compared period; null for a key outside its stored rows. */
+            previous: components["schemas"]["PageNumbers"] | null;
+        };
         /** Budget */
         Budget: {
             /**
@@ -6388,6 +6526,8 @@ export interface components {
              */
             valid: number;
         };
+        /** @enum {string} */
+        Compare: "none" | "previous_period" | "previous_year";
         /** CompareEntities */
         CompareEntities: {
             /**
@@ -10297,6 +10437,87 @@ export interface components {
             /** Third Party */
             third_party: number;
         };
+        /** PageBreakdownMeta */
+        PageBreakdownMeta: {
+            /** @description The period compared with. Null with `compare=none`, `not_connected` and `pending`. */
+            compare_window: components["schemas"]["SearchWindow"] | null;
+            /**
+             * Coverage
+             * @description The stored rows' clicks over the page's clicks in the period, at most 1; the rest are rows Google does not report or past the limit. Null when the page had no clicks or nothing was fetched.
+             */
+            coverage: number | null;
+            /**
+             * Dimension
+             * @description What the rows are by.
+             * @enum {string}
+             */
+            dimension: "query" | "country" | "device";
+            /**
+             * Fetched At
+             * @description When the period's rows were fetched; null before a fetch.
+             */
+            fetched_at: string | null;
+            /**
+             * Final Through
+             * @description The last final day stored. Null with `not_connected` and `pending`.
+             */
+            final_through: string | null;
+            /**
+             * Property
+             * @description The Search Console property; null when none.
+             */
+            property: string | null;
+            /**
+             * Row Limit
+             * @description The most rows kept for a period: 100 queries.
+             */
+            row_limit: number;
+            /**
+             * State
+             * @description `ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+            /**
+             * Truncated
+             * @description More rows came back from Google than were kept. False before a fetch.
+             */
+            truncated: boolean;
+            /** @description The period the numbers are for. Null with `not_connected` and `pending`. */
+            window: components["schemas"]["SearchWindow"] | null;
+        };
+        /** PageBreakdownResponse */
+        PageBreakdownResponse: {
+            /**
+             * Data
+             * @description The union of both periods' keys, most clicks first.
+             */
+            data: components["schemas"]["BreakdownRow"][];
+            meta: components["schemas"]["PageBreakdownMeta"];
+        };
+        /** PageCannibalization */
+        PageCannibalization: {
+            /**
+             * Co Ranking
+             * @description Of those, the keywords with the verdict co-ranking.
+             */
+            co_ranking: number;
+            /**
+             * Keywords
+             * @description Tracked keywords on which the page competes with another page of the site.
+             */
+            keywords: number;
+            /**
+             * Likely
+             * @description Of those, the keywords with the verdict likely.
+             */
+            likely: number;
+            /**
+             * Unstable
+             * @description Of those, the keywords with the verdict unstable.
+             */
+            unstable: number;
+        };
         /** PageChange */
         PageChange: {
             /** Depth Delta */
@@ -10395,6 +10616,41 @@ export interface components {
             view?: ("live" | "indexable" | "not_indexable" | "redirects" | "errors" | "client_errors" | "server_errors" | "blocked" | "other" | "variants" | "in_sitemap_indexable" | "not_in_sitemap" | "sitemap_not_live" | "sitemap_not_indexable" | "reachable" | "unreachable") | null;
             /** Worklist */
             worklist?: ("under_linked_t1" | "orphans" | "editorial_orphans" | "deep_only_through_auto" | "lost_links_top" | "weak_outlinks") | null;
+        };
+        /** PageHealth */
+        PageHealth: {
+            /**
+             * Absolute
+             * @description The difference of the basis metric, the compared period scaled to the length of this one.
+             */
+            absolute: number;
+            /**
+             * Basis
+             * @description The metric the verdict was decided on.
+             * @enum {string}
+             */
+            basis: "clicks" | "impressions";
+            /**
+             * Change
+             * @description The relative change of the basis metric per day against the compared period; null when no change is stated.
+             */
+            change: number | null;
+            /**
+             * Flags
+             * @description Extra signals: `ctr_fell_impressions_rose`, `position_slipped`, `position_improved`.
+             */
+            flags: string[];
+            /**
+             * Small
+             * @description The change is 10 percent or more on numbers too small to count.
+             */
+            small: boolean;
+            /**
+             * Verdict
+             * @description The health verdict of the page for the period.
+             * @enum {string}
+             */
+            verdict: "no_data" | "new" | "lost" | "low_data" | "sharp_drop" | "declining" | "growing" | "stable";
         };
         /** PageNote */
         PageNote: {
@@ -10533,6 +10789,29 @@ export interface components {
             /** Mentions */
             mentions?: components["schemas"]["PageNoteMentionIn"][] | null;
         };
+        /** PageNumbers */
+        PageNumbers: {
+            /**
+             * Clicks
+             * @description Clicks in the period.
+             */
+            clicks: number;
+            /**
+             * Ctr
+             * @description Clicks over impressions of the period; null when there were no impressions.
+             */
+            ctr: number | null;
+            /**
+             * Impressions
+             * @description Impressions in the period.
+             */
+            impressions: number;
+            /**
+             * Position
+             * @description Average position: the sum of position times impressions over the impressions, never an average of days. Null when no stored row carries a position.
+             */
+            position: number | null;
+        };
         /** PageOutline */
         PageOutline: {
             outline: components["schemas"]["PageOutlineBody"] | null;
@@ -10593,6 +10872,24 @@ export interface components {
         /** PageOutlineResponse */
         PageOutlineResponse: {
             data: components["schemas"]["PageOutline"];
+        };
+        /** PageQueries */
+        PageQueries: {
+            /**
+             * Capped
+             * @description True when Google returned its row limit of 25,000, so `value` is a lower bound.
+             */
+            capped: boolean;
+            /**
+             * Previous
+             * @description The same count for the compared period. Null with `compare=none`, when it is not stored, or when it was capped.
+             */
+            previous: number | null;
+            /**
+             * Value
+             * @description The number of different queries that gave the page an impression, as Google reports them. It leaves out anonymized queries, so the real number is higher.
+             */
+            value: number;
         };
         /** PageRow */
         PageRow: {
@@ -10706,6 +11003,55 @@ export interface components {
         PageSearchDailyResponse: {
             data: components["schemas"]["PageSearchDaily"];
         };
+        /** PageSearchData */
+        PageSearchData: {
+            /** @description The numbers of the period. Null until the page's history is stored. */
+            current: components["schemas"]["PageNumbers"] | null;
+            /** @description The health verdict of the period. Null until the page's history is stored. */
+            health: components["schemas"]["PageHealth"] | null;
+            /**
+             * Path
+             * @description The path of the page.
+             */
+            path: string;
+            /** @description The numbers of the compared period. Null with `compare=none`, before the history is stored, or when the compared period starts before the page's first stored day. */
+            previous: components["schemas"]["PageNumbers"] | null;
+            /**
+             * Previous Series
+             * @description One point for every day of the compared period, on its own dates; empty when `previous` is null.
+             */
+            previous_series: components["schemas"]["SeriesPoint"][];
+            /**
+             * Series
+             * @description One point for every day of the period; empty until the history is stored.
+             */
+            series: components["schemas"]["SeriesPoint"][];
+            /**
+             * Tier Id
+             * @description The page's tier; null for Untiered.
+             */
+            tier_id: string | null;
+            /**
+             * Title
+             * @description The title of the page in the latest finished crawl; null when it has none.
+             */
+            title: string | null;
+            /**
+             * Tracked
+             * @description Whether the project tracks the page.
+             */
+            tracked: boolean;
+            /**
+             * Url
+             * @description The canonical address of the page.
+             */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
         /** PageSearchDay */
         PageSearchDay: {
             /** Clicks */
@@ -10717,6 +11063,44 @@ export interface components {
             date: string;
             /** Impressions */
             impressions: number;
+        };
+        /** PageSearchMeta */
+        PageSearchMeta: {
+            /** @description The period compared with. Null with `compare=none`, `not_connected` and `pending`. */
+            compare_window: components["schemas"]["SearchWindow"] | null;
+            /**
+             * Final Through
+             * @description The last final day stored. Null with `not_connected` and `pending`.
+             */
+            final_through: string | null;
+            /**
+             * History From
+             * @description The first day the page's history covers; null before it was fetched.
+             */
+            history_from: string | null;
+            /**
+             * Property
+             * @description The Search Console property; null when none.
+             */
+            property: string | null;
+            /**
+             * Retry After
+             * @description Seconds to wait before asking again, when the history could not be fetched because this installation's budget is spent. Null otherwise.
+             */
+            retry_after: number | null;
+            /**
+             * State
+             * @description `ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+            /** @description The period the numbers are for. Null with `not_connected` and `pending`. */
+            window: components["schemas"]["SearchWindow"] | null;
+        };
+        /** PageSearchResponse */
+        PageSearchResponse: {
+            data: components["schemas"]["PageSearchData"];
+            meta: components["schemas"]["PageSearchMeta"];
         };
         /**
          * PageSelection
@@ -13037,6 +13421,26 @@ export interface components {
         ScreenshotResponse: {
             data: components["schemas"]["ScreenshotData"];
         };
+        /** SearchWindow */
+        SearchWindow: {
+            /**
+             * Days
+             * @description Number of days in the period.
+             */
+            days: number;
+            /**
+             * From
+             * Format: date
+             * @description First day, Pacific Time, included.
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             * @description Last day, Pacific Time, included.
+             */
+            to: string;
+        };
         /** Seasonality */
         Seasonality: {
             /**
@@ -13144,6 +13548,30 @@ export interface components {
              * @enum {string}
              */
             visibility_weight_scheme?: "uniform" | "priority" | "business_value";
+        };
+        /** SeriesPoint */
+        SeriesPoint: {
+            /**
+             * Clicks
+             * @description Clicks that day; 0 for a day without a stored row.
+             */
+            clicks: number;
+            /**
+             * Date
+             * Format: date
+             * @description The day, Pacific Time.
+             */
+            date: string;
+            /**
+             * Impressions
+             * @description Impressions that day; 0 for a day without a stored row.
+             */
+            impressions: number;
+            /**
+             * Position
+             * @description Average position that day; null for a day without a stored row or position.
+             */
+            position: number | null;
         };
         /** SerpCurrent */
         SerpCurrent: {
@@ -13895,12 +14323,60 @@ export interface components {
             /** Volume */
             volume: number | null;
         };
+        /** SuggestionRow */
+        SuggestionRow: {
+            /**
+             * Clicks 28D
+             * @description Clicks in the last 28 final days.
+             */
+            clicks_28d: number;
+            /**
+             * Impressions 28D
+             * @description Impressions in the last 28 final days.
+             */
+            impressions_28d: number;
+            /**
+             * Path
+             * @description The path of the page.
+             */
+            path: string;
+            /**
+             * Title
+             * @description The title in the latest finished crawl.
+             */
+            title: string | null;
+            /**
+             * Url
+             * @description The canonical address of the page.
+             */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
         /** SuggestionSelection */
         SuggestionSelection: {
             /** All */
             all?: true | null;
             /** Url Ids */
             url_ids?: string[] | null;
+        };
+        /** SuggestionsMeta */
+        SuggestionsMeta: {
+            /**
+             * State
+             * @description The Search Console state of the project.
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+        };
+        /** SuggestionsResponse */
+        SuggestionsResponse: {
+            /** Data */
+            data: components["schemas"]["SuggestionRow"][];
+            meta: components["schemas"]["SuggestionsMeta"];
         };
         /**
          * SummaryDetailContext
@@ -14562,6 +15038,95 @@ export interface components {
             /** Recovery Code */
             recovery_code?: string | null;
         };
+        /** TrackOutcome */
+        TrackOutcome: {
+            /**
+             * Clicks 28D
+             * @description Clicks in the 28 final days that end on the last final day, from stored rows; null when none are stored.
+             */
+            clicks_28d: number | null;
+            /**
+             * Input
+             * @description The address, path or id as it was sent.
+             */
+            input: string;
+            /**
+             * Outcome
+             * @description `added` (`ok` with `dry_run`), `already_tracked`, `invalid_url`, `wrong_host`, `not_crawled` (not a page of the project), `over_limit` (the limit is full; inputs are taken in order).
+             * @enum {string}
+             */
+            outcome: "added" | "ok" | "already_tracked" | "invalid_url" | "wrong_host" | "not_crawled" | "over_limit";
+            /**
+             * Path
+             * @description The path of the page; null when the input named none.
+             */
+            path: string | null;
+            /**
+             * Url Id
+             * @description The page; null when the input named none.
+             */
+            url_id: string | null;
+        };
+        /** TrackPagesMeta */
+        TrackPagesMeta: {
+            /**
+             * Added
+             * @description The pages this request began to track; 0 with `dry_run`.
+             */
+            added: number;
+            /**
+             * Limit
+             * @description The most pages a project can track.
+             */
+            limit: number;
+            /**
+             * Tracked
+             * @description The pages the project tracks after this request.
+             */
+            tracked: number;
+        };
+        /** TrackPagesRequest */
+        TrackPagesRequest: {
+            /**
+             * Dry Run
+             * @description Check every input and report `ok` for the ones that fit.
+             * @default false
+             */
+            dry_run: boolean;
+            /**
+             * Url Ids
+             * @description Ids of pages of the project, as strings.
+             */
+            url_ids?: string[];
+            /**
+             * Urls
+             * @description Addresses, or paths read against the project's website. Never fetched.
+             */
+            urls?: string[];
+        };
+        /** TrackPagesResponse */
+        TrackPagesResponse: {
+            /** Data */
+            data: components["schemas"]["TrackOutcome"][];
+            meta: components["schemas"]["TrackPagesMeta"];
+        };
+        /** TrackedIdsMeta */
+        TrackedIdsMeta: {
+            /**
+             * Limit
+             * @description The most pages a project can track.
+             */
+            limit: number;
+        };
+        /** TrackedIdsResponse */
+        TrackedIdsResponse: {
+            /**
+             * Data
+             * @description The url ids of the tracked pages.
+             */
+            data: string[];
+            meta: components["schemas"]["TrackedIdsMeta"];
+        };
         /** TrackedKeyword */
         TrackedKeyword: {
             /** Business Value */
@@ -15213,6 +15778,100 @@ export interface components {
             /** Worst Rank */
             worst_rank: number | null;
         };
+        /** TrackedPageRow */
+        TrackedPageRow: {
+            /**
+             * Added At
+             * Format: date-time
+             * @description When the page began to be tracked.
+             */
+            added_at: string;
+            /** @description Reserved for the Cannibalization feature. Always null until it fills the field: the number of tracked keywords on which this page competes with another page of the site, split by verdict. */
+            cannibalization?: components["schemas"]["PageCannibalization"] | null;
+            /** @description The numbers of the period. */
+            current: components["schemas"]["PageNumbers"] | null;
+            /** @description The health verdict of the period. */
+            health: components["schemas"]["PageHealth"] | null;
+            /**
+             * History
+             * @description `ready` once the page's daily history is stored; `loading` until then. A loading row has no `current`, `previous`, `health` or `trend`.
+             * @enum {string}
+             */
+            history: "ready" | "loading";
+            /**
+             * Path
+             * @description The path of the page.
+             */
+            path: string;
+            /** @description The numbers of the compared period. Null with `compare=none`, or when the compared period starts before the page's first stored day. */
+            previous: components["schemas"]["PageNumbers"] | null;
+            /** @description The number of queries of the page in the period, from stored counts only. Null when the period has none stored, which is not 0. */
+            queries: components["schemas"]["PageQueries"] | null;
+            /**
+             * Tier Id
+             * @description The page's tier; null for Untiered.
+             */
+            tier_id: string | null;
+            /**
+             * Title
+             * @description The title of the page in the latest finished crawl; null when it has none.
+             */
+            title: string | null;
+            /**
+             * Trend
+             * @description The clicks of each day of the period, oldest first; 0 for a day without a row.
+             */
+            trend: number[] | null;
+            /**
+             * Url
+             * @description The canonical address of the page.
+             */
+            url: string;
+            /**
+             * Url Id
+             * @description A `core.urls` id: a 64-bit integer as a string.
+             */
+            url_id: string;
+        };
+        /** TrackedPagesMeta */
+        TrackedPagesMeta: {
+            /** @description The period compared with. Null with `compare=none`, `not_connected` and `pending`. */
+            compare_window: components["schemas"]["SearchWindow"] | null;
+            /**
+             * Final Through
+             * @description The last final day stored. Null with `not_connected` and `pending`.
+             */
+            final_through: string | null;
+            /**
+             * Limit
+             * @description The most pages a project can track.
+             */
+            limit: number;
+            /**
+             * Property
+             * @description The Search Console property; null when none.
+             */
+            property: string | null;
+            /**
+             * State
+             * @description `ok`; `pending` (connected, the first 28 days are not stored yet); `not_connected`; `reauth_required` (stored numbers are served, Google is not called); `no_access` (Google refused the property, stored numbers are served).
+             * @enum {string}
+             */
+            state: "ok" | "pending" | "not_connected" | "reauth_required" | "no_access";
+            /**
+             * Tracked
+             * @description The pages the project tracks now.
+             */
+            tracked: number;
+            /** @description The period the numbers are for. Null with `not_connected` and `pending`. */
+            window: components["schemas"]["SearchWindow"] | null;
+        };
+        /** TrackedPagesResponse */
+        TrackedPagesResponse: {
+            /** Data */
+            data: components["schemas"]["TrackedPageRow"][];
+            meta: components["schemas"]["TrackedPagesMeta"];
+        };
         /** TrackedVariant */
         TrackedVariant: {
             /**
@@ -15288,6 +15947,26 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+        };
+        /** UntrackRequest */
+        UntrackRequest: {
+            /**
+             * Url Ids
+             * @description Ids of the pages to stop tracking, as strings.
+             */
+            url_ids: string[];
+        };
+        /** UntrackResponse */
+        UntrackResponse: {
+            data: components["schemas"]["UntrackResult"];
+        };
+        /** UntrackResult */
+        UntrackResult: {
+            /**
+             * Removed
+             * @description The pages that were tracked and are not now.
+             */
+            removed: number;
         };
         /** UrlRef */
         UrlRef: {
@@ -20173,6 +20852,283 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiReferralsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page_search_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__get: {
+        parameters: {
+            query?: {
+                /** @description First day, included. */
+                from?: string | null;
+                /** @description Last day, included. */
+                to?: string | null;
+                /** @description `previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`. */
+                compare?: components["schemas"]["Compare"];
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A page of the project: a `core.urls` id. */
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageSearchResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    page_search_breakdown_api_v1_workspaces__workspace_id__projects__project_id__fp_page_search__url_id__breakdown_get: {
+        parameters: {
+            query: {
+                /** @description What the rows are by: `query`, `country`, `device`. */
+                dimension: components["schemas"]["BreakdownDimension"];
+                /** @description First day, included. */
+                from?: string | null;
+                /** @description Last day, included. */
+                to?: string | null;
+                /** @description `previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`. */
+                compare?: components["schemas"]["Compare"];
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                /** @description A page of the project: a `core.urls` id. */
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageBreakdownResponse"];
+                };
+            };
+            /** @description `gsc_busy`: the budget or Google's quota is spent; `retry_after_seconds`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description `google_unavailable`: Google does not answer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_tracked_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_get: {
+        parameters: {
+            query?: {
+                /** @description First day, included. */
+                from?: string | null;
+                /** @description Last day, included. */
+                to?: string | null;
+                /** @description `previous_period`: the month before a whole month, else as many days just before; `previous_year`: the same dates a year earlier; `none`. */
+                compare?: components["schemas"]["Compare"];
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedPagesResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    track_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackPagesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackPagesResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tracked_page_ids_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_ids_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedIdsResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    untrack_pages_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UntrackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UntrackResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tracked_page_suggestions_api_v1_workspaces__workspace_id__projects__project_id__fp_tracked_pages_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionsResponse"];
                 };
             };
             /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
@@ -25085,6 +26041,7 @@ export const aliasUpdateMatch_modeValues: ReadonlyArray<FlattenedDeepRequired<co
 export const analyticsPropertyProperty_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AnalyticsProperty"]["property_type"]> = ["ordinary", "subproperty", "rollup", "unspecified"];
 export const annotationKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Annotation"]["kind"]> = ["model_changed", "entity_set_changed", "extractor_changed", "prompt_set_changed"];
 export const brandCellStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BrandCell"]["state"]> = ["cited", "mentioned", "not", "none"];
+export const breakdownDimensionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BreakdownDimension"]> = ["query", "country", "device"];
 export const budgetAction_on_hardValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["action_on_hard"]> = ["pause", "alert_only"];
 export const budgetWorkloadValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Budget"]["workload"]> = ["seo_rank", "ai_prompt", "keyword_research", "ai_benchmark", "extraction_llm", "first_party", "all"];
 export const budgetCreateAction_on_hardAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["BudgetCreate"]["action_on_hard"]> = ["pause", "alert_only"];
@@ -25106,6 +26063,7 @@ export const citationOutDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<c
 export const citationRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitationRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citedAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const citedPageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CitedPageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const compareValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Compare"]> = ["none", "previous_period", "previous_year"];
 export const compareEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareEntity"]["role"]> = ["own", "competitor", "watch"];
 export const compareSourceDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompareSource"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const competitorOverrideModeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CompetitorOverride"]["mode"]> = ["include", "exclude"];
@@ -25198,11 +26156,15 @@ export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequir
 export const outlineCanonicalStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OutlineCanonical"]["state"]> = ["self", "elsewhere", "none"];
 export const outlineTextStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OutlineText"]["state"]> = ["ok", "short", "long", "missing"];
 export const overviewSitemapStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OverviewSitemap"]["state"]> = ["read", "no_sitemap"];
+export const pageBreakdownMetaDimensionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageBreakdownMeta"]["dimension"]> = ["query", "country", "device"];
+export const pageBreakdownMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageBreakdownMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
 export const pageFilterFlagsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["flags"]> = ["orphan", "editorial_orphan", "deep_only_through_auto", "placement_unknown", "has_broken_outlinks", "generic_anchors", "variant"];
 export const pageFilterStatusAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["status"]> = ["2xx", "3xx", "4xx", "5xx", "blocked"];
 export const pageFilterViewAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["view"]> = ["live", "indexable", "not_indexable", "redirects", "errors", "client_errors", "server_errors", "blocked", "other", "variants", "in_sitemap_indexable", "not_in_sitemap", "sitemap_not_live", "sitemap_not_indexable", "reachable", "unreachable"];
 export const pageFilterWorklistAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageFilter"]["worklist"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "lost_links_top", "weak_outlinks"];
+export const pageHealthBasisValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHealth"]["basis"]> = ["clicks", "impressions"];
+export const pageHealthVerdictValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageHealth"]["verdict"]> = ["no_data", "new", "lost", "low_data", "sharp_drop", "declining", "growing", "stable"];
 export const pageNoteMentionTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageNoteMention"]["type"]> = ["page", "user", "issue", "keyword"];
 export const pageNoteMentionInTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageNoteMentionIn"]["type"]> = ["page", "user", "issue", "keyword"];
 export const pageOutlineStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageOutline"]["state"]> = ["ok", "redirect", "error", "not_html", "no_html"];
@@ -25210,6 +26172,7 @@ export const pageRowFlagsValues: ReadonlyArray<FlattenedDeepRequired<components>
 export const pageRowResource_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["resource_type"]> = ["html", "redirect", "broken", "other"];
 export const pageRowTier_sourceAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageRow"]["tier_source"]> = ["manual", "rule"];
 export const pageSearchDailyStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageSearchDaily"]["state"]> = ["ok", "pending", "not_connected"];
+export const pageSearchMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageSearchMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const placementCountPlacementValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PlacementCount"]["placement"]> = ["content", "auto_generated", "navigation", "header", "footer", "sidebar", "breadcrumb"];
 export const pointPoolReasonValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PointPool"]["reason"]> = ["prompt_point", "few_prompts"];
 export const progressUnitValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Progress"]["unit"]> = ["tasks", "rows", "observations", "days", "items"];
@@ -25300,6 +26263,7 @@ export const sourceDomainRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequir
 export const sourcePageRowDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SourcePageRow"]["domain_role"]> = ["own", "competitor", "third_party"];
 export const sparklinePointStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SparklinePoint"]["state"]> = ["ranked", "beyond_depth"];
 export const suggestionReasonKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SuggestionReason"]["kind"]> = ["clicks", "rank"];
+export const suggestionsMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SuggestionsMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const summaryEntityRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryEntity"]["role"]> = ["own", "competitor"];
 export const summaryLostStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryLost"]["state"]> = ["available", "no_comparison", "dropped"];
 export const summaryWorklistKeyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["SummaryWorklist"]["key"]> = ["under_linked_t1", "orphans", "editorial_orphans", "deep_only_through_auto", "broken_and_redirected", "links_to_non_indexable", "weak_outlinks"];
@@ -25315,6 +26279,7 @@ export const tierRulePreviewRequestMatch_typeValues: ReadonlyArray<FlattenedDeep
 export const tierRuleViewMatch_typeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierRuleView"]["match_type"]> = ["exact", "prefix", "pattern"];
 export const tierSuggestionMetaGsc_stateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TierSuggestionMeta"]["gsc_state"]> = ["ok", "pending", "not_connected"];
 export const topLinkDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TopLink"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const trackOutcomeOutcomeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackOutcome"]["outcome"]> = ["added", "ok", "already_tracked", "invalid_url", "wrong_host", "not_crawled", "over_limit"];
 export const trackedKeywordDepth_profileValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["depth_profile"]> = ["light", "standard", "deep", "full", "weekly", "weekly_light", "until_own_match_100"];
 export const trackedKeywordDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["device"]> = ["desktop", "mobile"];
 export const trackedKeywordFrequencyValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeyword"]["frequency"]> = ["daily", "weekly", "custom"];
@@ -25355,6 +26320,8 @@ export const trackedKeywordRowIntent_sourceAnyOf0Values: ReadonlyArray<Flattened
 export const trackedKeywordRowOsAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["os"]> = ["windows", "macos", "android", "ios"];
 export const trackedKeywordRowSearch_engineValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["search_engine"]> = ["google", "bing"];
 export const trackedKeywordRowSourceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedKeywordRow"]["source"]> = ["manual", "csv_import", "api", "gsc_import", "discovery", "bulk_paste"];
+export const trackedPageRowHistoryValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedPageRow"]["history"]> = ["ready", "loading"];
+export const trackedPagesMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedPagesMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const trackedVariantDeviceValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TrackedVariant"]["device"]> = ["desktop", "mobile"];
 export const vocabularyKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["Vocabulary"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
 export const vocabularyCreateKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["VocabularyCreate"]["kind"]> = ["topic", "cluster", "product", "service", "market", "campaign", "persona", "tag", "custom"];
