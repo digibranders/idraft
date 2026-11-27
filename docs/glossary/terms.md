@@ -38,6 +38,7 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | A9 | Reports / Integrations / Runs / Costs / Settings | The page names equal the plural of what they list. | | Engines, Topics, Panels, Taxonomy (see C6) | Navigation | Safe | Firm |
 | A10 | Matrix, Discover | Not defined in any spec read for this work. | | | Navigation | Name them before the application pass | D20 |
 | A11 | Link map (a tab of Internal links) | The tab that draws every live page of a crawl, and the links in page bodies between them, as one graph. Menu and footer links are not drawn: they are a property of the page they point to. | Not Journey (one page and its neighbours). Not Tier flow (link counts between tiers). | Site map, Network, Graph (as the tab name) | Internal links tabs, page titles | Safe | Firm |
+| A12 | Cannibalization (a page of the SEO group, tabs Cannibalization and Switching) | The SEO page that shows tracked keywords where two or more of your own pages compete, and when Google changed which of your pages ranks. | Not Competitors (other sites). Not a claim of cause. | Rankings, Overlap, Duplicate pages | Navigation, page title, breadcrumbs | Safe; the tab Switching is a plain verb noun | Firm |
 
 ## 2. Where we ask, and where we check
 
@@ -130,6 +131,20 @@ Columns: **ID**, **Label** (singular / plural), **Definition** (one sentence, st
 | M15 | Impressions, Clicks | As Google Search Console defines them. | Not AI numbers. | Views, Visits (for clicks) | Pages, performance | Follow Google's local wording | Firm |
 | M16 | AI referral visits | Visits to your site that Google Analytics attributes to AI platforms. | Not clicks in an answer. | Referral traffic, Sessions (in plain text) | Overview card | Safe | Firm |
 | M17 | They lead / You lead / Equal | In one prompt, a brand leads when it is mentioned in at least 2 more answers than the other, over the platforms in scope, and the prompt has at least 4 valid answers. A smaller difference is Equal. | Not a win in any single answer. | Winning, Losing, Lost to (as a column) | Competitor card and drawer | Safe | Firm |
+
+### 6.1 Cannibalization (added 2026-11-27, spec docs/33)
+
+| ID | Label | Definition | Is not | Banned | Where used | Status |
+|---|---|---|---|---|---|---|
+| K1 | Ranking page / Ranking pages | The measure naming the one of your pages that holds the best rank for a keyword on a check. | Not the target page. | Landing page, URL alone | Cannibalization, Switching | Firm |
+| K2 | Target page | The page you want to rank for a keyword, set on the keyword. | Not the ranking page. | Preferred URL, Canonical page | Cannibalization, Switching, Keywords | Firm |
+| K3 | Rank gap | The measure of how many places worse a keyword ranks on the checks where another of your pages is the ranking page, against the best page. Never negative. | Not a change over time. | Penalty, Loss | Cannibalization | Firm |
+| K4 | Switch / Switches | The event: the ranking page changed and the new page also ranks best on the next check. | Not one odd reading, which is a "one-check change". | Flip, Swap, Rotation | Switching | Firm |
+| K5 | Flip-flop | A switch back: the page that was replaced returns within 14 days. | Not a first switch. | Ping-pong, Oscillation | Switching | Firm |
+| K6 | Likely cannibalization, Co-ranking, Unstable page | The three verdicts. Likely: two or more of your pages swap the best rank and the keyword ranks 3 or more places worse when the other page ranks. Co-ranking: two pages both in the top 20 on at least half of the checks. Unstable page: the ranking page changes often without a worse rank. | Not a cause. | Duplicate, Conflict (as the verdict name) | Cannibalization | Firm |
+| K7 | Not enough checks | State of a keyword with fewer than 10 ranked checks in the period. | Not "No data". | No data, N/A, Insufficient data | Cannibalization, Switching | Firm |
+| K8 | Sub-result | One of your pages nested under another of your results on the same check. It shares that result's rank and is never counted as competition. | Not a second result. | Sitelink, Child | Cannibalization pages list | Firm |
+
 
 ## 7. Brands, sites and states
 
@@ -391,3 +406,4 @@ sentences move to the Sample data badge. The same text is used for the card, its
 | 2026-11-17 | Compare with (P15) | "vs previous period" and "No comparison" | Adds "vs same period last year" and the words that follow each mode | The real Prompts screen already offers the year back; the glossary now knows the words |
 | 2026-11-23 | Compare with (P15), Rate by platform over time, how it is counted | "With Compare on, a dashed vertical line separates the previous 28 days from the current 28 days" for every mode | The same text with the previous period; with "vs same period last year" the last sentence is "With Compare on, a second dashed line shows the same period last year, week for week." | The real card draws last year as a dashed line under the current weeks and has no boundary line for it; the preview does not draw it yet |
 | 2026-11-26 | Link map (A11) | | Added as the name of the Internal links tab that draws the whole crawl as one graph | Owner approved the tab and its name on 2026-11-26 |
+| 2026-11-27 | Cannibalization (A12, K1 to K8) | | Added as the SEO page and its measures | Owner approved the mock of the page on 2026-11-26 (docs/33) |
