@@ -274,7 +274,7 @@ describe('MonitoringScreen', () => {
     expect(await pathsOf()).toEqual(['/lost', '/declining', '/steady', '/growing', '/nocount', '/loading']);
   });
 
-  it('has two rows above the table and nothing else', async () => {
+  it('has one row above the table, the filters inside it, and nothing else', async () => {
     serve();
     renderScreen();
     const table = await grid();
@@ -286,7 +286,10 @@ describe('MonitoringScreen', () => {
       if (sibling === panel) break;
       before.push(sibling.getAttribute('data-slot') ?? sibling.getAttribute('aria-label') ?? sibling.tagName);
     }
-    expect(before).toEqual(['page-toolbar', 'Period and filters']);
+    expect(before).toEqual(['page-toolbar']);
+    expect(
+      panel?.parentElement?.querySelector('[data-slot="page-toolbar"] [aria-label="Period and filters"]'),
+    ).not.toBeNull();
   });
 
   it('filters by tier and by health, keeps both in the address, and counts each verdict', async () => {

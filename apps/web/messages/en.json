@@ -10328,8 +10328,8 @@
   },
   "monitoring": {
     "title": "Monitoring",
-    "context": "{host}, final data to {date}",
-    "contextTip": "Search Console property {property}. Final data to {date}, Pacific Time.",
+    "context": "Final data to {date}",
+    "contextTip": "{host}, Search Console property {property}. Final data to {date}, Pacific Time.",
     "export": "Export CSV",
     "addPages": "Add pages",
     "tier": "Tier",

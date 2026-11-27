@@ -140,7 +140,11 @@ class TrackedPageRow(BaseModel):
         "Null when the period has none stored, which is not 0."
     )
     # Reserved for the Cannibalization feature (spec D22): nothing fills it until that backend
-    # exists, so the service never reads anything for it.
+    # is merged, so the service never reads anything for it. The join, once merged: call
+    # `CannibalizationService.page_conflicts(access, project_id)` (api/cannibalization/service.py,
+    # branch claude/cannibalization-5e62c3) once per list read and set
+    # `cannibalization=conflicts.get(page.url_id)` in `tracked._page_row`. Its `PageConflicts`
+    # (keywords, likely, co_ranking, unstable) matches this model field for field.
     cannibalization: PageCannibalization | None = Field(
         default=None,
         description="Reserved for the Cannibalization feature. Always null until it fills the "

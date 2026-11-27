@@ -182,6 +182,7 @@ export function useMonitoringColumns({
       },
       {
         width: 136,
+        minWidth: 136,
         sortValue: (row) => numbers(row)?.position ?? null,
         cellTip: (row) =>
           !loading(row) && row.current !== null && row.current.position === null
@@ -206,7 +207,7 @@ export function useMonitoringColumns({
         t('columns.tier'),
         (row) =>
           row.tier_id !== null && tiers === null ? <Skeleton shape="badge" /> : <TierBadge tier={tierOf(row)} />,
-        { width: 96, priority: 2, sortValue: (row) => tierNumber(tierOf(row)) },
+        { width: 104, minWidth: 104, priority: 2, sortValue: (row) => tierNumber(tierOf(row)) },
       ),
       custom(
         'health',
@@ -219,7 +220,8 @@ export function useMonitoringColumns({
           return <Badge tone={healthTone(row.health.verdict)}>{name}</Badge>;
         },
         {
-          width: 128,
+          width: 136,
+          minWidth: 136,
           sortValue: (row) => (loading(row) || row.health === null ? null : attentionOrder(row.health)),
         },
       ),
