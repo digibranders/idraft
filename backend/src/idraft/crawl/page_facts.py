@@ -38,8 +38,12 @@ _INLINE: Final = frozenset(
     {
         *("a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "dfn", "em", "i", "kbd"),
         *("mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup", "time", "u"),
-        *("var", "wbr", "font", "img"),
+        *("var", "wbr", "font", "img", "del", "ins", "label", "big", "tt", "strike"),
+        *("ruby", "rt", "rp"),
     }
+)
+_HEAD_TAGS: Final = frozenset(
+    {"title", "meta", "link", "script", "style", "base", "noscript", "template", "head"}
 )
 _SRC_TAGS: Final = frozenset(
     {"img", "script", "iframe", "video", "audio", "source", "track", "embed"}
@@ -67,9 +71,14 @@ def _refuse_constant(name: str) -> object:
     raise ValueError(f"{name} is not JSON")
 
 
+def _skip_int(_digits: str) -> int:
+    # A number of more than 4300 digits is valid JSON that `int()` refuses; only validity counts.
+    return 0
+
+
 def _json_is_valid(content: str) -> bool:
     try:
-        json.loads(content, parse_constant=_refuse_constant)
+        json.loads(content, parse_constant=_refuse_constant, parse_int=_skip_int)
     except (ValueError, RecursionError):
         return False
     return True
@@ -110,6 +119,10 @@ class _Reader(HTMLParser):
             return
         if self._hidden:
             return
+        if self._head and tag not in _HEAD_TAGS:
+            # `</head>` and `<body>` may be left out: a body-level tag ends the head.
+            self._head = False
+            self._title = 0
         found = {name: value or "" for name, value in attrs}
         if tag in _SRC_TAGS:
             self._resource(found.get("src", ""))
@@ -198,7 +211,7 @@ class _Reader(HTMLParser):
     def _meta(self, found: dict[str, str]) -> None:
         name = found.get("name", "").strip().lower()
         content = found.get("content", "").strip()
-        if name == "description" and self.description is None:
+        if name == "description" and not self.description:
             self.description = clean_text(content, limit=DESCRIPTION_MAX)
         key = (found.get("property") or found.get("name") or "").strip().lower()
         if key in _OG_NAMES and content:

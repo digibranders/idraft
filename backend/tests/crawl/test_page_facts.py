@@ -246,6 +246,30 @@ def test_an_unclosed_template_or_head_does_not_hide_the_body() -> None:
     assert facts("<noscript><body><h1>Title</h1></body>").h1_count == 1
 
 
+def test_a_body_level_tag_ends_a_head_that_has_no_end_tag() -> None:
+    page = facts("<html><head><title>T</title><h1>Hi</h1><p>one two three")
+    assert page.h1_count == 1
+    assert page.word_count == 4
+    # As in a browser, an unclosed title holds the rest of the page as its text.
+    assert facts("<head><title>T<p>one two").word_count == 0
+    # Head-only tags keep the head open.
+    assert facts("<head><title>T</title><meta><link><base><style>a{}</style>x y").word_count == 0
+
+
+def test_an_empty_description_does_not_win_over_a_later_one() -> None:
+    both = '<meta name="description"><meta name="description" content=" later ">'
+    assert facts(both).meta_description == "later"
+
+
+def test_deleted_inserted_and_label_tags_are_inline() -> None:
+    assert facts("<p>Hel<del>lo</del> wor<label>ld</label></p>").word_count == 2
+
+
+def test_json_ld_with_a_huge_number_is_valid() -> None:
+    html = f'<script type="application/ld+json">{{"n": {"9" * 5000}}}</script>'
+    assert facts(html).jsonld_errors == 0
+
+
 def test_a_language_tag_with_a_variant_is_counted_as_a_problem() -> None:
     # The reader checks the usual shape only (the `shortcut:` in `_LANGUAGE`).
     assert facts(_alt("de-1996", PAGE)).hreflang_errors == 1
