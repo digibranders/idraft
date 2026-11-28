@@ -16,7 +16,8 @@ async function saveShot(page: Page, name: string): Promise<void> {
 }
 
 async function expectDrawerFits(drawer: Locator): Promise<void> {
-  const overflow = await drawer.evaluate((el) => el.scrollWidth - el.clientWidth);
+  const panel = drawer.getByRole('tabpanel', { name: 'AI' });
+  const overflow = await panel.evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
@@ -53,13 +54,15 @@ test.describe('Page drawer, AI tab', () => {
     await expectAccessible(page);
     await saveShot(page, 'ai-tab-light-640.png');
 
-    // Switch Citations over time to Table view and back
+    // Switch Citations over time to Table view, verify counts, and toggle back
     const tableToggle = drawer.getByRole('button', { name: 'Table' });
     await tableToggle.click();
     await expect(tableToggle).toHaveAttribute('aria-pressed', 'true');
     const trendTable = drawer.getByRole('table', { name: 'Citations over time' });
     await expect(trendTable).toBeVisible();
     await expect(trendTable.getByRole('row')).toHaveCount(29);
+    await expect(trendTable).toContainText('1 of 2 answers');
+    await expect(trendTable).toContainText('No answers');
     await tableToggle.click();
     await expect(tableToggle).toHaveAttribute('aria-pressed', 'false');
     await expect(trendTable).toHaveCount(0);
@@ -75,17 +78,19 @@ test.describe('Page drawer, AI tab', () => {
     await expectAccessible(page);
     await saveShot(page, 'ai-tab-light-480.png');
 
-    // Widen to maximum allowed inside 1280 px viewport (768 px)
-    for (let step = 0; step < 18; step += 1) {
+    // Widen to 960 px (on a 1680 px desktop viewport) and back to 640 px at 1280x720
+    await page.setViewportSize({ width: 1680, height: 900 });
+    for (let step = 0; step < 30; step += 1) {
       await page.keyboard.press('ArrowLeft');
     }
-    await expect(separator).toHaveAttribute('aria-valuenow', '768');
+    await expect(separator).toHaveAttribute('aria-valuenow', '960');
     await expectDrawerFits(drawer);
-
-    // Dark theme check at default width
-    for (let step = 0; step < 8; step += 1) {
+    await page.setViewportSize(VIEWPORT);
+    for (let step = 0; step < 20; step += 1) {
       await page.keyboard.press('ArrowRight');
     }
+
+    // Dark theme check at default width
     await page.evaluate((key) => {
       window.localStorage.setItem(key, 'dark');
     }, THEME_STORAGE_KEY);
@@ -117,7 +122,12 @@ test.describe('Page drawer, AI tab', () => {
     await promptsTable.getByRole('button').first().click();
     await expect(page).toHaveURL(/inspect=prompt:/);
     await expect(page).not.toHaveURL(/itab=/);
-    await expect(page.getByRole('complementary', { name: 'Prompt' }).getByText('1 of 6')).toBeVisible();
+    const promptDrawer = page.getByRole('complementary', { name: 'Prompt' });
+    await expect(promptDrawer.getByText('1 of 6')).toBeVisible();
+    await page.keyboard.press('j');
+    await expect(promptDrawer.getByText('2 of 6')).toBeVisible();
+    await page.keyboard.press('k');
+    await expect(promptDrawer.getByText('1 of 6')).toBeVisible();
     await expectAccessible(page);
     await saveShot(page, 'prompt-inspector-from-ai-tab.png');
 
@@ -153,5 +163,16 @@ test.describe('Page drawer, AI tab', () => {
     await page.goto(`${EVENTUS_PAGES_ALL}?inspect=page:110&itab=ai`);
     await expect(page.getByRole('heading', { name: 'No prompts are tracked yet' })).toBeVisible();
     await expectAccessible(page);
+
+    // Error state on AI_ERROR_PAGE (117) and Retry button refetch
+    await page.goto(`${EVENTUS_PAGES_ALL}?inspect=page:117&itab=ai`);
+    const errorDrawer = inspectorOf(page, '/partners');
+    await expect(errorDrawer.getByText('The AI citations of this page could not be loaded')).toBeVisible();
+    await expectAccessible(page);
+    const retryRequest = page.waitForRequest(
+      (req) => req.method() === 'GET' && req.url().includes('/internal-links/pages/117/ai'),
+    );
+    await errorDrawer.getByRole('button', { name: 'Try again' }).click();
+    await retryRequest;
   });
 });
