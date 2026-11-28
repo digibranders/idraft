@@ -52,6 +52,8 @@ const RUNNING: CrawlRun = {
   links_available: true,
   previous_run_id: null,
   enrich_state: 'done',
+  html_reader_stale: false,
+  pages_links_suspect: null,
 };
 const fixture = overviewOf(
   crawledPages().map((page) => pageRow(page, 'all')),

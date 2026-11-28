@@ -53,6 +53,8 @@ const run = (over: Partial<CrawlRun>): CrawlRun => ({
   links_available: true,
   previous_run_id: null,
   enrich_state: 'done',
+  html_reader_stale: false,
+  pages_links_suspect: null,
   ...over,
 });
 

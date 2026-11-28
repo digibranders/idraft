@@ -318,6 +318,8 @@ function finishedRun(index = 0): CrawlRun {
     links_available: index < LINKS_KEPT,
     previous_run_id: HISTORY_RUN_IDS[index + 1] ?? null,
     enrich_state: 'done',
+    html_reader_stale: false,
+    pages_links_suspect: null,
   };
 }
 
