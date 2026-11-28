@@ -4,6 +4,7 @@ view (editorial by default). `404 no_crawl` before the first finished crawl."""
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -34,6 +35,7 @@ from idraft.api.schemas.internal_links import (
     UrlId,
     WorklistsResponse,
 )
+from idraft.api.schemas.internal_links_ai import PageAiResponse
 from idraft.api.schemas.internal_links_extra import (
     PageOutlineResponse,
     PageSearchDailyResponse,
@@ -244,6 +246,37 @@ async def page_outline(
     project_id: UUID, url_id: UrlIdPath, access: ReadData, reads: Reads
 ) -> PageOutlineResponse:
     return PageOutlineResponse(data=await reads.page_outline(access, project_id, url_id=url_id))
+
+
+@router.get(
+    "/pages/{url_id}/ai",
+    summary="One page: the prompts, the days and the pages of the answers that cite it",
+    description="Counts current, valid, non-superseded answers of the project's tracked prompts "
+    "(including branded, excluding paused and archived) on ChatGPT, Gemini and Google AI Mode, "
+    "leaving out citations flagged as `engine_internal` or `unresolved_redirect`. "
+    "Google AI Overview is keyword-level and is not listed here.",
+)
+async def page_ai(
+    project_id: UUID,
+    url_id: UrlIdPath,
+    access: ReadData,
+    reads: Reads,
+    run: Run = "latest",
+    start: Annotated[date | None, Query(alias="from")] = None,
+    end: Annotated[date | None, Query(alias="to")] = None,
+    compare: Literal["none", "previous_period"] = "none",
+) -> PageAiResponse:
+    return PageAiResponse(
+        data=await reads.page_ai(
+            access,
+            project_id,
+            run=_run(run),
+            url_id=url_id,
+            start=start,
+            end=end,
+            compare=compare,
+        )
+    )
 
 
 @router.get(

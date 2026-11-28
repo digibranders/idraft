@@ -17061,6 +17061,382 @@
         "title": "OwnerCounts",
         "type": "object"
       },
+      "PageAi": {
+        "properties": {
+          "alongside": {
+            "items": {
+              "$ref": "#/components/schemas/PageAiAlongside"
+            },
+            "title": "Alongside",
+            "type": "array"
+          },
+          "alongside_total": {
+            "title": "Alongside Total",
+            "type": "integer"
+          },
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "compare_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageAiCompared"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "platforms": {
+            "items": {
+              "$ref": "#/components/schemas/PageAiPlatform"
+            },
+            "title": "Platforms",
+            "type": "array"
+          },
+          "previous_answers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Answers"
+          },
+          "previous_answers_citing": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Answers Citing"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/PageAiPrompt"
+            },
+            "title": "Prompts",
+            "type": "array"
+          },
+          "prompts_total": {
+            "title": "Prompts Total",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "no_prompts",
+              "no_answers"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/PageAiDay"
+            },
+            "title": "Trend",
+            "type": "array"
+          },
+          "window": {
+            "$ref": "#/components/schemas/PageAiWindow"
+          }
+        },
+        "required": [
+          "state",
+          "window",
+          "days",
+          "compare_window",
+          "answers",
+          "answers_citing",
+          "previous_answers",
+          "previous_answers_citing",
+          "platforms",
+          "prompts",
+          "prompts_total",
+          "trend",
+          "alongside",
+          "alongside_total"
+        ],
+        "title": "PageAi",
+        "type": "object"
+      },
+      "PageAiAlongside": {
+        "properties": {
+          "answers_shared": {
+            "title": "Answers Shared",
+            "type": "integer"
+          },
+          "domain_role": {
+            "enum": [
+              "own",
+              "competitor",
+              "third_party"
+            ],
+            "title": "Domain Role",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "in_crawl": {
+            "title": "In Crawl",
+            "type": "boolean"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "registrable_domain": {
+            "title": "Registrable Domain",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "url_id": {
+            "title": "Url Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url_id",
+          "url",
+          "path",
+          "title",
+          "host",
+          "registrable_domain",
+          "domain_role",
+          "in_crawl",
+          "answers_shared"
+        ],
+        "title": "PageAiAlongside",
+        "type": "object"
+      },
+      "PageAiCompared": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "PageAiCompared",
+        "type": "object"
+      },
+      "PageAiDay": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "answers",
+          "answers_citing"
+        ],
+        "title": "PageAiDay",
+        "type": "object"
+      },
+      "PageAiPlatform": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "engine_code": {
+            "enum": [
+              "chatgpt_web",
+              "gemini_web",
+              "google_ai_mode"
+            ],
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "previous_answers_citing": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Answers Citing"
+          }
+        },
+        "required": [
+          "engine_code",
+          "label",
+          "answers",
+          "answers_citing",
+          "previous_answers_citing"
+        ],
+        "title": "PageAiPlatform",
+        "type": "object"
+      },
+      "PageAiPrompt": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "last_cited_at": {
+            "format": "date-time",
+            "title": "Last Cited At",
+            "type": "string"
+          },
+          "platforms": {
+            "items": {
+              "$ref": "#/components/schemas/PageAiPromptPlatform"
+            },
+            "title": "Platforms",
+            "type": "array"
+          },
+          "prompt_id": {
+            "format": "uuid",
+            "title": "Prompt Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt_id",
+          "text",
+          "answers",
+          "answers_citing",
+          "platforms",
+          "last_cited_at"
+        ],
+        "title": "PageAiPrompt",
+        "type": "object"
+      },
+      "PageAiPromptPlatform": {
+        "properties": {
+          "answers": {
+            "title": "Answers",
+            "type": "integer"
+          },
+          "answers_citing": {
+            "title": "Answers Citing",
+            "type": "integer"
+          },
+          "engine_code": {
+            "enum": [
+              "chatgpt_web",
+              "gemini_web",
+              "google_ai_mode"
+            ],
+            "title": "Engine Code",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine_code",
+          "label",
+          "answers",
+          "answers_citing"
+        ],
+        "title": "PageAiPromptPlatform",
+        "type": "object"
+      },
+      "PageAiResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PageAi"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "PageAiResponse",
+        "type": "object"
+      },
+      "PageAiWindow": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "timezone"
+        ],
+        "title": "PageAiWindow",
+        "type": "object"
+      },
       "PageBreakdownMeta": {
         "properties": {
           "compare_window": {
@@ -47968,6 +48344,138 @@
           }
         },
         "summary": "One page: the inspector",
+        "tags": [
+          "internal-links"
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/ai": {
+      "get": {
+        "description": "Counts current, valid, non-superseded answers of the project's tracked prompts (including branded, excluding paused and archived) on ChatGPT, Gemini and Google AI Mode, leaving out citations flagged as `engine_internal` or `unresolved_redirect`. Google AI Overview is keyword-level and is not listed here.",
+        "operationId": "page_ai_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__ai_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "url_id",
+            "required": true,
+            "schema": {
+              "title": "Url Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`latest` or a crawl id.",
+            "in": "query",
+            "name": "run",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              ],
+              "default": "latest",
+              "description": "`latest` or a crawl id.",
+              "title": "Run"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compare",
+            "required": false,
+            "schema": {
+              "default": "none",
+              "enum": [
+                "none",
+                "previous_period"
+              ],
+              "title": "Compare",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageAiResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Error, as RFC 9457 problem details. `code` is the stable machine value."
+          }
+        },
+        "summary": "One page: the prompts, the days and the pages of the answers that cite it",
         "tags": [
           "internal-links"
         ]

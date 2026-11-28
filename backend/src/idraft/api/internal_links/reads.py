@@ -17,6 +17,7 @@ import math
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Final, Literal
 from uuid import UUID
 
@@ -41,6 +42,7 @@ from sqlalchemy import (
     literal,
     or_,
     select,
+    text,
     tuple_,
 )
 from sqlalchemy.dialects.postgresql import aggregate_order_by
@@ -71,6 +73,7 @@ from idraft.api.internal_links.inventory import (
     section_of,
 )
 from idraft.api.internal_links.outline import OutlineRow, outline_body, row_state, stored_html
+from idraft.api.internal_links.page_ai import load_page_ai
 from idraft.api.internal_links.page_filter import PageScope, page_conditions, page_rows
 from idraft.api.internal_links.page_history import page_history
 from idraft.api.internal_links.page_notes import notes_count
@@ -109,6 +112,7 @@ from idraft.api.schemas.internal_links import (
     TierStat,
     Worklists,
 )
+from idraft.api.schemas.internal_links_ai import PageAi
 from idraft.api.schemas.internal_links_extra import (
     OverviewDepth,
     OverviewSection,
@@ -1504,6 +1508,31 @@ class LinkReadService:
         html, truncated = stored
         parsed = await asyncio.to_thread(parse_outline, html, row.url)
         return answer.model_copy(update={"outline": outline_body(row, parsed, truncated)})
+
+    async def page_ai(
+        self,
+        access: WorkspaceAccess,
+        project_id: UUID,
+        *,
+        run: UUID | None,
+        url_id: int,
+        start: date | None,
+        end: date | None,
+        compare: Literal["none", "previous_period"],
+    ) -> PageAi:
+        async with self._transaction(access) as db:
+            # As `CitationBoardService._transaction`: without statistics on a new partition
+            # the planner can pick a nested loop over answers and citations.
+            await db.execute(text("SET LOCAL enable_nestloop = off"))
+            scope = await read_scope(db, access, project_id, run)
+            return await load_page_ai(
+                db,
+                scope,
+                url_id=url_id,
+                start=start,
+                end=end,
+                compare=compare,
+            )
 
     async def worklists(
         self, access: WorkspaceAccess, project_id: UUID, *, run: UUID | None
