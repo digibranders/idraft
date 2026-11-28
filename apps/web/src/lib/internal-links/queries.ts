@@ -40,6 +40,7 @@ const P = '/api/v1/workspaces/{workspace_id}/projects/{project_id}';
 const PAGES = `${P}/internal-links/pages` as const;
 const PAGE = `${P}/internal-links/pages/{url_id}` as const;
 const PAGE_SEARCH = `${P}/internal-links/pages/{url_id}/search` as const;
+const PAGE_AI = `${P}/internal-links/pages/{url_id}/ai` as const;
 const PAGE_OUTLINE = `${P}/internal-links/pages/{url_id}/outline` as const;
 export const PAGE_NOTES = `${P}/internal-links/pages/{url_id}/notes` as const;
 export const PAGE_NOTE = `${P}/internal-links/pages/{url_id}/notes/{note_id}` as const;
@@ -302,6 +303,15 @@ export const pageSearchQuery = (
 ): ApiQueryOptions<typeof PAGE_SEARCH> =>
   apiQuery(PAGE_SEARCH, {
     params: { path: { ...pathOf(scope), url_id: checkUrlId(urlId) }, query: withRun({}, run) },
+  });
+
+/** One page's AI citations: prompts, daily trend and pages cited alongside. Throws `UrlIdError` for a non-id. */
+export const pageAiQuery = (scope: LinksScope, urlId: string, run: string | null): ApiQueryOptions<typeof PAGE_AI> =>
+  apiQuery(PAGE_AI, {
+    params: {
+      path: { ...pathOf(scope), url_id: checkUrlId(urlId) },
+      query: withRun({ compare: 'previous_period' }, run),
+    },
   });
 
 /** One page's outline, read from its stored HTML (no crawl chosen). Throws `UrlIdError` for a bad id. */

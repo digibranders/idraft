@@ -41,6 +41,7 @@ import { linkGraphFixture } from '../fixtures/link-graph';
 import { overviewOf, PAGE_VIEWS, sectionOfPath, viewMatches } from '../internal-links-inventory';
 import { historyOf } from '../internal-links-history';
 import { outlineOf } from '../internal-links-outline';
+import { AI_ERROR_PAGE, pageAiOf } from '../internal-links-page-ai';
 import {
   add as addNote,
   change as changeNote,
@@ -1225,6 +1226,26 @@ export const internalLinkHandlers: HttpHandler[] = [
     const page = crawledPage(id);
     if (page === undefined) return problem(request, 'not_found');
     return HttpResponse.json({ data: outlineOf(pageRow(page, 'all'), latest.run.run_id) });
+  }),
+
+  mock('get', `${P}/internal-links/pages/{url_id}/ai`, ({ request, cookies, params }) => {
+    const caller = projectCaller(request, cookies, params.workspace_id, params.project_id, {
+      permission: 'data:read',
+      query: ['run', 'from', 'to', 'compare'],
+    });
+    if (caller instanceof Response) return caller;
+    const id = String(params.url_id);
+    if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
+    const url = new URL(request.url);
+    const run = readRun(request, url, caller.project.project_id);
+    if (run instanceof Response) return run;
+    if (crawledPage(id) === undefined) return problem(request, 'not_found');
+    if (id === AI_ERROR_PAGE) return problem(request, 'internal_error');
+    const compare = url.searchParams.get('compare');
+    if (compare !== null && compare !== 'none' && compare !== 'previous_period') {
+      return invalid(request, [queryError('compare', 'enum', 'Allowed: none, previous_period.')]);
+    }
+    return HttpResponse.json({ data: pageAiOf(id, { compare: compare ?? 'none' }) });
   }),
 
   mock('get', `${P}/internal-links/pages/{url_id}/history`, ({ request, cookies, params }) => {

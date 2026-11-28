@@ -27,6 +27,7 @@ export type PageFilter = Schemas['PageFilter'];
 export type PageView = NonNullable<PageFilter['view']>;
 export type PagesOverview = Schemas['PagesOverview'];
 export type PageSearchDaily = Schemas['PageSearchDaily'];
+export type PageAi = Schemas['PageAi'];
 export type PageNote = Schemas['PageNote'];
 export type PageNoteList = Schemas['PageNoteList'];
 export type PageNoteMention = Schemas['PageNoteMention'];
