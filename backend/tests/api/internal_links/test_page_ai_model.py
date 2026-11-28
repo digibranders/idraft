@@ -8,8 +8,11 @@ from itertools import count
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from idraft.api.ai.citation_board_model import Answer, Unit
 from idraft.api.internal_links.page_ai_model import (
+    MissingPromptTextError,
     PageAiInput,
     citing_in_current,
     count_page_ai,
@@ -278,6 +281,65 @@ def test_empty_days_are_zero_points_and_the_period_length_sets_the_points() -> N
     assert len(one.trend) == one.days == 1
     long = body(build([], first=LAST - timedelta(days=91), last=LAST, prompts_in_scope=1))
     assert len(long.trend) == long.days == 92
+
+
+def test_an_answer_on_an_engine_outside_the_list_is_not_counted() -> None:
+    prompt = uuid4()
+    shown = answer(at(FIRST), prompt, "chatgpt_web")
+    hidden = answer(at(FIRST), prompt, "google_ai_overview")
+    units = [unit(a.observation_id, PAGE) for a in (shown, hidden)]
+    units.append(unit(hidden.observation_id, 9))
+    source = build([shown, hidden], units)
+    assert [a.observation_id for a in citing_in_current(source)] == [shown.observation_id]
+    result = body(source)
+    assert (result.answers, result.answers_citing) == (1, 1)
+    assert sum(d.answers for d in result.trend) == 1
+    assert result.prompts[0].answers == 1
+    assert result.alongside == []
+
+
+def test_the_period_edges_are_whole_local_days() -> None:
+    prompt = uuid4()
+    previous = (date(2026, 10, 4), date(2026, 10, 31))
+    inside = [
+        answer(at(FIRST, 0, 0), prompt),
+        answer(at(LAST, 23, 59), prompt),
+        answer(at(previous[0], 0, 0), prompt),
+        answer(at(previous[1], 23, 59), prompt),
+    ]
+    outside = [
+        answer(at(LAST + timedelta(days=1), 0, 0), prompt),
+        answer(at(previous[0] - timedelta(days=1), 23, 59), prompt),
+    ]
+    result = body(build(inside + outside, previous=previous))
+    assert (result.answers, result.previous_answers) == (2, 2)
+    by_day = {d.date: d.answers for d in result.trend}
+    assert (by_day["2026-11-01"], by_day["2026-11-28"]) == (1, 1)
+    assert sum(by_day.values()) == 2
+
+
+def test_alongside_ignores_units_of_a_compared_period_answer() -> None:
+    prompt = uuid4()
+    previous = (date(2026, 10, 4), date(2026, 10, 31))
+    now = answer(at(FIRST), prompt)
+    before = answer(at(date(2026, 10, 10)), prompt)
+    units = [
+        unit(now.observation_id, PAGE),
+        unit(now.observation_id, 51),
+        unit(before.observation_id, PAGE),
+        unit(before.observation_id, 50),
+    ]
+    result = body(build([now, before], units, previous=previous))
+    assert [(r.url_id, r.answers_shared) for r in result.alongside] == [(51, 1)]
+    assert result.alongside_total == 1
+
+
+def test_a_missing_prompt_text_is_an_error_not_a_blank() -> None:
+    prompt = uuid4()
+    a = answer(at(FIRST), prompt)
+    counted = count_page_ai(build([a], [unit(a.observation_id, PAGE)]))
+    with pytest.raises(MissingPromptTextError, match=str(prompt)):
+        counted.build({}, frozenset())
 
 
 def test_citing_in_current_keeps_only_the_current_period() -> None:

@@ -91,7 +91,7 @@ class Counted:
             prompts=[
                 PageAiPrompt(
                     prompt_id=row.prompt_id,
-                    text=texts.get(row.prompt_id, ""),
+                    text=_text_of(texts, row.prompt_id),
                     answers=row.answers,
                     answers_citing=row.answers_citing,
                     platforms=[
@@ -125,6 +125,17 @@ class Counted:
             ],
             alongside_total=self.alongside_total,
         )
+
+
+class MissingPromptTextError(ValueError):
+    """A prompt shown in the tab has no text: the read that fed `build` lost it."""
+
+
+def _text_of(texts: Mapping[UUID, str], prompt_id: UUID) -> str:
+    try:
+        return texts[prompt_id]
+    except KeyError:
+        raise MissingPromptTextError(f"no text for prompt {prompt_id}") from None
 
 
 def _code(value: str) -> PageAiPlatformCode:
