@@ -164,6 +164,17 @@ async def units_of(
     return dict(found)
 
 
+async def citing_observations(db: AsyncSession, scope: SourceScope, url_id: int) -> frozenset[int]:
+    """The ids of the answers in `scope` that cite this address, flagged citations left out.
+
+    The ids alone are enough, as for `units_of`: one sequence, and `citation_bounds` already
+    bounds `observed_at`. The caller keeps the counted answers (`lookback_answers`) that match."""
+    rows = await db.execute(
+        select(_C.observation_id).where(*citation_bounds(scope), _C.url_id == url_id).distinct()
+    )
+    return frozenset(rows.scalars())
+
+
 async def prompt_texts(
     db: AsyncSession, workspace_id: UUID, prompt_ids: Collection[UUID]
 ) -> dict[UUID, str]:
