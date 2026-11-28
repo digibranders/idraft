@@ -52,6 +52,7 @@ function contextOf(
     canWrite: false,
     canNote: false,
     openPage: () => undefined,
+    openPrompt: () => undefined,
     hrefs: {
       journey: () => route('/journey'),
       linksFrom: () => route('/from'),

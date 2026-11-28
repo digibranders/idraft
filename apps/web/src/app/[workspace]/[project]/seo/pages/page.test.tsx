@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PagesPage, { generateMetadata } from './page';
 import { PagesScreen } from '@/features/internal-links';
+import { PromptDrawerHost } from '@/features/prompts';
 import type { components } from '@/lib/api/schema';
 import { projectFactory } from '@/mocks/factories/project';
 import { MOCK_PROJECTS } from '@/mocks/fixtures';
@@ -57,6 +58,16 @@ describe('Pages of a project, Overview', () => {
           name: 'Cleanstart',
           timeZone: cleanstart.timezone,
           host: cleanstart.primary_domain?.host ?? null,
+        },
+        promptDrawer: {
+          type: PromptDrawerHost,
+          props: {
+            workspaceId: 'w1',
+            workspaceSlug: 'digibranders',
+            projectId: cleanstart.project_id,
+            projectSlug: 'cleanstart',
+            timeZone: cleanstart.timezone,
+          },
         },
       },
     });

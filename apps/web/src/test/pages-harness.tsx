@@ -1,4 +1,4 @@
-import { Suspense, type ReactElement } from 'react';
+import { Suspense, type ReactElement, type ReactNode } from 'react';
 
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { PagesScreen, type InternalLinksProject } from '@/features/internal-links';
@@ -14,6 +14,7 @@ export function pagesAs(
   role: Role,
   tab: 'overview' | 'all',
   current: InternalLinksProject = EVENTUS_LINKS,
+  promptDrawer: ReactNode = <aside aria-label="Prompt drawer stub" />,
 ): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
@@ -26,6 +27,7 @@ export function pagesAs(
             workspaceSlug={MOCK_WORKSPACE.slug}
             project={current}
             tab={tab}
+            promptDrawer={promptDrawer}
           />
         </Suspense>
       </PermissionProvider>

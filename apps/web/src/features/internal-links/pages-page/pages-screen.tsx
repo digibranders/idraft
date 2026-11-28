@@ -17,6 +17,7 @@ import { useCrawlShell, usePageExport } from '../crawl-shell';
 import { useClientSummary } from '../export/use-client-summary';
 import { issueCheckHref, type PageDrawerContext } from '../inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from '../inspector/page-inspector';
+import { usePromptOpener } from '../inspector/use-prompt-opener';
 import type { InternalLinksProject } from '../internal-links-screen';
 import { UNTIERED_QUERY } from '../pages/page-filters';
 import type { PagesContext } from '../pages/pages-context';
@@ -29,6 +30,7 @@ import { useInspector } from '@/components/app/inspector/use-inspector';
 import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
+import { PromptOrderContext } from '@/lib/inspector/prompt-order';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import type { PagesTabId } from '@/lib/pages/tabs';
 import { PAGES_DEFAULT_SORT } from '@/lib/pages/url-state';
@@ -46,6 +48,7 @@ export interface PagesScreenProps {
   workspaceSlug: string;
   project: InternalLinksProject;
   tab: Extract<PagesTabId, 'overview' | 'all'>;
+  promptDrawer: ReactNode;
 }
 
 /**
@@ -67,7 +70,7 @@ export function PagesScreen(props: PagesScreenProps): ReactNode {
   return <PagesContent {...props} />;
 }
 
-function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenProps): ReactElement {
+function PagesContent({ workspaceId, workspaceSlug, project, tab, promptDrawer }: PagesScreenProps): ReactElement {
   const t = useTranslations('pages');
   const { state, setSearch } = usePagesState();
   const router = useRouter();
@@ -91,6 +94,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
   };
 
   const inspector = useInspector();
+  const promptOpener = usePromptOpener(inspector);
   const inspected = inspectedPage(inspector.target);
   const [order, setOrder] = useState<readonly string[]>([]);
   const inspectorWords = useTranslations('internalLinks.inspector');
@@ -148,6 +152,7 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
     canWrite,
     canNote,
     openPage: pagesContext.inspect.open,
+    openPrompt: promptOpener.openPrompt,
     hrefs: {
       journey: (urlId) => withRun(linksBase, { tab: 'journey', focus: urlId }),
       // The scope travels only when it is not the default, as the address of Internal links reads it
@@ -250,9 +255,11 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
       </>
     ));
 
-  let inspectorHost: ReactElement | null = null;
-  // No drawer for a crawl that is not shown: its page belongs to no crawl on screen
-  if (inspector.target?.type === 'page' && ready && !crawlNotFound) {
+  let inspectorHost: ReactNode = null;
+  if (inspector.target?.type === 'prompt') {
+    inspectorHost = promptDrawer;
+  } else if (inspector.target?.type === 'page' && ready && !crawlNotFound) {
+    // No drawer for a crawl that is not shown: its page belongs to no crawl on screen
     inspectorHost =
       inspected.urlId === null ? (
         <PageNotFoundInspector key={inspector.target.id} onClose={inspector.close} />
@@ -269,12 +276,14 @@ function PagesContent({ workspaceId, workspaceSlug, project, tab }: PagesScreenP
       );
   }
   return (
-    <InspectorLayout inspector={inspectorHost}>
-      <div className={PAGE_BODY_CLASS}>
-        {toolbar}
-        {body}
-      </div>
-      <CrawlDialogs actions={actions} scope={scope} host={host} tiers={shell.tiers} timeZone={project.timeZone} />
-    </InspectorLayout>
+    <PromptOrderContext.Provider value={promptOpener.order}>
+      <InspectorLayout inspector={inspectorHost}>
+        <div className={PAGE_BODY_CLASS}>
+          {toolbar}
+          {body}
+        </div>
+        <CrawlDialogs actions={actions} scope={scope} host={host} tiers={shell.tiers} timeZone={project.timeZone} />
+      </InspectorLayout>
+    </PromptOrderContext.Provider>
   );
 }

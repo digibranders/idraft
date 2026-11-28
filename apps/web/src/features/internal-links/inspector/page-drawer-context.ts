@@ -28,6 +28,8 @@ export interface PageDrawerContext {
   canNote: boolean;
   /** Opens another page in the drawer, keeping the tab. */
   openPage: (urlId: string) => void;
+  /** Opens a prompt in the shared prompt inspector (`?inspect=prompt:<id>`), passing the card's order for J/K. */
+  openPrompt: (promptId: string, order?: readonly string[]) => void;
   hrefs: {
     journey: (urlId: string) => Route;
     linksFrom: (urlId: string) => Route;
@@ -47,7 +49,11 @@ export const issueCheckHref =
     isCheckId(checkId) ? withQuery(issuesPage, new URLSearchParams({ check: checkId }).toString()) : null;
 
 /** The drawer's context for a tab of Internal links. */
-export function drawerContextOf(context: LinksTabContext, can: { write: boolean; note: boolean }): PageDrawerContext {
+export function drawerContextOf(
+  context: LinksTabContext,
+  can: { write: boolean; note: boolean },
+  openPrompt: (promptId: string, order?: readonly string[]) => void = () => undefined,
+): PageDrawerContext {
   const base = context.hrefOf(INTERNAL_LINKS_PATH);
   // A link keeps the crawl in view and the link scope, as the tabs' own `setSearch` does
   const exit = (values: Record<string, string>): Route => {
@@ -68,6 +74,7 @@ export function drawerContextOf(context: LinksTabContext, can: { write: boolean;
     canWrite: can.write,
     canNote: can.note,
     openPage: context.inspect.open,
+    openPrompt,
     hrefs: {
       journey: (urlId) => exit({ tab: 'journey', focus: urlId }),
       linksFrom: (urlId) => exit({ tab: 'links', src: urlId }),

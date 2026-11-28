@@ -231,4 +231,11 @@ describe('the page drawer of the Pages screen', () => {
     expect(await hrefOf(/^Linking pages \(\d+\)$/)).toBe(`${links}?tab=links&tgt=108&scope=all`);
     expect(await hrefOf(/^Outlinks \(\d+\)$/)).toBe(`${links}?tab=links&src=108&scope=all`);
   });
+
+  it('renders the prompt drawer for ?inspect=prompt:<id> instead of the page drawer', async () => {
+    const stub = <aside aria-label="Prompt drawer stub">Prompt</aside>;
+    renderWithProviders(pagesAs('editor', 'all', EVENTUS_LINKS, stub), { searchParams: '?inspect=prompt:p1' });
+    expect(await screen.findByRole('complementary', { name: 'Prompt drawer stub' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: '/pricing' })).toBeNull();
+  });
 });

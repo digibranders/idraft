@@ -77,6 +77,7 @@ const context: PageDrawerContext = {
   canWrite: false,
   canNote: true,
   openPage: () => undefined,
+  openPrompt: () => undefined,
   hrefs: {
     journey: () => '/journey' as Route,
     linksFrom: () => '/from' as Route,

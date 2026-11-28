@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
 import { InternalLinksScreen } from '@/features/internal-links';
+import { PromptDrawerHost } from '@/features/prompts';
 import { PAGES_REDIRECT_KEYS } from '@/lib/pages/url-state';
 import { projectsOfMembership } from '@/lib/projects/server';
 import { pagesTabPath, queryOf, withQuery } from '@/lib/routes/paths';
@@ -43,6 +44,15 @@ export default async function InternalLinksPage({
         timeZone: current.timezone,
         host: current.primary_domain?.host ?? null,
       }}
+      promptDrawer={
+        <PromptDrawerHost
+          workspaceId={membership.workspace.workspace_id}
+          workspaceSlug={membership.workspace.slug}
+          projectId={current.project_id}
+          projectSlug={current.slug}
+          timeZone={current.timezone}
+        />
+      }
     />
   );
 }

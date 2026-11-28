@@ -854,4 +854,12 @@ describe('the page drawer opened from the Pages table', () => {
     const pricing = within(screen.getByRole('grid', { name: 'Pages' })).getByRole('row', { name: /\/pricing/ });
     await waitFor(() => expect(pricing.contains(document.activeElement)).toBe(true));
   });
+
+  it('renders the prompt drawer for ?inspect=prompt:<id>', async () => {
+    renderWithProviders(
+      internalLinksAs('editor', EVENTUS_LINKS, <aside aria-label="Prompt drawer stub">Prompt</aside>),
+      { searchParams: '?inspect=prompt:p1' },
+    );
+    expect(await screen.findByRole('complementary', { name: 'Prompt drawer stub' })).toBeInTheDocument();
+  });
 });

@@ -13,6 +13,7 @@ import { useCrawlShell, usePageExport } from './crawl-shell';
 import { useClientSummary } from './export/use-client-summary';
 import { drawerContextOf } from './inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from './inspector/page-inspector';
+import { usePromptOpener } from './inspector/use-prompt-opener';
 import { UNTIERED_QUERY } from './pages/page-filters';
 import { AlertRulesDialog } from './settings/alert-rules-dialog';
 import { TabBadge } from './tab-badge';
@@ -26,6 +27,7 @@ import { PageToolbar } from '@/components/app/page-toolbar';
 import { PAGE_CLASS } from '@/components/app/shell/page-header';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Tabs, TabsPanel } from '@/components/ui/tabs';
+import { PromptOrderContext } from '@/lib/inspector/prompt-order';
 import { useFocusReturn } from '@/lib/inspector/use-focus-return';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { useCan } from '@/lib/permissions';
@@ -48,6 +50,7 @@ export interface InternalLinksScreenProps {
   workspaceId: string;
   workspaceSlug: string;
   project: InternalLinksProject;
+  promptDrawer: ReactNode;
 }
 
 /**
@@ -69,7 +72,12 @@ export function InternalLinksScreen(props: InternalLinksScreenProps): ReactNode 
   return <InternalLinksContent {...props} />;
 }
 
-function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalLinksScreenProps): ReactElement {
+function InternalLinksContent({
+  workspaceId,
+  workspaceSlug,
+  project,
+  promptDrawer,
+}: InternalLinksScreenProps): ReactElement {
   const t = useTranslations('internalLinks');
   const { state, setSearch } = useLinksState();
   const actions = useCrawlDialogs();
@@ -105,6 +113,7 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
   const base = projectPath(workspaceSlug, project.slug, '/seo/internal-links');
   const { settings: settingsHref, tiers: tiersHref } = shell.hrefs;
   const inspector = useInspector();
+  const promptOpener = usePromptOpener(inspector);
   const inspected = inspectedPage(inspector.target);
   // Closing the drawer returns focus to what opened it: a row, a canvas card's Details button or the map card's.
   // A page opened from inside the drawer (a neighbour) is not an opener: the drawer remounts and that button is gone
@@ -213,16 +222,18 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       ) : null}
     </PageToolbar>
   );
-  let inspectorHost: ReactElement | null = null;
-  // No inspector for a crawl that is not shown: its page belongs to no crawl on screen
-  if (inspector.target?.type === 'page' && ready && !crawlNotFound) {
+  let inspectorHost: ReactNode = null;
+  if (inspector.target?.type === 'prompt') {
+    inspectorHost = promptDrawer;
+  } else if (inspector.target?.type === 'page' && ready && !crawlNotFound) {
+    // No inspector for a crawl that is not shown: its page belongs to no crawl on screen
     inspectorHost =
       inspected.urlId === null ? (
         <PageNotFoundInspector key={inspector.target.id} onClose={inspector.close} />
       ) : (
         <PageInspector
           key={inspected.urlId}
-          context={drawerContextOf(context, { write: canWrite, note: canNote })}
+          context={drawerContextOf(context, { write: canWrite, note: canNote }, promptOpener.openPrompt)}
           urlId={inspected.urlId}
           positionText={stepping.positionText}
           navigation={stepping.navigation}
@@ -232,75 +243,77 @@ function InternalLinksContent({ workspaceId, workspaceSlug, project }: InternalL
       );
   }
   return (
-    <InspectorLayout inspector={inspectorHost}>
-      <div className={PAGE_CLASS}>
-        {ready ? (
-          <Tabs
-            variant="segmented"
-            label={t('tabs.label')}
-            value={tab?.id ?? 'journey'}
-            // The tab is the one change of the page that makes a history entry
-            onValueChange={(next) =>
-              // The inspector opened from the journey belongs to it: it closes with the tab
-              setSearch(
-                {
-                  tab: next === 'journey' ? null : next,
-                  ...(state.tab === 'journey' ? { inspect: null, itab: null } : {}),
-                },
-                { history: 'push' },
-              )
-            }
-            items={LINKS_TABS.map((entry) => ({
-              value: entry.id,
-              label: entry.label(t),
-              icon: entry.icon,
-              ...(entry.id === 'changes' && badges.changes !== null
-                ? {
-                    badge: (
-                      <TabBadge
-                        count={badges.changes}
-                        text={badgeWords('badgeAlerts', { count: badges.changes })}
-                        tone="negative"
-                      />
-                    ),
-                  }
-                : {}),
-              ...(entry.id === 'opportunities' && badges.opportunities !== null
-                ? {
-                    badge: (
-                      <TabBadge
-                        count={badges.opportunities}
-                        text={badgeWords('badgeOpen', { count: badges.opportunities })}
-                        tone="neutral"
-                      />
-                    ),
-                  }
-                : {}),
-            }))}
-            // Six tabs with badges are wider than a phone: the list scrolls inside itself (spec 7.1)
-            listClassName={TAB_LIST_CLASS}
-            renderList={toolbar}
-            className="gap-3"
-          >
-            {body}
-          </Tabs>
-        ) : (
-          <>
-            {toolbar(undefined)}
-            {body}
-          </>
-        )}
-      </div>
-      <CrawlDialogs actions={actions} scope={scope} host={host} tiers={context.tiers} timeZone={project.timeZone} />
-      {canWrite ? (
-        <AlertRulesDialog
-          open={dialog === 'alerts'}
-          onOpenChange={(next) => setDialog(next ? 'alerts' : null)}
-          scope={scope}
-          tierCount={shell.tierCount}
-          fallbackFocus={() => document.getElementById(HEADING_ID)}
-        />
-      ) : null}
-    </InspectorLayout>
+    <PromptOrderContext.Provider value={promptOpener.order}>
+      <InspectorLayout inspector={inspectorHost}>
+        <div className={PAGE_CLASS}>
+          {ready ? (
+            <Tabs
+              variant="segmented"
+              label={t('tabs.label')}
+              value={tab?.id ?? 'journey'}
+              // The tab is the one change of the page that makes a history entry
+              onValueChange={(next) =>
+                // The inspector opened from the journey belongs to it: it closes with the tab
+                setSearch(
+                  {
+                    tab: next === 'journey' ? null : next,
+                    ...(state.tab === 'journey' ? { inspect: null, itab: null } : {}),
+                  },
+                  { history: 'push' },
+                )
+              }
+              items={LINKS_TABS.map((entry) => ({
+                value: entry.id,
+                label: entry.label(t),
+                icon: entry.icon,
+                ...(entry.id === 'changes' && badges.changes !== null
+                  ? {
+                      badge: (
+                        <TabBadge
+                          count={badges.changes}
+                          text={badgeWords('badgeAlerts', { count: badges.changes })}
+                          tone="negative"
+                        />
+                      ),
+                    }
+                  : {}),
+                ...(entry.id === 'opportunities' && badges.opportunities !== null
+                  ? {
+                      badge: (
+                        <TabBadge
+                          count={badges.opportunities}
+                          text={badgeWords('badgeOpen', { count: badges.opportunities })}
+                          tone="neutral"
+                        />
+                      ),
+                    }
+                  : {}),
+              }))}
+              // Six tabs with badges are wider than a phone: the list scrolls inside itself (spec 7.1)
+              listClassName={TAB_LIST_CLASS}
+              renderList={toolbar}
+              className="gap-3"
+            >
+              {body}
+            </Tabs>
+          ) : (
+            <>
+              {toolbar(undefined)}
+              {body}
+            </>
+          )}
+        </div>
+        <CrawlDialogs actions={actions} scope={scope} host={host} tiers={context.tiers} timeZone={project.timeZone} />
+        {canWrite ? (
+          <AlertRulesDialog
+            open={dialog === 'alerts'}
+            onOpenChange={(next) => setDialog(next ? 'alerts' : null)}
+            scope={scope}
+            tierCount={shell.tierCount}
+            fallbackFocus={() => document.getElementById(HEADING_ID)}
+          />
+        ) : null}
+      </InspectorLayout>
+    </PromptOrderContext.Provider>
   );
 }

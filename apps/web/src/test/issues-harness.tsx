@@ -1,5 +1,5 @@
 import { HttpResponse, http } from 'msw';
-import { Suspense, type ReactElement } from 'react';
+import { Suspense, type ReactElement, type ReactNode } from 'react';
 
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { IssuesScreen, type InternalLinksProject } from '@/features/internal-links';
@@ -15,7 +15,11 @@ import { SESSION_COOKIE } from '@/mocks/session';
 import { EVENTUS_LINKS } from '@/test/internal-links-harness';
 
 /** The Issues page as a member of the fixture workspace with `role`, inside the shell's slots. */
-export function issuesAs(role: Role, current: InternalLinksProject = EVENTUS_LINKS): ReactElement {
+export function issuesAs(
+  role: Role,
+  current: InternalLinksProject = EVENTUS_LINKS,
+  promptDrawer: ReactNode = <aside aria-label="Prompt drawer stub" />,
+): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <TopBarSlotProvider>
@@ -26,6 +30,7 @@ export function issuesAs(role: Role, current: InternalLinksProject = EVENTUS_LIN
             workspaceId={MOCK_WORKSPACE.workspace_id}
             workspaceSlug={MOCK_WORKSPACE.slug}
             project={current}
+            promptDrawer={promptDrawer}
           />
         </Suspense>
       </PermissionProvider>

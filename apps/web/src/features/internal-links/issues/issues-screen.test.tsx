@@ -516,3 +516,11 @@ describe('the count of results is said after a filter changes (20-accessibility.
     expect(announce).not.toHaveBeenCalled();
   });
 });
+
+describe('the prompt drawer on the Issues screen', () => {
+  it('renders the prompt drawer for ?inspect=prompt:<id>', async () => {
+    const stub = <aside aria-label="Prompt drawer stub">Prompt</aside>;
+    renderWithProviders(issuesAs('editor', undefined, stub), { searchParams: '?inspect=prompt:p1' });
+    expect(await screen.findByRole('complementary', { name: 'Prompt drawer stub' })).toBeInTheDocument();
+  });
+});

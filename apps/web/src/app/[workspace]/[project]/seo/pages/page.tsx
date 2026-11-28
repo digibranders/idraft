@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
 import { PagesScreen } from '@/features/internal-links';
+import { PromptDrawerHost } from '@/features/prompts';
 import { projectsOfMembership } from '@/lib/projects/server';
 import { requireMembership } from '@/lib/session/server';
 
@@ -35,6 +36,15 @@ export default async function PagesOverviewPage({
         timeZone: current.timezone,
         host: current.primary_domain?.host ?? null,
       }}
+      promptDrawer={
+        <PromptDrawerHost
+          workspaceId={membership.workspace.workspace_id}
+          workspaceSlug={membership.workspace.slug}
+          projectId={current.project_id}
+          projectSlug={current.slug}
+          timeZone={current.timezone}
+        />
+      }
     />
   );
 }

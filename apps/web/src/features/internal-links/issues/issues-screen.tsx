@@ -18,6 +18,7 @@ import { crawlView, useCrawlNow, useCrawls, useWorkspaceTiers } from '../crawl-r
 import { CrawlBanners, CrawlsOffNotice, FirstCrawl, NeverCrawled, NoWebsite, SkeletonRows } from '../crawl-states';
 import { drawerContextOf } from '../inspector/page-drawer-context';
 import { PageInspector, PageNotFoundInspector } from '../inspector/page-inspector';
+import { usePromptOpener } from '../inspector/use-prompt-opener';
 import type { InternalLinksScreenProps } from '../internal-links-screen';
 import { TabBadge } from '../tab-badge';
 import type { LinksTabContext } from '../tabs';
@@ -38,6 +39,7 @@ import { Tabs, TabsPanel, type TabItem } from '@/components/ui/tabs';
 import { announce } from '@/lib/a11y/announcer';
 import { downloadApiFile } from '@/lib/api/download';
 import { formatInteger, formatRelative, formatTableDate } from '@/lib/format';
+import { PromptOrderContext } from '@/lib/inspector/prompt-order';
 import { useInspectorStepping } from '@/lib/inspector/use-inspector-stepping';
 import { crawlInView } from '@/lib/internal-links/crawl-choice';
 import { failedText } from '@/lib/internal-links/crawl-failure';
@@ -93,7 +95,7 @@ export function IssuesScreen(props: InternalLinksScreenProps): ReactNode {
   return <IssuesContent {...props} />;
 }
 
-function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScreenProps): ReactElement {
+function IssuesContent({ workspaceId, workspaceSlug, project, promptDrawer }: InternalLinksScreenProps): ReactElement {
   const t = useTranslations('issues');
   const states = useTranslations('internalLinks.states');
   const common = useTranslations('common');
@@ -133,6 +135,7 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   const inView = useMemo(() => crawlInView(crawls.data?.data ?? [], null), [crawls.data]);
   // The page inspector is the one of Internal links: `?inspect=page:<id>`, stepping through the rows of the open check
   const inspector = useInspector();
+  const promptOpener = usePromptOpener(inspector);
   const inspected = inspectedPage(inspector.target);
   const [order, setOrder] = useState<readonly string[]>([]);
   const inspectorWords = useTranslations('internalLinks.inspector');
@@ -242,15 +245,17 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
     openAlertSettings: null,
     hrefOf: (path) => projectPath(workspaceSlug, project.slug, path),
   };
-  let inspectorHost: ReactElement | null = null;
-  if (inspector.target?.type === 'page' && ready) {
+  let inspectorHost: ReactNode = null;
+  if (inspector.target?.type === 'prompt') {
+    inspectorHost = promptDrawer;
+  } else if (inspector.target?.type === 'page' && ready) {
     inspectorHost =
       inspected.urlId === null ? (
         <PageNotFoundInspector key={inspector.target.id} onClose={inspector.close} />
       ) : (
         <PageInspector
           key={inspected.urlId}
-          context={drawerContextOf(inspectorContext, { write: canWrite, note: canNote })}
+          context={drawerContextOf(inspectorContext, { write: canWrite, note: canNote }, promptOpener.openPrompt)}
           urlId={inspected.urlId}
           positionText={stepping.positionText}
           navigation={stepping.navigation}
@@ -492,15 +497,17 @@ function IssuesContent({ workspaceId, workspaceSlug, project }: InternalLinksScr
   }
 
   return (
-    <InspectorLayout inspector={inspectorHost}>
-      <div className={PAGE_CLASS}>
-        <PageToolbar
-          title={t('title')}
-          headingId={HEADING_ID}
-          {...(chrome ? { ...(listFailed ? {} : { filters: foundBy }), status: crawlLine, actions } : {})}
-        />
-        {body}
-      </div>
-    </InspectorLayout>
+    <PromptOrderContext.Provider value={promptOpener.order}>
+      <InspectorLayout inspector={inspectorHost}>
+        <div className={PAGE_CLASS}>
+          <PageToolbar
+            title={t('title')}
+            headingId={HEADING_ID}
+            {...(chrome ? { ...(listFailed ? {} : { filters: foundBy }), status: crawlLine, actions } : {})}
+          />
+          {body}
+        </div>
+      </InspectorLayout>
+    </PromptOrderContext.Provider>
   );
 }

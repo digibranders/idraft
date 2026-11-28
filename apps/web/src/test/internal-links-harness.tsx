@@ -1,4 +1,4 @@
-import { Suspense, type ReactElement } from 'react';
+import { Suspense, type ReactElement, type ReactNode } from 'react';
 
 import { TopBarSlotProvider, TopBarSlotTarget } from '@/components/app/shell/top-bar-slot';
 import { InternalLinksScreen, type InternalLinksProject } from '@/features/internal-links';
@@ -22,7 +22,11 @@ export const FYNIX_LINKS = project('fynix', 'fynix.digital');
 export const NO_WEBSITE = project('fynix', null);
 
 /** The Internal links page as a member of the fixture workspace with `role`, inside the shell's slots. */
-export function internalLinksAs(role: Role, current: InternalLinksProject = EVENTUS_LINKS): ReactElement {
+export function internalLinksAs(
+  role: Role,
+  current: InternalLinksProject = EVENTUS_LINKS,
+  promptDrawer: ReactNode = <aside aria-label="Prompt drawer stub" />,
+): ReactElement {
   document.cookie = `${SESSION_COOKIE}=mock.active.${mockUser(role).user_id}.${String(Date.now() + 600_000)}; Path=/; Secure`;
   return (
     <TopBarSlotProvider>
@@ -33,6 +37,7 @@ export function internalLinksAs(role: Role, current: InternalLinksProject = EVEN
             workspaceId={MOCK_WORKSPACE.workspace_id}
             workspaceSlug={MOCK_WORKSPACE.slug}
             project={current}
+            promptDrawer={promptDrawer}
           />
         </Suspense>
       </PermissionProvider>
