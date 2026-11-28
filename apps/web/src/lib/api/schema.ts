@@ -2449,6 +2449,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One page: the prompts, the days and the pages of the answers that cite it
+         * @description Counts current, valid, non-superseded answers of the project's tracked prompts (including branded, excluding paused and archived) on ChatGPT, Gemini and Google AI Mode, leaving out citations flagged as `engine_internal` or `unresolved_redirect`. Google AI Overview is keyword-level and is not listed here.
+         */
+        get: operations["page_ai_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__ai_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/history": {
         parameters: {
             query?: never;
@@ -7302,6 +7322,11 @@ export interface components {
             /** Hints */
             hints: "render_javascript"[];
             /**
+             * Html Reader Stale
+             * @description The crawl's HTML was read by an older reader than the current one, so its links, counts and flags may be wrong until it is read again (`relink_crawl`). False for a crawl read only from the provider's links.
+             */
+            html_reader_stale: boolean;
+            /**
              * Is Latest
              * @description The crawl `run=latest` reads.
              */
@@ -7328,6 +7353,11 @@ export interface components {
              * @description Crawled and still queued, while it runs.
              */
             pages_found: number;
+            /**
+             * Pages Links Suspect
+             * @description Pages whose HTML holds many more links than were read from it. null when no page was checked (a crawl read before the check existed).
+             */
+            pages_links_suspect: number | null;
             /**
              * Pages Variant
              * @description Parameter variants: crawled pages whose canonical is another crawled page (`/blogs?page=2` names `/blogs`). They are not pages of the site and are left out of every count. null for a crawl that was not counted.
@@ -10950,6 +10980,142 @@ export interface components {
             own: number;
             /** Third Party */
             third_party: number;
+        };
+        /** PageAi */
+        PageAi: {
+            /** Alongside */
+            alongside: components["schemas"]["PageAiAlongside"][];
+            /** Alongside Total */
+            alongside_total: number;
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            compare_window: components["schemas"]["PageAiCompared"] | null;
+            /** Days */
+            days: number;
+            /** Platforms */
+            platforms: components["schemas"]["PageAiPlatform"][];
+            /** Previous Answers */
+            previous_answers: number | null;
+            /** Previous Answers Citing */
+            previous_answers_citing: number | null;
+            /** Prompts */
+            prompts: components["schemas"]["PageAiPrompt"][];
+            /** Prompts Total */
+            prompts_total: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "no_prompts" | "no_answers";
+            /** Trend */
+            trend: components["schemas"]["PageAiDay"][];
+            window: components["schemas"]["PageAiWindow"];
+        };
+        /** PageAiAlongside */
+        PageAiAlongside: {
+            /** Answers Shared */
+            answers_shared: number;
+            /**
+             * Domain Role
+             * @enum {string}
+             */
+            domain_role: "own" | "competitor" | "third_party";
+            /** Host */
+            host: string;
+            /** In Crawl */
+            in_crawl: boolean;
+            /** Path */
+            path: string;
+            /** Registrable Domain */
+            registrable_domain: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
+            /** Url Id */
+            url_id: number;
+        };
+        /** PageAiCompared */
+        PageAiCompared: {
+            /** From */
+            from: string;
+            /** To */
+            to: string;
+        };
+        /** PageAiDay */
+        PageAiDay: {
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            /** Date */
+            date: string;
+        };
+        /** PageAiPlatform */
+        PageAiPlatform: {
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            /**
+             * Engine Code
+             * @enum {string}
+             */
+            engine_code: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+            /** Label */
+            label: string;
+            /** Previous Answers Citing */
+            previous_answers_citing: number | null;
+        };
+        /** PageAiPrompt */
+        PageAiPrompt: {
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            /**
+             * Last Cited At
+             * Format: date-time
+             */
+            last_cited_at: string;
+            /** Platforms */
+            platforms: components["schemas"]["PageAiPromptPlatform"][];
+            /**
+             * Prompt Id
+             * Format: uuid
+             */
+            prompt_id: string;
+            /** Text */
+            text: string;
+        };
+        /** PageAiPromptPlatform */
+        PageAiPromptPlatform: {
+            /** Answers */
+            answers: number;
+            /** Answers Citing */
+            answers_citing: number;
+            /**
+             * Engine Code
+             * @enum {string}
+             */
+            engine_code: "chatgpt_web" | "gemini_web" | "google_ai_mode";
+            /** Label */
+            label: string;
+        };
+        /** PageAiResponse */
+        PageAiResponse: {
+            data: components["schemas"]["PageAi"];
+        };
+        /** PageAiWindow */
+        PageAiWindow: {
+            /** From */
+            from: string;
+            /** Timezone */
+            timezone: string;
+            /** To */
+            to: string;
         };
         /** PageBreakdownMeta */
         PageBreakdownMeta: {
@@ -22632,6 +22798,45 @@ export interface operations {
             };
         };
     };
+    page_ai_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__ai_get: {
+        parameters: {
+            query?: {
+                /** @description `latest` or a crawl id. */
+                run?: "latest" | string;
+                from?: string | null;
+                to?: string | null;
+                compare?: "none" | "previous_period";
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                url_id: string;
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageAiResponse"];
+                };
+            };
+            /** @description Error, as RFC 9457 problem details. `code` is the stable machine value. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_page_history_api_v1_workspaces__workspace_id__projects__project_id__internal_links_pages__url_id__history_get: {
         parameters: {
             query?: never;
@@ -26975,6 +27180,7 @@ export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPage
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryIncludeAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["include"]> = ["changes", "keywords", "citations", "anchors", "gsc", "issue"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
+export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksPagesUrl_idAiGetParametersQueryCompareValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/pages/{url_id}/ai"]["get"]["parameters"]["query"]["compare"]> = ["none", "previous_period"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idInternalLinksTierFlowGetParametersQueryScopeValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/internal-links/tier-flow"]["get"]["parameters"]["query"]["scope"]> = ["editorial", "auto_generated", "template", "all"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idIssuesGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/issues"]["get"]["parameters"]["query"]["format"]> = ["json", "csv"];
 export const pathsApiV1WorkspacesWorkspace_idProjectsProject_idKeywordGroupsGetParametersQueryFormatValues: ReadonlyArray<FlattenedDeepRequired<paths>["/api/v1/workspaces/{workspace_id}/projects/{project_id}/keyword-groups"]["get"]["parameters"]["query"]["format"]> = ["tree", "flat"];
@@ -27156,6 +27362,10 @@ export const opportunityDecisionsStatusValues: ReadonlyArray<FlattenedDeepRequir
 export const outlineCanonicalStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OutlineCanonical"]["state"]> = ["self", "elsewhere", "none"];
 export const outlineTextStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OutlineText"]["state"]> = ["ok", "short", "long", "missing"];
 export const overviewSitemapStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["OverviewSitemap"]["state"]> = ["read", "no_sitemap"];
+export const pageAiStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageAi"]["state"]> = ["ready", "no_prompts", "no_answers"];
+export const pageAiAlongsideDomain_roleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageAiAlongside"]["domain_role"]> = ["own", "competitor", "third_party"];
+export const pageAiPlatformEngine_codeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageAiPlatform"]["engine_code"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
+export const pageAiPromptPlatformEngine_codeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageAiPromptPlatform"]["engine_code"]> = ["chatgpt_web", "gemini_web", "google_ai_mode"];
 export const pageBreakdownMetaDimensionValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageBreakdownMeta"]["dimension"]> = ["query", "country", "device"];
 export const pageBreakdownMetaStateValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageBreakdownMeta"]["state"]> = ["ok", "pending", "not_connected", "reauth_required", "no_access"];
 export const pageChangeDepth_stateAnyOf0Values: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PageChange"]["depth_state"]> = ["lost", "found"];
