@@ -100,7 +100,7 @@ const CITED_PROMPT_SPECS: readonly PromptSpec[] = [
     counts: [
       [3, 2],
       [3, 1],
-      [2, 0],
+      [1, 0],
     ],
   },
   {
@@ -109,7 +109,7 @@ const CITED_PROMPT_SPECS: readonly PromptSpec[] = [
     counts: [
       [2, 1],
       [2, 1],
-      [2, 0],
+      [1, 0],
     ],
   },
   {

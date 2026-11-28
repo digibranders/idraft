@@ -11,6 +11,7 @@ import {
   pageAiOf,
 } from './internal-links-page-ai';
 import { crawledPage, EVENTUS } from './internal-links-world';
+import { mockId } from './mock-ids';
 import { SESSION_COOKIE } from './session';
 import type { PageAi } from '@/lib/internal-links/types';
 import { server } from '@/test/msw';
@@ -29,6 +30,12 @@ function assertInvariants(ai: PageAi, urlId: string): void {
     expect(prompt.platforms.reduce((sum, platform) => sum + platform.answers, 0)).toBe(prompt.answers);
     expect(prompt.platforms.reduce((sum, platform) => sum + platform.answers_citing, 0)).toBe(prompt.answers_citing);
   }
+  ai.platforms.forEach((platform, idx) => {
+    const promptAnswers = ai.prompts.reduce((sum, row) => sum + (row.platforms[idx]?.answers ?? 0), 0);
+    const promptCiting = ai.prompts.reduce((sum, row) => sum + (row.platforms[idx]?.answers_citing ?? 0), 0);
+    expect(promptAnswers).toBeLessThanOrEqual(platform.answers);
+    expect(promptCiting).toBeLessThanOrEqual(platform.answers_citing);
+  });
   expect(ai.alongside.every((row) => row.answers_shared <= ai.answers_citing)).toBe(true);
   expect(ai.alongside.some((row) => String(row.url_id) === urlId)).toBe(false);
 }
@@ -55,9 +62,11 @@ describe('pageAiOf (mocked page AI tab)', () => {
     expect(cited.previous_answers).not.toBeNull();
     expect(cited.previous_answers_citing).not.toBeNull();
 
-    const realTexts = new Set(EVENTUS_WORLD.definition.prompts.map((prompt) => prompt.text));
+    const expectedByText = new Map(
+      EVENTUS_WORLD.definition.prompts.map((prompt, index) => [prompt.text, mockId('prompt', 25 + index)]),
+    );
     expect(cited.prompts).toHaveLength(6);
-    expect(cited.prompts.every((prompt) => realTexts.has(prompt.text))).toBe(true);
+    expect(cited.prompts.every((prompt) => expectedByText.get(prompt.text) === prompt.prompt_id)).toBe(true);
 
     expect(cited.alongside).toHaveLength(5);
     const ownInCrawl = cited.alongside.filter((row) => row.domain_role === 'own' && row.in_crawl);
@@ -106,5 +115,11 @@ describe('pageAiOf (mocked page AI tab)', () => {
       headers: { cookie: COOKIE },
     });
     expect(missingRes.status).toBe(404);
+
+    const badIdRes = await fetch(`${BASE}/abc/ai`, { headers: { cookie: COOKIE } });
+    expect(badIdRes.status).toBe(422);
+
+    const badCompareRes = await fetch(`${BASE}/${AI_CITED_PAGE}/ai?compare=bogus`, { headers: { cookie: COOKIE } });
+    expect(badCompareRes.status).toBe(422);
   });
 });

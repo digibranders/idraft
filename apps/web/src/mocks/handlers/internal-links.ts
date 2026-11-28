@@ -1236,7 +1236,7 @@ export const internalLinkHandlers: HttpHandler[] = [
     if (caller instanceof Response) return caller;
     const id = String(params.url_id);
     if (!isUrlId(id)) return invalid(request, [urlIdError('path', 'url_id')]);
-    const url = new URL(request.url);
+    const url = caller.url;
     const run = readRun(request, url, caller.project.project_id);
     if (run instanceof Response) return run;
     if (crawledPage(id) === undefined) return problem(request, 'not_found');
