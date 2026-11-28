@@ -9896,16 +9896,17 @@
       "ai": {
         "none": "No AI answer cited this page in the last 28 days",
         "prompts": {
-          "title": "Prompts that cite this page",
-          "meta": "{prompts, plural, one {# prompt} other {# prompts}} · cited in {answers, plural, one {# answer} other {# answers}}",
-          "showingFirst": "Showing the {shown} most cited prompts of {total}.",
+          "title": "Prompts that cited this page",
+          "meta": "{count, number} of {total, number} {total, plural, one {prompt} other {prompts}}",
+          "metaCut": "Showing {shown, number} of {total, number} {total, plural, one {prompt} other {prompts}}",
+          "caption": "Prompts that cited this page",
           "columnPrompt": "Prompt",
           "columnPlatforms": "Platforms",
           "columnCited": "Cited",
-          "promptTip": "{text}. Open its answers",
-          "engineLine": "{engine}: {cited} of {answers, plural, one {# answer} other {# answers}}",
-          "citedTip": "Cited in {cited} of the prompt's {answers, plural, one {# answer} other {# answers}}",
-          "emptyTitle": "No prompt cited this page",
+          "rowTip": "{text}. Open its answers",
+          "platformTip": "{engine}: {cited, number} of {answers, number} {answers, plural, one {answer} other {answers}}",
+          "citedTip": "Cited in {cited, number} of {answers, number} {answers, plural, one {answer} other {answers}}",
+          "emptyTitle": "No prompt cited this page in this period",
           "emptyReason": "None of this page's tracked prompts cited it in this period."
         }
       },

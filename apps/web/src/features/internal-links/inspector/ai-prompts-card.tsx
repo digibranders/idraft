@@ -17,23 +17,29 @@ export interface AiPromptsCardProps {
   onOpenPrompt: (promptId: string, order?: readonly string[]) => void;
 }
 
-const HEADER_CLASS = 'py-1 type-table-header whitespace-nowrap text-foreground-tertiary';
+const HEADER_CLASS = 'py-1 type-table-header whitespace-nowrap';
 
-/** Prompts that cited the open page, with citing platform marks and answer counts. */
+/** Prompts that cited the open page, with citing platform marks and cited answer counts. */
 export function AiPromptsCard({ ai, onOpenPrompt }: AiPromptsCardProps): ReactElement {
   const t = useTranslations('pages.drawer.ai.prompts');
   const order = promptIdsOf(ai);
+  const meta =
+    ai.prompts.length === 0
+      ? undefined
+      : ai.prompts_total > ai.prompts.length
+        ? t('metaCut', { shown: ai.prompts.length, total: ai.prompts_total })
+        : t('meta', { count: ai.prompts.length, total: ai.prompts_total });
 
   return (
     <InspectorSection
       title={t('title')}
-      meta={ai.prompts.length === 0 ? undefined : t('meta', { prompts: ai.prompts_total, answers: ai.answers_citing })}
+      meta={meta}
       flush
       status={ai.prompts.length === 0 ? 'empty' : 'ready'}
       empty={<EmptyState variant="card" headingLevel={3} title={t('emptyTitle')} reason={t('emptyReason')} />}
     >
       <table className="w-full type-table">
-        <caption className="sr-only">{t('title')}</caption>
+        <caption className="sr-only">{t('caption')}</caption>
         <thead>
           <tr className="h-row-compact border-t border-border-subtle bg-surface-subtle">
             <th scope="col" className={`${HEADER_CLASS} w-full pr-2 pl-4 text-left`}>
@@ -42,7 +48,7 @@ export function AiPromptsCard({ ai, onOpenPrompt }: AiPromptsCardProps): ReactEl
             <th scope="col" className={`${HEADER_CLASS} px-2 text-left`}>
               {t('columnPlatforms')}
             </th>
-            <th scope="col" className={`${HEADER_CLASS} px-2 pr-4 text-right`}>
+            <th scope="col" className={`${HEADER_CLASS} pr-4 pl-2 text-right`}>
               {t('columnCited')}
             </th>
           </tr>
@@ -52,11 +58,11 @@ export function AiPromptsCard({ ai, onOpenPrompt }: AiPromptsCardProps): ReactEl
             const citing = citingPlatformsOf(prompt.platforms);
             return (
               <tr key={prompt.prompt_id} className="h-row-compact border-t border-border-subtle hover:bg-surface-hover">
-                <td className="max-w-0 pr-2 pl-4">
-                  <Tooltip content={t('promptTip', { text: prompt.text })}>
+                <td className="w-full max-w-0 pr-2 pl-4">
+                  <Tooltip content={t('rowTip', { text: prompt.text })}>
                     <button
                       type="button"
-                      className="block w-full min-w-0 truncate rounded-sm text-left text-foreground outline-none hover:underline focus-visible:focus-ring"
+                      className="block w-full min-w-0 truncate rounded-sm text-left text-foreground outline-none hover:underline focus-visible:focus-ring-inset"
                       onClick={() => onOpenPrompt(prompt.prompt_id, order)}
                     >
                       {prompt.text}
@@ -66,9 +72,10 @@ export function AiPromptsCard({ ai, onOpenPrompt }: AiPromptsCardProps): ReactEl
                 <td className="px-2 whitespace-nowrap">
                   <Tooltip
                     content={platformSummaryText(citing, (engine, cited, answers) =>
-                      t('engineLine', { engine, cited, answers }),
+                      t('platformTip', { engine, cited, answers }),
                     )}
                     purpose="label"
+                    disabled={citing.length === 0}
                   >
                     <span className="inline-flex items-center gap-1">
                       {citing.map((platform) => (
@@ -82,15 +89,12 @@ export function AiPromptsCard({ ai, onOpenPrompt }: AiPromptsCardProps): ReactEl
                     </span>
                   </Tooltip>
                 </td>
-                <td className="px-2 pr-4 text-right num whitespace-nowrap">
+                <td className="pr-4 pl-2 text-right num whitespace-nowrap">
                   <Tooltip
                     content={t('citedTip', { cited: prompt.answers_citing, answers: prompt.answers })}
                     purpose="label"
                   >
-                    <span>
-                      <span className="text-foreground">{formatInteger(prompt.answers_citing)}</span>
-                      <span className="text-foreground-tertiary">{`/${formatInteger(prompt.answers)}`}</span>
-                    </span>
+                    <span className="text-foreground">{formatInteger(prompt.answers_citing)}</span>
                   </Tooltip>
                 </td>
               </tr>
@@ -98,11 +102,6 @@ export function AiPromptsCard({ ai, onOpenPrompt }: AiPromptsCardProps): ReactEl
           })}
         </tbody>
       </table>
-      {ai.prompts_total > ai.prompts.length ? (
-        <p className="border-t border-border-subtle px-4 py-2 type-meta text-foreground-tertiary">
-          {t('showingFirst', { shown: ai.prompts.length, total: ai.prompts_total })}
-        </p>
-      ) : null}
     </InspectorSection>
   );
 }
