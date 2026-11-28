@@ -9908,6 +9908,30 @@
           "citedTip": "Cited in {cited, number} of {answers, number} {answers, plural, one {answer} other {answers}}",
           "emptyTitle": "No prompt cited this page in this period",
           "emptyReason": "None of this page's tracked prompts cited it in this period."
+        },
+        "trend": {
+          "title": "Citations over time",
+          "series": "Answers that cited this page",
+          "day": "Day",
+          "summary": "Cited in {cited, number} of {answers, number} {answers, plural, one {answer} other {answers}}, {start} to {end}",
+          "cellText": "{cited, number} of {answers, number} {answers, plural, one {answer} other {answers}}",
+          "noAnswers": "No answers",
+          "line": "Cited in {count, number} {count, plural, one {answer} other {answers}}",
+          "change": "{direction, select, up {up {delta}} down {down {delta}} other {no change}} against the {days, number} {days, plural, one {day} other {days}} before ({previous})",
+          "notCited": "Not cited in this period"
+        },
+        "alongside": {
+          "title": "Cited with this page",
+          "meta": "Other addresses cited in the same answers",
+          "caption": "Other addresses cited in the same answers",
+          "columnAddress": "Address",
+          "columnAnswers": "Answers",
+          "answersTip": "Cited with this page in {shared, number} of {answers, number} {answers, plural, one {answer} other {answers}}",
+          "competitor": "Competitor",
+          "openPage": "{address}. Open page drawer",
+          "showing": "Showing {shown, number} of {total, number} {total, plural, one {address} other {addresses}}",
+          "emptyTitle": "No other address was cited in the same answers",
+          "emptyReason": "No other page appeared in the answers that cited this page."
         }
       },
       "outline": {
