@@ -8,6 +8,8 @@ import { expectNoPixelWidth } from '@/test/drawer-width-scan';
 import { restoreWideScreen, stubWideScreen } from '@/test/rankings-harness';
 import { renderWithProviders } from '@/test/render';
 
+vi.mock('@/components/app/chart/echart', () => ({ EChart: () => <div data-testid="echart-canvas" /> }));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/digibranders/eventus-security/seo/pages/all',
@@ -43,5 +45,18 @@ describe.each([480, 640, 960])('The page drawer at %i px', (width) => {
     const footer = within(card).getByRole('link', { name: 'Open in journey' }).parentElement?.parentElement;
     expect(footer).not.toBeNull();
     expect(footer).not.toHaveClass('flex-wrap');
+  });
+
+  it('holds no pixel width on the AI tab', async () => {
+    writeInspectorWidth(USER, width);
+    renderWithProviders(
+      <InspectorWidthUserContext value={USER}>{pagesAs('editor', 'all', EVENTUS_LINKS)}</InspectorWidthUserContext>,
+      { searchParams: 'inspect=page:108&itab=ai' },
+    );
+    const card = await screen.findByRole('complementary', { name: '/pricing' });
+    expect(card.style.width).toBe(`${String(width)}px`);
+    await waitFor(() => expect(card.querySelector('[aria-busy="true"]')).toBeNull());
+    await within(card).findByRole('heading', { name: 'Prompts that cited this page' });
+    expectNoPixelWidth(card);
   });
 });

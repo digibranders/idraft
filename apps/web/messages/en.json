@@ -9932,6 +9932,19 @@
           "showing": "Showing {shown, number} of {total, number} {total, plural, one {address} other {addresses}}",
           "emptyTitle": "No other address was cited in the same answers",
           "emptyReason": "No other page appeared in the answers that cited this page."
+        },
+        "basis": {
+          "period": "{start} to {end}, project days",
+          "compared": "against {start} to {end}",
+          "note": "These cards count answers of the prompts you track now (not paused or archived) on ChatGPT, Gemini and Google AI Mode. The number above counts every answer of the last 28 days, including Google AI Overview and paused or archived prompts, so it can be higher."
+        },
+        "state": {
+          "noPromptsTitle": "No prompts are tracked yet",
+          "noPromptsReason": "Add prompts and run them to see which of your pages the answers cite.",
+          "noAnswersTitle": "No answers in this period",
+          "noAnswersReason": "Your prompts have not been answered in the last 28 days.",
+          "loadFailed": "The AI citations of this page could not be loaded",
+          "loadFailedReason": "Try again in a moment."
         }
       },
       "outline": {
@@ -10539,7 +10552,7 @@
       "citationsSub": "Answers that cited this page, last 28 days (today’s numbers)",
       "chatgpt": "ChatGPT",
       "gemini": "Gemini",
-      "aiMode": "AI Mode",
+      "aiMode": "Google AI Mode",
       "cited": "{count, plural, one {Cited in # answer} other {Cited in # answers}}",
       "anchors": "Anchor text pointing here",
       "anchorsCaption": "Top anchor texts of the editorial links to this page",
@@ -10679,9 +10692,9 @@
       "rank": "Average rank today",
       "rankTip": "Average rank of the tracked keywords that rank, from idraft rank tracking. Today’s numbers, whichever crawl is in view.",
       "citations": "AI citations today",
-      "citationsTip": "Answers from ChatGPT, Gemini and AI Mode that cited this page, last 28 days. Today’s numbers, whichever crawl is in view.",
+      "citationsTip": "Answers from ChatGPT, Gemini and Google AI Mode that cited this page, last 28 days. Today’s numbers, whichever crawl is in view.",
       "olderCrawlNote": "This crawl is from {date}. This column shows today’s numbers, not the numbers of that day.",
-      "citationsBreakdown": "ChatGPT {chatgpt}, Gemini {gemini}, AI Mode {aiMode}, last 28 days, today’s numbers",
+      "citationsBreakdown": "ChatGPT {chatgpt}, Gemini {gemini}, Google AI Mode {aiMode}, last 28 days, today’s numbers",
       "anchors": "Anchors",
       "anchorsTip": "Distinct anchor texts of the editorial links in, and how many of them are generic",
       "anchorsValue": "{count, plural, one {# anchor} other {# anchors}}, {share} generic",

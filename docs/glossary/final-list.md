@@ -90,6 +90,7 @@ Rules: sentence case; capitals only for product names and for SEO and AI. A bann
 | Branded, Non-branded | Brand prompt, Unbranded, Generic |
 | Intent (Informational, Navigational, Commercial, Transactional, Local); Funnel stage | Search intent in labels, Stage alone |
 | Retrieved, not cited (ChatGPT only, when it ships) | Found in, Source |
+| Cited with this page (Page drawer, AI tab) | Co-cited, Also cited, Related pages, Source |
 
 ## Measures
 

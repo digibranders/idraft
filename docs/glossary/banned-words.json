@@ -18,6 +18,7 @@
     { "id": "trigger", "pattern": "\\btriggers?\\b", "flags": "i", "use": "Started by" },
     { "id": "panel", "pattern": "\\bpanels?\\b", "flags": "i", "use": "Schedule (\"Knowledge panel\" is a Google feature name)" },
     { "id": "ai-overview-bare", "pattern": "(?<!Google )\\bAI Overview", "flags": "", "use": "Google AI Overview" },
+    { "id": "ai-mode-bare", "pattern": "(?<!Google )\\bAI Mode", "flags": "", "use": "Google AI Mode" },
     { "id": "ai-visibility-capital", "pattern": "AI Visibility", "flags": "", "use": "AI visibility, AI visibility rate" },
     { "id": "interim", "pattern": "\\binterim\\b", "flags": "i", "use": "Provisional" },
     { "id": "observation", "pattern": "\\bobservations?\\b", "flags": "i", "use": "answer or check" },

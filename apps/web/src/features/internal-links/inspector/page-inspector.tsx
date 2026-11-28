@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactElement } from 'react';
 
+import { DrawerAiTab } from './drawer-ai-tab';
 import { DrawerLinksTab } from './drawer-links-tab';
 import { DrawerNotesTab } from './drawer-notes-tab';
 import { DrawerIssuesTab } from './drawer-issues-tab';
@@ -295,16 +296,14 @@ export function PageInspector({
       issues: (
         <DrawerIssuesTab issues={issues} detail={detail} linkScope={linkScope} issueHref={context.hrefs.issueCheck} />
       ),
-      ai:
-        detail === null ? (
-          loadingSection(extrasWords('citations'), Sparkles)
-        ) : detail.extras.citations.total === 0 ? (
-          <InspectorSection title={extrasWords('citations')} icon={Sparkles} status="ready">
-            <p className="type-body text-foreground-tertiary">{drawer('ai.none')}</p>
-          </InspectorSection>
-        ) : (
-          extras(['citations'], extrasWords('citations'), Sparkles)
-        ),
+      ai: (
+        <DrawerAiTab
+          context={context}
+          urlId={urlId}
+          detail={detail}
+          citations={extras(['citations'], extrasWords('citations'), Sparkles)}
+        />
+      ),
       links: (
         <DrawerLinksTab
           context={context}

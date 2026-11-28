@@ -133,7 +133,7 @@ describe('AI citations', () => {
     const section = card('AI citations');
     expect(section).toHaveTextContent(/ChatGPT\s*5/);
     expect(section).toHaveTextContent(/Gemini\s*3/);
-    expect(section).toHaveTextContent(/AI Mode\s*2/);
+    expect(section).toHaveTextContent(/Google AI Mode\s*2/);
     expect(section).toHaveTextContent('Cited in 10 answers');
     expect(section).toHaveTextContent('today');
   });

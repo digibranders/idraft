@@ -224,7 +224,7 @@ describe('the rank, citation, anchor and Google columns', () => {
       withExtras({ citations: { chatgpt: 14, gemini: 9, ai_mode: 6, total: 29, citations_as_of: '2026-11-18' } }),
     );
     expect(cell.text).toBe('29');
-    expect(cell.tip).toContain('ChatGPT 14, Gemini 9, AI Mode 6, last 28 days');
+    expect(cell.tip).toContain('ChatGPT 14, Gemini 9, Google AI Mode 6, last 28 days');
   });
 
   it('shows anchors, whether one matches a keyword, and Not stored for a crawl without its links', () => {
