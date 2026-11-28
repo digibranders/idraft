@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { ReactElement } from 'react';
 
 import { DomainChip } from '@/components/app/cells/domain-chip';
+import { visibleUrlText } from '@/components/app/cells/visible-text';
 import { InspectorSection } from '@/components/app/inspector/inspector-section';
 import { EmptyState } from '@/components/app/status/empty-state';
 import { Badge } from '@/components/ui/badge';
@@ -55,31 +56,39 @@ export function AiAlongsideCard({ ai, onOpenPage }: AiAlongsideCardProps): React
           {rows.map((row) => {
             const kind = alongsideKind(row);
             const parsed = displayUrl(row.url);
-            const domain = row.host === '' ? parsed.host : displayDomain(row.host);
+            const displayAddress = visibleUrlText(parsed.display);
+            const pageAddress = visibleUrlText(row.path !== '' ? row.path : parsed.display);
+            const domain =
+              row.registrable_domain !== ''
+                ? displayDomain(row.registrable_domain)
+                : row.host !== ''
+                  ? displayDomain(row.host)
+                  : parsed.host;
+            const answersTip = t('answersTip', { shared: row.answers_shared, answers: ai.answers_citing });
             return (
               <tr key={row.url_id} className="min-h-row-compact border-t border-border-subtle hover:bg-surface-hover">
-                <td className="w-full max-w-0 py-2 pr-2 pl-4">
+                <td className="w-full max-w-0 py-1 pr-2 pl-4">
                   {kind === 'page' ? (
                     <button
                       type="button"
-                      aria-label={t('openPage', { address: row.path ?? parsed.display })}
-                      className="flex w-full min-w-0 flex-col items-start rounded-sm text-left outline-none hover:underline focus-visible:focus-ring-inset"
+                      aria-label={t('openPage', { address: pageAddress })}
+                      className="flex min-h-6 w-full min-w-0 flex-col items-start justify-center rounded-sm py-1 text-left outline-none hover:underline focus-visible:focus-ring-inset"
                       onClick={() => onOpenPage(String(row.url_id))}
                     >
-                      <span className="max-w-full truncate type-table text-foreground">
-                        {row.path ?? parsed.display}
-                      </span>
+                      <span className="max-w-full truncate type-table text-foreground">{pageAddress}</span>
                       {row.title === null ? null : (
-                        <span className="max-w-full truncate type-meta text-foreground-secondary">{row.title}</span>
+                        <span className="max-w-full truncate type-meta text-foreground-secondary">
+                          {visibleUrlText(row.title)}
+                        </span>
                       )}
                     </button>
                   ) : (
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <span className="min-w-0 truncate type-table text-foreground">{parsed.display}</span>
+                    <div className="flex min-w-0 flex-col gap-1 py-1">
+                      <span className="min-w-0 truncate type-table text-foreground">{displayAddress}</span>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <DomainChip domain={domain} />
                         {kind === 'competitor' ? (
-                          <Badge variant="subtle" tone="warning">
+                          <Badge variant="subtle" tone="neutral">
                             {t('competitor')}
                           </Badge>
                         ) : null}
@@ -88,12 +97,10 @@ export function AiAlongsideCard({ ai, onOpenPage }: AiAlongsideCardProps): React
                   )}
                 </td>
                 <td className="py-2 pr-4 pl-2 text-right align-top num whitespace-nowrap">
-                  <Tooltip
-                    content={t('answersTip', { shared: row.answers_shared, answers: ai.answers_citing })}
-                    purpose="label"
-                  >
+                  <Tooltip content={answersTip} purpose="label">
                     <span className="text-foreground">{formatInteger(row.answers_shared)}</span>
                   </Tooltip>
+                  <span className="sr-only">{` (${answersTip})`}</span>
                 </td>
               </tr>
             );

@@ -10,8 +10,19 @@ import { renderWithProviders } from '@/test/render';
 const tooltip = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-slot="tooltip"]');
 
 describe('AiAlongsideCard', () => {
-  it('renders own crawl pages as buttons, own outside/third-party with DomainChip, and competitors with Competitor badge', async () => {
-    const ai = pageAiOf(AI_CITED_PAGE);
+  it('renders own crawl pages as buttons, external addresses with registrable DomainChip, and competitors neutrally', async () => {
+    const base = pageAiOf(AI_CITED_PAGE);
+    const competitor = base.alongside[1];
+    if (competitor === undefined) throw new Error('Expected competitor row');
+    const ai = {
+      ...base,
+      alongside: [
+        base.alongside[0],
+        { ...competitor, host: 'docs.sentinelgate-cyber.com', registrable_domain: 'sentinelgate-cyber.com' },
+        ...base.alongside.slice(2),
+      ].filter((row): row is NonNullable<typeof row> => row !== undefined),
+    };
+
     const onOpenPage = vi.fn();
     const { container, user } = renderWithProviders(<AiAlongsideCard ai={ai} onOpenPage={onOpenPage} />);
 
@@ -31,9 +42,10 @@ describe('AiAlongsideCard', () => {
     const ownInCrawl = ai.alongside[0];
     if (ownInCrawl === undefined) throw new Error('Expected own in-crawl row');
     const button = within(rows[0] as HTMLElement).getByRole('button', {
-      name: `${ownInCrawl.path ?? ''}. Open page drawer`,
+      name: `${ownInCrawl.path}. Open page drawer`,
     });
-    expect(button).toHaveTextContent(ownInCrawl.path ?? '');
+    expect(button).toHaveClass('min-h-6');
+    expect(button).toHaveTextContent(ownInCrawl.path);
     if (ownInCrawl.title) expect(button).toHaveTextContent(ownInCrawl.title);
 
     await user.click(button);
@@ -45,7 +57,9 @@ describe('AiAlongsideCard', () => {
     const competitorRow = rows[1] as HTMLElement;
     expect(within(competitorRow).queryByRole('button')).toBeNull();
     expect(within(competitorRow).getByText('sentinelgate-cyber.com/managed-soc')).toBeInTheDocument();
+    // Uses registrable_domain rather than host subdomain for the chip
     expect(within(competitorRow).getByText('sentinelgate-cyber.com')).toBeInTheDocument();
+    expect(within(competitorRow).queryByText('docs.sentinelgate-cyber.com')).toBeNull();
     expect(within(competitorRow).getByText('Competitor')).toBeInTheDocument();
 
     const ownOutsideRow = rows[3] as HTMLElement;
@@ -62,7 +76,7 @@ describe('AiAlongsideCard', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('shows the shared answer tooltip and renders untrusted addresses strictly as text', async () => {
+  it('shows the shared answer tooltip and sr-only context, and renders untrusted addresses strictly as text', async () => {
     const base = pageAiOf(AI_CITED_PAGE);
     const injected = {
       ...base,
@@ -91,7 +105,9 @@ describe('AiAlongsideCard', () => {
 
     const table = screen.getByRole('table', { name: 'Other addresses cited in the same answers' });
     const row = within(table).getAllByRole('row')[1] as HTMLElement;
-    const answersSpan = within(row).getAllByRole('cell')[1]?.querySelector('span');
+    const answersCell = within(row).getAllByRole('cell')[1];
+    expect(answersCell).toHaveTextContent('3 (Cited with this page in 3 of 5 answers)');
+    const answersSpan = answersCell?.querySelector('span');
     if (answersSpan === null || answersSpan === undefined) throw new Error('Expected answers span');
     await user.hover(answersSpan);
     await waitFor(() => expect(tooltip()).toHaveTextContent('Cited with this page in 3 of 5 answers'));
